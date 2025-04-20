@@ -1,0 +1,303 @@
+/*
+ * nd100x - ND100 Virtual Machine
+ *
+ * Copyright (c) 2025 Ronny Hansen
+ *
+ * This file is originated from the nd100x project and the RetroCore project
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (in the main directory of the nd100em
+ * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "devices_types.h"
+#include "devices_protos.h"
+
+#define INITIAL_IO_DELAY_CAPACITY 16
+
+// Odd parity lookup table
+const uint8_t Device_OddParityTable[PARITY_TABLE_SIZE] = {
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1,
+    0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0};
+
+// Helper function to get odd parity for a value
+uint8_t Device_GetOddParity(uint8_t value)
+{
+    return Device_OddParityTable[value];
+}
+
+void Device_Init(Device *dev, uint8_t thumbwheel)
+{
+    if (!dev)
+        return;
+
+    memset(dev, 0, sizeof(Device));
+    dev->startAddress = 0;
+    dev->endAddress = 0;
+    dev->interruptBits = 0;
+    dev->interruptLevel = 0;
+    dev->identCode = 0;
+
+    // Initialize IO delay array
+    dev->ioDelays = malloc(sizeof(DelayedIoInfo) * INITIAL_IO_DELAY_CAPACITY);
+    if (dev->ioDelays)
+    {
+        dev->ioDelayCapacity = INITIAL_IO_DELAY_CAPACITY;
+        dev->ioDelayCount = 0;
+    }
+}
+
+void Device_Destroy(Device *dev)
+{
+    if (!dev)
+        return;
+
+    if (dev->ioDelays)
+    {
+        free(dev->ioDelays);
+    }
+
+    if (dev->deviceData)
+    {
+        free(dev->deviceData);
+    }
+}
+
+void Device_Reset(Device *dev)
+{
+    if (!dev || !dev->Reset)
+        return;
+    dev->Reset(dev);
+}
+
+uint16_t Device_Tick(Device *dev)
+{
+    if (!dev || !dev->Tick)
+        return 0;
+    return dev->Tick(dev);
+}
+
+// Loads boot code from disk to memory. Returns the boot address, or -1 if error
+int32_t Device_Boot(Device *dev, uint16_t device_id)
+{
+    if (!dev)
+        return -1;
+    if (dev->Boot == NULL)
+        return -1; // No boot function defined
+
+    return dev->Boot(dev, device_id);
+}
+
+bool Device_IsInAddress(Device *dev, uint32_t address)
+{
+    if (!dev)
+        return false;
+    return (address >= dev->startAddress && address <= dev->endAddress);
+}
+
+uint32_t Device_RegisterAddress(Device *dev, uint32_t address)
+{
+    if (!dev)
+        return 0;
+    return address - dev->startAddress;
+}
+
+uint16_t Device_Read(Device *dev, uint32_t address)
+{
+    if (!dev || !dev->Read)
+        return 0;
+    return dev->Read(dev, address);
+}
+
+void Device_Write(Device *dev, uint32_t address, uint16_t value)
+{
+    if (!dev || !dev->Write)
+        return;
+    dev->Write(dev, address, value);
+}
+
+uint16_t Device_Ident(Device *dev, uint16_t level)
+{
+    if (!dev || !dev->Ident)
+        return 0;
+    return dev->Ident(dev, level);
+}
+
+void Device_QueueIODelay(Device *dev, uint16_t ticks, IODelayedCallback cb, int param, uint8_t irqlevel)
+{
+    if (!dev || !dev->ioDelays)
+        return;
+   
+    // Resize array if needed
+    if (dev->ioDelayCount >= dev->ioDelayCapacity)
+    {
+        int newCapacity = dev->ioDelayCapacity * 2;
+        DelayedIoInfo *newDelays = realloc(dev->ioDelays, sizeof(DelayedIoInfo) * newCapacity);
+        if (!newDelays)
+            return;
+
+        dev->ioDelays = newDelays;
+        dev->ioDelayCapacity = newCapacity;
+    }
+
+    // Add new delay
+    DelayedIoInfo *delay = &dev->ioDelays[dev->ioDelayCount++];
+    delay->delayTicks = ticks;
+    delay->callback = cb;
+    delay->context = dev;
+    delay->parameter = param;
+    delay->level = irqlevel;
+}
+
+void Device_TickIODelay(Device *dev)
+{
+    if (!dev || !dev->ioDelays)
+        return;
+
+    for (int i = 0; i < dev->ioDelayCount; i++)
+    {
+        DelayedIoInfo *delay = &dev->ioDelays[i];
+        delay->delayTicks--;
+
+        if (delay->delayTicks <= 0)
+        {
+            bool triggered = delay->callback(delay->context, delay->parameter);            
+            if (triggered && delay->level > 0)
+            {
+                Device_GenerateInterrupt(dev, delay->level);
+            }
+            // Remove this delay by shifting remaining ones
+            memmove(&dev->ioDelays[i], &dev->ioDelays[i + 1], (dev->ioDelayCount - i - 1) * sizeof(DelayedIoInfo));
+            dev->ioDelayCount--;
+            i--; // Recheck this position
+        }
+    }
+}
+
+void Device_ClearInterrupt(Device *dev, uint16_t level)
+{
+    if (!dev)
+        return;
+
+    if ((level >= 10) && (level <= 13))
+    {
+        if ((dev->interruptBits & (1 << level)) != 0)
+        {
+            // printf("Clearing interrupt at level %d\r\n", level);
+            dev->interruptBits &= ~(1 << level);
+        }
+    }
+}
+
+void Device_GenerateInterrupt(Device *dev, uint16_t level)
+{
+    if (!dev)
+        return;
+
+    if ((level >= 10) && (level <= 13))
+    {
+        if ((dev->interruptBits & (1 << level)) == 0)
+        {
+            // printf("Generating interrupt at level %d\r\n", level);
+            dev->interruptBits |= (1 << level);
+        }
+    }
+}
+
+void Device_SetInterruptStatus(Device *dev, bool active, uint16_t level)
+{
+    if (!dev)
+        return;
+
+    if (active)
+    {
+        Device_GenerateInterrupt(dev, level);
+    }
+    else
+    {
+        Device_ClearInterrupt(dev, level);
+    }
+}
+
+int32_t Device_IO_Seek(Device *dev, FILE *f, long  offset)
+{
+    if (!f) return -1;
+    return fseek(f, offset, SEEK_SET);
+}
+
+
+int32_t Device_IO_ReadWord(Device *dev, FILE *f)
+{
+    if (!f)
+        return -1;
+
+    int16_t hi = getc(f);
+    if (hi < 0)
+        return -1;
+    hi = hi & 0xFF;
+
+    int16_t lo = getc(f);
+    if (lo < 0)
+        return -1;
+    lo = lo & 0xFF;
+
+    return (hi << 8) | lo;
+}
+
+int32_t Device_IO_WriteWord(Device *dev, FILE *f, uint16_t data)
+{
+    if (!f)
+        return -1;
+
+    uint8_t hi = (data >> 8) & 0xFF;
+    uint8_t lo = data & 0xFF;
+
+    if (putc(hi, f) == EOF || putc(lo, f) == EOF) {
+        if (ferror(f)) {
+            perror("Write failed.");
+        }
+        return -1;
+    }
+
+    return 0;
+}
+
+
+
+
+uint32_t Device_DMAWrite(uint32_t coreAddress, uint16_t data) {    
+    WritePhysicalMemory(coreAddress, data, false);    
+}
+
+int32_t Device_DMARead(uint32_t coreAddress) {
+    return ReadPhysicalMemory(coreAddress, false);
+}

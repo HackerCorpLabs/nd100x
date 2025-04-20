@@ -1,0 +1,247 @@
+/* AUTO-GENERATED FILE. DO NOT EDIT! */
+/* Prototypes from cpu_regs.c */
+
+/* cpu_regs.c */
+bool setPIL(char newLevel);
+void setPEA(ushort pea);
+void setPES(ushort pes);
+void setPGS(ushort pgs);
+void setreg(int r, int val);
+ushort getbit(ushort regnum, ushort stsbit);
+void clrbit(ushort regnum, ushort stsbit);
+void setbit_STS_MSB(ushort stsbit, char val);
+void setbit(ushort regnum, ushort stsbit, char val);
+void AdjustSTS(ushort reg_a, ushort operand, int result);
+
+/* Prototypes from cpu_mms.c */
+
+/* cpu_mms.c */
+bool CreatePagingTables(void);
+void DestroyPagingTables(void);
+ushort GetPTShadowAddress(uint pageTable, uint VPN, PageTableMode ptm);
+void PT_Write(uint address, ushort value);
+ushort PT_Read(uint address);
+uint GetPageTableEntry(uint pageTable, uint VPN, PageTableMode ptm);
+bool UpdatePageTableEntry(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+uint SetPageUsed(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+uint SetPageWritten(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+char *GetPageTableEntryDebugInfo(ulong PTe);
+int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT);
+void UpdatePGS(uint pageTable, uint VPN, AccessMode am, bool permitViolation);
+bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool UseAPT, AccessMode am, uint virtualAddress);
+bool IsAddressShadowMemory(uint addr, bool privileged);
+int ReadVirtualMemory(uint virtualAddress, bool UseAPT);
+int ReadIndirectVirtualMemory(uint virtualAddress, bool UseAPT);
+int FetchVirtualMemory(uint virtualAddress, bool UseAPT);
+void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMode wm);
+int ReadPhysicalMemory(int physicalAddress, bool privileged);
+void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged);
+void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged, WriteMode wm);
+void HandleMemoryOutOfRange(uint physicalAddress);
+void HandleMPV(uint virtualAddress);
+void HandlePF(uint virtualAddress);
+
+/* Prototypes from cpu.c */
+
+/* cpu.c */
+void do_op(ushort operand, bool isEXR);
+ushort New_GetEffectiveAddr(ushort instr, bool *use_apt);
+ushort calcIIC(void);
+void recalcInternalInterruptBits(void);
+void calcPK(void);
+void interrupt(ushort lvl, ushort sub);
+void device_interrupt(ushort interruptBits);
+void PhysMemWrite(ushort value, ulong addr);
+ushort PhysMemRead(ulong addr);
+void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_select);
+ushort MemoryRead(ushort addr, bool UseAPT);
+ushort MemoryFetch(ushort addr, bool UseAPT);
+bool checkAndSwitch(void);
+void private_cpu_tick(void);
+void cpu_run(int ticks);
+void cpu_init(void);
+void cleanup_cpu(void);
+
+/* Prototypes from float.c */
+
+/* float.c */
+long double pow2l(int i);
+int MUL32(unsigned long int *a, unsigned long int *b, unsigned long int *r);
+int old_NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int old_NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Add(ushort *p_a, ushort *p_b, ushort *p_r);
+void old_DoNLZ(char scaling);
+void old_DoDNZ(char scaling);
+unsigned int ld_to_ndmant(long double mant);
+void ndmant_to_ld(unsigned int ndmant, long double *val);
+int NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
+void DoNLZ(char scaling);
+void DoDNZ(char scaling);
+
+/* Prototypes from cpu_instr.c */
+
+/* cpu_instr.c */
+bool CheckPriv(void);
+short signExtend(ushort x);
+ushort do_add(ushort a, ushort b, ushort k);
+unsigned int calcEL(uint8_t displacement);
+unsigned int ReadEL(unsigned el);
+void WriteEL(uint el, ushort value);
+void illegal_instr(ushort operand);
+void unimplemented_instr(ushort operand);
+void ndfunc_aaa(ushort operand);
+void ndfunc_aab(ushort operand);
+void ndfunc_aat(ushort operand);
+void ndfunc_aax(ushort operand);
+void ndfunc_mon(ushort operand);
+void ndfunc_saa(ushort operand);
+void ndfunc_sab(ushort operand);
+void ndfunc_sat(ushort operand);
+void ndfunc_sax(ushort operand);
+void ndfunc_shifts(ushort operand);
+void ndfunc_nlz(ushort operand);
+void ndfunc_dnz(ushort operand);
+void ndfunc_srb(ushort operand);
+void ndfunc_lrb(ushort operand);
+void CJP(bool jmp_flag, ushort operand);
+void ndfunc_jap(ushort operand);
+void ndfunc_jan(ushort operand);
+void ndfunc_jaz(ushort operand);
+void ndfunc_jaf(ushort operand);
+void ndfunc_jpc(ushort operand);
+void ndfunc_jnc(ushort operand);
+void ndfunc_jxn(ushort operand);
+void ndfunc_jxz(ushort operand);
+void ndfunc_jpl(ushort operand);
+void ndfunc_skp(ushort operand);
+void ndfunc_bfill_new(ushort operand);
+void ndfunc_bfill(ushort operand);
+void ndfunc_stz(ushort operand);
+void ndfunc_sta(ushort operand);
+void ndfunc_stt(ushort operand);
+void ndfunc_stx(ushort operand);
+void ndfunc_std(ushort operand);
+void ndfunc_stf(ushort operand);
+void ndfunc_lda(ushort operand);
+void ndfunc_ldt(ushort operand);
+void ndfunc_ldx(ushort operand);
+void ndfunc_ldd(ushort operand);
+void ndfunc_ldf(ushort operand);
+void ndfunc_stztx(ushort operand);
+void ndfunc_statx(ushort operand);
+void ndfunc_stdtx(ushort operand);
+void ndfunc_ldatx(ushort operand);
+void ndfunc_ldxtx(ushort operand);
+void ndfunc_lddtx(ushort operand);
+void ndfunc_ldbtx(ushort operand);
+void ndfunc_min(ushort operand);
+void ndfunc_add(ushort operand);
+void ndfunc_sub(ushort operand);
+void ndfunc_and(ushort operand);
+void ndfunc_ora(ushort operand);
+void ndfunc_fad(ushort operand);
+void ndfunc_fsb(ushort operand);
+void ndfunc_fmu(ushort operand);
+void ndfunc_fdv(ushort operand);
+void ndfunc_jmp(ushort operand);
+void ndfunc_geco(ushort operand);
+void ndfunc_versn(ushort operand);
+bool UpdateMemoryIO(void);
+void ndfunc_iot(ushort operand);
+void ndfunc_iox(ushort operand);
+void ndfunc_ioxt(ushort operand);
+void ndfunc_ident(ushort operand);
+void ndfunc_opcom(ushort operand);
+void ndfunc_irw(ushort operand);
+void ndfunc_irr(ushort operand);
+void ndfunc_exam(ushort operand);
+void ndfunc_depo(ushort operand);
+void ndfunc_pof(ushort operand);
+void ndfunc_piof(ushort operand);
+void ndfunc_pon(ushort operand);
+void ndfunc_pion(ushort operand);
+void ndfunc_iof(ushort operand);
+void ndfunc_ion(ushort operand);
+void ndfunc_rex(ushort operand);
+void ndfunc_sex(ushort operand);
+void ndfunc_setpt(ushort operand);
+void ndfunc_clept(ushort operand);
+void ndfunc_clnreent(ushort operand);
+void ndfunc_chreent_pages(ushort operand);
+void ndfunc_clepu(ushort operand);
+void ndfunc_init(ushort operand);
+void ndfunc_entr(ushort operand);
+void ndfunc_leave(ushort operand);
+void ndfunc_eleav(ushort operand);
+void ndfunc_lbyt(ushort operand);
+void ndfunc_sbyt(ushort operand);
+void ndfunc_mix3(ushort operand);
+void regop(ushort operand);
+void DoMCL(ushort instr);
+void DoMST(ushort instr);
+void DoTRA(ushort instr);
+void DoEXR(ushort instr);
+void DoWAIT(ushort instr);
+void ndfunc_lwcs(ushort instr);
+void DoTRR(ushort instr);
+void DoSRB(ushort operand);
+void DoLRB(ushort operand);
+bool IsSkip(ushort instr);
+void do_bops(ushort operand);
+ushort ShiftReg(ushort reg, ushort instr);
+ulong ShiftDoubleReg(ulong reg, ushort instr);
+void DoIDENT(ushort priolevel);
+void DoRDUS(ushort instr);
+void DoTSET(ushort instr);
+void DoMOVEW(ushort instr);
+void DoMOVB(ushort instr);
+void DoMOVBF(ushort instr);
+void add_A_mem(ushort eff_addr, bool UseAPT);
+void doMoveBytes(bool checkOverlapping);
+void ndfunc_movb(ushort instr);
+void ndfunc_movbf(ushort instr);
+void sub_A_mem(ushort eff_addr, bool UseAPT);
+void rdiv_org(ushort instr);
+void rdiv(ushort instr);
+void rmpy_org(ushort instr);
+void rmpy(ushort instr);
+void mpy(ushort operand);
+void GetBCD(ushort address);
+void StoreBCD(ushort address);
+void ndfunc_addd(ushort instr);
+void ndfunc_subd(ushort instr);
+void ndfunc_comd(ushort instr);
+void ndfunc_pack(ushort instr);
+void ndfunc_unpack(ushort instr);
+void ndfunc_shde(ushort instr);
+void Instruction_Add(int opcode, void *funcpointer);
+void Instruction_Add_Range(int start, int stop, void *funcpointer);
+void Instruction_Add_Mask(int opcode, int mask, void *funcpointer);
+void Setup_Instructions(void);
+
+/* Prototypes from cpu_mopc.c */
+
+/* cpu_mopc.c */
+int aoct2int(char *str);
+void mopc_cmd(char *cmdstr, char cmdc);
+void mopc_thread(void);
+
+/* Prototypes from cpu_disasm.c */
+
+/* cpu_disasm.c */
+void OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
+void disasm_allocate(ushort addr);
+void disasm_instr(ushort addr, ushort instr);
+void disasm_exr(ushort addr, ushort instr);
+void disasm_addword(ushort addr, ushort myword);
+void disasm_init(void);
+void disasm_setlbl(ushort addr);
+void disasm_set_isdata(ushort addr);
+void disasm_userel(ushort addr, ushort where);
+void disasm_dump(void);
+ushort extract_opcode(ushort instr);
+ushort decode_140k(ushort instr);
+ushort decode_150k(ushort instr);
+
