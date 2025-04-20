@@ -1,0 +1,150 @@
+/*
+ * nd100x - ND100 Virtual Machine
+ *
+ * Copyright (c) 2025 Ronny Hansen
+ *
+ * This file is originated from the nd100x project and the RetroCore project
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program (in the main directory of the nd100em
+ * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+#ifndef DEVICES_TYPES_H
+#define DEVICES_TYPES_H
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+
+#include "../ndlib/ndlib_types.h" // for LogLevel def
+
+// External function declaration
+
+void interrupt(ushort lvl, ushort sub); // cpu.c
+
+// Physical memory functions in cpu_mms.c
+extern int ReadPhysicalMemory(int physicalAddress, bool privileged);
+extern void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged);
+
+// ** Device **
+
+#define MAX_DEVICES 16
+#define MAX_DEVICE_NAME 64
+
+// IO Delay definitions
+#define IODELAY_TERMINAL 100
+#define IODELAY_FLOPPY 300
+#define IODELAY_HDD 10
+#define IODELAY_HDD_SMD 10
+#define IODELAY_SLOW 10
+#define IODELAY_SCSI_SHORT 10
+#define IODELAY_SCSI_TIMEOUT 0xFFFF
+
+// Parity table size
+#define PARITY_TABLE_SIZE 256
+extern const uint8_t Device_OddParityTable[PARITY_TABLE_SIZE];
+
+
+// IO Delay callback function type
+typedef bool (*IODelayedCallback)(void *context, int param);
+
+// IO Delay information structure
+typedef struct {
+    int delayTicks;
+    IODelayedCallback callback;
+    void *context;
+    int parameter;
+    uint8_t level;
+} DelayedIoInfo;
+
+// Device structure
+typedef struct Device {
+    // Device memory range
+    uint32_t startAddress;
+    uint32_t endAddress;
+    
+    // Interrupt handling
+    uint16_t interruptBits;
+    uint16_t interruptLevel;  // Default interrupt level
+    uint16_t identCode;      // Identcode for this device
+    
+    // Device name
+    char memoryName[MAX_DEVICE_NAME];
+    
+    // IO Delay handling
+    DelayedIoInfo *ioDelays;
+    int ioDelayCount;
+    int ioDelayCapacity;
+    
+    // Device functions
+    void (*Reset)(struct Device *self);
+    uint16_t (*Tick)(struct Device *self);
+    int (*Boot)(struct Device *self, uint16_t device_id);
+    uint16_t (*Read)(struct Device *self, uint32_t address);
+    void (*Write)(struct Device *self, uint32_t address, uint16_t value);
+    uint16_t (*Ident)(struct Device *self, uint16_t level);
+    
+    // special for onboard RTC
+    bool isRTC;
+    
+    // Device-specific data
+    void *deviceData;
+    
+} Device;
+typedef struct {
+    Device *devices[MAX_DEVICES];
+    int count;
+} DeviceList;
+
+
+// ** Device Manager **
+
+// Device types
+typedef enum {
+    DEVICE_TYPE_NONE = 0,
+    DEVICE_TYPE_RTC,
+    DEVICE_TYPE_TERMINAL,
+    DEVICE_TYPE_PAPER_TAPE,
+    DEVICE_TYPE_FLOPPY_PIO,
+    DEVICE_TYPE_FLOPPY_DMA,    
+    DEVICE_TYPE_DISC_SMD,
+    DEVICE_TYPE_MAX
+} DeviceType;
+
+// Device info structure
+typedef struct {
+    Device *device;
+} DeviceInfo;
+
+// Device manager structure
+typedef struct {
+    DeviceInfo *devices;
+    int deviceCount;
+    int deviceCapacity;
+    LogLevel minLogLevel;  // Minimum log level for filtering messages
+} DeviceManager;
+
+
+
+#include "./floppy/deviceFloppyPIO.h"
+#include "./floppy/deviceFloppyDMA.h"   
+#include "./papertape/devicePapertape.h"
+#include "./rtc/deviceRTC.h"
+#include "./smd/deviceSMD.h"
+#include "./terminal/deviceTerminal.h"
+#include "./panel/panel.h"
+#endif // DEVICES_TYPES_H
+
