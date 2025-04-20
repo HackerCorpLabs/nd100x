@@ -202,11 +202,11 @@ Remember to end your code with 'opcom' to make the emulator stop executing your 
 
 ## License
 
-See the LICENSE file for detailed licensing information.
+See the [LICENSE](LICENSE) file for detailed licensing information.
 
 ## Contributing
 
-See the [CONTRIBUTING.md] file for more information
+See the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information
 
 
 ## TODO
