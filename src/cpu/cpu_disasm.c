@@ -85,485 +85,489 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 	{
 	case 0000000: /* STZ */
 		//(void)snprintf(opstr, BUFSTRSIZE, "STZ %s%s", relmode_str[relmode], numstr);		
-		(void)snprintf(opstr, sizeof(opstr), "STZ %s%s", relmode_str[relmode], numstr);		
+		(void)snprintf(opstr, BUFSTRSIZE, "STZ %s%s", relmode_str[relmode], numstr);		
 		break; 
 	case 0004000: /* STA */
-		(void)snprintf(opstr, sizeof(opstr), "STA %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "STA %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0010000: /* STT */
-		(void)snprintf(opstr, sizeof(opstr), "STT %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "STT %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0014000: /* STX */
-		(void)snprintf(opstr, sizeof(opstr), "STX %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "STX %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0020000: /* STD */
-		(void)snprintf(opstr, sizeof(opstr), "STD %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "STD %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0024000: /* LDD */
-		(void)snprintf(opstr, sizeof(opstr), "LDD %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LDD %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0030000: /* STF */
-		(void)snprintf(opstr, sizeof(opstr), "STF %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "STF %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0034000: /* LDF */
-		(void)snprintf(opstr, sizeof(opstr), "LDF %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LDF %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0040000: /* MIN */
-		(void)snprintf(opstr, sizeof(opstr), "MIN %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "MIN %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0044000: /* LDA */
-		(void)snprintf(opstr, sizeof(opstr), "LDA %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LDA %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0050000: /* LDT */
-		(void)snprintf(opstr, sizeof(opstr), "LDT %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LDT %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0054000: /* LDX */
-		(void)snprintf(opstr, sizeof(opstr), "LDX %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LDX %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0060000: /* ADD */
-		(void)snprintf(opstr, sizeof(opstr), "ADD %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "ADD %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0064000: /* SUB */
-		(void)snprintf(opstr, sizeof(opstr), "SUB %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SUB %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0070000: /* AND */
-		(void)snprintf(opstr, sizeof(opstr), "AND %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "AND %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0074000: /* ORA */
-		(void)snprintf(opstr, sizeof(opstr), "ORA %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "ORA %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0100000: /* FAD */
-		(void)snprintf(opstr, sizeof(opstr), "FAD %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "FAD %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0104000: /* FSB */
-		(void)snprintf(opstr, sizeof(opstr), "FSB %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "FSB %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0110000: /* FMU */
-		(void)snprintf(opstr, sizeof(opstr), "FMU %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "FMU %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0114000: /* FDV */
-		(void)snprintf(opstr, sizeof(opstr), "FDV %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "FDV %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0120000: /* MPY */
-		(void)snprintf(opstr, sizeof(opstr), "MPY %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "MPY %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0124000: /* JMP */
-		(void)snprintf(opstr, sizeof(opstr), "JMP %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JMP %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0130000: /* JAP */
-		(void)snprintf(opstr, sizeof(opstr), "JAP %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JAP %s", numstr);
 		break;
 	case 0130400: /* JAN */
-		(void)snprintf(opstr, sizeof(opstr), "JAN %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JAN %s", numstr);
 		break;
 	case 0131000: /* JAZ */
-		(void)snprintf(opstr, sizeof(opstr), "JAZ %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JAZ %s", numstr);
 		break;
 	case 0131400: /* JAF */
-		(void)snprintf(opstr, sizeof(opstr), "JAF %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JAF %s", numstr);
 		break;
 	case 0132000: /* JPC */
-		(void)snprintf(opstr, sizeof(opstr), "JPC %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JPC %s", numstr);
 		break;
 	case 0132400: /* JNC */
-		(void)snprintf(opstr, sizeof(opstr), "JNC %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JNC %s", numstr);
 		break;
 	case 0133000: /* JXZ */
-		(void)snprintf(opstr, sizeof(opstr), "JXZ %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JXZ %s", numstr);
 		break;
 	case 0133400: /* JXN */
-		(void)snprintf(opstr, sizeof(opstr), "JXN %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JXN %s", numstr);
 		break;
 	case 0134000: /* JPL */
-		(void)snprintf(opstr, sizeof(opstr), "JPL %s%s", relmode_str[relmode], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "JPL %s%s", relmode_str[relmode], numstr);
 		break;
 	case 0140000: /* SKP */
-		(void)snprintf(opstr, sizeof(opstr), "SKP IF %s %s %s", skipregn_dst[(operand & 0x0007)], skiptype_str[((operand & 0x0700) >> 8)], skipregn_src[((operand & 0x0038) >> 3)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "SKP IF %s %s %s", skipregn_dst[(operand & 0x0007)], skiptype_str[((operand & 0x0700) >> 8)], skipregn_src[((operand & 0x0038) >> 3)]);
 		break;
 	case 0140120: /* ADDD */
-		(void)snprintf(opstr, sizeof(opstr), "ADDD");
+		(void)snprintf(opstr, BUFSTRSIZE, "ADDD");
 		break;
 	case 0140121: /* SUBD */
-		(void)snprintf(opstr, sizeof(opstr), "SUBD");
+		(void)snprintf(opstr, BUFSTRSIZE, "SUBD");
 		break;
 	case 0140122: /* COMD */
-		(void)snprintf(opstr, sizeof(opstr), "COMD");
+		(void)snprintf(opstr, BUFSTRSIZE, "COMD");
 		break;
 	case 0140123: /* TSET */
-		(void)snprintf(opstr, sizeof(opstr), "TSET");
+		(void)snprintf(opstr, BUFSTRSIZE, "TSET");
 		break;
 	case 0140124: /* PACK */
-		(void)snprintf(opstr, sizeof(opstr), "PACK");
+		(void)snprintf(opstr, BUFSTRSIZE, "PACK");
 		break;
 	case 0140125: /* UPACK */
-		(void)snprintf(opstr, sizeof(opstr), "UPACK");
+		(void)snprintf(opstr, BUFSTRSIZE, "UPACK");
 		break;
 	case 0140126: /* SHDE */
-		(void)snprintf(opstr, sizeof(opstr), "SHDE");
+		(void)snprintf(opstr, BUFSTRSIZE, "SHDE");
 		break;
 	case 0140127: /* RDUS */
-		(void)snprintf(opstr, sizeof(opstr), "RDUS");
+		(void)snprintf(opstr, BUFSTRSIZE, "RDUS");
 		break;
 	case 0140130: /* BFILL */
-		(void)snprintf(opstr, sizeof(opstr), "BFILL");
+		(void)snprintf(opstr, BUFSTRSIZE, "BFILL");
 		break;
 	case 0140131: /* MOVB */
-		(void)snprintf(opstr, sizeof(opstr), "MOVB");
+		(void)snprintf(opstr, BUFSTRSIZE, "MOVB");
 		break;
 	case 0140132: /* MOVBF */
-		(void)snprintf(opstr, sizeof(opstr), "MOVBF");
+		(void)snprintf(opstr, BUFSTRSIZE, "MOVBF");
 		break;
 	case 0140133:																				  /* VERSN - ND110 specific */
 		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
 			break;
 		else /* We are a ND110, print instruction */
-			(void)snprintf(opstr, sizeof(opstr), "VERSN");
+			(void)snprintf(opstr, BUFSTRSIZE, "VERSN");
 	case 0140134: /* INIT */
-		(void)snprintf(opstr, sizeof(opstr), "INIT");
+		(void)snprintf(opstr, BUFSTRSIZE, "INIT");
 		break;
 	case 0140135: /* ENTR */
-		(void)snprintf(opstr, sizeof(opstr), "ENTR");
+		(void)snprintf(opstr, BUFSTRSIZE, "ENTR");
 		break;
 	case 0140136: /* LEAVE */
-		(void)snprintf(opstr, sizeof(opstr), "LEAVE");
+		(void)snprintf(opstr, BUFSTRSIZE, "LEAVE");
 		break;
 	case 0140137: /* ELEAV */
-		(void)snprintf(opstr, sizeof(opstr), "ELEAV");
+		(void)snprintf(opstr, BUFSTRSIZE, "ELEAV");
 		break;
 	case 0140300: /* SETPT */
-		(void)snprintf(opstr, sizeof(opstr), "SETPT");
+		(void)snprintf(opstr, BUFSTRSIZE, "SETPT");
 		break;
 	case 0140301: /* CLEPT */
-		(void)snprintf(opstr, sizeof(opstr), "CLEPT");
+		(void)snprintf(opstr, BUFSTRSIZE, "CLEPT");
 		break;
 	case 0140302: /* CLNREENT */
-		(void)snprintf(opstr, sizeof(opstr), "CLNREENT");
+		(void)snprintf(opstr, BUFSTRSIZE, "CLNREENT");
 		break;
 	case 0140303: /* CHREENT-PAGES */
-		(void)snprintf(opstr, sizeof(opstr), "CHREENT-PAGES");
+		(void)snprintf(opstr, BUFSTRSIZE, "CHREENT-PAGES");
 		break;
 	case 0140304: /* CLEPU */
-		(void)snprintf(opstr, sizeof(opstr), "CLEPU");
+		(void)snprintf(opstr, BUFSTRSIZE, "CLEPU");
 		break;
 	case 0140200: /* USER0 */
-		(void)snprintf(opstr, sizeof(opstr), "USER0");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER0");
 		break;
 	case 0140500:																				  /* USER1 or ND110 instruction WGLOB */
 		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
-			(void)snprintf(opstr, sizeof(opstr), "USER1");
+			(void)snprintf(opstr, BUFSTRSIZE, "USER1");
 		else
-			(void)snprintf(opstr, sizeof(opstr), "WGLOB"); /* We are ND110 */
+			(void)snprintf(opstr, BUFSTRSIZE, "WGLOB"); /* We are ND110 */
 		break;
 	case 0140501: /* RGLOB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "RGLOB");
+		(void)snprintf(opstr, BUFSTRSIZE, "RGLOB");
 		break;
 	case 0140502: /* INSPL - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "INSPL");
+		(void)snprintf(opstr, BUFSTRSIZE, "INSPL");
 		break;
 	case 0140503: /* REMPL - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "REMPL");
+		(void)snprintf(opstr, BUFSTRSIZE, "REMPL");
 		break;
 	case 0140504: /* CNREK - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "CNREK");
+		(void)snprintf(opstr, BUFSTRSIZE, "CNREK");
 		break;
 	case 0140505: /* CLPT  - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "CLPT");
+		(void)snprintf(opstr, BUFSTRSIZE, "CLPT");
 		break;
 	case 0140506: /* ENPT  - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "ENPT");
+		(void)snprintf(opstr, BUFSTRSIZE, "ENPT");
 		break;
 	case 0140507: /* REPT  - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "REPT");
+		(void)snprintf(opstr, BUFSTRSIZE, "REPT");
 		break;
 	case 0140510: /* LBIT  - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "LBIT");
+		(void)snprintf(opstr, BUFSTRSIZE, "LBIT");
 		break;
 	case 0140513: /* SBITP - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SBITP");
+		(void)snprintf(opstr, BUFSTRSIZE, "SBITP");
 		break;
 	case 0140514: /* LBYTP - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "LBYTP");
+		(void)snprintf(opstr, BUFSTRSIZE, "LBYTP");
 		break;
 	case 0140515: /* SBYTP - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SBYTP");
+		(void)snprintf(opstr, BUFSTRSIZE, "SBYTP");
 		break;
 	case 0140516: /* TSETP - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "TSETP");
+		(void)snprintf(opstr, BUFSTRSIZE, "TSETP");
 		break;
 	case 0140517: /* RDUSP - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "RDUSP");
+		(void)snprintf(opstr, BUFSTRSIZE, "RDUSP");
 		break;
 	case 0140600: /* EXR */
-		(void)snprintf(opstr, sizeof(opstr), "EXR %s", skipregn_src[((operand & 0x0038) >> 3)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "EXR %s", skipregn_src[((operand & 0x0038) >> 3)]);
 		break;
 	case 0140700:																				  /* USER2 */
 		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
-			(void)snprintf(opstr, sizeof(opstr), "USER2");
+			(void)snprintf(opstr, BUFSTRSIZE, "USER2");
 		else
-			(void)snprintf(opstr, sizeof(opstr), "LASB %s", deltastr); /* We are ND110 */
+			(void)snprintf(opstr, BUFSTRSIZE, "LASB %s", deltastr); /* We are ND110 */
 		break;
 	case 0140701: /* SASB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SASB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SASB %s", deltastr);
 		break;
 	case 0140702: /* LACB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "LACB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LACB %s", deltastr);
 		break;
 	case 0140703: /* SASB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SASB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SASB %s", deltastr);
 		break;
 	case 0140704: /* LXSB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "LXSB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LXSB %s", deltastr);
 		break;
 	case 0140705: /* LXCB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "LXCB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "LXCB %s", deltastr);
 		break;
 	case 0140706: /* SZSB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SZSB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SZSB %s", deltastr);
 		break;
 	case 0140707: /* SZCB - ND110 Specific */
-		(void)snprintf(opstr, sizeof(opstr), "SZCB %s", deltastr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SZCB %s", deltastr);
 		break;
 	case 0141100: /* USER3 */
-		(void)snprintf(opstr, sizeof(opstr), "USER3");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER3");
 		break;
 	case 0141200: /* RMPY */
-		(void)snprintf(opstr, sizeof(opstr), "RMPY %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RMPY %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0141300: /* USER4 */
-		(void)snprintf(opstr, sizeof(opstr), "USER4");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER4");
 		break;
 	case 0141500: /* USER5 */
-		(void)snprintf(opstr, sizeof(opstr), "USER5");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER5");
 		break;
 	case 0141600: /* RDIV */
-		(void)snprintf(opstr, sizeof(opstr), "RDIV %s", skipregn_src[((operand & 0x0038) >> 3)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RDIV %s", skipregn_src[((operand & 0x0038) >> 3)]);
 		break;
 	case 0141700: /* USER6 */
-		(void)snprintf(opstr, sizeof(opstr), "USER6");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER6");
 		break;
 	case 0142100: /* USER7 */
-		(void)snprintf(opstr, sizeof(opstr), "USER7");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER7");
 		break;
 	case 0142200: /* LBYT */
 		/* NOTE : moved from old parsing, SKP part, might have introduced P++ probs here */
-		(void)snprintf(opstr, sizeof(opstr), "LBYT");
+		(void)snprintf(opstr, BUFSTRSIZE, "LBYT");
 		break;
 	case 0142300: /* USER8 */
-		(void)snprintf(opstr, sizeof(opstr), "USER8");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER8");
 		break;
 	case 0142500: /* USER9 */
-		(void)snprintf(opstr, sizeof(opstr), "USER9");
+		(void)snprintf(opstr, BUFSTRSIZE, "USER9");
 		break;
 	case 0142600: /* SBYT */
 		/* NOTE : moved from old parsing, SKP part, might have introduced P++ probs here */
-		(void)snprintf(opstr, sizeof(opstr), "SBYT");
+		(void)snprintf(opstr, BUFSTRSIZE, "SBYT");
 		break;
 	case 0142700: /* GECO - Undocumented instruction */
-		(void)snprintf(opstr, sizeof(opstr), "GECO");
+		(void)snprintf(opstr, BUFSTRSIZE, "GECO");
 		break;
 	case 0143100: /* MOVEW */
-		(void)snprintf(opstr, sizeof(opstr), "MOVEW");
+		(void)snprintf(opstr, BUFSTRSIZE, "MOVEW");
 		break;
 	case 0143200: /* MIX3 */
-		(void)snprintf(opstr, sizeof(opstr), "MIX3");
+		(void)snprintf(opstr, BUFSTRSIZE, "MIX3");
 		break;
 	case 0143300: /* LDATX */
-		(void)snprintf(opstr, sizeof(opstr), "LDATX");
+		(void)snprintf(opstr, BUFSTRSIZE, "LDATX");
 		break;
 	case 0143301: /* LDXTX */
-		(void)snprintf(opstr, sizeof(opstr), "LDXTX");
+		(void)snprintf(opstr, BUFSTRSIZE, "LDXTX");
 		break;
 	case 0143302: /* LDDTX */
-		(void)snprintf(opstr, sizeof(opstr), "LDDTX");
+		(void)snprintf(opstr, BUFSTRSIZE, "LDDTX");
 		break;
 	case 0143303: /* LDBTX */
-		(void)snprintf(opstr, sizeof(opstr), "LDBTX");
+		(void)snprintf(opstr, BUFSTRSIZE, "LDBTX");
 		break;
 	case 0143304: /* STATX */
-		(void)snprintf(opstr, sizeof(opstr), "STATX");
+		(void)snprintf(opstr, BUFSTRSIZE, "STATX");
 		break;
 	case 0143305: /* STZTX */
-		(void)snprintf(opstr, sizeof(opstr), "STZTX");
+		(void)snprintf(opstr, BUFSTRSIZE, "STZTX");
 		break;
 	case 0143306: /* STDTX */
-		(void)snprintf(opstr, sizeof(opstr), "STDTX");
+		(void)snprintf(opstr, BUFSTRSIZE, "STDTX");
 		break;
 	case 0143500: /* LWCS */
-		(void)snprintf(opstr, sizeof(opstr), "LWCS");
+		(void)snprintf(opstr, BUFSTRSIZE, "LWCS");
 		break;
 	case 0143604: /* IDENT PL10 */
-		(void)snprintf(opstr, sizeof(opstr), "IDENT PL10");
+		(void)snprintf(opstr, BUFSTRSIZE, "IDENT PL10");
 		break;
 	case 0143611: /* IDENT PL11 */
-		(void)snprintf(opstr, sizeof(opstr), "IDENT PL11");
+		(void)snprintf(opstr, BUFSTRSIZE, "IDENT PL11");
 		break;
 	case 0143622: /* IDENT PL12 */
-		(void)snprintf(opstr, sizeof(opstr), "IDENT PL12");
+		(void)snprintf(opstr, BUFSTRSIZE, "IDENT PL12");
 		break;
 	case 0143643: /* IDENT PL13 */
-		(void)snprintf(opstr, sizeof(opstr), "IDENT PL13");
+		(void)snprintf(opstr, BUFSTRSIZE, "IDENT PL13");
 		break;
 	case 0144000: /* SWAP */
-		(void)snprintf(opstr, sizeof(opstr), "SWAP %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "SWAP %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144100: /* SWAP CLD */
-		(void)snprintf(opstr, sizeof(opstr), "SWAP CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "SWAP CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144200: /* SWAP CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "SWAP CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "SWAP CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144300: /* SWAP CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "SWAP CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "SWAP CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144400: /* RAND */
-		(void)snprintf(opstr, sizeof(opstr), "RAND %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RAND %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144500: /* RAND CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RAND CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RAND CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144600: /* RAND CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "RAND CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RAND CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0144700: /* RAND CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RAND CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RAND CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145000: /* REXO */
-		(void)snprintf(opstr, sizeof(opstr), "REXO %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "REXO %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145100: /* REXO CLD */
-		(void)snprintf(opstr, sizeof(opstr), "REXO CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "REXO CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145200: /* REXO CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "REXO CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "REXO CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145300: /* REXO CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "REXO CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "REXO CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145400: /* RORA */
-		(void)snprintf(opstr, sizeof(opstr), "RORA %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RORA %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145500: /* RORA CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RORA CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RORA CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145600: /* RORA CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "RORA CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RORA CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0145700: /* RORA CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RORA CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RORA CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146000: /* RADD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146100: /* RADD CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		if (operand == 0146142)
+			snprintf(opstr, BUFSTRSIZE, "EXIT");
+		else
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146200: /* RADD CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "RADD CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146300: /* RADD CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146400: /* RADD AD1 */
-		(void)snprintf(opstr, sizeof(opstr), "RADD AD1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD AD1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146500: /* RADD AD1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD AD1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD AD1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
-	case 0146600: /* RADD AD1 CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "RADD AD1 CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+	case 0146600: /* RADD AD1 CM1  <== IS REALLY RSBUB*/
+		//(void)snprintf(opstr, BUFSTRSIZE, "RADD AD1 CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RSUB %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0146700: /* RADD AD1 CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD AD1 CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD AD1 CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0147000: /* RADD ADC */
-		(void)snprintf(opstr, sizeof(opstr), "RADD ADC %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD ADC %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
-	case 0147100: /* RADD ADC CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD ADC CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+	case 0147100: /* RADD ADC CLD */		
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD ADC CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0147200: /* RADD ADC CM1 */
-		(void)snprintf(opstr, sizeof(opstr), "RADD ADC CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD ADC CM1 %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0147300: /* RADD ADC CM1 CLD */
-		(void)snprintf(opstr, sizeof(opstr), "RADD ADC CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "RADD ADC CM1 CLD %s %s", skipregn_src[((operand & 0x0038) >> 3)], skipregn_dst[(operand & 0x0007)]);
 		break;
 	case 0147400: /* NOOP */
 	case 0147500: /* NOOP */
 	case 0147600: /* NOOP */
 	case 0147700: /* NOOP */
-		(void)snprintf(opstr, sizeof(opstr), "ROP NOOP");
+		(void)snprintf(opstr, BUFSTRSIZE, "ROP NOOP");
 		break;
 	case 0150000: /* TRA */
-		(void)snprintf(opstr, sizeof(opstr), "TRA %s", intregn_r[nibble]);
+		(void)snprintf(opstr, BUFSTRSIZE, "TRA %s", intregn_r[nibble]);
 		break;
 	case 0150100: /* TRR */
-		(void)snprintf(opstr, sizeof(opstr), "TRR %s", intregn_w[nibble]);
+		(void)snprintf(opstr, BUFSTRSIZE, "TRR %s", intregn_w[nibble]);
 		break;
 	case 0150200: /* MCL */
-		(void)snprintf(opstr, sizeof(opstr), "MCL %s", intregn_w[nibble]);
+		(void)snprintf(opstr, BUFSTRSIZE, "MCL %s", intregn_w[nibble]);
 		break;
 	case 0150300: /* MST */
-		(void)snprintf(opstr, sizeof(opstr), "MST %s", intregn_w[nibble]);
+		(void)snprintf(opstr, BUFSTRSIZE, "MST %s", intregn_w[nibble]);
 		break;
 	case 0150400: /* OPCOM */
-		(void)snprintf(opstr, sizeof(opstr), "OPCOM");
+		(void)snprintf(opstr, BUFSTRSIZE, "OPCOM");
 		break;
 	case 0150401: /* IOF */
-		(void)snprintf(opstr, sizeof(opstr), "IOF");
+		(void)snprintf(opstr, BUFSTRSIZE, "IOF");
 		break;
 	case 0150402: /* ION */
-		(void)snprintf(opstr, sizeof(opstr), "ION");
+		(void)snprintf(opstr, BUFSTRSIZE, "ION");
 		break;
 	case 0150404: /* POF */
-		(void)snprintf(opstr, sizeof(opstr), "POF");
+		(void)snprintf(opstr, BUFSTRSIZE, "POF");
 		break;
 	case 0150405: /* PIOF */
-		(void)snprintf(opstr, sizeof(opstr), "PIOF");
+		(void)snprintf(opstr, BUFSTRSIZE, "PIOF");
 		break;
 	case 0150406: /* SEX */
-		(void)snprintf(opstr, sizeof(opstr), "SEX");
+		(void)snprintf(opstr, BUFSTRSIZE, "SEX");
 		break;
 	case 0150407: /* REX */
-		(void)snprintf(opstr, sizeof(opstr), "REX");
+		(void)snprintf(opstr, BUFSTRSIZE, "REX");
 		break;
 	case 0150410: /* PON */
-		(void)snprintf(opstr, sizeof(opstr), "PON");
+		(void)snprintf(opstr, BUFSTRSIZE, "PON");
 		break;
 	case 0150412: /* PION */
-		(void)snprintf(opstr, sizeof(opstr), "PION");
+		(void)snprintf(opstr, BUFSTRSIZE, "PION");
 		break;
 	case 0150415: /* IOXT */
-		(void)snprintf(opstr, sizeof(opstr), "IOXT");
+		(void)snprintf(opstr, BUFSTRSIZE, "IOXT");
 		break;
 	case 0150416: /* EXAM */
-		(void)snprintf(opstr, sizeof(opstr), "EXAM");
+		(void)snprintf(opstr, BUFSTRSIZE, "EXAM");
 		break;
 	case 0150417: /* DEPO */
-		(void)snprintf(opstr, sizeof(opstr), "DEPO");
+		(void)snprintf(opstr, BUFSTRSIZE, "DEPO");
 		break;
 	case 0151000:								   /* WAIT */
-		(void)snprintf(opstr, sizeof(opstr), "WAIT"); /* TODO:: number??*/
+		(void)snprintf(opstr, BUFSTRSIZE, "WAIT"); /* TODO:: number??*/
 		break;
 	case 0151400: /* NLZ*/
-		(void)snprintf(opstr, sizeof(opstr), "NLZ %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "NLZ %s", numstr);
 		break;
 	case 0152000: /* DNZ*/
-		(void)snprintf(opstr, sizeof(opstr), "DNZ %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "DNZ %s", numstr);
 		break;
 	case 0152400: /* SRB */ /* NOTE: These two seems to have bit req on 0-2 as well */
-		(void)snprintf(opstr, sizeof(opstr), "SRB %o", (operand & 0x0078));
+		(void)snprintf(opstr, BUFSTRSIZE, "SRB %o", (operand & 0x0078));
 		break;
 	case 0152600: /* LRB */ /* NOTE: These two seems to have bit req on 0-2 as well */
-		(void)snprintf(opstr, sizeof(opstr), "LRB %o", (operand & 0x0078) >> 3);
+		(void)snprintf(opstr, BUFSTRSIZE, "LRB %o", (operand & 0x0078) >> 3);
 		break;
 	case 0153000: /* MON */
-		(void)snprintf(opstr, sizeof(opstr), "MON %o", (operand & 0x00ff));
+		(void)snprintf(opstr, BUFSTRSIZE, "MON %o", (operand & 0x00ff));
 		break;
 	case 0153400: /* IRW */
-		(void)snprintf(opstr, sizeof(opstr), "IRW %o %s", (operand & 0x0078), regn_w[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "IRW %o %s", (operand & 0x0078), regn_w[(operand & 0x0007)]);
 		break;
 	case 0153600: /* IRR */
-		(void)snprintf(opstr, sizeof(opstr), "IRR %o %s", (operand & 0x0078), regn_w[(operand & 0x0007)]);
+		(void)snprintf(opstr, BUFSTRSIZE, "IRR %o %s", (operand & 0x0078), regn_w[(operand & 0x0007)]);
 		break;
 	case 0154000: /* SHT */
 		/* negative value -> shift right  else shift left*/
@@ -571,7 +575,7 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		//		offset = ((operand & 0x0020)>>5) ? (char)((operand & 0x003F) | 0x00C0) : (operand & 0x003F);
 		offset = (isneg) ? (~((operand & 0x003F) | 0xFFC0) + 1) : (operand & 0x003F);
 		(isneg) ? (void)snprintf(numstr, sizeof(numstr), "SHR %o", offset) : (void)snprintf(numstr, sizeof(numstr), "%o", offset);
-		(void)snprintf(opstr, sizeof(opstr), "SHT %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SHT %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
 		break;
 	case 0154200: /* SHD */
 		/* negative value -> shift right  else shift left*/
@@ -580,7 +584,7 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(isneg) ? (void)snprintf(numstr, sizeof(numstr), "SHR %o", offset) : (void)snprintf(numstr, sizeof(numstr), "%o", offset);
 		//		offset = ((operand & 0x0020)>>5) ? (char)((operand & 0x003F) | 0x00C0) : (operand & 0x003F);
 		//		((int)offset <0) ? (void)snprintf(numstr,BUFSTRSIZE,"SHR %o",-(int)offset) : (void)snprintf(numstr,BUFSTRSIZE,"%o",offset);
-		(void)snprintf(opstr, sizeof(opstr), "SHD %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SHD %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
 		break;
 	case 0154400: /* SHA */
 		/* negative value -> shift right  else shift left*/
@@ -589,7 +593,7 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(isneg) ? (void)snprintf(numstr, BUFSTRSIZE, "SHR %o", offset) : (void)snprintf(numstr, BUFSTRSIZE, "%o", offset);
 		//		offset = ((operand & 0x0020)>>5) ? (char)((operand & 0x003F) | 0x00C0) : (operand & 0x003F);
 		//		((int)offset <0) ? (void)snprintf(numstr,BUFSTRSIZE,"SHR %o",-(int)offset) : (void)snprintf(numstr,BUFSTRSIZE,"%o",offset);
-		(void)snprintf(opstr, sizeof(opstr), "SHA %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SHA %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
 		break;
 	case 0154600: /* SAD */
 		/* negative value -> shift right  else shift left*/
@@ -598,37 +602,37 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(isneg) ? (void)snprintf(numstr, BUFSTRSIZE, "SHR %o", offset) : (void)snprintf(numstr, BUFSTRSIZE, "%o", offset);
 		//		offset = ((operand & 0x0020)>>5) ? (char)((operand & 0x003F) | 0x00C0) : (operand & 0x003F);
 		//		((int)offset <0) ? (void)snprintf(numstr,BUFSTRSIZE,"SHR %o",-(int)offset) : (void)snprintf(numstr,BUFSTRSIZE,"%o",offset);
-		(void)snprintf(opstr, sizeof(opstr), "SAD %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SAD %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
 		break;
 	case 0160000: /* IOT */
-		(void)snprintf(opstr, sizeof(opstr), "IOT %o", (operand & 0x07ff));
+		(void)snprintf(opstr, BUFSTRSIZE, "IOT %o", (operand & 0x07ff));
 		break;
 	case 0164000: /* IOX */
-		(void)snprintf(opstr, sizeof(opstr), "IOX %o", (operand & 0x07ff));
+		(void)snprintf(opstr, BUFSTRSIZE, "IOX %o", (operand & 0x07ff));
 		break;
 	case 0170000: /* SAB */
-		(void)snprintf(opstr, sizeof(opstr), "SAB %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SAB %s", numstr);
 		break;
 	case 0170400: /* SAA */
-		(void)snprintf(opstr, sizeof(opstr), "SAA %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SAA %s", numstr);
 		break;
 	case 0171000: /* SAT */
-		(void)snprintf(opstr, sizeof(opstr), "SAT %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SAT %s", numstr);
 		break;
 	case 0171400: /* SAX */
-		(void)snprintf(opstr, sizeof(opstr), "SAX %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "SAX %s", numstr);
 		break;
 	case 0172000: /* AAB */
-		(void)snprintf(opstr, sizeof(opstr), "AAB %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "AAB %s", numstr);
 		break;
 	case 0172400: /* AAA */
-		(void)snprintf(opstr, sizeof(opstr), "AAA %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "AAA %s", numstr);
 		break;
 	case 0173000: /* AAT */
-		(void)snprintf(opstr, sizeof(opstr), "AAT %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "AAT %s", numstr);
 		break;
 	case 0173400: /* AAX */
-		(void)snprintf(opstr, sizeof(opstr), "AAX %s", numstr);
+		(void)snprintf(opstr, BUFSTRSIZE, "AAX %s", numstr);
 		break;
 	case 0174000:				 /* BSET ZRO */
 	case 0174200:				 /* BSET ONE */
@@ -647,12 +651,12 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 	case 0177400:				 /* BORC */
 	case 0177600:				 /* BORA */
 		if (!(operand & 0x0007)) /* STS reg bits handling FIXME:: what if it is bit >7 & STS??*/
-			(void)snprintf(opstr, sizeof(opstr), "%s %s", bop_str[((operand & 0x0780) >> 7)], bopstsbit_str[((operand & 0x0078) >> 3)]);
+			(void)snprintf(opstr, BUFSTRSIZE, "%s %s", bop_str[((operand & 0x0780) >> 7)], bopstsbit_str[((operand & 0x0078) >> 3)]);
 		else
-			(void)snprintf(opstr, sizeof(opstr), "%s %o D%s", bop_str[((operand & 0x0780) >> 7)], (int)(operand & 0x0078), regn[(operand & 0x0007)]);
+			(void)snprintf(opstr, BUFSTRSIZE, "%s %o D%s", bop_str[((operand & 0x0780) >> 7)], (int)(operand & 0x0078), regn[(operand & 0x0007)]);
 		break;
 	default: /* UNDEF */ /* Some ND instruction codes is undefined unfortunately. */
-		(void)snprintf(opstr, sizeof(opstr), "UNDEF");
+		(void)snprintf(opstr, BUFSTRSIZE, "UNDEF");
 		break;
 	}
 
@@ -685,7 +689,7 @@ void disasm_instr(ushort addr, ushort instr){
 	// If the instruction exists, set it to code and copy the disassembly string
 	if ((*p_DIS)[addr] != NULL) {
 		char disasm_str[BUFSTRSIZE];
-		OpToStr(disasm_str, sizeof(disasm_str), instr);	
+		OpToStr(disasm_str, BUFSTRSIZE, instr);	
 
 
 		(*p_DIS)[addr]->iscode = true;
@@ -695,7 +699,7 @@ void disasm_instr(ushort addr, ushort instr){
 
 void disasm_exr(ushort addr, ushort instr){
 	char disasm_str[BUFSTRSIZE];
-	OpToStr(disasm_str, sizeof(disasm_str), instr);	
+	OpToStr(disasm_str, BUFSTRSIZE, instr);	
 
 	if ((*p_DIS)[addr] != NULL) {
 		(*p_DIS)[addr]->isexr = true;
@@ -755,7 +759,7 @@ void disasm_dump(){
 	int tmp;
 	char u,l;
 	ushort w;
-	char* disasm_str;
+	char disasm_str[BUFSTRSIZE];
 
 	//char* disasm_fname = "disasm.txt";
 	char* disasm_fname = "/dev/stdout";
@@ -796,7 +800,7 @@ void disasm_dump(){
 					fprintf(disasm_file,"\'%c\'",l);
 
 				fprintf(disasm_file,"          ");								
-				OpToStr(disasm_str, sizeof(disasm_str),(*p_DIS)[i]->theword);			
+				OpToStr(disasm_str, BUFSTRSIZE,(*p_DIS)[i]->theword);			
 				fprintf(disasm_file,"%% %s",disasm_str);
 			}
 			fprintf(disasm_file,"\n");
