@@ -1009,6 +1009,10 @@ bool UpdateMemoryIO()
 /* IOT
  * This is really an ND1 instruction
  * NOTE:: Privileged instructions
+ * Format: IOT number
+ * Code: 160 nnn. Opcode 5 bits, 11 bits for IO address
+ * (0160000 - 0163777)
+ * 
  */
 void ndfunc_iot(ushort operand)
 {
@@ -3175,6 +3179,11 @@ void ndfunc_shde(ushort instr)
 
 void Instruction_Add(int opcode, void *funcpointer)
 {
+	if (instr_funcs[opcode] != NULL)
+	{
+		printf("Warning: Overwriting instruction %06o\n", opcode);
+	}
+
 	instr_funcs[opcode] = funcpointer;
 }
 
@@ -3182,7 +3191,14 @@ void Instruction_Add_Range(int start, int stop, void *funcpointer)
 {
 	int i;
 	for (i = start; i <= stop; i++)
+	{
+		if (instr_funcs[i] != NULL)
+		{
+			printf("Warning: Overwriting instruction %06o\n",i);
+		}
+
 		instr_funcs[i] = funcpointer;
+	}
 	return;
 }
 
@@ -3195,6 +3211,11 @@ void Instruction_Add_Mask(int opcode, int mask, void *funcpointer)
 	{
 		if ((i & mask) == signature)
 		{
+			if (instr_funcs[i] != NULL)
+			{
+				printf("Warning: Overwriting instruction %06o with %06o\n", i, opcode);
+			}
+
 			instr_funcs[i] = funcpointer;
 		}
 	}
@@ -3207,7 +3228,7 @@ void Instruction_Add_Mask(int opcode, int mask, void *funcpointer)
  */
 void Setup_Instructions()
 {
-	Instruction_Add_Range(0000000, 0177777, &illegal_instr); /* First make all instructions by default point to illegal_instr  */
+	//Instruction_Add_Range(0000000, 0177777, &illegal_instr); /* First make all instructions by default point to illegal_instr  */
 
 	// Instruction_Add_Range(0000000, 0003777, &ndfunc_stz); /* STZ  */
 	Instruction_Add_Mask(0000000, 0xF800, &ndfunc_stz);
@@ -3461,12 +3482,12 @@ void Setup_Instructions()
 	Instruction_Add(0150416, &ndfunc_exam); /* EXAM */
 	Instruction_Add(0150417, &ndfunc_depo); /* DEPO */
 
-	Instruction_Add_Mask(0151000, 0xFF00, &DoWAIT);		/* WAIT */
+	Instruction_Add_Mask(0151000, 0xFF00, &DoWAIT);		/* WAIT - Range 151000 - 151377 */
 	Instruction_Add_Mask(0151400, 0xFF00, &ndfunc_nlz); /* NLZ */
 	Instruction_Add_Mask(0152000, 0xFF00, &ndfunc_dnz); /* DNZ */
 	Instruction_Add_Mask(0152402, 0xFF07, &ndfunc_srb); /* SRB */
 	Instruction_Add_Mask(0152600, 0xFF07, &ndfunc_lrb); /* LRB */
-	Instruction_Add_Mask(0153000, 0xFF00, &ndfunc_mon); /* MON */
+	Instruction_Add_Mask(0153000, 0xFF00, &ndfunc_mon); /* MON  - Range 153000-153377  */
 	Instruction_Add_Mask(0153400, 0xFF80, &ndfunc_irw); /* IRW */
 	Instruction_Add_Mask(0153600, 0xFF80, &ndfunc_irr); /* IRR */
 
@@ -3476,11 +3497,10 @@ void Setup_Instructions()
 	Instruction_Add_Mask(0154400, 0x7980, &ndfunc_shifts); // SHA
 	Instruction_Add_Mask(0154600, 0x7980, &ndfunc_shifts); // SAD
 
-	// Instruction_Add_Mask(0160000, 0xFFF0, &ndfunc_iot); /* IOT  - ND1 specific, but exists on all CPU's*/
-	Instruction_Add_Mask(0161000, 0xFFF0, &ndfunc_iot); /* IOT  - ND1 specific, but exists on all CPU's*/
+	// IOT Range 0160000 - 0163777
+	Instruction_Add_Mask(0160000, 0xF800, &ndfunc_iot); /* IOT  - ND1 specific, but exists on all CPU's*/
 
-	// Instruction_Add_Mask(0161000, 0xF800, &ndfunc_iox); /* IOX */
-	Instruction_Add_Mask(0164000, 0xF800, &ndfunc_iox); /* IOX */
+	Instruction_Add_Mask(0164000, 0xF800, &ndfunc_iox); /* IOX */	
 
 	Instruction_Add_Mask(0170000, 0xFF00, &ndfunc_sab); /* SAB */
 	Instruction_Add_Mask(0170400, 0xFF00, &ndfunc_saa); /* SAA */

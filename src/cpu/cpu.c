@@ -70,10 +70,11 @@ void do_op(ushort operand, bool isEXR)
 		gPC++; // Move P before starting instruction. (but not if executed from register)
 
 	if (instr_funcs[operand] == NULL)
-	{		
-		unimplemented_instr(operand); // TODO: check if this is correct
+	{	
+		illegal_instr(operand);
 		return;
 	}
+
 	instr_funcs[operand](operand); /* call using a function pointer from the array
 				   this way we are as flexible as possible as we
 				   implement io calls. */
