@@ -62,6 +62,11 @@ double totaltime;
 Config_t config;
 
 
+void handle_sigint(int sig) {
+    printf("\nCaught SIGINT (Ctrl-C). Cleaning up...\n");
+    machine_stop();
+}
+
 void initialize()
 {
    srand ( time(NULL) ); /* Generate PRNG Seed */
@@ -69,6 +74,9 @@ void initialize()
 	
 
 	blocksignals();
+
+	// Register signal handler
+	signal(SIGINT, handle_sigint);
 
 	
 	if (DISASM) disasm_init();

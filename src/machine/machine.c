@@ -71,6 +71,11 @@ machine_run (void)
     cpu_run(-1);
 }
 
+void machine_stop()
+{
+    // Stop the CPU
+    CurrentCPURunMode = STOP;
+}
 
 
 /* 
