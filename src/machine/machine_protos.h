@@ -16,6 +16,7 @@ ushort io_op(ushort ioadd, ushort regA);
 void machine_init(void);
 void cleanup_machine(void);
 void machine_run(void);
+void machine_stop(void);
 void setdefaultconfig(void);
 void program_load(BOOT_TYPE bootType, char *imageFile, bool verbose);
 
