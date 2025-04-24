@@ -50,6 +50,11 @@ log in with user "SYSTEM", no password.
 * PED
 
 
+## Other programs
+
+ * PLANC - ND-100 PLANC COMPILER - JANUARY 20, 1984   VERSION E
+ * basic - BASIC COMPILER, JANUARY 85.
+
 ## Read files
 
 Use command COPY TERM <filename>
