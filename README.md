@@ -167,6 +167,9 @@ build/bin/nd100x --boot=smd
 Read more about [how to boot sintran](SINTRAN.md)
 
 
+![Boot Animation](images/boot.gif)
+
+
 
 ## Booting TPE-MON from floppy and running test programs
 The emulator requires a floppy image to boot from. Place the image file in the current directory.
