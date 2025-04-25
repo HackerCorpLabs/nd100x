@@ -200,6 +200,8 @@ foo: .word 22
 
 Remember to end your code with 'opcom' to make the emulator stop executing your code.
 
+Overview of all [assembly instructions ](docs/cpu_documentation.md)
+
 ## License
 
 See the [LICENSE](LICENSE) file for detailed licensing information.
