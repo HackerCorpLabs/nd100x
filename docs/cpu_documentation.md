@@ -34,111 +34,155 @@
 - [Bit instructions_with_destination](#bit-instructions_with_destination)
 - [Byte Instructions](#byte-instructions)
 - [Control Transfer](#control-transfer)
+- [Decimal Instructions](#decimal-instructions)
 - [Execute](#execute)
 - [Floating Conversion (Standard Format)](#floating-conversion-(standard-format))
+- [Input and Output](#input-and-output)
 - [Input/Output](#input/output)
 - [Inter-level Instructions](#inter-level-instructions)
 - [Interrupt Control Instructions](#interrupt-control-instructions)
-- [Interrupt Identification](#interrupt-identification)
+- [Memory Examine and Test Instructions](#memory-examine-and-test-instructions)
+- [Memory Management Instructions](#memory-management-instructions)
 - [Memory Transfer - Double word instructions](#memory-transfer---double-word-instructions)
 - [Memory Transfer - Load Instruction](#memory-transfer---load-instruction)
 - [Memory Transfer - Store Instruction](#memory-transfer---store-instruction)
+- [Memory Transfer Instructions](#memory-transfer-instructions)
 - [Monitor Calls](#monitor-calls)
+- [Physical Memory Control Instructions](#physical-memory-control-instructions)
 - [Register Block Instructions](#register-block-instructions)
 - [Register Operations](#register-operations)
 - [Register Transfer](#register-transfer)
 - [Sequencing Instructions](#sequencing-instructions)
 - [Shift Instructions](#shift-instructions)
 - [Skip Instruction](#skip-instruction)
+- [Stack Operations](#stack-operations)
 - [Standard Floating Instructions](#standard-floating-instructions)
-- [System Control Instructions](#system-control-instructions)
+- [System/CPU Information](#system/cpu-information)
+- [Undocumented Instructions](#undocumented-instructions)
+- [Word Block Instructions](#word-block-instructions)
 
 ### 📖 Instruction Reference
-- [AAA](#aaa)
-- [AAB](#aab)
-- [AAT](#aat)
-- [AAX](#aax)
-- [ADD](#add)
-- [AND](#and)
-- [BANC](#banc)
-- [BAND](#band)
-- [BLDA](#blda)
-- [BLDC](#bldc)
-- [BORA](#bora)
-- [BORC](#borc)
-- [BSET](#bset)
-- [BSKP](#bskp)
-- [BSTA](#bsta)
-- [BSTC](#bstc)
-- [COPY](#copy)
-- [DNZ](#dnz)
-- [EXIT](#exit)
-- [EXR](#exr)
-- [FAD](#fad)
-- [FDV](#fdv)
-- [FMU](#fmu)
-- [FSB](#fsb)
-- [IDENT](#ident)
-- [IOF](#iof)
-- [ION](#ion)
-- [IOX](#iox)
-- [IOXT](#ioxt)
-- [IRR](#irr)
-- [IRR](#irr)
-- [JAF](#jaf)
-- [JAN](#jan)
-- [JAP](#jap)
-- [JAZ](#jaz)
-- [JMP](#jmp)
-- [JNC](#jnc)
-- [JPC](#jpc)
-- [JPL](#jpl)
-- [JXN](#jxn)
-- [JXZ](#jxz)
-- [LBYT](#lbyt)
-- [LDA](#lda)
-- [LDD](#ldd)
-- [LDF](#ldf)
-- [LRB](#lrb)
-- [MCL](#mcl)
-- [MIN](#min)
-- [MON](#mon)
-- [MPY](#mpy)
-- [MST](#mst)
-- [NLZ](#nlz)
-- [ORA](#ora)
-- [POF](#pof)
-- [PON](#pon)
-- [RADD](#radd)
-- [RAND](#rand)
-- [RCLR](#rclr)
-- [RDIV](#rdiv)
-- [REXO](#rexo)
-- [RMPY](#rmpy)
-- [RORA](#rora)
-- [RSUB](#rsub)
-- [SAA](#saa)
-- [SAB](#sab)
-- [SAD](#sad)
-- [SAT](#sat)
-- [SAX](#sax)
-- [SBYT](#sbyt)
-- [SHA](#sha)
-- [SHD](#shd)
-- [SHT](#sht)
-- [SKP](#skp)
-- [SRB](#srb)
-- [STA](#sta)
-- [STD](#std)
-- [STF](#stf)
-- [STT](#stt)
-- [STX](#stx)
-- [STZ](#stz)
-- [SUB](#sub)
-- [SWAP](#swap)
-- [TRA](#tra)
-- [TRR](#trr)
-- [WAIT](#wait)
+- [172400] [AAA](#aaa)
+- [172000] [AAB](#aab)
+- [173000] [AAT](#aat)
+- [173400] [AAX](#aax)
+- [060000] [ADD](#add)
+- [140120] [ADDD](#addd)
+- [070000] [AND](#and)
+- [177000] [BANC](#banc)
+- [177200] [BAND](#band)
+- [140130] [BFILL](#bfill)
+- [176600] [BLDA](#blda)
+- [176400] [BLDC](#bldc)
+- [177600] [BORA](#bora)
+- [177400] [BORC](#borc)
+- [174000] [BSET](#bset)
+- [175000] [BSKP](#bskp)
+- [176200] [BSTA](#bsta)
+- [176000] [BSTC](#bstc)
+- [140122] [COMD](#comd)
+- [146100] [COPY](#copy)
+- [150417] [DEPO](#depo)
+- [152000] [DNZ](#dnz)
+- [140137] [ELEAV](#eleav)
+- [140135] [ENTR](#entr)
+- [150416] [EXAM](#exam)
+- [146142] [EXIT](#exit)
+- [140600] [EXR](#exr)
+- [100000] [FAD](#fad)
+- [114000] [FDV](#fdv)
+- [110000] [FMU](#fmu)
+- [104000] [FSB](#fsb)
+- [142700] [GECO](#geco)
+- [143600] [IDENT](#ident)
+- [140134] [INIT](#init)
+- [150401] [IOF](#iof)
+- [150402] [ION](#ion)
+- [164000] [IOX](#iox)
+- [150415] [IOXT](#ioxt)
+- [153600] [IRR](#irr)
+- [153400] [IRW](#irw)
+- [131400] [JAF](#jaf)
+- [130400] [JAN](#jan)
+- [130000] [JAP](#jap)
+- [131000] [JAZ](#jaz)
+- [124000] [JMP](#jmp)
+- [132400] [JNC](#jnc)
+- [132000] [JPC](#jpc)
+- [134000] [JPL](#jpl)
+- [133400] [JXN](#jxn)
+- [133000] [JXZ](#jxz)
+- [142200] [LBYT](#lbyt)
+- [044000] [LDA](#lda)
+- [143300] [LDATX](#ldatx)
+- [143303] [LDBTX](#ldbtx)
+- [024000] [LDD](#ldd)
+- [143302] [LDDTX](#lddtx)
+- [034000] [LDF](#ldf)
+- [050000] [LDT](#ldt)
+- [054000] [LDX](#ldx)
+- [140136] [LEAV](#leav)
+- [152600] [LRB](#lrb)
+- [150200] [MCL](#mcl)
+- [040000] [MIN](#min)
+- [143200] [MIX3](#mix3)
+- [153000] [MON](#mon)
+- [140131] [MOVB](#movb)
+- [140132] [MOVBF](#movbf)
+- [143100] [MOVEW](#movew)
+- [120000] [MPY](#mpy)
+- [150300] [MST](#mst)
+- [151400] [NLZ](#nlz)
+- [150400] [OPCOM](#opcom)
+- [074000] [ORA](#ora)
+- [140124] [PACK](#pack)
+- [150405] [PIOF](#piof)
+- [150412] [PION](#pion)
+- [150404] [POF](#pof)
+- [150410] [PON](#pon)
+- [146000] [RADD](#radd)
+- [144400] [RAND](#rand)
+- [146100] [RCLR](#rclr)
+- [146200] [RDCR](#rdcr)
+- [141600] [RDIV](#rdiv)
+- [140127] [RDUS](#rdus)
+- [150407] [REX](#rex)
+- [145000] [REXO](#rexo)
+- [146400] [RINC](#rinc)
+- [141200] [RMPY](#rmpy)
+- [145400] [RORA](#rora)
+- [146600] [RSUB](#rsub)
+- [170400] [SAA](#saa)
+- [170000] [SAB](#sab)
+- [154600] [SAD](#sad)
+- [171000] [SAT](#sat)
+- [171400] [SAX](#sax)
+- [142600] [SBYT](#sbyt)
+- [150406] [SEX](#sex)
+- [154400] [SHA](#sha)
+- [154200] [SHD](#shd)
+- [140126] [SHDE](#shde)
+- [154000] [SHT](#sht)
+- [140000] [SKP](#skp)
+- [152402] [SRB](#srb)
+- [004000] [STA](#sta)
+- [143304] [STATX](#statx)
+- [020000] [STD](#std)
+- [143306] [STDTX](#stdtx)
+- [030000] [STF](#stf)
+- [010000] [STT](#stt)
+- [014000] [STX](#stx)
+- [000000] [STZ](#stz)
+- [143305] [STZTX](#stztx)
+- [064000] [SUB](#sub)
+- [140121] [SUBD](#subd)
+- [144000] [SWAP](#swap)
+- [177000] [TRA](#tra)
+- [150100] [TRR](#trr)
+- [140123] [TSET](#tset)
+- [140125] [UPACK](#upack)
+- [140133] [VERSN](#versn)
+- [151000] [WAIT](#wait)
 
 ================================================================================
 ## 🔍 CPU Information
@@ -328,17 +372,31 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | [`SAT`](#sat) | Set argument to T |
 | [`SAX`](#sax) | Set argument to X |
 
+
+#### Description
+
+These instructions operate on registers.
+
+The <number> is sign extended.
+
+8-bit argument numbers are extended to 16-bits using Sign extension.
+  
+  The 8-bit argument becomes the least significant byte
+  The higher byte is extended with ones or zeros.
+
+Positive arguments have the higher byte extended with zeros
+Nnegative numbers are extended with ones with the argument in 2's complement form.
 --------------------------------------------------------------------------------
 
 ### Arithmetic and Logical
 
 | Instruction | Description |
 |:------------|:------------|
-| [`ADD`](#add) | Add to A register (C, O and Q may also be affected) A: = A + (EL) |
-| [`AND`](#and) | Logical AND to A register A: = A & (EA) |
-| [`MPY`](#mpy) | Multiply integer (O and Q may also be affected) A: = A * (EL) |
-| [`ORA`](#ora) | Logical inclusive OR to A register A: = A | (EA) |
-| [`SUB`](#sub) | Subtract from A register (C and Q may also be affected) A: = A - (EA) |
+| [`ADD`](#add) | Add to A register |
+| [`AND`](#and) | Logical AND to A register |
+| [`MPY`](#mpy) | Multiply integer |
+| [`ORA`](#ora) | Logical inclusive OR to A register |
+| [`SUB`](#sub) | Subtract from A register |
 
 --------------------------------------------------------------------------------
 
@@ -354,7 +412,90 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | [`BSET`](#bset) | Set specified bit in equal to specified condition |
 | [`BSKP`](#bskp) | Skip next location if specified condition is true |
 | [`BSTA`](#bsta) | Store and clear K |
-| [`BSTC`](#bstc) | Store complement and set K |
+| [`BSTC`](#bstc) | Store complement and set K to 1 |
+
+#### Description
+
+These instructions manipulate single bits within the working and STS registers.
+
+Instruction structure:
+
+    15         7 6     3   0
+    ┌──────────┬───────┬───┐
+    │ bit op   │  bn   │dr │
+    └──────────┴───────┴───┘
+
+Bit operation:
+  Bits 11-15 are always set to one for a bit operation.
+  Bits 7-10 determine the type of operation as follows:
+
+    ┌──────────┬────────────┬───────────────────────────────┬─────────────┐
+    │type bits │ mnemonic   │ description                   │ code        │
+    │10 9 8 7  │            │                               │             │
+    ├──────────┼────────────┼───────────────────────────────┼─────────────┤
+    │ 0 0 0 0  │ BSET ZRO   │ bit ⟵ 0                      │ 174000₈     │
+    │ 0 0 0 1  │ BSET ONE   │ bit ⟵ 1                      │ 174200₈     │
+    │ 0 0 1 0  │ BSET BCM   │ bit ⟵ bit                    │ 174400₈     │
+    │ 0 0 1 1  │ BSET BAC   │ bit ⟵ K                      │ 174600₈     │
+    │ 0 1 0 0  │ BSKP ZRO   │ skip if bit = 0               │ 175000₈     │
+    │ 0 1 0 1  │ BSKP ONE   │ skip if bit = 1               │ 175200₈     │
+    │ 0 1 1 0  │ BSKP BCM   │ skip if bit = bit             │ 175400₈     │
+    │ 0 1 1 1  │ BSKP BAC   │ skip if bit = K               │ 175600₈     │
+    │ 1 0 0 0  │ BSTC       │ bit ⟵ K, K ⟵ 1              │ 176000₈     │
+    │ 1 0 0 1  │ BSTA       │ bit ⟵ K, K ⟵ 0              │ 176200₈     │
+    │ 1 0 1 0  │ BLDC       │ K ⟵ bit                      │ 176400₈     │
+    │ 1 0 1 1  │ BLDA       │ K ⟵ bit                      │ 176600₈     │
+    │ 1 1 0 0  │ BANC       │ K ⟵ (bit AND K)              │ 177000₈     │
+    │ 1 1 0 1  │ BAND       │ K ⟵ (bit AND K)              │ 177200₈     │
+    │ 1 1 1 0  │ BORC       │ K ⟵ (bit OR K)               │ 177400₈     │
+    │ 1 1 1 1  │ BORA       │ K ⟵ (bit OR K)               │ 177600₈     │
+    └──────────┴────────────┴───────────────────────────────┴─────────────┘
+
+**Sub-instructions:**
+Only the BSET and BSKP instructions have the following qualifying sub-instructions:
+    ZRO
+    ONE
+    BCM
+    BAC
+
+**bn (bits 3-6):**
+  The address of the bit to be manipulated is given by these four bits.
+  Remember that each bit is given its OCTAL address.
+
+**dr (bits 0-2):**
+  The following registers allow bit operations and are specified as follows:
+
+    ┌──────────┬──────────┬────────┐
+    │ register │ mnemonic │ code   │
+    ├──────────┼──────────┼────────┤
+    │ STS      │ †        │ 0₈     │
+    │ D        │ DD       │ 1₈     │
+    │ P        │ DP       │ 2₈     │
+    │ B        │ DB       │ 3₈     │
+    │ L        │ DL       │ 4₈     │
+    │ A        │ DA       │ 5₈     │
+    │ T        │ DT       │ 6₈     │
+    │ X        │ DX       │ 7₈     │
+    └──────────┴──────────┴────────┘
+
+† For STS no mnemonic is required as it is implied by the following table of compound mnemonics:
+
+**STS register:**
+There are only eight bits which can be operated on in the STS register. They have special mnemonics and unique octal code values which combine the bn and dr fields.
+
+    ┌────────────────┬──────────┬─────────────────────────────┬─────────────┐
+    │ compound       │ STS bit  │ description                 │ octal code  │
+    │ mnemonic       │          │                             │             │
+    ├────────────────┼──────────┼─────────────────────────────┼─────────────┤
+    │ SSPTM          │ 0        │ page table flag             │ 00₈         │
+    │ SSTG           │ 1        │ floating point rounding flag│ 10₈         │
+    │ SSK            │ 2        │ 1 bit accumulator (K)       │ 20₈         │
+    │ SSZ            │ 3        │ error flag (Z)              │ 30₈         │
+    │ SSQ            │ 4        │ dynamic overflow flag (Q)   │ 40₈         │
+    │ SSO            │ 5        │ static overflow flag (O)    │ 50₈         │
+    │ SSC            │ 6        │ carry flag (C)              │ 60₈         │
+    │ SSM            │ 7        │ multi-shift link flag (M)   │ 70₈         │
+    └────────────────┴──────────┴─────────────────────────────┴─────────────┘
 
 --------------------------------------------------------------------------------
 
@@ -370,8 +511,19 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 | Instruction | Description |
 |:------------|:------------|
+| [`BFILL`](#bfill) | Byte fill. |
 | [`LBYT`](#lbyt) | Load byte from memory to A register |
+| [`MOVB`](#movb) | Move byte. |
+| [`MOVBF`](#movbf) | Move bytes forward. |
 | [`SBYT`](#sbyt) | Store byte from A register to memory |
+
+#### Description
+
+These instructions address single bytes within the memory map.
+
+A special addressing mode is used for these instructions, utilizing the T and X registers. 
+The contents of T point to the beginning of a character string, and the contents of X point to a specific byte within that string.
+
 
 --------------------------------------------------------------------------------
 
@@ -380,6 +532,191 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | Instruction | Description |
 |:------------|:------------|
 | [`TRA`](#tra) | Transfer control to the address specified by the effective address. |
+
+--------------------------------------------------------------------------------
+
+### Decimal Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`ADDD`](#addd) | Add two decimal operands. |
+| [`COMD`](#comd) | Compare two decimal operands. |
+| [`PACK`](#pack) | Convert to BCD. |
+| [`SHDE`](#shde) | Decimal shift. |
+| [`SUBD`](#subd) | Subtract two decimal operands. |
+| [`UPACK`](#upack) | Convert to ASCII. |
+
+### Description
+
+These instructions use decimal operands residing in main memory only.
+
+
+**Instruction structure:**
+
+    D1 (word address)
+    ┌───────────────────────────────┐
+    │15           ...            0  │
+    │ word address                  │
+    └───────────────────────────────┘
+
+    D2 (operand features)
+    ┌────┬────┬───────┬───────┬──────────────┬──────────────┐
+    │15  │14  │13-11  │10     │  9  -    5   │  4  -    0   │
+    ├────┼────┼───────┼───────┼──────────────┼──────────────┤
+    │lr  │ •  │ASCII  │r      │decimal point | field length │    
+    └────┴────┴───────┴───────┴──────────────┴──────────────┘
+
+**Descriptors (D1 and D2):**
+- Two 16-bit words (D1 and D2) specify the operands used in decimal instructions.
+- D1: The first descriptor gives the word address of the decimal operand in memory.
+- D2: Describes the following operand features:
+  - **lr (bit 15):**
+    - lr = 0: The operand starts in the left byte of a memory word (least significant 8 bits).
+    - lr = 1: The operand starts in the right byte of a memory word (most significant 8 bits).
+  - **ASCII (bits 11-13):**
+    - These three bits give the sign representation used for ASCII format:
+
+        ┌─────┬───────────────────────┐
+        │bits │ sign representation   │
+        ├─────┼───────────────────────┤
+        │000  │ embedded trailing     │
+        │001  │ separate trailing     │
+        │010  │ embedded leading      │
+        │011  │ separate leading      │
+        │100  │ unsigned              │
+        └─────┴───────────────────────┘
+
+    - Bit 13 also represents an unsigned number in BCD representation.
+  - **r (bit 10):**
+    - Rounding bit. If rounding is selected, one is added to the shifted operand when the least significant digit is lost during shift and the last digit shifted out of the field is 25.
+    - r = 1: rounding on
+    - r = 0: rounding off
+  - **decimal point (bits 5-9):**
+    - These bits give the position of the decimal point (0 to 31, positive or negative). Zero is the decimal place to the right of the least significant digit. The number must be less than the operand field length.
+  - **field length (bits 0-4):**
+    - These bits give the operand field length in nibbles (4-bit values) or bytes (8-bit values). BCD numbers are represented by 4 bits (1 nibble), so the field length will be in nibbles; an ASCII coded digit is represented by a byte and the field length will be in bytes.
+    - Operands start at any byte address in memory.
+    - The maximum field length is 32 nibbles/bytes.
+
+**Decimal operands:**
+- Decimal operands occupy a maximum of eight 16-bit memory locations. Each operand consists of BCD coded numbers.
+- Decimal operands must be right adjusted so that the least significant digit and sign are in the last byte of the operand field.
+- Before any instruction is executed, the operands are read into the register file. The result of the instruction is written into memory.
+- All decimal instructions use two operands. The descriptors of each operand are held in separate registers:
+  - First operand descriptor: A and D registers
+  - Second operand descriptor: X and T registers
+
+**Decimal overflow:**
+- Decimal overflow is caused by:
+  - EITHER a carry from the most significant digit position in the result
+  - OR an oversized result, where the second operand was larger than the first, causing the significant digits of the result to be lost.
+  - Note: The field size alone does not indicate possible overflow.
+- Most decimal instructions are followed by an instruction or jump to a routine which takes care of overflow errors, known as an **error return**. A decimal instruction executed without error generation skips the error return and program execution continues at the second instruction after it.
+
+
+### BCD- Binary Coded Decimal
+
+Decimal digits are represented in binary-coded decimal (BCD), sometimes known as packed decimal.
+
+Four bits are used to represent a decimal digit:
+
+    Table 3. BCD notation
+
+    ┌───────────────────────┬───────────────────────┐
+    │ binary notation       │ decimal equivalent    │
+    │ msb         lsb       │                       │
+    ├───────────────────────┼───────────────────────┤
+    │ 0  0  0  0            │ 1                     │
+    │ 0  0  0  1            │ 2                     │
+    │ 0  0  1  0            │ 3                     │
+    │ 0  0  1  1            │ 4                     │
+    │ 0  1  0  0            │ 5                     │
+    │ 0  1  0  1            │ 6                     │
+    │ 0  1  1  0            │ 7                     │
+    │ 0  1  1  1            │ 8                     │
+    │ 1  0  0  0            │ 9                     │
+    │ 1  0  0  1            │ 10                    │
+    │ 1  0  1  0            │ +                     │
+    │ 1  0  1  1            │ -                     │
+    │ 1  1  0  0            │ + †                   │
+    │ 1  1  0  1            │ - †                   │
+    │ 1  1  1  0            │ +                     │
+    │ 1  1  1  1            │ (+)                   │
+    └───────────────────────┴───────────────────────┘
+
+(+) represents unsigned, it is treated as a plus.
+
+† The ND-110 instruction set uses only the codes 1100 for plus and 1101 for minus.
+
+The maximum length of an operand is 31 decimal digits plus a sign nibble (4 bits), this occupies eight consecutive memory locations (eight 16-bit words).
+
+### ASCII coded decimal
+
+ASCII-coded decimal notation uses eight bits to represent a decimal digit.
+
+The format of an ASCII code decimal is:
+
+    ┌───────┬───────┐
+    │ zone  │ digit │
+    └───────┴───────┘
+
+*Figure 5. ASCII byte structure*
+
+**Table 4. ASCII notation**
+
+    ┌───────────────────────────────┬───────────────────────┐
+    │ ASCII Code                    │ Decimal Equivalent    │
+    │ msb                lsb       │                       │
+    ├───────────────────────────────┼───────────────────────┤
+    │ 0 0 1 1 0 0 0 0              │ 0                     │
+    │ 0 0 1 1 0 0 0 1              │ 1                     │
+    │ 0 0 1 1 0 0 1 0              │ 2                     │
+    │ 0 0 1 1 0 0 1 1              │ 3                     │
+    │ 0 0 1 1 0 1 0 0              │ 4                     │
+    │ 0 0 1 1 0 1 0 1              │ 5                     │
+    │ 0 0 1 1 0 1 1 0              │ 6                     │
+    │ 0 0 1 1 0 1 1 1              │ 7                     │
+    │ 0 0 1 1 1 0 0 0              │ 8                     │
+    │ 0 0 1 1 1 0 0 1              │ 9                     │
+    └───────────────────────────────┴───────────────────────┘
+
+Bit 7 (msb) is the parity bit and is always zero in ASCII code.
+
+**Sign representation:**
+
+The ASCII notation for sign is as follows:
+
+    +   00101011   53₈
+    -   00101101   55₈
+
+There are four ways of representing the sign in a decimal operand:
+
+- **separate trailing**: The byte following the last significant digit contains the sign.
+- **separate leading**: The byte preceding the ASCII digit code contains the sign.
+- **embedded trailing**: The byte representing the least significant decimal digit also contains the sign.
+- **embedded leading**: The byte representing the most significant digit also contains the sign.
+- **embedded sign coding**: The embedded codes are represented by ASCII notation as follows:
+
+*Table 5. ASCII embedded notation*
+
+    ASCII value
+    
+    ┌───────────────┬──────────────────┬───────────────────┐
+    │ decimal       │ Positive sign    │ negative sign     │    
+    │ operand       │ octal |  binary  |  octal |  binary  │
+    ├───────────────┼───────┼──────────┼────────┼──────────┤
+    │ 0             │ 173   │ 01111011 │  175   │ 01111001 │
+    │ 1             │ 101   │ 01000001 │  112   │ 01001010 │
+    │ 2             │ 102   │ 01000010 │  113   │ 01001011 │
+    │ 3             │ 103   │ 01000011 │  114   │ 01001100 │
+    │ 4             │ 104   │ 01000100 │  115   │ 01001101 │
+    │ 5             │ 105   │ 01000101 │  116   │ 01001110 │
+    │ 6             │ 106   │ 01000110 │  117   │ 01001111 │
+    │ 7             │ 107   │ 01000111 │  120   │ 01010000 │
+    │ 8             │ 110   │ 01001000 │  121   │ 01010001 │
+    │ 9             │ 111   │ 01001001 │  122   │ 01010010 │
+    └───────────────┴───────┴──────────┴────────┴──────────┘
+
 
 --------------------------------------------------------------------------------
 
@@ -395,8 +732,17 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 | Instruction | Description |
 |:------------|:------------|
-| [`DNZ`](#dnz) | Convert the floating number in TAD to a fixed point number in A |
+| [`DNZ`](#dnz) | Denormalise      |
 | [`NLZ`](#nlz) | Normalize |
+
+--------------------------------------------------------------------------------
+
+### Input and Output
+
+| Instruction | Description |
+|:------------|:------------|
+| [`IOX`](#iox) | Exchange information between I/O system and A register. |
+
 
 --------------------------------------------------------------------------------
 
@@ -404,8 +750,7 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 | Instruction | Description |
 |:------------|:------------|
-| [`IOX`](#iox) | Exchange information between I/O system and A register.     |
-| [`IOXT`](#ioxt) | Exchange information between I/O system and A register.     |
+| [`IOXT`](#ioxt) | Exchange information between I/O system and A register. |
 
 --------------------------------------------------------------------------------
 
@@ -414,7 +759,7 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | Instruction | Description |
 |:------------|:------------|
 | [`IRR`](#irr) | Inter Register Read |
-| [`IRR`](#irr) | Inter Register Write |
+| [`IRW`](#irw) | Inter Register Write |
 
 --------------------------------------------------------------------------------
 
@@ -422,19 +767,98 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 | Instruction | Description |
 |:------------|:------------|
+| [`IDENT`](#ident) | Transfer IDENT code of interrupting device with highest priority on the specified level to A register.  |
 | [`IOF`](#iof) | Interrupt System OFF |
 | [`ION`](#ion) | Interrupt System ON |
+| [`OPCOM`](#opcom) | Operator Communication |
 | [`POF`](#pof) | Memory management OFF |
-| [`PON`](#pon) | Memory management ON |
+| [`WAIT`](#wait) | When interrupt system off: halts the program and enters the operator's communication.  |
+
+
+### INTERRUPT CONTROL INSTRUCTIONS
+
+These instructions are **PRIVILEGED** and only available to:
+
+- Programs running in system mode (rings 2-3)
+- Programs running without memory protection
+
+These instructions control the CPU interrupt system.
+
+
+---
+
+## General Description
+
+The ND-110 has a priority interrupt system with 16 program levels. 
+
+Each program level has its own set of working registers (A, B, D, L, P, STS, T, X). 
+
+The program levels have increasing priority, that is, program level 15 has the highest priority and program level 0 the lowest.
+
+The 16 levels are subdivided as follows:
+
+| level | used for                           | controlled by        |
+|-------|------------------------------------|----------------------|
+| 15    | very fast user interrupts          | program/ext. device  |
+| 14    | internal hardware status interrupts| program/ext. device  |
+| 13-10 | vectored interrupts*               | program/ext. device  |
+| 9-0   | system and user programs           | program              |
+
+*2048 possible sources
+
+---
+
+### Program level selection and control
+
+Program level selection and control is via two 16-bit registers:
+
+- **PID**: Priority Interrupt Detect
+- **PIE**: Priority Interrupt Enable
+
+PID is affected by program and external interrupts; PIE is controlled by program only. They can only be changed or monitored by the privileged instructions: `TRA`, `TRR`, `MST`, and `MCL` (see pages 118-120).
+
+**Note:**
+When the power is turned on, the power-up sequence resets PIE and PID so that program level 0 is selected.
+
+---
+
+### Interrupt programming is via three registers:
+
+- **IIC**: Internal Interrupt Code
+- **IIE**: Internal Interrupt Enable
+- **PVL**: Previous Level (of hardware interrupt source)
+
 
 --------------------------------------------------------------------------------
 
-### Interrupt Identification
+### Memory Examine and Test Instructions
 
 | Instruction | Description |
 |:------------|:------------|
-| [`IDENT`](#ident) | Transfer IDENT code of interrupting device with highest priority on the specified level to A register.  |
+| [`RDUS`](#rdus) | Read a word without using cache |
+| [`TSET`](#tset) | Test and set |
 
+--------------------------------------------------------------------------------
+
+### Memory Management Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`PIOF`](#piof) | Memory management and interrupt system OFF |
+| [`PION`](#pion) | Memory management and interrupt system ON |
+| [`PON`](#pon) | Memory management ON |
+| [`REX`](#rex) | Reset extended address mode |
+| [`SEX`](#sex) | Set extended address mode |
+
+#### Description
+
+
+These instructions are PRIVILEGED and only available to:
+
+* programs running in system mode (rings 2-3)
+* programs running without memory protection 
+ 
+These instructions control the CPU memory management system.
 --------------------------------------------------------------------------------
 
 ### Memory Transfer - Double word instructions
@@ -451,6 +875,8 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | Instruction | Description |
 |:------------|:------------|
 | [`LDA`](#lda) | Load A register |
+| [`LDT`](#ldt) | Load T register |
+| [`LDX`](#ldx) | Load X register |
 
 --------------------------------------------------------------------------------
 
@@ -459,10 +885,66 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | Instruction | Description |
 |:------------|:------------|
 | [`MIN`](#min) | Memory increment and skip next instruction if zero (EA): = (EA) + 1 |
-| [`STA`](#sta) | Store A register to memory location (EA): = A |
-| [`STT`](#stt) | Store T register to memory location (EA): = T |
-| [`STX`](#stx) | Store X register to memory location (EA): = X |
-| [`STZ`](#stz) | Store zero to memory location (EA): = 0 |
+| [`STA`](#sta) | Store A register to memory location  |
+| [`STT`](#stt) | Store T register to memory location |
+| [`STX`](#stx) | Store X register to memory location  |
+| [`STZ`](#stz) | Store zero to memory location |
+
+--------------------------------------------------------------------------------
+
+### Memory Transfer Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`LDATX`](#ldatx) | Load A register |
+| [`LDBTX`](#ldbtx) | Load B register |
+| [`LDDTX`](#lddtx) | Load double word |
+| [`STATX`](#statx) | Store A register |
+| [`STDTX`](#stdtx) | Store double word |
+| [`STZTX`](#stztx) | Store zero |
+
+### SINTRAN III Memory Transfer Instructions
+
+These instructions are **PRIVILEGED** and only available to:
+
+- Programs running in system mode (rings 2-3)
+- Programs running without memory protection
+
+These instructions read/write from/to physical memory locations independent of whether paging is on or off. If the address is within the page-table range then the page tables are affected.
+
+---
+
+### Instruction format
+
+`<physical instruction mnemonic> <disp>`
+
+---
+
+### Instruction structure
+
+```
+ 15         7 6     3 2   0
+ |----------|-------|-----|
+ | physical | disp. |type |
+ |  memory  |       |     |
+ |operation |       |     |
+```
+
+- **physical memory operation type** (bits 15-6 and 2-0):
+  There are seven physical memory read/write instructions, specified by a base octal code of 143300₈ (bits 15-6) and type field (bits 2-0).
+- **disp.**: The contents of the T and X register give the effective address of the physical memory location (see page 28). A 3-bit displacement can be added to the X register within the instruction code. This is denoted by Δ in the following codes:
+
+| instruction mnemonic | octal code |
+|---------------------|------------|
+| LDATX               | 1433A0₈    |
+| LDXTX               | 1433A1₈    |
+| LDDTX               | 1433A2₈    |
+| LDBTX               | 1433A3₈    |
+| STATX               | 1433A4₈    |
+| STZTX               | 1433A5₈    |
+| STDTX               | 1433A6₈    |
+
+† If you use programs written for ND-100 computers with the microprogram version numbers 015xx A-J (48 bit) or 026xx A-F (32 bit), LDBTX would have been followed by a word containing 177777₈. This is not necessary for later ND-100 versions nor the ND-110. Running these earlier programs may change the status of the K bit in the ND-110 and later ND-100s.
 
 --------------------------------------------------------------------------------
 
@@ -474,12 +956,30 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 --------------------------------------------------------------------------------
 
+### Physical Memory Control Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`DEPO`](#depo) | Deposit |
+| [`EXAM`](#exam) | Examine |
+
+#### Description
+
+
+These instructions are PRIVILEGED and only available to:
+
+* programs running in system mode (rings 2-3)
+* programs running without memory protection 
+ 
+These instructions monitor physical memory location contents.
+--------------------------------------------------------------------------------
+
 ### Register Block Instructions
 
 | Instruction | Description |
 |:------------|:------------|
-| [`LRB`](#lrb) | Load register block from memory to specified level |
-| [`SRB`](#srb) | Store register block from specified level to memory |
+| [`LRB`](#lrb) | Load register block |
+| [`SRB`](#srb) | Store register block |
 
 --------------------------------------------------------------------------------
 
@@ -489,15 +989,25 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 |:------------|:------------|
 | [`COPY`](#copy) | Copy source to destination |
 | [`EXIT`](#exit) | Return from subroutine |
+| [`MIX3`](#mix3) | Multiply index by 3. |
 | [`RADD`](#radd) | Add source to destination (dr): = (dr) + (sr) |
-| [`RAND`](#rand) | Logical AND to destination (dr): = (dr) ∧ (sr) |
-| [`RCLR`](#rclr) | Registr clear |
+| [`RAND`](#rand) | Logical AND to destination  |
+| [`RCLR`](#rclr) | Register clear |
+| [`RDCR`](#rdcr) | Register decrement |
 | [`RDIV`](#rdiv) | Divide double accumulator with source; quotient in A, remainder in D |
 | [`REXO`](#rexo) | Logical exclusive OR  |
+| [`RINC`](#rinc) | Register increment |
 | [`RMPY`](#rmpy) | Multiply source with destination; result in double accumulator |
-| [`RORA`](#rora) | Logical inclusive OR (dr): = (dr) ∨ (sr) |
-| [`RSUB`](#rsub) | Subtract source from destination (dr): = (dr) - (sr) |
-| [`SWAP`](#swap) | Register exchange |
+| [`RORA`](#rora) | OR register |
+| [`RSUB`](#rsub) | Register subtract |
+| [`SWAP`](#swap) | Register swap |
+
+#### Description
+
+These instructions specify operations between source (sr) and destination (dr) registers.
+
+
+
 
 --------------------------------------------------------------------------------
 
@@ -526,6 +1036,17 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 | [`JXN`](#jxn) | Condtion: Jump if (X) < 0 (jump if X negative) |
 | [`JXZ`](#jxz) | Condtion: Jump if (X) == 0 (jump if X is zero) |
 
+#### Description
+
+FOR ALL JUMP ON CONDITION TRUE INSTRUCTIONS:
+
+<displacement> range: -128 to +127 locations
+
+General description:
+  (P) <- (EA)
+
+If condition true, jump to the address of the program counter plus the value of disp.
+If condition false, continue program execution at (P) + 1.
 --------------------------------------------------------------------------------
 
 ### Shift Instructions
@@ -547,24 +1068,71 @@ See [Addressing Modes](addressing_modes.md) for more detailed information.
 
 --------------------------------------------------------------------------------
 
+### Stack Operations
+
+| Instruction | Description |
+|:------------|:------------|
+| [`ELEAV`](#eleav) | Error leave stack. |
+| [`ENTR`](#entr) | Enter stack. |
+| [`INIT`](#init) | Initialize stack.  |
+| [`LEAV`](#leav) | Leave stack. |
+
+
+#### Description
+
+These instructions handle stack operations improving the execution time of high-level language-based programs.
+
+The **B** register will always point to a "stack-frame" containing:
+
+| Stack frame content mnemonic | Pointed to by B= (octal) | Description                            |
+|-----------------------------|---------------------------|----------------------------------------|
+| LINK                        | -200₈                    | next instruction address †             |
+| PREVB                       | -177₈                    | previous stack frame address           |
+| STP                         | -176₈                    | next stack frame address               |
+| SMAX                        | -175₈                    | top of stack address                   |
+| —                           | -174₈                    | reserved for system use                |
+| ERRCODE                     | -173₈                    | (A) after an ELEAV instruction         |
+
+† In the case of a `LEAVE` instruction.
+
+The stack-handling instructions are page-fault tolerant in the ND-110.
+
+--------------------------------------------------------------------------------
+
 ### Standard Floating Instructions
 
 | Instruction | Description |
 |:------------|:------------|
-| [`FAD`](#fad) | Add floating word (FW) to floating accumulator (TAD) |
-| [`FDV`](#fdv) | Divide floating point accumulator The contents of the floating point accumulator (A and D registers) are divided by the contents of two sequential memory locations, pointed to by the effective address.  |
+| [`FAD`](#fad) | Add to floating point accumulator |
+| [`FDV`](#fdv) | Divide floating point accumulator |
 | [`FMU`](#fmu) | Multiply floating point accumulator. |
-| [`FSB`](#fsb) | Subtract floating point accumulator. |
+| [`FSB`](#fsb) | Subtract from floating point accumulator. |
 | [`LDF`](#ldf) | Load floating accumulator (TAD) from memory (FW) |
 | [`STF`](#stf) | Store floating accumulator (TAD) to memory (ea) |
 
 --------------------------------------------------------------------------------
 
-### System Control Instructions
+### System/CPU Information
 
 | Instruction | Description |
 |:------------|:------------|
-| [`WAIT`](#wait) | When interrupt system off: halts the program and enters the operator’s communication.  |
+| [`VERSN`](#versn) | ** ND-110/ND-120 ONLY** |
+
+--------------------------------------------------------------------------------
+
+### Undocumented Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`GECO`](#geco) | GECO is a customer-specifed instruction which appears to be included as part of the standard instruction set from ND-100/CE and later.  |
+
+--------------------------------------------------------------------------------
+
+### Word Block Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`MOVEW`](#movew) | Word block move. |
 
 --------------------------------------------------------------------------------
 
@@ -801,7 +1369,11 @@ AAX 5
 
 #### 📝 Description
 
-Add to A register (C, O and Q may also be affected) A: = A + (EL)
+Add to A register
+
+A ⟵ A + (EL)
+Add the contents of the memory location pointed to by the effective address to the A register, leaving the result in A.
+
 
 #### 📋 Format
 
@@ -840,6 +1412,75 @@ ADD <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### ADDD
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `ADDD` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Add two decimal operands.
+
+(op1) ⟵ (op1) + (op2)
+
+Add the second operand to the first operand, leaving the result in the first operand's location.
+
+If the first operand field is too short to contain all the significant digits of the result, then decimal overflow occurs.
+
+If bit 13 of D2 in the first operand is set, the sign of the result will be 17₈ (BCD unsigned).
+
+Any empty operand, that is with a field length of zero, is treated as a positive zero.
+
+**Instruction sequence:**
+
+    ADDD
+    error handling instruction
+    next instruction after ADDD or after error handling routine
+
+Note:
+Operands should be normalized before this instruction is executed using the SHDE instruction.
+
+**Example:**
+
+    ADDD
+    JMP *12₈
+    STX 20₈
+
+The ADDD instruction causes the program counter to skip the next instruction UNLESS an error has been generated. In this case, the instruction immediately after ADDD will handle the error in some way (in this example a jump is executed on error to ((P) + 12₈)).
+
+(* is the assembler mnemonic for the P register)
+
+
+#### 📋 Format
+
+```
+ADDD
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### AND
 
 #### ⚡ Quick Reference
@@ -853,7 +1494,11 @@ ADD <addressing_mode> <displacement>
 
 #### 📝 Description
 
-Logical AND to A register A: = A & (EA)
+Logical AND to A register
+A ⟵ A & (EA)
+
+Perform a bitwise AND operation between the contents of the A register and the contents of the memory location pointed to by the effective address, leaving the result in A.
+
 
 #### 📋 Format
 
@@ -899,7 +1544,9 @@ AND <addressing_mode> <displacement>
 
 ogical AND with bit compl
 
-K: = K & (B)0
+K ⟵ K & (B)0
+
+Perform a bitwise AND with the contents of the B register and the contents of the K register, leaving the result in K.
 
 
 #### 📋 Format
@@ -941,7 +1588,7 @@ BANC
 
 Logical AND to K
 
-K: = K & (B)
+K ⟵ K & (B)
 
 
 #### 📋 Format
@@ -968,6 +1615,50 @@ BAND
 
 --------------------------------------------------------------------------------
 
+### BFILL
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `BFILL` |
+| Category | Byte Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Byte fill.
+
+Only the destination is used as an operand in this instruction (it is placed in the X and T registers). The lower byte of the A register is then filled with the destination field.
+
+After execution, bit 15 of the T register points to the end of the field (after the last byte position) and the field length equals zero.
+
+
+#### 📋 Format
+
+```
+BFILL
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### BLDA
 
 #### ⚡ Quick Reference
@@ -983,7 +1674,7 @@ BAND
 
 Load K
 
-K := bit
+K ⟵ bit
 
 
 #### 📋 Format
@@ -1025,7 +1716,7 @@ BLDA
 
 Load K and complement
 
-K := (B)0;
+K ⟵ (B) (complemented)
 
 
 #### 📋 Format
@@ -1067,7 +1758,7 @@ BLDC
 
 Logical OR to K
 
-K: = K | (B)
+K ⟵ K | (B)
 
 
 #### 📋 Format
@@ -1109,7 +1800,7 @@ BORA
 
 Logical OR with bit complement
 
-K: = K | (B)0
+K ⟵ K | (B)0
 
 
 #### 📋 Format
@@ -1157,8 +1848,6 @@ BORC 60 DX
 #### 📝 Description
 
 Set specified bit in equal to specified condition
-
-P = P+1
 
 
 #### 📋 Format
@@ -1209,7 +1898,7 @@ BSET ZRO SSO
 
 Skip next location if specified condition is true
 
-P = P+1
+P ⟵ P+1
 
 
 #### 📋 Format
@@ -1260,7 +1949,7 @@ BSKP ONE SSC
 
 Store and clear K
 
-(B): = K; K: = 0
+(B) ⟵  K; K ⟵ 0
 
 
 #### 📋 Format
@@ -1300,9 +1989,9 @@ BSTA
 
 #### 📝 Description
 
-Store complement and set K
+Store complement and set K to 1
 
-(B): = K0; K: = 1
+(B) ⟵ K (complemented); K ⟵ 1
 
 
 #### 📋 Format
@@ -1329,25 +2018,105 @@ BSTC
 
 --------------------------------------------------------------------------------
 
+### COMD
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `COMD` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Compare two decimal operands.
+
+(A) ⟵ (op1) compared to (op2)
+
+(A) =  0   if (op1) = (op2)
+(A) =  1   if (op1) > (op2)
+(A) = -1   if (op1) < (op2)
+
+Compare the first operand with the second operand, leaving the result in the A register.
+
+If the two operands are unequal in field length, the shorter operand is extended with zeros to allow comparison. The operands are unaffected by the instruction.
+
+The positions of the decimal points are not taken into account when the two operands are compared, so the two operands should be normalized using the SHDE instruction first.
+
+Any empty operand, that is with a field length of zero, is treated as a positive zero. An unsigned number is treated as positive. Positive and negative zeros are equal.
+
+**Instruction sequence:**
+
+    COMD
+    error handling instruction
+    next instruction after COMD or after error handling routine
+
+**Example:**
+
+    COMD
+    JMP *30₈
+    AAA 20₈
+
+The COMD instruction causes the program counter to skip the next instruction UNLESS an error has been generated. In this case, the instruction immediately after COMD will handle the error in some way (in this example a jump is executed on error to ((P) + 30₈)).
+
+(* is the assembler mnemonic for the P register)
+
+
+#### 📋 Format
+
+```
+COMD
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### COPY
 
 #### ⚡ Quick Reference
 
 | Property | Value |
 |:---------|:-------|
-| Format | `COPY <source> <destination>` |
+| Format | `COPY [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
-| Mask | `1111_1111_1100_0000` |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
 Copy source to destination
 
+COPY is a compound mnemonic for RADD CLD.
+
+Optional subinstructions:
+The following sub-instructions are allowed:
+  CM1, CM2, ADC, AD1
+
+Note:
+Using ADC and AD1i in the same instruction generates a no-operation.
+
+
 #### 📋 Format
 
 ```
-COPY <source> <destination>
+COPY [sub-instruction(s)] <source> <destination>
 ```
 
 #### Bit Layout
@@ -1368,6 +2137,68 @@ COPY <source> <destination>
 | `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
 | `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
 
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Copy the contents of the A register to the D register.
+```
+COPY SA DD
+```
+
+##### 2's complement the A register. (Equivalent to RADD CM1 ADC SA DA
+```
+COPY CM2 SA DA
+```
+
+--------------------------------------------------------------------------------
+
+### DEPO
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `DEPO` |
+| Category | Physical Memory Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Deposit
+
+Store the contents of the T register in the physical memory location pointed to by the A and D register contents.
+
+
+#### 📋 Format
+
+```
+DEPO
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
 --------------------------------------------------------------------------------
 
 ### DNZ
@@ -1383,7 +2214,24 @@ COPY <source> <destination>
 
 #### 📝 Description
 
+Denormalise     
 Convert the floating number in TAD to a fixed point number in A
+
+
+#### 📚 Detailed Information
+
+The number in the floating point accumulator (A and D registers) is converted to its Single precision fixed point equivalent in the A register using the scaling factor given.
+
+When converting to an integer, a scaling factor of -16 should always be used and will give a fixed point number with the same value as the integer part of the floating point number. 
+Other scaling factors will have the same result but the overflow test will be affected.
+
+The D register will be cleared after this instruction.
+
+If the conversion causes underflow, the A and D registers will be set to zero. If overflow occurs (the resulting integer has an absolute value greater than decimal 32767), the error flag (Z) is set to one.
+
+ 48-bit: 
+ * 48-bit CPUs allow different scaling factors to be used for DNZ operations. However, the overflow test is only failproof for a scaling factor of 16 (decimal)
+
 
 #### 📋 Format
 
@@ -1422,6 +2270,164 @@ DNZ -20
 
 --------------------------------------------------------------------------------
 
+### ELEAV
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `ELEAV` |
+| Category | Stack Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Error leave stack.
+
+If an error occurs, leave the stack.
+
+This instruction saves the previous stack pointer in LINK and restores the B register to its previous value (PREVB) before leaving the stack. The stack is left by loading the P register (program counter) with the return address (LINK). The A register is loaded with an error code which is saved in the ERRCODE stack entry (pointed to by B = 173₈).
+
+  (B = 200₈) ⟵ (B = 200₈) - 1
+  (P)       ⟵ (B = 200₈)   {LINK}
+  (B)       ⟵ (B = 177₈)   {PREVB}
+  (A)       ⟵ ERRCODE₈
+  (B = 173₈) ⟵ (A)         {ERRCODE}
+
+Format:
+  ELEAV
+
+
+#### 📋 Format
+
+```
+ELEAV
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### ENTR
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `ENTR` |
+| Category | Stack Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Enter stack.
+
+This instruction saves the current stack pointer (B), the return address (LINK), and previous stack pointer (PREVB). It transfers the top of stack address (SMAX) and establishes the new stack demand and pointer.
+
+  (B = 177₈) ⟵ (B)                {save current pointer in PREVB}
+  (B = 175₈) ⟵ (B = 175₈)         {SMAX}
+  (B = 200₈) ⟵ (L) + 1            {save return address in LINK}
+  (B)        ⟵ (B = 176₈) + 200₈   {new pointer}
+  (B = 176₈) ⟵ stack demand + (B)
+
+Stack overflow causes an error return, that is the program continues at the address following the stack demand value. In all other cases, the program skips this address to find the return address from the stack.
+
+Format:
+  ENTR 
+  <stack demand-value in words>
+  <error return address>
+  <return address>
+  
+
+
+#### 📋 Format
+
+```
+ENTR
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `PTM` | Page Table Flag |
+
+--------------------------------------------------------------------------------
+
+### EXAM
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `EXAM` |
+| Category | Physical Memory Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Examine
+
+Load the contents of the physical memory location, pointed to by the A and D register contents, into the T register.
+
+
+#### 📋 Format
+
+```
+EXAM
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### EXIT
 
 #### ⚡ Quick Reference
@@ -1436,6 +2442,12 @@ DNZ -20
 #### 📝 Description
 
 Return from subroutine
+
+This compound mnemonic represents the specific COPY instruction: 
+  COPY SL DP
+
+It causes the return from a subroutine by copying the stored return address into the program counter (P register).
+
 
 #### 📋 Format
 
@@ -1459,6 +2471,14 @@ EXIT
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
 --------------------------------------------------------------------------------
 
 ### EXR
@@ -1467,7 +2487,7 @@ EXIT
 
 | Property | Value |
 |:---------|:-------|
-| Format | `EXR <register>` |
+| Format | `EXR <sr>` |
 | Category | Execute |
 | Privilege | user |
 | Mask | `1111_1111_1111_1000` |
@@ -1476,10 +2496,17 @@ EXIT
 
 Execute instruction found in specified register
 
+The contents of the sr register are executed as the next instruction.
+If sr contains a memory reference instruction, the address is given as part of the instruction.    
+
+EXR <sr> cannot be used to fetch an <sr> register containing another EXR instruction. 
+If you attempt this the error flag (Z) is set.
+
+
 #### 📋 Format
 
 ```
-EXR <register>
+EXR <sr>
 ```
 
 #### Bit Layout
@@ -1499,6 +2526,18 @@ EXR <register>
 | `opcode` | opcode | 15-3 | The opcode for execute instruction |
 | `register` | enum | 2-0 | Register containing instruction to execute<br><br>**Values:**<br>- `SD`: D register<br>- `SB`: B register<br>- `SL`: L register<br>- `SA`: A register<br>- `ST`: T register<br>- `SX`: X register<br> |
 
+#### 📚 Examples
+
+##### [(A) = 014177, STX *177] Execute the instruction held in the A register. Store the K register contents in the memory location pointed to by the program counter plus 177.
+```
+EXR SA
+```
+
+##### [(B) = 134020, JPL 20] Execute the instruction held in the B register. The instruction is 4a jump to a subroutine at memory location ({P} + 20.). The return address (the address of the instruction after EXR) returned to once the subroutine has been completed is heid in the L register.
+```
+EXR SB
+```
+
 --------------------------------------------------------------------------------
 
 ### FAD
@@ -1514,17 +2553,12 @@ EXR <register>
 
 #### 📝 Description
 
-Add floating word (FW) to floating accumulator (TAD)
-TAD := TAD + FW
+Add to floating point accumulator
 
-# Add floating word to floating accumulator
-TAD := TAD + (FW)
+(A) ⟵ (ea)     + (T)
+(D) ⟵ (ea + 1) + (A)
 
-# Check for overflow/underflow conditions
-if overflow:
-  set_overflow_flag()
-if underflow:
-  set_underflow_flag()
+The contents of two sequential memory locations, pointed to by the effective address, are added to the contents of the floating point accumulator (T and A registers). The result is held in the accumulator.
 
 
 #### 📋 Format
@@ -1569,8 +2603,16 @@ FAD <addressing_mode> <disp>
 
 #### 📝 Description
 
-Divide floating point accumulator The contents of the floating point accumulator (A and D registers) are divided by the contents of two sequential memory locations, pointed to by the effective address. 
-The result is held in the accumulator
+Divide floating point accumulator
+
+The contents of the floating point accumulator (A and D registers) are divided by the contents of two sequential memory locations, pointed to by the effective address.   
+
+
+#### 📚 Detailed Information
+
+Flags affected:
+- Division by zero sets the error flag (2).
+- This can be detected by the BSKP instruction
 
 
 #### 📋 Format
@@ -1622,6 +2664,7 @@ FDV <addressing_mode> <disp>
 #### 📝 Description
 
 Multiply floating point accumulator.
+
 The contents of the floating point accumulator (A and D registers) are multiplied by the contents of two sequential memory locations, pointed to by the effective address. 
 The result is held in the accumulator.
 
@@ -1674,7 +2717,7 @@ FMU <addressing_mode> <disp>
 
 #### 📝 Description
 
-Subtract floating point accumulator.
+Subtract from floating point accumulator.
 
 The contents of two sequential memory locations, pointed to by the effective address, are subtracted from the contents of the floating point accumulator (A and D registers). 
 The result is held in the accumulator.
@@ -1715,6 +2758,51 @@ FSB <addressing_mode> <disp>
 
 --------------------------------------------------------------------------------
 
+### GECO
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `GECO` |
+| Category | Undocumented Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+GECO is a customer-specifed instruction which appears to be included as part of the standard instruction set from ND-100/CE and later. 
+The name comes from the customer, GECO (Geophysical Company of Norway)
+
+SINTRAN III version L, and probably version K and possibly earlier, tests for GECO as part of the startup.     
+
+The instruction is found in the ND-110 microcode.
+
+
+#### 📋 Format
+
+```
+GECO
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### IDENT
 
 #### ⚡ Quick Reference
@@ -1722,7 +2810,7 @@ FSB <addressing_mode> <disp>
 | Property | Value |
 |:---------|:-------|
 | Format | ` IDENT <level_code>` |
-| Category | Interrupt Identification |
+| Category | Interrupt Control Instructions |
 | Privilege | user |
 | Mask | `1111_1111_1100_0000` |
 
@@ -1756,6 +2844,75 @@ Transfer IDENT code of interrupting device with highest priority on the specifie
 
 --------------------------------------------------------------------------------
 
+### INIT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `INIT` |
+| Category | Stack Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Initialize stack. 
+
+Loads the addresses pointed to by B with the stack frame addresses. 
+Sets up 
+  LINK  ⟵ L + 1                          {stack start}  
+  PREVB ⟵ (B)                            {save current pointer}  
+  SMAX  ⟵ stack start address + maximum stack size  
+  (B)   ⟵ (B = 200₈) + 200₈              {establish new pointer}  
+  STP   ⟵ stack demand + (B)  
+
+Load the addresses pointed to by **B** with the stack frame addresses.
+
+Stack overflow and flag error causes an error return, that is the program continues at the address following the stack demand value. 
+In all other cases, the program skips this address to find the return address from the stack.  
+
+Format:
+  INIT 
+  <number of words allocated to stack>
+  <address of stack start>
+  <maximum stack size>
+  <flag>
+  <address left empty>
+  <error return address>
+  <return address>
+
+
+#### 📋 Format
+
+```
+INIT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `PTM` | Page Table Flag |
+
+--------------------------------------------------------------------------------
+
 ### IOF
 
 #### ⚡ Quick Reference
@@ -1764,7 +2921,7 @@ Transfer IDENT code of interrupting device with highest priority on the specifie
 |:---------|:-------|
 | Format | `IOF` |
 | Category | Interrupt Control Instructions |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -1848,15 +3005,37 @@ ION
 | Property | Value |
 |:---------|:-------|
 | Format | `IOX <device_register_address>` |
-| Category | Input/Output |
-| Privilege | system |
+| Category | Input and Output |
+| Privilege | privileged |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
 
-Exchange information between I/O system and A register.    
+Exchange information between I/O system and A register.
 
-The transfer direction is input if the device-register address is even, and output if the device-register address is odd.
+
+#### 📚 Detailed Information
+
+
+This instruction is PRIVILEGED and only available to:
+   - programs running in system mode (rings 2-3)
+   - programs running without memory protection
+ 
+ The instruction controls all transfers between the ND-110 and any external devices.
+ 
+ IOX can be used to address a maximum of 2048 device registers for external devices connected to the ND-110 CPU. Data, control, and status between device and CPU can be exchanged.
+ 
+ The transfer direction is determined by the least significant bit of the device register address:
+   - If 0: input (from device to CPU)
+   - If 1: output (from CPU to device)
+ 
+ Register addresses can hold data, command, or status information for a device.
+ An external device may require more than one register address (e.g., a magnetic tape unit may need several). 
+ 
+ These should be given successive device-register addresses (odd for input, even for output).
+ 
+ Note: The number of external devices that can be controlled by the CPU depends on the configuration of the devices.        
+     
 
 
 #### 📋 Format
@@ -1879,8 +3058,8 @@ IOX <device_register_address>
 
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-10 | The opcode determines what type of operation occurs |
-| `device_register_address` | displacement | 10-0 | 11-bit unigned field gives the device register address |
+| `opcode` | opcode | 15-10 | The opcode determines what type of operation occurs (fixed code 11101₂) |
+| `device_register_address` | displacement | 10-0 | 11-bit field limiting the number of external devices that can be addressed by the CPU.<br>Bit 0 gives the direction of transfer:<br>  - 0: input (from device to CPU)<br>  - 1: output (from CPU to device)<br> |
 
 #### 📚 Examples
 
@@ -1904,17 +3083,43 @@ IOX 0305
 |:---------|:-------|
 | Format | `IOXT` |
 | Category | Input/Output |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
 
-Exchange information between I/O system and A register.    
+Exchange information between I/O system and A register.
 
-The transfer direction is input if the device-register address is even, and output if the device-register address is odd.
 
-The IOXT instruction uses the 16-bit T register to hold the device-register address, and, in theory, can address 64 K register
-addresses (0-177777). Only some of these addresses are legal however.
+#### 📚 Detailed Information
+
+This instruction is PRIVILEGED and only available to:
+  - programs running in system mode (rings 2-3)
+  - programs running without memory protection
+
+The instruction controls all transfers between the ND-110 and external devices.
+
+IOXT can be used to address a maximum of 65536 device-register addresses for external devices connected to the ND-110 CPU. 
+The 16-bit T register holds the device register address, allowing a much larger address space than IOX. Data, control, and status between device and CPU can be exchanged.
+
+The transfer direction is determined by the least significant bit of the device register address:
+  - If 0: input (from device to CPU)
+  - If 1: output (from CPU to device)
+
+Instruction format:
+  LDT <address mode> <disp>
+  IOXT
+    
+LDT instruction:
+  The IOXT instruction uses the T register contents as the device register address. The 16-bit T register gives a limit of 65536 register addresses.
+  This address MUST be loaded into the T register before IOXT is executed, hence LDT is used. (See Memory Transfer Instructions, LOAD for explanation of LDT.)
+  
+  
+
+IOXT instruction:
+  IOXT is used as a single mnemonic.
+
+Note: The number of external devices that can be controlled by the CPU depends on the configuration of the devices.
 
 
 #### 📋 Format
@@ -1982,9 +3187,16 @@ IRR <level> <register>
 | `level` | uint4 | 6-3 | Privilege level to access (0-15) |
 | `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS`: Status register<br>- `DD`: D register<br>- `DP`: P register<br>- `DB`: B register<br>- `DL`: L register<br>- `DA`: A register<br>- `DT`: T register<br>- `DX`: X register<br> |
 
+#### 📚 Examples
+
+##### Copy the program counter on program level 14 into the A register of the current program level.
+```
+
+```
+
 --------------------------------------------------------------------------------
 
-### IRR
+### IRW
 
 #### ⚡ Quick Reference
 
@@ -2025,6 +3237,13 @@ IRW <level> <register>
 | `level` | uint4 | 6-3 | Privilege level to access (0-15) |
 | `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS`: Status register<br>- `DD`: D register<br>- `DP`: P register<br>- `DB`: B register<br>- `DL`: L register<br>- `DA`: A register<br>- `DT`: T register<br>- `DX`: X register<br> |
 
+#### 📚 Examples
+
+##### Copy the A register on the current program level into the B register on program level 8
+```
+
+```
+
 --------------------------------------------------------------------------------
 
 ### JAF
@@ -2040,6 +3259,9 @@ IRW <level> <register>
 #### 📝 Description
 
 Condtion: Jump if (A) != 0 (jump if A filled)
+
+
+#### 📚 Detailed Information
 
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
@@ -2086,6 +3308,9 @@ If condition false, continue program execution at (P) + 1.
 
 Condtion: Jump if (A) < 0 (jump if A is negative)
 
+
+#### 📚 Detailed Information
+
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
 
@@ -2130,6 +3355,9 @@ If condition false, continue program execution at (P) + 1.
 #### 📝 Description
 
 Condtion: Jump if (A) > 0 (jump if A positive)
+
+
+#### 📚 Detailed Information
 
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
@@ -2176,6 +3404,9 @@ If condition false, continue program execution at (P) + 1.
 
 Condtion: Jump if (A) == 0 (jump if A is zero)
 
+
+#### 📚 Detailed Information
+
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
 
@@ -2213,7 +3444,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
-| Format | `JMP <address mode> <disp>` |
+| Format | `JMP <address mode> <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | user |
 
@@ -2226,7 +3457,7 @@ The next instruction is taken from the effective address of the JMP instruction(
 #### 📋 Format
 
 ```
-JMP <address mode> <disp>
+JMP <address mode> <displacement>
 ```
 
 #### Bit Layout
@@ -2265,6 +3496,9 @@ JMP <address mode> <disp>
 #### 📝 Description
 
 Increment X and jump if X is negative    
+
+
+#### 📚 Detailed Information
 
 X = X + 1
 Condtion: Jump if (X) < 0 (jump if X is negative)
@@ -2314,6 +3548,9 @@ If condition false, continue program execution at (P) + 1.
 
 Increment X and jump if X is positive    
 
+
+#### 📚 Detailed Information
+
 X = X + 1
 Condtion: Jump if (X) > 0 (jump if X is positive)
 
@@ -2354,7 +3591,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
-| Format | `JPL <address mode> <disp>` |
+| Format | `JPL <address mode> <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | user |
 
@@ -2369,7 +3606,7 @@ Note that the L register points to the instruction after the jump(the program co
 #### 📋 Format
 
 ```
-JPL <address mode> <disp>
+JPL <address mode> <displacement>
 ```
 
 #### Bit Layout
@@ -2408,6 +3645,9 @@ JPL <address mode> <disp>
 #### 📝 Description
 
 Condtion: Jump if (X) < 0 (jump if X negative)
+
+
+#### 📚 Detailed Information
 
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
@@ -2453,6 +3693,9 @@ If condition false, continue program execution at (P) + 1.
 #### 📝 Description
 
 Condtion: Jump if (X) == 0 (jump if X is zero)
+
+
+#### 📚 Detailed Information
 
 If condition true, jump to the address of the program counter plus the value of displacement.
 If condition false, continue program execution at (P) + 1.    
@@ -2548,6 +3791,9 @@ LBYT
 
 Load A register
 
+Load the contents of the memory location pointed to by the effective address into the A register.
+
+
 #### 📋 Format
 
 ```
@@ -2577,6 +3823,96 @@ LDA <addressing_mode> <disp>
 
 --------------------------------------------------------------------------------
 
+### LDATX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDATX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load A register
+
+(A) ⟵ (ea)
+
+Load the contents of the physical memory location pointed to by the effective address into the A register.
+
+
+#### 📋 Format
+
+```
+LDATX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### LDBTX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDBTX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load B register
+
+(B) ⟵ 177000₈ OR 2(ea)
+
+Load the contents of the physical memory location pointed to by twice the effective address contents into the B register, then OR the value with 177000₈.
+
+See description for usage.
+
+
+#### 📋 Format
+
+```
+LDBTX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### LDD
 
 #### ⚡ Quick Reference
@@ -2591,8 +3927,8 @@ LDA <addressing_mode> <disp>
 #### 📝 Description
 
 Load double word
-  A <- (ea)
-  D <- (ea) + 1
+  A ⟵ (ea)
+  D ⟵ (ea) + 1
 
 Load the contents of the memory location pointed to by the effective address into the A register 
 Load the contents of the memory location pointed to by the effective address plus one into the D register.
@@ -2627,6 +3963,51 @@ LDD <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### LDDTX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDDTX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load double word
+
+(A) ⟵ (ea)
+(D) ⟵ (ea + 1)
+
+Load the contents of the physical memory location pointed to by the effective address into the A register and the contents of the effective address plus one into the D register.
+
+
+#### 📋 Format
+
+```
+LDDTX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### LDF
 
 #### ⚡ Quick Reference
@@ -2642,8 +4023,11 @@ LDD <addressing_mode> <displacement>
 
 Load floating accumulator (TAD) from memory (FW)
 Memory format:
-- EL: Exponent
-- EL+1, EL+2: Mantissa
+ (T) ⟵ EL
+ (A) ⟵ EL+1
+ (D) ⟵ EL+2
+
+Load the contents of the memory location pointed to by the effective address into the T register, the contents of the effective address plus one into the A register and the contents of the effective address plus two into the D register.
 
 
 #### 📋 Format
@@ -2675,6 +4059,153 @@ LDF <addressing_mode> <disp>
 
 --------------------------------------------------------------------------------
 
+### LDT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDT <addressing_mode> <disp>` |
+| Category | Memory Transfer - Load Instruction |
+| Privilege | user |
+| Mask | `1111_1000_0000_0000` |
+
+#### 📝 Description
+
+Load T register
+
+(T) ⟵ (ea)
+
+Load the contents of the memory location pointed to by the effective address into the T register.
+
+
+#### 📋 Format
+
+```
+LDT <addressing_mode> <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11│  10    9     8   │ 7   6   5   4   3   2   1   0    │
+   │                   │  X     I     B   │                                  │
+   ├───────────────────┼──────────────────┼──────────────────────────────────┤
+   │       opcode      │  addressing_mode │          displacement            │
+   └───────────────────┴──────────────────┴──────────────────────────────────┘
+
+```
+
+> **Note:** This instruction uses addressing modes. See [Addressing Modes](#addressing-modes) for details.
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
+| `addressing_mode` | addressing_modes | 10-8 | These three bits give the addressing mode for the instruction |
+| `displacement` | displacement | 7-0 | 8-bit signed field gives the memory address displacement (2's complement notation giving a displacement range of -128 to 127 memory locations) |
+
+--------------------------------------------------------------------------------
+
+### LDX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDX <addressing_mode> <disp>` |
+| Category | Memory Transfer - Load Instruction |
+| Privilege | user |
+| Mask | `1111_1000_0000_0000` |
+
+#### 📝 Description
+
+Load X register
+
+(X) ⟵ (ea)
+
+Load the contents of the memory location pointed to by the effective address into the X register.
+
+
+#### 📋 Format
+
+```
+LDX <addressing_mode> <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11│  10    9     8   │ 7   6   5   4   3   2   1   0    │
+   │                   │  X     I     B   │                                  │
+   ├───────────────────┼──────────────────┼──────────────────────────────────┤
+   │       opcode      │  addressing_mode │          displacement            │
+   └───────────────────┴──────────────────┴──────────────────────────────────┘
+
+```
+
+> **Note:** This instruction uses addressing modes. See [Addressing Modes](#addressing-modes) for details.
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
+| `addressing_mode` | addressing_modes | 10-8 | These three bits give the addressing mode for the instruction |
+| `displacement` | displacement | 7-0 | 8-bit signed field gives the memory address displacement (2's complement notation giving a displacement range of -128 to 127 memory locations) |
+
+--------------------------------------------------------------------------------
+
+### LEAV
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LEAVE` |
+| Category | Stack Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Leave stack.
+
+This instruction saves the previous stack pointer in LINK. 
+The B register is restored to its previous value (PREVB) and the stack is left by loading the P register (program counter) with the return address (LINK).
+
+  (P) ⟵ (B = 200₈)   {LINK}
+  (B) ⟵ (B = 177₈)   {PREVB}
+
+Format:
+  LEAVE
+
+
+#### 📋 Format
+
+```
+LEAVE
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### LRB
 
 #### ⚡ Quick Reference
@@ -2688,17 +4219,29 @@ LDF <addressing_mode> <disp>
 
 #### 📝 Description
 
-Load register block from memory to specified level
-P on spec. level: = (EL)
-X on spec. level: = (EL) + 1
-T on spec. level: = (EL) + 2
-A on spec. level: = (EL) + 3
-D on spec. level: = (EL) + 4
-L on spec. level: = (EL) + 5
-STS on spec. level: = (EL) + 6
-B on spec. level: = (EL) + 7
+Load register block
 
-Where EL = (X) on current level
+Load the contents of a memory block pointed to by the X register into the register block of the program level given in the instruction.
+
+If the instruction specifies the current program level, the P register (program counter) is not loaded from memory and is unchanged.
+
+
+#### 📚 Detailed Information
+
+The memory block pointed to by the X register is loaded into the register block for the specified program level. The mapping is as follows:
+
+    P (level N) ⟵ (ea)
+    X (level N) ⟵ (ea + 1)
+    T (level N) ⟵ (ea + 2)
+    A (level N) ⟵ (ea + 3)
+    D (level N) ⟵ (ea + 4)
+    L (level N) ⟵ (ea + 5)
+    STS (level N) ⟵ (ea + 6)
+    B (level N) ⟵ (ea + 7)
+
+Where (ea) is the address in memory pointed to by the X register.
+
+If the current program level is specified, the P register is not loaded and remains unchanged.
 
 
 #### 📋 Format
@@ -2725,6 +4268,21 @@ LRB <level>
 | `level` | uint4 | 6-3 | The level to load the register block to |
 | `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB`: Store Register Block<br>- `LRB`: Load Register Block<br> |
 
+#### 📚 Examples
+
+##### LRB 160₈ (152760₈)
+
+Load the memory block pointed to by the X register into the register on program level 14.
+
+    P (level 14) ⟵ (ea)
+    X (level 14) ⟵ (ea + 1)
+    ↓             ↓
+    B (level 14) ⟵ (ea + 7)
+
+```
+LRB 160
+```
+
 --------------------------------------------------------------------------------
 
 ### MCL
@@ -2735,7 +4293,7 @@ LRB <level>
 |:---------|:-------|
 | Format | `MCL <internal_register>` |
 | Category | Register Transfer |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -2771,6 +4329,16 @@ MCL <internal_register>
 | `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
 | `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `STS`: <br>- `PID`: <br>- `PIE`: <br> |
 
+#### 📚 Examples
+
+##### MCL STS (150201₈)   [ (A) = 000100₈ ]
+
+Clear the carry flag (bit 6) in the status (STS) register.
+
+```
+MCL STS
+```
+
 --------------------------------------------------------------------------------
 
 ### MIN
@@ -2788,8 +4356,8 @@ MCL <internal_register>
 
 Memory increment and skip next instruction if zero (EA): = (EA) + 1
 
-(ea) <- (ea) + 1
-(P)  <- (P) + 2 IF new (ea) = 0
+(ea) ⟵ (ea) + 1
+(P)  ⟵ (P) + 2 IF new (ea) = 0
 
 The contents of the memory location pointed to by the effective address are incremented by one. 
 If the new memory location when incremented becomes zero, the next instruction is skipped.
@@ -2824,6 +4392,50 @@ MIN <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### MIX3
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `MIX3` |
+| Category | Register Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Multiply index by 3.
+
+(X) ⟵ [(A)-1] * 3
+
+Take the contents of the A register as an operand and subtract one. Multiply the result by three and place it in the X register.
+
+
+#### 📋 Format
+
+```
+MIX3
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### MON
 
 #### ⚡ Quick Reference
@@ -2839,6 +4451,13 @@ MIN <addressing_mode> <displacement>
 
 The MON instruction is used in special different contexts when running under an operating system.
 It provides system call functionality through different monitor call numbers.
+
+
+#### 📚 Detailed Information
+
+The unsigned <monitor_call_number> allows 256 monitor calls.
+This field is loaded into the T register on level 14.
+The higher byte of the T register is sign exended.
 
 
 #### 📋 Format
@@ -2883,6 +4502,169 @@ MON 2
 
 --------------------------------------------------------------------------------
 
+### MOVB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `MOVB` |
+| Category | Byte Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Move byte.
+
+This instruction moves a block of bytes from the memory location addressed by the source operand to that of the memory location addressed by the destination operand.
+
+After execution, bit 15 of the D and T registers point to the end of the field that has been moved. The field length of the D register (source) equals zero and the T register (destination) field length is equal to the number of bytes moved.
+
+
+#### 📋 Format
+
+```
+MOVB
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### MOVBF
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `MOVBF` |
+| Category | Byte Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Move bytes forward.
+
+This instruction moves a block of bytes from the memory location addressed by the source operand to that of the memory location addressed by the destination operand.
+
+After execution, bit 15 of the D and T registers point to the end of the field that has been moved. The field length of the D register (source) equals zero and the T register (destination) field length is equal to the number of bytes moved.
+
+
+#### 📋 Format
+
+```
+MOVBF
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### MOVEW
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `MOVEW` |
+| Category | Word Block Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1000` |
+
+#### 📝 Description
+
+Word block move.
+
+This instruction moves a block of words from one area of memory to another. The type of transfer is determined by the opcode field ΔΔ, with the base octal code 1431ΔΔ.
+
+  ┌───────┬─────────────┬─────────────┐
+  │ ΔΔ₈   │ move from:  │ move to:    │
+  ├───────┼─────────────┼─────────────┤
+  │ 00₈   │ PT          │ PT          │
+  │ 01₈   │ PT          │ APT         │
+  │ 02₈   │ PT          │ phy.memory* │
+  │ 03₈   │ APT         │ PT          │
+  │ 04₈   │ APT         │ APT         │
+  │ 05₈   │ APT         │ phy.memory* │
+  │ 06₈   │ phy.memory  │ PT*         │
+  │ 07₈   │ phy.memory  │ APT*        │
+  │ 10₈   │ phy.memory  │ phy.memory* │
+  └───────┴─────────────┴─────────────┘
+  * = privileged instruction
+  PT  = normal page table
+  APT = alternative page table
+  phy.memory = physical memory
+
+The following registers control the transfer:
+- A and D: source address
+- X and T: destination address
+- L: number of words to be moved (maximum 2048 words)
+
+For physical memory-block moves, A and/or X are incremented when D and/or T overflow.
+
+If the L register contains a value greater than 2048 (L = 4000₈), no words are moved and A, D, T, and X remain unchanged.
+
+After transfer, the registers contain:
+- A, D, T, X: addresses after the last moved word
+- L: zero
+
+Special cases:
+If the memory management system is off (bit PTM of the STS register is zero), bank 0 of physical memory is addressed and the following transfer fields become equivalent:
+- ΔΔ = 00 = 01 = 03 = 04
+- ΔΔ = 02 = 05
+- ΔΔ = 06 = 07
+
+MOVEW can be interrupted. L, A, D, X, T, and P registers are then changed to restart execution.
+
+
+#### 📋 Format
+
+```
+MOVEW
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
 ### MPY
 
 #### ⚡ Quick Reference
@@ -2896,7 +4678,18 @@ MON 2
 
 #### 📝 Description
 
-Multiply integer (O and Q may also be affected) A: = A * (EL)
+Multiply integer
+A ⟵ A * (EL)
+
+Multiply the contents of the memory location pointed to by the effective address with the contents of the A register, leaving the result in A.
+
+
+#### 📚 Detailed Information
+
+**Flags affected**
+  O ⟵ 1; Q ⟵ 1
+  If an overflow occurs, that is if the result has an absolute value greater than decimal 32767
+
 
 #### 📋 Format
 
@@ -2942,7 +4735,7 @@ MPY <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `MST <register>` |
 | Category | Register Transfer |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -2997,11 +4790,19 @@ Normalize
 
 Convert the number in A to a floating number in TAD
 
+
+#### 📚 Detailed Information
+
+
 The number in the A register is converted to its floating point equivalent in the floating point accumulator (A and D registers), 
 using the scaling factor given, For integers, a scaling factor of +16 will give a floating point number with the same value as the integer.
 The larger the scaling factor, the larger the Ploating point number. 
 
 The D register will be cleared when using single precision fixed point numbers.
+
+
+Comments on 48-bit floating point CP
+For the ND-110, 48-bit floating point CPU option, a further register (T) and memory location fea + 2) are used. In this case, the T register is linked to location ea, A to ea + 1 and D to ea + 2.
 
 How to test for a 32-bit or 48-bit floating point CPU:
   SAT 0
@@ -3048,6 +4849,54 @@ NLZ +20
 
 --------------------------------------------------------------------------------
 
+### OPCOM
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `OPCOM` |
+| Category | Interrupt Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Operator Communication
+
+This instruction is PRIVILEGED and only available to:
+  - programs running in system mode (rings 2-3)
+  - programs running without memory protection
+
+This instruction allows the programmer to use a terminal in direct communication with the CPU board.
+When the CPU is running, MOPC can be used to read input from the console.
+This is the software equivalent to pressing the OPCOM button on the control panel of the ND-110.
+
+
+#### 📋 Format
+
+```
+OPCOM
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### ORA
 
 #### ⚡ Quick Reference
@@ -3061,7 +4910,11 @@ NLZ +20
 
 #### 📝 Description
 
-Logical inclusive OR to A register A: = A | (EA)
+Logical inclusive OR to A register
+A ⟵ A | (EA)
+
+Perform a bitwise OR operation between the contents of the A register and the contents of the memory location pointed to by the effective address, leaving the result in A.
+
 
 #### 📋 Format
 
@@ -3092,6 +4945,157 @@ ORA <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### PACK
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `PACK` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Convert to BCD.
+
+(op2) ⟵ (op1) in BCD format
+
+Convert the first operand from its ASCII format to BCD format, placing the result in the second operand location.
+
+**Conversion process:**
+PACK carries out the following steps:
+1. Checks the sign and digits of the operand (op1) are encoded as ASCII digits. (Reporting illegal codes as error code 2.)
+2. Takes the 4 least significant bits of each ASCII digit as the equivalent BCD digit.
+3. Converts the ASCII sign of the operand to BCD:
+
+       ASCII   BCD   Sign
+       53₈    14₈   +
+       55₈    15₈   -
+    Note: If bit 13 of the descriptor D2 is set, then the code 17₈ (BCD unsigned) is used.
+4. Extends the second operand field (op2) with zeros if the result is too small to fill the field.
+   Reports overflow has occurred (error code 3) if the second operand field length is too short to contain the significant digits of the result (the remaining digits are ignored).
+
+**Error code:**
+An error code is placed in bits 0 to 4 of the D register if an illegal code conversion is attempted or if overflow occurs. The first detected error will be reported.
+
+    Error code: 2   illegal code†
+                3   overflow
+    † bit 15 of both the A and D registers point to the byte containing the illegal code.
+
+
+#### 📋 Format
+
+```
+PACK
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### PIOF
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `PIOF` |
+| Category | Memory Management Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Memory management and interrupt system OFF
+
+Disables both the memory management and interrupt systems. This combines the functions of the IOF and POF instructions.
+
+Before_use:
+  Check conditions of the IOF instruction.
+
+
+#### 📋 Format
+
+```
+PIOF
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### PION
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `PION` |
+| Category | Memory Management Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Memory management and interrupt system ON
+
+Enable both the memory management and interrupt systems. This combines the functions of the ION and PON instructions.
+
+
+#### 📋 Format
+
+```
+PION
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### POF
 
 #### ⚡ Quick Reference
@@ -3100,7 +5104,7 @@ ORA <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `POF` |
 | Category | Interrupt Control Instructions |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3142,7 +5146,7 @@ POF
 | Property | Value |
 |:---------|:-------|
 | Format | `PON` |
-| Category | Interrupt Control Instructions |
+| Category | Memory Management Instructions |
 | Privilege | user |
 | Mask | `1111_1111_1111_1111` |
 
@@ -3187,19 +5191,71 @@ PON
 
 | Property | Value |
 |:---------|:-------|
-| Format | `RADD <source> <destination>` |
+| Format | `RADD [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
-| Mask | `1111_1111_1100_0000` |
+| Mask | `1111_1100_0000_0000` |
 
 #### 📝 Description
 
 Add source to destination (dr): = (dr) + (sr)
 
+
+#### 📚 Detailed Information
+
+These instructions specify operations between source (sr) and destination (dr) registers.
+
+Optional sub-instructions:
+
+- **CLD**: CLD=1. Zero is used instead of the destination register as an operand (dr register contents are unchanged).
+- **CM1**: CM1=1. The 1's complement of the source register is used as an operand (sr register contents are unchanged).
+- **ADC**: This mnemonic represents C=0 I=1. Add previous carry to destination register.
+- **AD1**: This mnemonic represents C=1 I=0. Add 1 to destination register.
+- **CM2**: This compound sub-instruction is equivalent to CM1 ADC.
+
+Flags affected:
+
+RADD instructions affect the carry (C) and overflow (O and Q) flags as follows:
+
+- **C = 1**: If a carry occurs from the signed bit positions of the adder.
+- **O = 1 ; Q = 1**: If an overflow occurs, that is if the signs of the two operands are equal and the sign of the result is different.
+- **O = 1 ; Q = 0**: If overflow does not exist, the dynamic overflow flag (O) is reset while the static overflow flag (Q) is left unchanged.
+
+---
+
+### Instruction combinations
+
+COPY
+RADD <sr> <dr>           dr ⟵ dr + sr
+RADD CLD <sr> <dr>       dr ⟵ sr         ≡ COPY
+RADD CM1 <sr> <dr>       dr ⟵ dr + ~sr
+RADD CM1 CLD <sr> <dr>   dr ⟵ ~sr
+RADD AD1 <sr> <dr>       dr ⟵ dr + sr + 1
+RADD CLD AD1 <sr> <dr>   dr ⟵ sr + 1
+RADD CM1 AD1 <sr> <dr>   dr ⟵ dr - sr    ≡ RSUB
+RADD CM1 CLD AD1 <sr> <dr> dr ⟵ -sr
+RADD ADC <sr> <dr>       dr ⟵ dr + sr + c
+RADD CLD ADC <sr> <dr>   dr ⟵ sr + c
+RADD CM1 ADC <sr> <dr>   dr ⟵ dr + ~sr + c
+RADD CM1 CLD ADC <sr> <dr> dr ⟵ ~sr + c
+
+RINC
+RADD AD1 <dr> is equivalent to RINC <dr>, increment dr register by one.
+
+RDCR
+RADD CM1 <dr> is equivalent to RDCR <dr>, decrement dr register by one.
+
+RCLR
+RADD CLD 0 (COPY 0) is equivalent to RCLR <dr>, register clear.
+
+EXIT
+RADD CM1 SL DP (COPY SL DP) is equivalent to EXIT, return from subroutine.
+
+
 #### 📋 Format
 
 ```
-RADD <source> <destination>
+RADD [sub-instruction(s)] <source> <destination>
 ```
 
 #### Bit Layout
@@ -3241,6 +5297,25 @@ RADD <source> <destination>
 RADD SB DA
 ```
 
+##### Add the contents of the A and X registers together and place the result in the X register. (146057₈)
+```
+RADD SA DX
+```
+
+##### Use zero as the destination operand, add the X register contents and leave the result in B. THAT IS copy the contents of the X register into B. (146173₈)
+Equivalent to COPY SX DB.
+
+```
+RADD CLD SX DB
+```
+
+##### Copy the negative value of the X register contents into B. (146773₈)
+Equivalent to COPY CLD AD1 or RSUB CM1.
+
+```
+RADD CM1 CLD AD1 SX DB
+```
+
 --------------------------------------------------------------------------------
 
 ### RAND
@@ -3249,19 +5324,38 @@ RADD SB DA
 
 | Property | Value |
 |:---------|:-------|
-| Format | `RAND [flags] <source> <destination>` |
+| Format | `RAND [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
 
-Logical AND to destination (dr): = (dr) ∧ (sr)
+Logical AND to destination 
+(dr): = (dr) & (sr)
+
+
+#### 📚 Detailed Information
+
+Optional sub-instructions:
+
+- **CLD=1**: Zero is used instead of the destination register as an operand (dr register contents are unchanged).
+- **CM1=1**: The 1's complement of the source register is used as an operand (sr register contents are unchanged).
+
+---
+
+### Instruction combinations
+
+RAND <sr> <dr>           dr ⟵ dr AND sr
+RAND CLD <sr> <dr>       dr ⟵ 0
+RAND CM1 <sr> <dr>       dr ⟵ dr AND ~sr
+RAND CM1 CLD <sr> <dr>   dr ⟵ 0
+
 
 #### 📋 Format
 
 ```
-RAND [flags] <source> <destination>
+RAND [sub-instruction(s)] <source> <destination>
 ```
 
 #### Bit Layout
@@ -3288,6 +5382,20 @@ RAND [flags] <source> <destination>
 | `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
 | `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
 
+#### 📚 Examples
+
+##### AND the contents of the L and X registers. Store the result in the X register. (144447₈)
+```
+RAND SL DX
+```
+
+##### AND the contents of the T and B registers, taking the 1's complement of the sr as the source operand. (144663₈)
+Result in B.
+
+```
+RAND CM1 ST DB
+```
+
 --------------------------------------------------------------------------------
 
 ### RCLR
@@ -3299,11 +5407,17 @@ RAND [flags] <source> <destination>
 | Format | `RCLR <destination>` |
 | Category | Register Operations |
 | Privilege | user |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1111_1000` |
 
 #### 📝 Description
 
-Registr clear
+Register clear
+
+
+#### 📚 Detailed Information
+
+RCLR is a compound mnemonic for "COPY 0" (or RADD CLD 0).
+
 
 #### 📋 Format
 
@@ -3314,10 +5428,10 @@ RCLR <destination>
 #### Bit Layout
 
 ```
-   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
-   ├────────────────────────────────────────────────────────────────┤
-   │                             opcode                             │
-   └────────────────────────────────────────────────────────────────┘
+   │ 15  14  13  12  11  10  9   8   7   6   5   4 │  2    1    0   │
+   ├───────────────────────────────────────────────┼────────────────┤
+   │                     opcode                    │  destination   │
+   └───────────────────────────────────────────────┴────────────────┘
 
 ```
 
@@ -3325,7 +5439,83 @@ RCLR <destination>
 
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+| `opcode` | opcode | 15-4 | The opcode for register arithmetic |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Clear the contents of the A register.
+```
+RCLR DA
+```
+
+--------------------------------------------------------------------------------
+
+### RDCR
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `RDCR <destination>` |
+| Category | Register Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1000` |
+
+#### 📝 Description
+
+Register decrement
+
+dr ⟵ dr - 1
+
+RDCR is a compound mnemonic for RADD CM1.
+
+
+#### 📋 Format
+
+```
+RDCR <destination>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4 │  2    1    0   │
+   ├───────────────────────────────────────────────┼────────────────┤
+   │                     opcode                    │  destination   │
+   └───────────────────────────────────────────────┴────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-4 | The opcode for register arithmetic |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Decrement the contents of the B register by one. (146203₈)
+```
+RDCR DB
+```
 
 --------------------------------------------------------------------------------
 
@@ -3345,6 +5535,9 @@ RCLR <destination>
 Divide double accumulator with source; quotient in A, remainder in D
 A: = AD/(sr)
 (AD = A * (sr) + D)
+
+
+#### 📚 Detailed Information
 
 The 32-bit signed integer held in the double accumulator AD is divided by the contents of sr.
 If division causes overflow, the error flag (Z) is set.
@@ -3387,6 +5580,93 @@ RDIV <source> <destination>
 
 --------------------------------------------------------------------------------
 
+### RDUS
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `RDUS` |
+| Category | Memory Examine and Test Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Read a word without using cache
+
+(T) points to the virtual memory word to be accessed
+(A) ⟵ memory word addressed by T
+
+The address given by the T register is a logical memory address. It is normally translated into a physical address using page tables (if the memory management system is on). The contents of the location addressed by T are loaded into the A register. The old content of the memory address is always read from the memory and never from cache.
+
+The execution time of this instruction includes two read bus cycles (semaphore cycles – see ND-110 Functional Description Manual ND.06.027).
+
+
+#### 📋 Format
+
+```
+RDUS
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### REX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `REX` |
+| Category | Memory Management Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Reset extended address mode
+
+
+#### 📋 Format
+
+```
+REX
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### REXO
 
 #### ⚡ Quick Reference
@@ -3404,16 +5684,19 @@ Logical exclusive OR
 
 (dr): = (dr) ⊕ (sr)
 
+
+#### 📚 Detailed Information
+
 Optional sub instructions:
   CLD=1 Zero is used instead of the destination register as an operand (dr register contents are unchanged).
   CM1=1 The 1's complement of the source register is used as an operand (sr register contents are unchanged).
 
 Instruction combinations:
 
-  REXO <sr> <dr>          dr <- dr XOR sr
-  REXO CLD <sr> <dr>      dr <- sr
-  REXO CML <sp> <dr>      dr <- dr XOR sr's (1's complement)
-  REXO CML CLD <sr> <dr>  dr <- sr (1's complement)
+  REXO <sr> <dr>          dr ⟵ dr XOR sr
+  REXO CLD <sr> <dr>      dr ⟵ sr
+  REXO CML <sp> <dr>      dr ⟵ dr XOR sr's (1's complement)
+  REXO CML CLD <sr> <dr>  dr ⟵ sr (1's complement)
 
 
 #### 📋 Format
@@ -3455,6 +5738,66 @@ REXO ST DB
 
 --------------------------------------------------------------------------------
 
+### RINC
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `RINC <destination>` |
+| Category | Register Operations |
+| Privilege | user |
+| Mask | `1111_1111_1111_1000` |
+
+#### 📝 Description
+
+Register increment
+
+dr ⟵ dr + 1
+
+RINC is a compound mnemonic for RADD AD1.
+
+
+#### 📋 Format
+
+```
+RINC <destination>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4 │  2    1    0   │
+   ├───────────────────────────────────────────────┼────────────────┤
+   │                     opcode                    │  destination   │
+   └───────────────────────────────────────────────┴────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-4 | The opcode for register arithmetic |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Increment the contents of the A register by one.
+```
+RINC DA
+```
+
+--------------------------------------------------------------------------------
+
 ### RMPY
 
 #### ⚡ Quick Reference
@@ -3469,7 +5812,13 @@ REXO ST DB
 #### 📝 Description
 
 Multiply source with destination; result in double accumulator
-AD: = (sr) * (dr)
+AD ⟵ (sr) * (dr)
+
+
+#### 📚 Detailed Information
+
+The sr and dr registers hold the two operands to be multiplied together. 
+The result is a 32-bit signed integer held in the A and D register (the A register contains the 16 most significant bits).
 
 
 #### 📋 Format
@@ -3496,6 +5845,21 @@ RMPY <source> <destination>
 | `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
 | `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
 
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Multiply the contents of the A and X registers together, leaving the result in the A and D registers.
+```
+RMPY SA DX
+```
+
 --------------------------------------------------------------------------------
 
 ### RORA
@@ -3504,19 +5868,39 @@ RMPY <source> <destination>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `RORA [flags] <source> <destination>` |
+| Format | `RORA <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
 
-Logical inclusive OR (dr): = (dr) ∨ (sr)
+OR register
+
+dr ⟵ dr OR sr
+
+
+#### 📚 Detailed Information
+
+Optional sub-instructions:
+
+- **CLD=1**: Zero is used instead of the destination register as an operand (dr register contents are unchanged).
+- **CM1=1**: The 1's complement of the source register is used as an operand (sr register contents are unchanged).
+
+---
+
+### Instruction combinations
+
+RORA <sr> <dr>           dr ⟵ dr OR sr
+RORA CLD <sr> <dr>       dr ⟵ sr
+RORA CM1 <sr> <dr>       dr ⟵ dr OR ~sr
+RORA CM1 CLD <sr> <dr>   dr ⟵ ~sr
+
 
 #### 📋 Format
 
 ```
-RORA [flags] <source> <destination>
+RORA <sub-instruction(s)> <source> <destination>
 ```
 
 #### Bit Layout
@@ -3543,6 +5927,21 @@ RORA [flags] <source> <destination>
 | `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
 | `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
 
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### OR the contents of the B and T registers leaving the result in B. (145463₈)
+```
+RORA ST DB
+```
+
 --------------------------------------------------------------------------------
 
 ### RSUB
@@ -3551,19 +5950,34 @@ RORA [flags] <source> <destination>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `RSUB <source> <destination>` |
+| Format | `RSUB <sub-instruction> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
 
-Subtract source from destination (dr): = (dr) - (sr)
+Register subtract
+
+dr ⟵ dr - sr
+
+RSUB is a compound mnemonic for RADD AD1 CM1 (or RADD CM2 using the AD1 CM2 compound mnemonic).
+
+
+#### 📚 Detailed Information
+
+The following sub-instruction is allowed:
+
+- **CLD**
+
+Note:
+Sometimes the RADD form will be more readable.
+
 
 #### 📋 Format
 
 ```
-RSUB <source> <destination>
+RSUB <sub-instruction> <source> <destination>
 ```
 
 #### Bit Layout
@@ -3597,6 +6011,13 @@ RSUB <source> <destination>
 | `C` | Carry flag |
 | `O` | Static overflow flag |
 | `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Subtract the contents of the T register from the contents of the B register leaving the result in B.
+```
+RSUB ST DB
+```
 
 --------------------------------------------------------------------------------
 
@@ -3912,6 +6333,60 @@ SBYT
 
 --------------------------------------------------------------------------------
 
+### SEX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SEX` |
+| Category | Memory Management Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Set extended address mode
+
+
+#### 📚 Detailed Information
+
+Set the paging system to the 24-bit address mode instead of the 19-bit address mode.
+(Creating a page table for 24-bit addresses)
+
+Flags affected: SEXI (bit 13 of the STS register) cleared
+
+
+#### 📋 Format
+
+```
+SEX
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `SEXI` | Memory management is in extended mode (24-bit address used, not 19 bit) |
+
+--------------------------------------------------------------------------------
+
 ### SHA
 
 #### ⚡ Quick Reference
@@ -4014,6 +6489,87 @@ SHD <shift_type> <shift_counter>
 
 --------------------------------------------------------------------------------
 
+### SHDE
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SHDE` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Decimal shift.
+
+(op2) ⟵ (op1) shifted
+
+This instruction is used to normalize operands for decimal operations.
+
+The shift count determines whether the operand is shifted to the left or right:
+  (op2 - op1) positive then shift op1 to right
+  (op2 - op1) negative then shift op1 to left
+
+If significant digits are lost by carrying out a left shift, an error is generated, directing the program counter to the instruction after the SHDE (the error return). If no errors occur this instruction is skipped.
+
+The digits of the first operand are shifted and the result is placed in the second operand's memory location.
+
+The number of places shifted is given by the difference in decimal position of the two operands. This normalizes the first operand (op1) to the second (op2) for decimal operations such as ADDD.
+
+The sign of the normalized operand (op1) is as follows:
+
+    BCD    Sign
+    14₈    +
+    15₈    -
+
+An unsigned operand is converted to a plus unless bit 13 of the descriptor D2 is set, when the BCD equivalent of unsigned (17₈) is used.
+The sign and digits of the first operand are checked before execution and any illegal digit codes reported.
+
+If bit 10 of descriptor D2 (op2) is set the result is rounded, that is a 1 is added to the operand if the last digit shifted out of the field is ≥ 5.
+
+**Instruction sequence:**
+
+    SHDE
+    error handling instruction
+    next instruction after SHDE or after error handling routine
+
+**Example:**
+
+    SHDE
+    JMP *10₈
+    SAD 20₈
+
+The SHDE instruction causes the program counter to skip the next instruction UNLESS an error has been generated, when the instruction immediately following the SHDE will handle the error in some way (in this example a jump is executed on error to (P) + 10₈)).
+
+(* is the assembler mnemonic for the P register)
+
+
+#### 📋 Format
+
+```
+SHDE
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### SHT
 
 #### ⚡ Quick Reference
@@ -4079,6 +6635,44 @@ SHT <shift_type> <shift_counter>
 #### 📝 Description
 
 The next instruction is skipped if a specified condition is true.
+
+
+#### 📚 Detailed Information
+
+SKP can be qualified by eight different mnemonics which use the flags set by the following expression:
+
+    (dr) - (sr)
+
+Four flags are affected by this calculation:
+
+    S  sign
+    Z  zero result (error)
+    C  carry
+    O  overflow
+
+The condition codes are as follows:
+
+    ┌───────┬─────────┬──────────────────────────────┬────────────────────────┐
+    │ bits  │ mnemonic│ description                  │ flag(s) condition      │
+    │10 9 8 │         │                              │ if true                │
+    ├───────┼─────────┼──────────────────────────────┼────────────────────────┤
+    │ 0 0 0 │ EQL     │ Equal                        │ Z = 1                  │
+    │ 0 0 1 │ GEQ     │ Greater or equal to †        │ S = 0                  │
+    │ 0 1 0 │ GRE     │ Greater or equal to * †      │ S + O = 0              │
+    │ 0 1 1 │ MGRE    │ Magnitude greater or equal * │ C = 1                  │
+    │ 1 0 0 │ UEQ     │ Unequal                      │ Z = 0                  │
+    │ 1 0 1 │ LSS     │ Less than †                  │ S = 1                  │
+    │ 1 1 0 │ LST     │ Less than * †                │ S + O = 1              │
+    │ 1 1 1 │ MLST    │ Magnitude less than *        │ C = 0                  │
+    └───────┴─────────┴──────────────────────────────┴────────────────────────┘
+
+* Overflow is taken care of
+† Contents of sr and dr are treated as signed numbers
+
+Note:
+By swapping the sr and dr fields, these relationships can be tested:
+  >  Greater than
+  <= Less than or equal
 
 
 #### 📋 Format
@@ -4155,17 +6749,29 @@ SKP LSS SD
 
 #### 📝 Description
 
-Store register block from specified level to memory
-(EL): = P on spec. level
-(EL) + 1: = X on spec. level
-(EL) + 2: = T on spec. level
-(EL) + 3: = A on spec. level
-(EL) + 4: = D on spec. level
-(EL) + 5: = L on spec. level
-(EL) + 6: = STS on spec. level
-(EL) + 7: = B on spec. level
+Store register block
 
-Where EL = (X) on current level
+Load the register block of the program level given in the instruction into the memory block pointed to by the X register.
+
+If the instruction specifies the current program level, the P register points to the instruction following SRB.
+
+
+#### 📚 Detailed Information
+
+The register block of the specified program level is stored in the memory block pointed to by the X register. The mapping is as follows:
+
+    (ea)     ⟵ P (level N)
+    (ea + 1) ⟵ X (level N)
+    (ea + 2) ⟵ T (level N)
+    (ea + 3) ⟵ A (level N)
+    (ea + 4) ⟵ D (level N)
+    (ea + 5) ⟵ L (level N)
+    (ea + 6) ⟵ STS (level N)
+    (ea + 7) ⟵ B (level N)
+
+Where (ea) is the address in memory pointed to by the X register.
+
+If the current program level is specified, the P register points to the instruction following SRB.
 
 
 #### 📋 Format
@@ -4192,6 +6798,21 @@ SRB <level>
 | `level` | uint4 | 6-3 | The level to load the register block to |
 | `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB`: Store Register Block<br>- `LRB`: Load Register Block<br> |
 
+#### 📚 Examples
+
+##### SRB 100₈ (152702₈)
+
+Store the register block of program level 8 in the memory block pointed to by X.
+
+    (ea)     ⟵ P (level 8)
+    (ea + 1) ⟵ X (level 8)
+    ↓         ↓
+    (ea + 7) ⟵ B (level 8)
+
+```
+SRB 100
+```
+
 --------------------------------------------------------------------------------
 
 ### STA
@@ -4207,7 +6828,11 @@ SRB <level>
 
 #### 📝 Description
 
-Store A register to memory location (EA): = A
+Store A register to memory location 
+(EA) ⟵ (A)
+
+Store the contents of the A register in the memory location pointed to by the effective address.
+
 
 #### 📋 Format
 
@@ -4238,6 +6863,50 @@ STA <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### STATX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `STATX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store A register
+
+(ea) ⟵ (A)
+
+Store the contents of the A register in the memory location given by the effective address.
+
+
+#### 📋 Format
+
+```
+STATX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### STD
 
 #### ⚡ Quick Reference
@@ -4252,8 +6921,8 @@ STA <addressing_mode> <displacement>
 #### 📝 Description
 
 Store double word
-  (ea)     <- (A)
-  (ea) + 1 <- (D)
+  (ea)     ⟵ (A)
+  (ea) + 1 ⟵ (D)
 
 Store the contents of the A register in the memory location pointed to by the effective address
 Store the contents of the D register in the memory location pointed to by the effective address plus one.
@@ -4288,6 +6957,51 @@ STD <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### STDTX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `STDTX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store double word
+
+(ea) ⟵ (A)
+(ea) + 1 ⟵ (D)
+
+Store the double word held in the A and D registers in the memory locations given by the effective address and the effective address plus one.
+
+
+#### 📋 Format
+
+```
+STDTX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### STF
 
 #### ⚡ Quick Reference
@@ -4303,8 +7017,11 @@ STD <addressing_mode> <displacement>
 
 Store floating accumulator (TAD) to memory (ea)
 Memory format:
-- EA: Exponent
-- EA+1, EA+2: Mantissa
+ (ea)     ⟵ (T)
+ (ea) + 1 ⟵ (A)
+ (ea) + 2 ⟵ (D)
+
+Store the contents of the floating accumulator (T,A and D registers) into the memory location pointed to by the effective address.
 
 
 #### 📋 Format
@@ -4349,7 +7066,11 @@ STF <addressing_mode> <disp>
 
 #### 📝 Description
 
-Store T register to memory location (EA): = T
+Store T register to memory location
+(EA) ⟵ (T)
+
+Store the contents of the T register in the memory location pointed to by the effective address.
+
 
 #### 📋 Format
 
@@ -4393,7 +7114,11 @@ STT <addressing_mode> <displacement>
 
 #### 📝 Description
 
-Store X register to memory location (EA): = X
+Store X register to memory location 
+(EA) ⟵ (X)
+
+Store the contents of the X register in the memory location pointed to by the effective address.
+
 
 #### 📋 Format
 
@@ -4437,7 +7162,11 @@ STX <addressing_mode> <displacement>
 
 #### 📝 Description
 
-Store zero to memory location (EA): = 0
+Store zero to memory location
+(EA) ⟵ 0
+
+Store the value zero in the memory location pointed to by the effective address.
+
 
 #### 📋 Format
 
@@ -4468,6 +7197,50 @@ STZ <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### STZTX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `STZTX <disp>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store zero
+
+(ea) ⟵ 000000₈
+
+Store zero in the memory location given by the effective address.
+
+
+#### 📋 Format
+
+```
+STZTX <disp>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### SUB
 
 #### ⚡ Quick Reference
@@ -4481,7 +7254,19 @@ STZ <addressing_mode> <displacement>
 
 #### 📝 Description
 
-Subtract from A register (C and Q may also be affected) A: = A - (EA)
+Subtract from A register
+A ⟵ A - (EL)
+
+Subtract the contents of the memory location pointed to by the effective address from the A register, leaving the result in A.
+
+
+#### 📚 Detailed Information
+
+Flags affected:
+- C=1: If a carry occurs from the signed bit positions of the adder.
+- O=1, Q=1: If an overflow occurs, that is if the signs of the two operands are equal and the sign of the result is different.
+- O=1, Q=0: If overflow does not exist, the dynamic overflow flag (O) is reset to 0 while the static overflow flag (Q) is left unchanged.
+
 
 #### 📋 Format
 
@@ -4519,28 +7304,113 @@ SUB <addressing_mode> <displacement>
 
 --------------------------------------------------------------------------------
 
+### SUBD
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SUBD` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Subtract two decimal operands.
+
+(op1) ⟵ (op1) - (op2)
+
+Subtract the second operand from the first operand, leaving the result in the location of the first operand.
+
+If the first operand field is too short to contain all the significant digits of the result then decimal overflow occurs.
+
+If bit 13 of D2 in the first operand is set, the sign of the result will be 17₈ (BCD unsigned).
+
+Any empty operand, that is with a field length of zero, is treated as a positive zero.
+
+A zero difference can have either a negative or positive sign.
+
+**Instruction sequence:**
+
+    SUBD
+    error handling instruction
+    next instruction after SUBD or after error handling routine
+
+**Example:**
+
+    SUBD
+    JPL *30₈
+    ADD *15₈
+
+The SUBD instruction causes the program counter to skip the next instruction UNLESS an error has been generated, when the instruction immediately following the SUBD will handle the error in some way (in this example, a jump is executed on error to a subroutine at (P) + 15₈)).
+
+(* is the assembler mnemonic for the P register)
+
+
+#### 📋 Format
+
+```
+SUBD
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### SWAP
 
 #### ⚡ Quick Reference
 
 | Property | Value |
 |:---------|:-------|
-| Format | `SWAP <source> <destination>` |
+| Format | `SWAP <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | user |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
 
-Register exchange
-(sr): = (dr)
-(dr): = (sr)
+Register swap
+
+dr ⟵ sr
+
+
+#### 📚 Detailed Information
+
+Optional sub-instructions:
+
+- **CLD=1**: Zero is used instead of the destination register as an operand (dr register contents are unchanged).
+- **CM1=1**: The 1's complement of the source register is used as an operand (sr register contents are unchanged).
+
+---
+
+### Instruction combinations
+
+SWAP <sr> <dr>           dr ⟵ sr
+SWAP CLD <sr> <dr>       dr ⟵ sr; sr ⟵ 0
+SWAP CM1 <sr> <dr>       dr ⟵ sr; sr ⟵ dr
+SWAP CM1 CLD <sr> <dr>   dr ⟵ sr; sr ⟵ 0
 
 
 #### 📋 Format
 
 ```
-SWAP <source> <destination>
+SWAP <sub-instruction(s)> <source> <destination>
 ```
 
 #### Bit Layout
@@ -4566,6 +7436,27 @@ SWAP <source> <destination>
 | `CLD` | flag | 6 | Clear destination before operation |
 | `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
 | `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+
+#### 🚩 Flags Affected
+
+| Flag | Description |
+|:-----|:------------|
+| `C` | Carry flag |
+| `O` | Static overflow flag |
+| `Q` | Dynamic overflow flag |
+
+#### 📚 Examples
+
+##### Exchange A and D register contents.
+```
+SWAP SA DD
+```
+
+##### Use zero as the destination operand. Exchange the A and X register contents. A register contents are zero, X register contents are the previous contents of A.
+
+```
+SWAP CLD SA DX
+```
 
 --------------------------------------------------------------------------------
 
@@ -4620,7 +7511,7 @@ The program counter is set to the effective address.
 |:---------|:-------|
 | Format | `TRR <internal_register>` |
 | Category | Register Transfer |
-| Privilege | system |
+| Privilege | privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -4654,6 +7545,192 @@ TRR <internal_register>
 
 --------------------------------------------------------------------------------
 
+### TSET
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `TSET` |
+| Category | Memory Examine and Test Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Test and set
+
+(T) points to the virtual memory word to be accessed
+(A) ⟵ memory word addressed by T
+
+The address given by the T register is a logical memory address. It is normally translated into a physical address using page tables (if memory management is on). The contents of the location addressed by T are simultaneously loaded into the A register as the location is written to with all 1s. The memory system is dedicated to this task and no other memory access is allowed during the operation. This can be used for processor synchronization.
+
+The old content of the memory address is always read from the memory and never from cache. The all 1s' data word is never written to cache.
+
+
+#### 📋 Format
+
+```
+TSET
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### UPACK
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `UPACK` |
+| Category | Decimal Instructions |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Convert to ASCII.
+
+(op2) ⟵ (op1) in ASCII format
+
+Convert the first operand from its BCD format to ASCII format, placing the result in the second operand location.
+
+**Conversion process:**
+The instruction carries out the following steps:
+1. Checks the sign and digits of the operand (op1) are encoded as BCD digits. (Illegal codes generate an error code 2.)
+2. Takes each BCD digit as the lower nibble of an equivalent ASCII digit. Sets the upper nibble of the ASCII byte (the zone) to 0011₂.
+3. Converts the BCD sign of the operand to ASCII:
+
+       BCD   ASCII   Sign
+       0     53₈     +
+       1     55₈     -
+    Note: If bit 13 of the descriptor D2 is set then the code 17₈ (BCD unsigned) is used.
+4. Extends the second operand field (op2) with ASCII zeros (60₈) if the result is too small to fill the field. Reports overflow has occurred (error code 3), if the second operand field length is too short to contain the significant digits of the result (the remaining digits are ignored).
+
+**Error code:**
+An error code is placed in bits 0 to 4 of the D register if an illegal code conversion is attempted or if overflow occurs. The first detected error will be reported.
+
+    Error code: 2   illegal code†
+                3   overflow
+    † bit 15 of both the A and D registers point to the byte containing the illegal code.
+
+
+#### 📋 Format
+
+```
+UPACK
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### VERSN
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `VERSN` |
+| Category | System/CPU Information |
+| Privilege | user |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+** ND-110/ND-120 ONLY**
+Read ND-110 CPU version and installation number.
+
+This instruction is used to read the version of ND-110 CPU installed. Three registers are loaded simultaneously with information in the following format:
+
+
+#### 📚 Detailed Information
+
+A register
+
+    15                             3 0
+    ┌──────────────────────────────┬───┐
+    │      Print version           │ALD│
+    └──────────────────────────────┴───┘
+
+T register
+
+    15                             0
+    ┌───────────────────────────────┐
+    │   Microprogram version        │
+    └───────────────────────────────┘
+
+D register
+
+    15       7                   0
+    ┌────────┬───────────────────┐
+    │        │ Installation num. │
+    └────────┴───────────────────┘
+
+
+The installation number of the CPU is 16 bytes long.
+
+The VERSN instruction can only load one byte of the installation number into the D register each time it is executed. The A register is used to address the sixteen bytes.
+
+To read a byte of the installation number the A register must be loaded with an installation byte address before the VERSN instruction is executed. The address of the byte to be read is given by the value of bits 8-11 in the A register (equivalent to bytes 0-16).
+
+To read the complete installation number both the A register bit field must be incremented and the VERSN instruction executed sixteen times.
+
+
+#### 📋 Format
+
+```
+VERSN
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### WAIT
 
 #### ⚡ Quick Reference
@@ -4661,14 +7738,30 @@ TRR <internal_register>
 | Property | Value |
 |:---------|:-------|
 | Format | `WAIT <wait_number>` |
-| Category | System Control Instructions |
+| Category | Interrupt Control Instructions |
 | Privilege | user |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
-When interrupt system off: halts the program and enters the operator’s communication. 
+When interrupt system off: halts the program and enters the operator's communication. 
 When interrupt system on: give up priority. If there are no interrupt requests on any level, the program on level zero is entered.
+
+
+#### 📚 Detailed Information
+
+This operates as follows:
+
+**If the interrupt system is OFF:**
+The ND-110 stops with the program counter (P register) pointing to the instruction after the WAIT and the front panel RUN indicator is turned off. (To restart the system, type `!` on the console terminal.)
+
+**If the interrupt system is ON:**
+The ND-110 exits from the current program level (resetting the corresponding PID bit) and enters the program level with the highest priority, normally a program level lower than the one which executes the WAIT instruction. If there are no interrupt requests awaiting service, then program level 0 is entered.
+
+**Note:**
+A WAIT on program level 0 is ignored.
+
+WAIT followed by a number less than 400₈ can be used to detect which location caused the program stop.
 
 
 #### 📋 Format
