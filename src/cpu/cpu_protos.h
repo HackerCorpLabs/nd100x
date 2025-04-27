@@ -218,6 +218,7 @@ void ndfunc_unpack(ushort instr);
 void ndfunc_shde(ushort instr);
 void Instruction_Add(int opcode, void *funcpointer);
 void Instruction_Add_Range(int start, int stop, void *funcpointer);
+void print_mask_binary(unsigned short mask);
 void Instruction_Add_Mask(int opcode, int mask, void *funcpointer);
 void Setup_Instructions(void);
 

@@ -3202,10 +3202,24 @@ void Instruction_Add_Range(int start, int stop, void *funcpointer)
 	return;
 }
 
+// For debugging purposes
+void print_mask_binary(unsigned short mask) {
+    for (int i = 15; i >= 0; i--) {
+        putchar((mask & (1 << i)) ? '1' : '0');
+        if (i % 4 == 0 && i != 0) {
+            putchar('_');
+        }
+    }
+}
+
 void Instruction_Add_Mask(int opcode, int mask, void *funcpointer)
 {
 	int i;
 	int signature = opcode & mask;
+
+	//printf("Instruction %06o should have mask ", opcode);
+    //print_mask_binary(mask);
+    //putchar('\n');
 
 	for (i = opcode; i <= 0xFFFF; i++)
 	{
