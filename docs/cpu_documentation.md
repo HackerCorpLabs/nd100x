@@ -33,6 +33,7 @@
 - [Bit instructions](#bit-instructions)
 - [Bit instructions_with_destination](#bit-instructions_with_destination)
 - [Byte Instructions](#byte-instructions)
+- [Control Instructions](#control-instructions)
 - [Control Transfer](#control-transfer)
 - [Decimal Instructions](#decimal-instructions)
 - [Execute](#execute)
@@ -49,6 +50,7 @@
 - [Memory Transfer Instructions](#memory-transfer-instructions)
 - [Monitor Calls](#monitor-calls)
 - [Physical Memory Control Instructions](#physical-memory-control-instructions)
+- [privileged](#privileged)
 - [Register Block Instructions](#register-block-instructions)
 - [Register Operations](#register-operations)
 - [Register Transfer](#register-transfer)
@@ -80,11 +82,18 @@
 - [175000] [BSKP](#bskp)
 - [176200] [BSTA](#bsta)
 - [176000] [BSTC](#bstc)
+- [140303] [CHREENTPAGES](#chreentpages)
+- [140301] [CLEPT](#clept)
+- [140304] [CLEPU](#clepu)
+- [140302] [CLNREENT](#clnreent)
+- [140505] [CLPT](#clpt)
+- [140504] [CNREK](#cnrek)
 - [140122] [COMD](#comd)
 - [146100] [COPY](#copy)
 - [150417] [DEPO](#depo)
 - [152000] [DNZ](#dnz)
 - [140137] [ELEAV](#eleav)
+- [140506] [ENPT](#enpt)
 - [140135] [ENTR](#entr)
 - [150416] [EXAM](#exam)
 - [146142] [EXIT](#exit)
@@ -96,6 +105,7 @@
 - [142700] [GECO](#geco)
 - [143600] [IDENT](#ident)
 - [140134] [INIT](#init)
+- [140502] [INSPL](#inspl)
 - [150401] [IOF](#iof)
 - [150402] [ION](#ion)
 - [164000] [IOX](#iox)
@@ -112,7 +122,12 @@
 - [134000] [JPL](#jpl)
 - [133400] [JXN](#jxn)
 - [133000] [JXZ](#jxz)
+- [140702] [LACB](#lacb)
+- [140700] [LASB](#lasb)
+- [140510] [LBIT](#lbit)
+- [140511] [LBITP](#lbitp)
 - [142200] [LBYT](#lbyt)
+- [140514] [LBYTP](#lbytp)
 - [044000] [LDA](#lda)
 - [143300] [LDATX](#ldatx)
 - [143303] [LDBTX](#ldbtx)
@@ -121,8 +136,12 @@
 - [034000] [LDF](#ldf)
 - [050000] [LDT](#ldt)
 - [054000] [LDX](#ldx)
+- [143301] [LDXTX](#ldxtx)
 - [140136] [LEAV](#leav)
 - [152600] [LRB](#lrb)
+- [143500] [LWCS](#lwcs)
+- [140705] [LXCB](#lxcb)
+- [140704] [LXSB](#lxsb)
 - [150200] [MCL](#mcl)
 - [040000] [MIN](#min)
 - [143200] [MIX3](#mix3)
@@ -146,18 +165,28 @@
 - [146200] [RDCR](#rdcr)
 - [141600] [RDIV](#rdiv)
 - [140127] [RDUS](#rdus)
+- [140517] [RDUSP](#rdusp)
+- [140503] [REMPL](#rempl)
+- [140507] [REPT](#rept)
 - [150407] [REX](#rex)
 - [145000] [REXO](#rexo)
+- [140501] [RGLOB](#rglob)
 - [146400] [RINC](#rinc)
 - [141200] [RMPY](#rmpy)
 - [145400] [RORA](#rora)
 - [146600] [RSUB](#rsub)
 - [170400] [SAA](#saa)
 - [170000] [SAB](#sab)
+- [140703] [SACB](#sacb)
 - [154600] [SAD](#sad)
+- [140701] [SASB](#sasb)
 - [171000] [SAT](#sat)
 - [171400] [SAX](#sax)
+- [140512] [SBIT](#sbit)
+- [140513] [SBITP](#sbitp)
 - [142600] [SBYT](#sbyt)
+- [140515] [SBYTP](#sbytp)
+- [140300] [SETPT](#setpt)
 - [150406] [SEX](#sex)
 - [154400] [SHA](#sha)
 - [154200] [SHD](#shd)
@@ -177,12 +206,16 @@
 - [064000] [SUB](#sub)
 - [140121] [SUBD](#subd)
 - [144000] [SWAP](#swap)
+- [140707] [SZCB](#szcb)
+- [140706] [SZSB](#szsb)
 - [177000] [TRA](#tra)
 - [150100] [TRR](#trr)
 - [140123] [TSET](#tset)
+- [140516] [TSETP](#tsetp)
 - [140125] [UPACK](#upack)
 - [140133] [VERSN](#versn)
 - [151000] [WAIT](#wait)
+- [140500] [WGLOB](#wglob)
 
 ================================================================================
 ## 🔍 CPU Information
@@ -524,6 +557,53 @@ These instructions address single bytes within the memory map.
 A special addressing mode is used for these instructions, utilizing the T and X registers. 
 The contents of T point to the beginning of a character string, and the contents of X point to a specific byte within that string.
 
+
+--------------------------------------------------------------------------------
+
+### Control Instructions
+
+| Instruction | Description |
+|:------------|:------------|
+| [`CHREENTPAGES`](#chreentpages) | Change page tables. |
+| [`CLEPT`](#clept) | Clear page tables. |
+| [`CLEPU`](#clepu) | Clear page tables and collect PGU information. |
+| [`CLNREENT`](#clnreent) | Clear non reentrant pages. |
+| [`CLPT`](#clpt) | Clear segment from the page tables. |
+| [`CNREK`](#cnrek) | Clear non reentrant pages (SINTRAN K only).     |
+| [`ENPT`](#enpt) | Enter segment in page tables.  |
+| [`INSPL`](#inspl) | Insert page in page list. (See Appendix B for a software description.) |
+| [`LACB`](#lacb) | Load the A register from the core map-table bank (CMBNK). |
+| [`LASB`](#lasb) | Load the A register with the contents of the segment-table bank (STBNK). |
+| [`LBIT`](#lbit) | Load single bit accumulator (K) with logical memory bit. |
+| [`LBITP`](#lbitp) | Load single bit accumulator (K) with physical memory bit. |
+| [`LBYTP`](#lbytp) | Load the A register with a byte from physical memory. |
+| [`LXCB`](#lxcb) | Load the X register from the core table bank (CMBNK). |
+| [`LXSB`](#lxsb) | Load the X register from the segment table bank (STBNK). |
+| [`RDUSP`](#rdusp) | Read a physical memory word without using cache. |
+| [`REMPL`](#rempl) | Remove page from page list. |
+| [`REPT`](#rept) | Enter reentrant segment in page tables. (See Appendix B for a software description.) |
+| [`RGLOB`](#rglob) | Examine global pointers. |
+| [`SACB`](#sacb) | Store the A register in the core map table bank (CMBNK). |
+| [`SASB`](#sasb) | Store the A register contents in the segment table bank (STBNK). |
+| [`SBIT`](#sbit) | Store the single bit accumulator (K) in a logical memory bit. |
+| [`SBITP`](#sbitp) | Store the single bit accumulator (K) in a physical memory bit. |
+| [`SBYTP`](#sbytp) | Store a byte in physical memory. |
+| [`SETPT`](#setpt) | Set page tables. |
+| [`SZCB`](#szcb) | Store zero in the core map-table bank (CMBNK). |
+| [`SZSB`](#szsb) | Store zero in the segment-table bank (STBNK). |
+| [`TSETP`](#tsetp) | Test and set physical memory word. |
+| [`WGLOB`](#wglob) | Initialize global pointers. |
+
+#### Description
+
+### SINTRAN III Control Instructions
+
+These instructions are **PRIVILEGED** and only available to:
+
+- Programs running in system mode (rings 2-3)
+- Programs running without memory protection
+
+These instructions monitor the contents of physical memory
 
 --------------------------------------------------------------------------------
 
@@ -899,6 +979,7 @@ These instructions control the CPU memory management system.
 | [`LDATX`](#ldatx) | Load A register |
 | [`LDBTX`](#ldbtx) | Load B register |
 | [`LDDTX`](#lddtx) | Load double word |
+| [`LDXTX`](#ldxtx) | Load X register |
 | [`STATX`](#statx) | Store A register |
 | [`STDTX`](#stdtx) | Store double word |
 | [`STZTX`](#stztx) | Store zero |
@@ -916,35 +997,36 @@ These instructions read/write from/to physical memory locations independent of w
 
 ### Instruction format
 
-`<physical instruction mnemonic> <disp>`
-
----
+```
+<physical instruction mnemonic> <displacement>
+```
 
 ### Instruction structure
 
 ```
- 15         7 6     3 2   0
- |----------|-------|-----|
- | physical | disp. |type |
- |  memory  |       |     |
- |operation |       |     |
+ | 15                      6 | 5          3 | 2-0 |
+ |---------------------------|--------------|-----|
+ | physical memory operation | displacement |type |
 ```
 
 - **physical memory operation type** (bits 15-6 and 2-0):
   There are seven physical memory read/write instructions, specified by a base octal code of 143300₈ (bits 15-6) and type field (bits 2-0).
-- **disp.**: The contents of the T and X register give the effective address of the physical memory location (see page 28). A 3-bit displacement can be added to the X register within the instruction code. This is denoted by Δ in the following codes:
+- **disp.**: The contents of the T and X register give the effective address of the physical memory location (see page 28). 
+- A 3-bit displacement can be added to the X register within the instruction code. This is denoted by Δ in the following codes:
 
 | instruction mnemonic | octal code |
-|---------------------|------------|
-| LDATX               | 1433A0₈    |
-| LDXTX               | 1433A1₈    |
-| LDDTX               | 1433A2₈    |
-| LDBTX               | 1433A3₈    |
-| STATX               | 1433A4₈    |
-| STZTX               | 1433A5₈    |
-| STDTX               | 1433A6₈    |
+|----------------------|------------|
+| LDATX                | 1433Δ0     |
+| LDXTX                | 1433Δ1     |
+| LDDTX                | 1433Δ2     |
+| LDBTX                | 1433Δ3     |
+| STATX                | 1433Δ4     |
+| STZTX                | 1433Δ5     |
+| STDTX                | 1433Δ6     |
 
-† If you use programs written for ND-100 computers with the microprogram version numbers 015xx A-J (48 bit) or 026xx A-F (32 bit), LDBTX would have been followed by a word containing 177777₈. This is not necessary for later ND-100 versions nor the ND-110. Running these earlier programs may change the status of the K bit in the ND-110 and later ND-100s.
+† If you use programs written for ND-100 computers with the microprogram version numbers 015xx A-J (48 bit) or 026xx A-F (32 bit), LDBTX would have been followed by a word containing 177777₈. 
+
+This is not necessary for later ND-100 versions nor the ND-110. Running these earlier programs may change the status of the K bit in the ND-110 and later ND-100s.
 
 --------------------------------------------------------------------------------
 
@@ -972,6 +1054,14 @@ These instructions are PRIVILEGED and only available to:
 * programs running without memory protection 
  
 These instructions monitor physical memory location contents.
+--------------------------------------------------------------------------------
+
+### privileged
+
+| Instruction | Description |
+|:------------|:------------|
+| [`LWCS`](#lwcs) | Writable Control Store Instruction |
+
 --------------------------------------------------------------------------------
 
 ### Register Block Instructions
@@ -2018,6 +2108,305 @@ BSTC
 
 --------------------------------------------------------------------------------
 
+### CHREENTPAGES
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CHREENTPAGES` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Change page tables.
+
+The X register is used to address the current (R1) and previous (Rp) scratch registers.
+
+If the R1 is zero, the reentrant page has nothing to change so the loop is left, otherwise the contents of the memory location pointed to by the R1 + 2 are loaded into T.
+
+T then contains the protect table entry, if the page has not been written to (WIP bit 12 is zero) T and R1 are loaded with Rp. R1 (now containing Rp) is tested again for zero. If the page has been written to, the T register is loaded with the contents of the second scratch register (R2), pointed to by R1, and R2 becomes the address of Rp. X is loaded with R1 as the new pointer to the reentrant pages and Rp is loaded into the D register pointed to by A.
+
+
+#### 📋 Format
+
+```
+CHREENTPAGES
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### CLEPT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CLEPT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Clear page tables.
+
+
+#### 📚 Detailed Information
+
+This instruction can replace the following instructions:
+  CLEPT: JXZ * 10₈
+         LDBTX 10₈
+         LDA ,B
+         JAZ *3₈
+         STATX 20₈
+         STZ ,B
+         LDXTX 00
+         JMP *-7₈
+
+Each time the loop is executed (until X becomes zero) the physical memory location addressed by X is loaded into the B register.
+
+The B register contents provide the address of a page table entry, which is loaded into the A register.
+
+If the page table entry is zero (unused) the loop is restarted.
+
+If the page table entry is not zero (used) it is stored in a physical location addressed by X (8 locations away from its original entry) and the original page table entry cleared by placing zero in the location addressed by the B register.
+
+The physical location addressed by X is then loaded into the X register itself and the loop restarted.
+
+* is the mnemonic for P relative addressing.
+
+
+#### 📋 Format
+
+```
+CLEPT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### CLEPU
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CLEPU` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Clear page tables and collect PGU information.
+
+
+#### 📚 Detailed Information
+
+This instruction collects information on the PGU (page used) bit of a page table entry whilst executing CLEPT.
+
+The instruction places PGU information in an eight word table called the page map bank. Each bit in the bank represents the status of a page's PGU bit as follows:
+
+  15                                              0
++-------------------------------------------------+
+|     |     |     |     |     |     |     |   β   | <- word 0
++-------------------------------------------------+
+|     |  ε  |     |     |     |     |     |       | <- word 1
++-------------------------------------------------+
+.                                                 .
+.                                                 .
++-------------------------------------------------+
+|  Δ  |     |     |     |     |     |     |       | <- word 7
++-------------------------------------------------+
+
+Δ denotes page 177₈ PGU bit
+ε denotes page 32₈ PGU bit
+β denotes page 0₈ PGU bit
+
+The L register contains the address of the map entry.
+
+
+#### 📋 Format
+
+```
+CLEPU
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### CLNREENT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CLNREENT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Clear non reentrant pages.
+
+The contents of the memory address at A + 2 are read to find the page table to be cleared along with the SINTRAN RT bitmap (addressed by the X and T registers). 
+The page table entries corresponding to those bits set in the RT bitmap are then cleared.
+
+
+#### 📋 Format
+
+```
+CLNREENT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### CLPT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CLPT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Clear segment from the page tables.
+
+
+#### 📋 Format
+
+```
+CLPT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### CNREK
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `CNREK` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Clear non reentrant pages (SINTRAN K only).    
+
+
+#### 📋 Format
+
+```
+CNREK
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### COMD
 
 #### ⚡ Quick Reference
@@ -2303,6 +2692,46 @@ Format:
 
 ```
 ELEAV
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### ENPT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `ENPT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Enter segment in page tables. 
+
+
+#### 📋 Format
+
+```
+ENPT
 ```
 
 #### Bit Layout
@@ -2910,6 +3339,46 @@ INIT
 | Flag | Description |
 |:-----|:------------|
 | `PTM` | Page Table Flag |
+
+--------------------------------------------------------------------------------
+
+### INSPL
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `INSPL` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Insert page in page list. (See Appendix B for a software description.)
+
+
+#### 📋 Format
+
+```
+INSPL
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -3728,6 +4197,173 @@ If condition false, continue program execution at (P) + 1.
 
 --------------------------------------------------------------------------------
 
+### LACB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LACB` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Load the A register from the core map-table bank (CMBNK).
+
+(A) <--- (ea)
+
+ea = (B) + Δ = CMBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)
+
+
+#### 📋 Format
+
+```
+LACB
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
+### LASB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LASB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Load the A register with the contents of the segment-table bank (STBNK).
+
+(A) <--- (ea)
+
+ea = (B) + Δ = STBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)
+
+
+#### 📋 Format
+
+```
+LASB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
+### LBIT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LBIT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load single bit accumulator (K) with logical memory bit.
+
+(X) points to the start of a bit array
+(A) points to the bit within the array
+
+
+#### 📋 Format
+
+```
+LBIT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### LBITP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LBITP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load single bit accumulator (K) with physical memory bit.
+
+(T) points to the bank number containing the bit array
+(X) points to the start of a bit array
+(A) points to the bit within the array
+
+
+#### 📋 Format
+
+```
+LBITP
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### LBYT
 
 #### ⚡ Quick Reference
@@ -3756,6 +4392,50 @@ The contents of T point to the beginning of a character string and the contents 
 
 ```
 LBYT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### LBYTP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LBYTP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Load the A register with a byte from physical memory.
+
+(D) points to the bank number containing the byte array
+(T) points to the start of a byte array
+(X) points to the actual byte within the array
+
+
+#### 📋 Format
+
+```
+LBYTP
 ```
 
 #### Bit Layout
@@ -3832,7 +4512,7 @@ LDA <addressing_mode> <disp>
 | Format | `LDATX <disp>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
@@ -3859,12 +4539,6 @@ LDATX <disp>
 
 ```
 
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
-
 --------------------------------------------------------------------------------
 
 ### LDBTX
@@ -3873,16 +4547,16 @@ LDATX <disp>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `LDBTX <disp>` |
+| Format | `LDBTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
 Load B register
 
-(B) ⟵ 177000₈ OR 2(ea)
+(B) ⟵ 177000₈ OR (2(ea))
 
 Load the contents of the physical memory location pointed to by twice the effective address contents into the B register, then OR the value with 177000₈.
 
@@ -3892,7 +4566,7 @@ See description for usage.
 #### 📋 Format
 
 ```
-LDBTX <disp>
+LDBTX <displacement>
 ```
 
 #### Bit Layout
@@ -3904,12 +4578,6 @@ LDBTX <disp>
    └────────────────────────────────────────────────────────────────┘
 
 ```
-
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -3969,10 +4637,10 @@ LDD <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `LDDTX <disp>` |
+| Format | `LDDTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
@@ -3987,7 +4655,7 @@ Load the contents of the physical memory location pointed to by the effective ad
 #### 📋 Format
 
 ```
-LDDTX <disp>
+LDDTX <displacement>
 ```
 
 #### Bit Layout
@@ -3999,12 +4667,6 @@ LDDTX <disp>
    └────────────────────────────────────────────────────────────────┘
 
 ```
-
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -4157,6 +4819,44 @@ LDX <addressing_mode> <disp>
 
 --------------------------------------------------------------------------------
 
+### LDXTX
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LDXTX <displacement>` |
+| Category | Memory Transfer Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Load X register
+
+(X) ⟵ (ea)
+
+Load the contents of the physical memory location pointed to by the effective address into the X register.
+
+
+#### 📋 Format
+
+```
+LDXTX <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
 ### LEAV
 
 #### ⚡ Quick Reference
@@ -4281,6 +4981,140 @@ Load the memory block pointed to by the X register into the register on program 
 
 ```
 LRB 160
+```
+
+--------------------------------------------------------------------------------
+
+### LWCS
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LWCS` |
+| Category | privileged |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Writable Control Store Instruction
+
+This instruction is PRIVILEGED and only available to:
+  - programs running in system mode (rings 2-3)
+  - programs running without memory protection
+
+LWCS is a no-operation in the ND-110.
+
+The ND-110 is software compatible but not microcode compatible and writing to the writable control store has no meaning in the ND-110. 
+A no-operation is executed so that programs written for the ND-100 and NORD-10 can continue.
+
+    
+Unused areas of the microprogram can be read or written to using the TRR CS or TRA CS instruction.
+
+Further information on the LWCS instruction for the ND-100 can be found in the ND-100 Reference Manual (ND-06.014).
+
+
+#### 📋 Format
+
+```
+LWCS
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### LXCB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LXCB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Load the X register from the core table bank (CMBNK).
+
+(X) <--- (ea)
+
+ea = (B) + Δ = CMBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)
+
+
+#### 📋 Format
+
+```
+LXCB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
+### LXSB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `LXSB <diplacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Load the X register from the segment table bank (STBNK).
+
+(X) <--- (ea)
+
+ea = (B) + Δ = STBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)
+
+
+#### 📋 Format
+
+```
+LXSB <diplacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
 ```
 
 --------------------------------------------------------------------------------
@@ -5627,6 +6461,134 @@ RDUS
 
 --------------------------------------------------------------------------------
 
+### RDUSP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `RDUSP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Read a physical memory word without using cache.
+
+(T) points to the physical memory bank to be accessed
+(X) points to the address within the bank
+(A) is loaded with the memory word
+
+The old content of the memory address is always read from the memory and never from cache.
+
+Note: The execution time of this instruction includes two read-bus cycles (The CPU uses semaphore cycles - see ND-110 Functional Description Manual ND.06.027)
+
+
+#### 📋 Format
+
+```
+RDUSP
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### REMPL
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `REMPL` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Remove page from page list.
+
+
+#### 📋 Format
+
+```
+REMPL
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### REPT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `REPT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Enter reentrant segment in page tables. (See Appendix B for a software description.)
+
+
+#### 📋 Format
+
+```
+REPT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### REX
 
 #### ⚡ Quick Reference
@@ -5735,6 +6697,50 @@ REXO [flags] <source> <destination>
 ```
 REXO ST DB
 ```
+
+--------------------------------------------------------------------------------
+
+### RGLOB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `RGLOB` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Examine global pointers.
+
+(T) <--- bank number of segment table (STBNK)
+(A) <--- start address within bank (STSRT)
+(D) <--- bank number of core map table (CMBNK)
+
+
+#### 📋 Format
+
+```
+RGLOB
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -6129,6 +7135,46 @@ SAB -26
 
 --------------------------------------------------------------------------------
 
+### SACB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SACB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Store the A register in the core map table bank (CMBNK).
+
+(ea) <--- (A)
+
+ea = (B) + Δ = CMBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)  
+
+
+#### 📋 Format
+
+```
+SACB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
 ### SAD
 
 #### ⚡ Quick Reference
@@ -6177,6 +7223,46 @@ SAD <shift_type> <shift_counter>
 | Flag | Description |
 |:-----|:------------|
 | `M` | Multi-shift link flag |
+
+--------------------------------------------------------------------------------
+
+### SASB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SASB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Store the A register contents in the segment table bank (STBNK).
+
+(ea) <--- (A)
+
+ea = (B) + Δ = STBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)  
+
+
+#### 📋 Format
+
+```
+SASB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
 
 --------------------------------------------------------------------------------
 
@@ -6288,6 +7374,93 @@ SAX -5
 
 --------------------------------------------------------------------------------
 
+### SBIT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SBIT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store the single bit accumulator (K) in a logical memory bit.
+
+(X) points to the start of a bit array
+(A) points to the bit within the array
+
+
+#### 📋 Format
+
+```
+SBIT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### SBITP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SBITP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store the single bit accumulator (K) in a physical memory bit.
+
+(T) points to the bank number containing the bit array
+(X) points to the start of a bit array
+(A) points to the bit within the array
+
+
+#### 📋 Format
+
+```
+SBITP
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
 ### SBYT
 
 #### ⚡ Quick Reference
@@ -6313,6 +7486,108 @@ The contents of T point to the beginning of a character string and the contents 
 
 ```
 SBYT
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### SBYTP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SBYTP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Store a byte in physical memory.
+
+(D) points to the bank number containing the byte array
+(T) points to the start of a byte array
+(X) points to the actual byte within the array
+
+
+#### 📋 Format
+
+```
+SBYTP
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### SETPT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SETPT` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Set page tables.
+
+
+#### 📚 Detailed Information
+
+This instruction can replace the following instructions:
+  SETPT: JXZ * 7₈
+         LDDTX 20₈
+         BSET ZRO 130₈ DA
+         LDBTX 10₈
+         STD ,B
+         LDXTX 00
+         JMP *-6₈
+
+Each time the loop is executed (until X becomes zero) two consecutive physical memory locations addressed by X are loaded into the A and D registers.
+
+The word in A is the protect field of the page table, bit 11 (the PGU bit) is cleared to set the page table. The double word (in A and D) is then stored in two consecutive locations pointed to by the contents of the B register, the page table address.
+
+* is the mnemonic for P relative addressing.
+
+
+#### 📋 Format
+
+```
+SETPT
 ```
 
 #### Bit Layout
@@ -6869,10 +8144,10 @@ STA <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `STATX <disp>` |
+| Format | `STATX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
@@ -6886,7 +8161,7 @@ Store the contents of the A register in the memory location given by the effecti
 #### 📋 Format
 
 ```
-STATX <disp>
+STATX <displacement>
 ```
 
 #### Bit Layout
@@ -6898,12 +8173,6 @@ STATX <disp>
    └────────────────────────────────────────────────────────────────┘
 
 ```
-
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -6963,10 +8232,10 @@ STD <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `STDTX <disp>` |
+| Format | `STDTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
@@ -6981,7 +8250,7 @@ Store the double word held in the A and D registers in the memory locations give
 #### 📋 Format
 
 ```
-STDTX <disp>
+STDTX <displacement>
 ```
 
 #### Bit Layout
@@ -6993,12 +8262,6 @@ STDTX <disp>
    └────────────────────────────────────────────────────────────────┘
 
 ```
-
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -7203,10 +8466,10 @@ STZ <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
-| Format | `STZTX <disp>` |
+| Format | `STZTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | privileged |
-| Mask | `1111_1111_1111_1111` |
+| Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
 
@@ -7220,7 +8483,7 @@ Store zero in the memory location given by the effective address.
 #### 📋 Format
 
 ```
-STZTX <disp>
+STZTX <displacement>
 ```
 
 #### Bit Layout
@@ -7232,12 +8495,6 @@ STZTX <disp>
    └────────────────────────────────────────────────────────────────┘
 
 ```
-
-#### 🔧 Operands
-
-| Name | Type | Bits | Description |
-|:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
@@ -7460,6 +8717,86 @@ SWAP CLD SA DX
 
 --------------------------------------------------------------------------------
 
+### SZCB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SZCB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Store zero in the core map-table bank (CMBNK).
+
+(ea) <--- 0
+
+ea = (B) + Δ = CMBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)  
+
+
+#### 📋 Format
+
+```
+SZCB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
+### SZSB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `SZSB <displacement>` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1100_0111` |
+
+#### 📝 Description
+
+Store zero in the segment-table bank (STBNK).
+
+(ea) <--- 0
+
+ea = (B) + Δ = STBNK entry
+
+Δ: 3-bit displacement added to B included in the instruction opcode (bits 5-3)  
+
+
+#### 📋 Format
+
+```
+SZSB <displacement>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
 ### TRA
 
 #### ⚡ Quick Reference
@@ -7572,6 +8909,57 @@ The old content of the memory address is always read from the memory and never f
 
 ```
 TSET
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
+
+--------------------------------------------------------------------------------
+
+### TSETP
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `TSETP` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Test and set physical memory word.
+
+
+#### 📚 Detailed Information
+
+(T) points to the physical memory bank to be accessed
+(X) points to the address within the bank
+(A) is loaded with the word
+
+The contents of the location addressed by T and X are simultaneously loaded into the A register as the location is written to with all 1s. No other memory access is allowed during this operation.
+The old content of the memory address is always read from the memory and never from cache. The all 1s' data word is never written to cache.
+This instruction can be used for processor synchronization.
+
+
+#### 📋 Format
+
+```
+TSETP
 ```
 
 #### Bit Layout
@@ -7798,6 +9186,52 @@ WAIT
 ```
 WAIT 1
 ```
+
+--------------------------------------------------------------------------------
+
+### WGLOB
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `WGLOB` |
+| Category | Control Instructions |
+| Privilege | privileged |
+| Mask | `1111_1111_1111_1111` |
+
+#### 📝 Description
+
+Initialize global pointers.
+
+(T) = bank number of segment table (STBNK)
+(A) = start address within bank (STSRT)*
+(D) = bank number of core map table (CMBNK)
+
+* must be divisible by 8
+
+
+#### 📋 Format
+
+```
+WGLOB
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+#### 🔧 Operands
+
+| Name | Type | Bits | Description |
+|:-----|:-----|:-----|:------------|
+| `opcode` | opcode | 15-0 | The opcode determines what type of operation occurs |
 
 --------------------------------------------------------------------------------
 
