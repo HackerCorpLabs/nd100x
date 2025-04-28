@@ -15,8 +15,15 @@ cd ..
 Boot with 
 
 ```bash
+build/bin/nd100x --boot=smd
+```
+
+Or - if you want to boot from floppy
+
+```bash
 build/bin/nd100x --boot=floppy
 ```
+
 ## Login
 
 Push ESC to activate the login after boot
