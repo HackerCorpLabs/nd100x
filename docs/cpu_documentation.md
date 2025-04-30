@@ -34,12 +34,10 @@
 - [Bit instructions_with_destination](#bit-instructions_with_destination)
 - [Byte Instructions](#byte-instructions)
 - [Control Instructions](#control-instructions)
-- [Control Transfer](#control-transfer)
 - [Decimal Instructions](#decimal-instructions)
 - [Execute](#execute)
 - [Floating Conversion (Standard Format)](#floating-conversion-(standard-format))
 - [Input and Output](#input-and-output)
-- [Input/Output](#input/output)
 - [Inter-level Instructions](#inter-level-instructions)
 - [Interrupt Control Instructions](#interrupt-control-instructions)
 - [Memory Examine and Test Instructions](#memory-examine-and-test-instructions)
@@ -108,6 +106,7 @@
 - [140502] [INSPL](#inspl)
 - [150401] [IOF](#iof)
 - [150402] [ION](#ion)
+- [160000] [IOT](#iot)
 - [164000] [IOX](#iox)
 - [150415] [IOXT](#ioxt)
 - [153600] [IRR](#irr)
@@ -137,7 +136,7 @@
 - [050000] [LDT](#ldt)
 - [054000] [LDX](#ldx)
 - [143301] [LDXTX](#ldxtx)
-- [140136] [LEAV](#leav)
+- [140136] [LEAVE](#leave)
 - [152600] [LRB](#lrb)
 - [143500] [LWCS](#lwcs)
 - [140705] [LXCB](#lxcb)
@@ -208,7 +207,7 @@
 - [144000] [SWAP](#swap)
 - [140707] [SZCB](#szcb)
 - [140706] [SZSB](#szsb)
-- [177000] [TRA](#tra)
+- [150000] [TRA](#tra)
 - [150100] [TRR](#trr)
 - [140123] [TSET](#tset)
 - [140516] [TSETP](#tsetp)
@@ -607,14 +606,6 @@ These instructions monitor the contents of physical memory
 
 --------------------------------------------------------------------------------
 
-### Control Transfer
-
-| Instruction | Description |
-|:------------|:------------|
-| [`TRA`](#tra) | Transfer control to the address specified by the effective address. |
-
---------------------------------------------------------------------------------
-
 ### Decimal Instructions
 
 | Instruction | Description |
@@ -821,16 +812,10 @@ There are four ways of representing the sign in a decimal operand:
 
 | Instruction | Description |
 |:------------|:------------|
+| [`IOT`](#iot) | NORD-1 INSTRUCTION (DO NOT USE) |
 | [`IOX`](#iox) | Exchange information between I/O system and A register. |
-
-
---------------------------------------------------------------------------------
-
-### Input/Output
-
-| Instruction | Description |
-|:------------|:------------|
 | [`IOXT`](#ioxt) | Exchange information between I/O system and A register. |
+
 
 --------------------------------------------------------------------------------
 
@@ -1107,6 +1092,7 @@ These instructions specify operations between source (sr) and destination (dr) r
 |:------------|:------------|
 | [`MCL`](#mcl) | Masked clear |
 | [`MST`](#mst) | Masked set |
+| [`TRA`](#tra) | Transfer to A register |
 | [`TRR`](#trr) | Transfer A to internal register |
 
 --------------------------------------------------------------------------------
@@ -1165,7 +1151,7 @@ If condition false, continue program execution at (P) + 1.
 | [`ELEAV`](#eleav) | Error leave stack. |
 | [`ENTR`](#entr) | Enter stack. |
 | [`INIT`](#init) | Initialize stack.  |
-| [`LEAV`](#leav) | Leave stack. |
+| [`LEAVE`](#leave) | Leave stack. |
 
 
 #### Description
@@ -1238,7 +1224,7 @@ The stack-handling instructions are page-fault tolerant in the ND-110.
 |:---------|:-------|
 | Format | `AAA <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -1292,7 +1278,7 @@ AAA 3
 |:---------|:-------|
 | Format | `AAB <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -1346,7 +1332,7 @@ AAB -26
 |:---------|:-------|
 | Format | `AAT <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -1400,7 +1386,7 @@ AAT 13
 |:---------|:-------|
 | Format | `AAX <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -1454,7 +1440,7 @@ AAX 5
 |:---------|:-------|
 | Format | `ADD <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -1510,7 +1496,7 @@ ADD <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `ADDD` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -1579,7 +1565,7 @@ ADDD
 |:---------|:-------|
 | Format | `AND <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -1627,7 +1613,7 @@ AND <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `BANC` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1671,7 +1657,7 @@ BANC
 |:---------|:-------|
 | Format | `BAND` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1713,7 +1699,7 @@ BAND
 |:---------|:-------|
 | Format | `BFILL` |
 | Category | Byte Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -1757,7 +1743,7 @@ BFILL
 |:---------|:-------|
 | Format | `BLDA` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1799,7 +1785,7 @@ BLDA
 |:---------|:-------|
 | Format | `BLDC` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1841,7 +1827,7 @@ BLDC
 |:---------|:-------|
 | Format | `BORA` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1883,7 +1869,7 @@ BORA
 |:---------|:-------|
 | Format | `BORC` |
 | Category | Bit instructions_with_destination |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1932,7 +1918,7 @@ BORC 60 DX
 |:---------|:-------|
 | Format | `BSET <condition> <bit_no>` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -1981,7 +1967,7 @@ BSET ZRO SSO
 |:---------|:-------|
 | Format | `BSKP <condition> <bit_no>` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -2032,7 +2018,7 @@ BSKP ONE SSC
 |:---------|:-------|
 | Format | `BSTA` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -2074,7 +2060,7 @@ BSTA
 |:---------|:-------|
 | Format | `BSTC` |
 | Category | Bit instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -2116,7 +2102,7 @@ BSTC
 |:---------|:-------|
 | Format | `CHREENTPAGES` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2162,7 +2148,7 @@ CHREENTPAGES
 |:---------|:-------|
 | Format | `CLEPT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2227,7 +2213,7 @@ CLEPT
 |:---------|:-------|
 | Format | `CLEPU` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2292,7 +2278,7 @@ CLEPU
 |:---------|:-------|
 | Format | `CLNREENT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2335,7 +2321,7 @@ CLNREENT
 |:---------|:-------|
 | Format | `CLPT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2375,7 +2361,7 @@ CLPT
 |:---------|:-------|
 | Format | `CNREK` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2415,7 +2401,7 @@ CNREK
 |:---------|:-------|
 | Format | `COMD` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2485,7 +2471,7 @@ COMD
 |:---------|:-------|
 | Format | `COPY [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -2556,7 +2542,7 @@ COPY CM2 SA DA
 |:---------|:-------|
 | Format | `DEPO` |
 | Category | Physical Memory Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2598,7 +2584,7 @@ DEPO
 |:---------|:-------|
 | Format | `DNZ <scaling_factor>` |
 | Category | Floating Conversion (Standard Format) |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -2667,7 +2653,7 @@ DNZ -20
 |:---------|:-------|
 | Format | `ELEAV` |
 | Category | Stack Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2720,7 +2706,7 @@ ELEAV
 |:---------|:-------|
 | Format | `ENPT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2760,7 +2746,7 @@ ENPT
 |:---------|:-------|
 | Format | `ENTR` |
 | Category | Stack Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2823,7 +2809,7 @@ ENTR
 |:---------|:-------|
 | Format | `EXAM` |
 | Category | Physical Memory Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2865,7 +2851,7 @@ EXAM
 |:---------|:-------|
 | Format | `EXIT` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -2918,8 +2904,8 @@ EXIT
 |:---------|:-------|
 | Format | `EXR <sr>` |
 | Category | Execute |
-| Privilege | user |
-| Mask | `1111_1111_1111_1000` |
+| Privilege | User |
+| Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
 
@@ -2977,7 +2963,7 @@ EXR SB
 |:---------|:-------|
 | Format | `FAD <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -3027,7 +3013,7 @@ FAD <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `FDV <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -3087,7 +3073,7 @@ FDV <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `FMU <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -3141,7 +3127,7 @@ FMU <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `FSB <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -3195,7 +3181,7 @@ FSB <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `GECO` |
 | Category | Undocumented Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3240,7 +3226,7 @@ GECO
 |:---------|:-------|
 | Format | ` IDENT <level_code>` |
 | Category | Interrupt Control Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -3281,7 +3267,7 @@ Transfer IDENT code of interrupting device with highest priority on the specifie
 |:---------|:-------|
 | Format | `INIT` |
 | Category | Stack Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3350,7 +3336,7 @@ INIT
 |:---------|:-------|
 | Format | `INSPL` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3390,7 +3376,7 @@ INSPL
 |:---------|:-------|
 | Format | `IOF` |
 | Category | Interrupt Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3433,7 +3419,7 @@ IOF
 |:---------|:-------|
 | Format | `ION` |
 | Category | Interrupt Control Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3467,6 +3453,51 @@ ION
 
 --------------------------------------------------------------------------------
 
+### IOT
+
+#### ⚡ Quick Reference
+
+| Property | Value |
+|:---------|:-------|
+| Format | `IOT <device_register_address>` |
+| Category | Input and Output |
+| Privilege | Privileged |
+| Mask | `1111_1000_0000_0000` |
+
+#### 📝 Description
+
+NORD-1 INSTRUCTION (DO NOT USE)
+
+
+#### 📚 Detailed Information
+
+ND-110 microcode implements this instruction like this:
+
+1861  000627  % IOT - INSTRUCTION IS PRIVILEGED WHEN RING = 0 OR 1
+1862  000627  %                  AND ILLEGAL    WHEN RING = 2 OR 3
+1863  000627  
+1864  000627  IOT1:     ALUD,NONE           IDBS,ALU            T,JMP               T,PUSH              PVCHK;
+1865  000630            ALUD,NONE           IDBS,ALU            T,JMP               T,HOLD              ILLIN;
+
+
+#### 📋 Format
+
+```
+IOT <device_register_address>
+```
+
+#### Bit Layout
+
+```
+   │ 15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0  │
+   ├────────────────────────────────────────────────────────────────┤
+   │                             opcode                             │
+   └────────────────────────────────────────────────────────────────┘
+
+```
+
+--------------------------------------------------------------------------------
+
 ### IOX
 
 #### ⚡ Quick Reference
@@ -3475,7 +3506,7 @@ ION
 |:---------|:-------|
 | Format | `IOX <device_register_address>` |
 | Category | Input and Output |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -3551,8 +3582,8 @@ IOX 0305
 | Property | Value |
 |:---------|:-------|
 | Format | `IOXT` |
-| Category | Input/Output |
-| Privilege | privileged |
+| Category | Input and Output |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -3623,7 +3654,7 @@ IOXT
 |:---------|:-------|
 | Format | `IRR <level> <register>` |
 | Category | Inter-level Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -3673,7 +3704,7 @@ IRR <level> <register>
 |:---------|:-------|
 | Format | `IRW <level> <register>` |
 | Category | Inter-level Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1000_0000` |
 
 #### 📝 Description
@@ -3723,7 +3754,8 @@ IRW <level> <register>
 |:---------|:-------|
 | Format | ` JAF <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -3771,7 +3803,8 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | ` JAN <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -3819,7 +3852,8 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | ` JAP <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -3867,7 +3901,8 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | ` JAZ <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -3915,7 +3950,7 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | `JMP <address mode> <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
 
 #### 📝 Description
 
@@ -3960,7 +3995,8 @@ JMP <address mode> <displacement>
 |:---------|:-------|
 | Format | ` JNC <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -4011,7 +4047,8 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | ` JPC <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -4062,7 +4099,7 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | `JPL <address mode> <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
 
 #### 📝 Description
 
@@ -4109,7 +4146,8 @@ JPL <address mode> <displacement>
 |:---------|:-------|
 | Format | ` JXN <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -4157,7 +4195,8 @@ If condition false, continue program execution at (P) + 1.
 |:---------|:-------|
 | Format | ` JXZ <displacement>` |
 | Category | Sequencing Instructions |
-| Privilege | user |
+| Privilege | User |
+| Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
 
@@ -4203,9 +4242,9 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
-| Format | `LACB` |
+| Format | `LACB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4222,7 +4261,7 @@ ea = (B) + Δ = CMBNK entry
 #### 📋 Format
 
 ```
-LACB
+LACB <displacement>
 ```
 
 #### Bit Layout
@@ -4245,7 +4284,7 @@ LACB
 |:---------|:-------|
 | Format | `LASB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4285,7 +4324,7 @@ LASB <displacement>
 |:---------|:-------|
 | Format | `LBIT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -4328,7 +4367,7 @@ LBIT
 |:---------|:-------|
 | Format | `LBITP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -4372,7 +4411,7 @@ LBITP
 |:---------|:-------|
 | Format | `LBYT` |
 | Category | Byte Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -4420,7 +4459,7 @@ LBYT
 |:---------|:-------|
 | Format | `LBYTP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -4464,7 +4503,7 @@ LBYTP
 |:---------|:-------|
 | Format | `LDA <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -4511,7 +4550,7 @@ LDA <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `LDATX <disp>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4549,7 +4588,7 @@ LDATX <disp>
 |:---------|:-------|
 | Format | `LDBTX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4589,7 +4628,7 @@ LDBTX <displacement>
 |:---------|:-------|
 | Format | `LDD <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Double word instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -4639,7 +4678,7 @@ LDD <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `LDDTX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4678,7 +4717,7 @@ LDDTX <displacement>
 |:---------|:-------|
 | Format | `LDF <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -4729,7 +4768,7 @@ LDF <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `LDT <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -4778,7 +4817,7 @@ LDT <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `LDX <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -4827,7 +4866,7 @@ LDX <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `LDXTX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -4857,7 +4896,7 @@ LDXTX <displacement>
 
 --------------------------------------------------------------------------------
 
-### LEAV
+### LEAVE
 
 #### ⚡ Quick Reference
 
@@ -4865,7 +4904,7 @@ LDXTX <displacement>
 |:---------|:-------|
 | Format | `LEAVE` |
 | Category | Stack Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -4914,7 +4953,7 @@ LEAVE
 |:---------|:-------|
 | Format | `LRB <level>` |
 | Category | Register Block Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -4993,7 +5032,7 @@ LRB 160
 |:---------|:-------|
 | Format | `LWCS` |
 | Category | privileged |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5047,7 +5086,7 @@ LWCS
 |:---------|:-------|
 | Format | `LXCB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -5087,7 +5126,7 @@ LXCB <displacement>
 |:---------|:-------|
 | Format | `LXSB <diplacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -5127,7 +5166,7 @@ LXSB <diplacement>
 |:---------|:-------|
 | Format | `MCL <internal_register>` |
 | Category | Register Transfer |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -5183,7 +5222,7 @@ MCL STS
 |:---------|:-------|
 | Format | `MIN <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -5234,7 +5273,7 @@ MIN <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `MIX3` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5278,7 +5317,7 @@ MIX3
 |:---------|:-------|
 | Format | `MON <monitor_call_number>` |
 | Category | Monitor Calls |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -5344,7 +5383,7 @@ MON 2
 |:---------|:-------|
 | Format | `MOVB` |
 | Category | Byte Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5388,7 +5427,7 @@ MOVB
 |:---------|:-------|
 | Format | `MOVBF` |
 | Category | Byte Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5432,7 +5471,7 @@ MOVBF
 |:---------|:-------|
 | Format | `MOVEW` |
 | Category | Word Block Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1000` |
 
 #### 📝 Description
@@ -5507,7 +5546,7 @@ MOVEW
 |:---------|:-------|
 | Format | `MPY <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -5569,7 +5608,7 @@ MPY <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `MST <register>` |
 | Category | Register Transfer |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -5615,7 +5654,7 @@ MST <register>
 |:---------|:-------|
 | Format | `NLZ <scaling_factor>` |
 | Category | Floating Conversion (Standard Format) |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -5691,7 +5730,7 @@ NLZ +20
 |:---------|:-------|
 | Format | `OPCOM` |
 | Category | Interrupt Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5739,7 +5778,7 @@ OPCOM
 |:---------|:-------|
 | Format | `ORA <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -5787,7 +5826,7 @@ ORA <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `PACK` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5851,7 +5890,7 @@ PACK
 |:---------|:-------|
 | Format | `PIOF` |
 | Category | Memory Management Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5896,7 +5935,7 @@ PIOF
 |:---------|:-------|
 | Format | `PION` |
 | Category | Memory Management Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5938,7 +5977,7 @@ PION
 |:---------|:-------|
 | Format | `POF` |
 | Category | Interrupt Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -5981,7 +6020,7 @@ POF
 |:---------|:-------|
 | Format | `PON` |
 | Category | Memory Management Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6027,7 +6066,7 @@ PON
 |:---------|:-------|
 | Format | `RADD [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1100_0000_0000` |
 
 #### 📝 Description
@@ -6160,7 +6199,7 @@ RADD CM1 CLD AD1 SX DB
 |:---------|:-------|
 | Format | `RAND [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -6240,7 +6279,7 @@ RAND CM1 ST DB
 |:---------|:-------|
 | Format | `RCLR <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1000` |
 
 #### 📝 Description
@@ -6301,7 +6340,7 @@ RCLR DA
 |:---------|:-------|
 | Format | `RDCR <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1000` |
 
 #### 📝 Description
@@ -6361,7 +6400,7 @@ RDCR DB
 |:---------|:-------|
 | Format | `RDIV <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -6422,7 +6461,7 @@ RDIV <source> <destination>
 |:---------|:-------|
 | Format | `RDUS` |
 | Category | Memory Examine and Test Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6469,7 +6508,7 @@ RDUS
 |:---------|:-------|
 | Format | `RDUSP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6517,7 +6556,7 @@ RDUSP
 |:---------|:-------|
 | Format | `REMPL` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6557,7 +6596,7 @@ REMPL
 |:---------|:-------|
 | Format | `REPT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6597,7 +6636,7 @@ REPT
 |:---------|:-------|
 | Format | `REX` |
 | Category | Memory Management Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6637,7 +6676,7 @@ REX
 |:---------|:-------|
 | Format | `REXO [flags] <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -6708,7 +6747,7 @@ REXO ST DB
 |:---------|:-------|
 | Format | `RGLOB` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -6752,7 +6791,7 @@ RGLOB
 |:---------|:-------|
 | Format | `RINC <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1000` |
 
 #### 📝 Description
@@ -6812,7 +6851,7 @@ RINC DA
 |:---------|:-------|
 | Format | `RMPY <source> <destination>` |
 | Category | Register Operations |
-| Privilege |  |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -6876,7 +6915,7 @@ RMPY SA DX
 |:---------|:-------|
 | Format | `RORA <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -6958,7 +6997,7 @@ RORA ST DB
 |:---------|:-------|
 | Format | `RSUB <sub-instruction> <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -7035,7 +7074,7 @@ RSUB ST DB
 |:---------|:-------|
 | Format | `SAA <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -7089,7 +7128,7 @@ SAA 10
 |:---------|:-------|
 | Format | `SAB <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -7143,7 +7182,7 @@ SAB -26
 |:---------|:-------|
 | Format | `SACB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -7183,7 +7222,7 @@ SACB <displacement>
 |:---------|:-------|
 | Format | `SAD <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1001_1000_0000` |
 
 #### 📝 Description
@@ -7234,7 +7273,7 @@ SAD <shift_type> <shift_counter>
 |:---------|:-------|
 | Format | `SASB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -7274,7 +7313,7 @@ SASB <displacement>
 |:---------|:-------|
 | Format | `SAT <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -7328,7 +7367,7 @@ SAT 20₈
 |:---------|:-------|
 | Format | `SAX <number>` |
 | Category | Argument Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -7382,7 +7421,7 @@ SAX -5
 |:---------|:-------|
 | Format | `SBIT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7425,7 +7464,7 @@ SBIT
 |:---------|:-------|
 | Format | `SBITP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7469,7 +7508,7 @@ SBITP
 |:---------|:-------|
 | Format | `SBYT` |
 | Category | Byte Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7514,7 +7553,7 @@ SBYT
 |:---------|:-------|
 | Format | `SBYTP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7558,7 +7597,7 @@ SBYTP
 |:---------|:-------|
 | Format | `SETPT` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7616,7 +7655,7 @@ SETPT
 |:---------|:-------|
 | Format | `SEX` |
 | Category | Memory Management Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7670,7 +7709,7 @@ SEX
 |:---------|:-------|
 | Format | `SHA <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1001_1000_0000` |
 
 #### 📝 Description
@@ -7721,7 +7760,7 @@ SHA <shift_type> <shift_counter>
 |:---------|:-------|
 | Format | `SHD <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1001_1000_0000` |
 
 #### 📝 Description
@@ -7772,7 +7811,7 @@ SHD <shift_type> <shift_counter>
 |:---------|:-------|
 | Format | `SHDE` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -7853,7 +7892,7 @@ SHDE
 |:---------|:-------|
 | Format | `SHT <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1001_1000_0000` |
 
 #### 📝 Description
@@ -7904,7 +7943,7 @@ SHT <shift_type> <shift_counter>
 |:---------|:-------|
 | Format | `SKP <dr> <condition> <sr>` |
 | Category | Skip Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_1100_0000` |
 
 #### 📝 Description
@@ -8019,7 +8058,7 @@ SKP LSS SD
 |:---------|:-------|
 | Format | `SRB <level>` |
 | Category | Register Block Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -8098,7 +8137,7 @@ SRB 100
 |:---------|:-------|
 | Format | `STA <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8146,7 +8185,7 @@ STA <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `STATX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -8184,7 +8223,7 @@ STATX <displacement>
 |:---------|:-------|
 | Format | `STD <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Double word instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8234,7 +8273,7 @@ STD <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `STDTX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -8273,7 +8312,7 @@ STDTX <displacement>
 |:---------|:-------|
 | Format | `STF <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8324,7 +8363,7 @@ STF <addressing_mode> <disp>
 |:---------|:-------|
 | Format | `STT <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8372,7 +8411,7 @@ STT <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `STX <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8420,7 +8459,7 @@ STX <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `STZ <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8468,7 +8507,7 @@ STZ <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `STZTX <displacement>` |
 | Category | Memory Transfer Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -8506,7 +8545,7 @@ STZTX <displacement>
 |:---------|:-------|
 | Format | `SUB <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1000_0000_0000` |
 
 #### 📝 Description
@@ -8569,7 +8608,7 @@ SUB <addressing_mode> <displacement>
 |:---------|:-------|
 | Format | `SUBD` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -8637,7 +8676,7 @@ SUBD
 |:---------|:-------|
 | Format | `SWAP <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1100_0000` |
 
 #### 📝 Description
@@ -8725,7 +8764,7 @@ SWAP CLD SA DX
 |:---------|:-------|
 | Format | `SZCB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -8765,7 +8804,7 @@ SZCB <displacement>
 |:---------|:-------|
 | Format | `SZSB <displacement>` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1100_0111` |
 
 #### 📝 Description
@@ -8803,31 +8842,30 @@ SZSB <displacement>
 
 | Property | Value |
 |:---------|:-------|
-| Format | ` TRA <disp>` |
-| Category | Control Transfer |
-| Privilege | user |
-| Mask | `1111_1111_0000_0000` |
+| Format | `TRA <internal_register>` |
+| Category | Register Transfer |
+| Privilege | Privileged |
+| Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
 
-Transfer control to the address specified by the effective address.
-The effective address is calculated by adding the displacement to the program counter.
-The program counter is set to the effective address.
+Transfer to A register
+The internal register given in the instruction is copied into the A register.  
 
 
 #### 📋 Format
 
 ```
- TRA <disp>
+TRA <internal_register>
 ```
 
 #### Bit Layout
 
 ```
-   │ 15  14  13  12  11  10  9   8 │ 7   6   5   4   3   2   1   0   │
-   ├───────────────────────────────┼─────────────────────────────────┤
-   │             opcode            │              disp               │
-   └───────────────────────────────┴─────────────────────────────────┘
+   │ 15  14  13  12  11  10  9   8   7   6   5   4 │  3    2    1    0    │
+   ├───────────────────────────────────────────────┼──────────────────────┤
+   │                     opcode                    │  internal_register   │
+   └───────────────────────────────────────────────┴──────────────────────┘
 
 ```
 
@@ -8835,8 +8873,8 @@ The program counter is set to the effective address.
 
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
-| `opcode` | opcode | 15-8 | The opcode determines what type of operation occurs |
-| `disp` | displacement | 7-0 | 8-bit signed field gives the memory address displacement (2's complement notation giving a displacement range of -128 to 127 memory locations) |
+| `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
+| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `PANS`: Panel status<br>- `STS`: Status register<br>- `OPR`: Operator's panel switch register<br>- `PSR`: Paging status register<br>- `PVL`: Previous level code register<br>- `IIC`: Internal interrupt code register<br>- `PID`: Priority interrupt detect register<br>- `PIE`: Priority enable detect register<br>- `CSR`: Cache status register<br>- `ACTL`: Active level register<br>- `ALD`: Automatic load descriptor<br>- `PES`: Parity error status register<br>- `PGC`: Paging control register<br>- `PEA`: Parity error address register<br>- `CS`: Control store<br> |
 
 --------------------------------------------------------------------------------
 
@@ -8848,7 +8886,7 @@ The program counter is set to the effective address.
 |:---------|:-------|
 | Format | `TRR <internal_register>` |
 | Category | Register Transfer |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_0000` |
 
 #### 📝 Description
@@ -8890,7 +8928,7 @@ TRR <internal_register>
 |:---------|:-------|
 | Format | `TSET` |
 | Category | Memory Examine and Test Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -8937,7 +8975,7 @@ TSET
 |:---------|:-------|
 | Format | `TSETP` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -8988,7 +9026,7 @@ TSETP
 |:---------|:-------|
 | Format | `UPACK` |
 | Category | Decimal Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -9051,7 +9089,7 @@ UPACK
 |:---------|:-------|
 | Format | `VERSN` |
 | Category | System/CPU Information |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
@@ -9127,7 +9165,7 @@ VERSN
 |:---------|:-------|
 | Format | `WAIT <wait_number>` |
 | Category | Interrupt Control Instructions |
-| Privilege | user |
+| Privilege | User |
 | Mask | `1111_1111_0000_0000` |
 
 #### 📝 Description
@@ -9197,7 +9235,7 @@ WAIT 1
 |:---------|:-------|
 | Format | `WGLOB` |
 | Category | Control Instructions |
-| Privilege | privileged |
+| Privilege | Privileged |
 | Mask | `1111_1111_1111_1111` |
 
 #### 📝 Description
