@@ -101,8 +101,8 @@ void mopc_cmd(char *cmdstr, char cmdc)
 		if ((val >= 0) && (val < 65536))
 		{ /* valid range for 16 bit addr */
 			gReg->has_breakpoint = true;
-			gReg->breakpoint = (ushort)(val & 0xffff);
-			CurrentCPURunMode = SEMIRUN;
+			gReg->breakpoint = (ushort)(val & 0xffff);			
+			set_cpu_run_mode(CPU_BREAKPOINT);
 		}
 		break;
 	default:
@@ -122,7 +122,7 @@ void mopc_thread()
 
 	memset(str, '\0', sizeof(str));
 
-	while (CurrentCPURunMode != SHUTDOWN)
+	while (get_cpu_run_mode() != CPU_SHUTDOWN)
 	{
 		/* This should trigger once every rtc/panel interrupt hopefully */
 
@@ -167,7 +167,7 @@ void mopc_thread()
 			}
 			else if (ch == '!')
 			{
-				if (CurrentCPURunMode == STOP)
+				if (get_cpu_run_mode() == CPU_STOPPED)
 				{
 					mopc_out(ch);
 					if (ptr)
@@ -175,7 +175,7 @@ void mopc_thread()
 						i = aoct2int(str); /* FIXME :: THIS IS WRONG, we should use octal input, not decimal!!! (just added this quickly to test)*/
 						gPC = i;
 					}
-					CurrentCPURunMode = RUN;
+					set_cpu_run_mode(CPU_RUNNING);
 				}
 				else
 				{
@@ -188,7 +188,7 @@ void mopc_thread()
 			}
 			else if (ch == 27)
 			{
-                // TODO: Handle escape sequence to get out of OPCOM in case we where temporay in it
+                // TODO: Handle escape sequence to get out of OPCOM in case we where temporay in it				
 				//if (CurrentCPURunMode != STOP)
 				//	MODE_OPCOM = 0;
 			}

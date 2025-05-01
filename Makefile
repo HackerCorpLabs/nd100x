@@ -28,7 +28,7 @@ OBJ_DIR := $(BUILD_DIR)/obj
 LIB_DIR := $(BUILD_DIR)/lib
 
 # List of all modules
-MODULES := ndlib cpu machine devices frontend/nd100x
+MODULES := ndlib cpu machine devices debugger frontend/nd100x
 
 # Export variables for module makefiles
 export BUILD_TYPE

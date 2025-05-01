@@ -58,9 +58,15 @@ ushort MemoryRead(ushort addr, bool UseAPT);
 ushort MemoryFetch(ushort addr, bool UseAPT);
 bool checkAndSwitch(void);
 void private_cpu_tick(void);
-void cpu_run(int ticks);
-void cpu_init(void);
+int cpu_run(int ticks);
+void cpu_init(bool debuggerEnabled);
 void cleanup_cpu(void);
+bool debuggerRequestedControl(void);
+void debuggerTakeControl(void);
+void debuggerReleaseControl(void);
+void set_debugger_requested_control(bool requested);
+void set_cpu_run_mode(CPURunMode new_mode);
+CPURunMode get_cpu_run_mode(void);
 
 /* Prototypes from float.c */
 

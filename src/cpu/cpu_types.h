@@ -318,8 +318,15 @@ struct CpuRegs {
 
 
 
-typedef enum {RUN, SEMIRUN, STOP, SHUTDOWN }  _RUNMODE_;
-typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX} _CPUTYPE_;
+typedef enum {
+	CPU_RUNNING, // CPU is running normally
+	CPU_BREAKPOINT, // CPU hit a breakpoint 
+	CPU_PAUSED,  // CPU is paused and waiting for debugger to resume	
+	CPU_STOPPED,    // CPU is stopped and we are in OPCOM mode
+	CPU_SHUTDOWN // Shut down and exit 
+}  CPURunMode;
+
+typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX} CpuType;
 
 #define gPC	gReg->reg[gPIL][_P]
 #define gA	gReg->reg[gPIL][_A]
@@ -441,8 +448,7 @@ extern DisasmArray* p_DIS;
 // Global CPU variable definitions
 extern struct CpuRegs *gReg;
 extern _NDRAM_ VolatileMemory;
-extern _RUNMODE_ CurrentCPURunMode;
-extern _CPUTYPE_ CurrentCPUType;
+extern CpuType CurrentCPUType;
 
 extern uint64_t  instr_counter ;
 extern ushort STARTADDR;

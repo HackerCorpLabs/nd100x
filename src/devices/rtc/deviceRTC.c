@@ -77,7 +77,7 @@ static uint16_t RTC_Tick(Device *self) {
     data->rtcCounter--;
 
     if (data->rtcCounter <= 0) {        
-        if (!data->statusRegister.bits.readyForTransfer)
+        //if (!data->statusRegister.bits.readyForTransfer)
         {
             data->statusRegister.bits.readyForTransfer = true;
             if (data->statusRegister.bits.interruptEnabled) {

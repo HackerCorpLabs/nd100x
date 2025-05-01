@@ -365,7 +365,7 @@ int DeviceManager_Boot(uint16_t device_id)
     
 #ifdef LOG_DEVICE_NOT_FOUND
     // interrupt(14,1<<7); /* IOX error lvl14 */s
-     Log(LOG_WARNING, "No device found for BOOT id: %d\n", level);
+     Log(LOG_WARNING, "No device found for BOOT id: %d\n", device_id);
 #endif    
 
     return -1;

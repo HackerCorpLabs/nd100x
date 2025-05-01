@@ -33,9 +33,10 @@ static struct option long_options[] = {
     {"boot",    required_argument, 0, 'b'},
     {"image",   required_argument, 0, 'i'},
     {"start",   required_argument, 0, 's'},
-    {"disasm",  no_argument,       0, 'd'},
+    {"disasm",  no_argument,       0, 'a'},
     {"verbose", no_argument,       0, 'v'},
     {"help",    no_argument,       0, 'h'},
+    {"debugger", no_argument,      0, 'd'},
     {0, 0, 0, 0}
 };
 
@@ -94,10 +95,14 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
                 
-            case 'd':
+            case 'a':
                 config->disasmEnabled = true;
                 break;
-                
+
+            case 'd':
+                config->debuggerEnabled = true;
+                break;
+
             case 'v':
                 config->verbose = true;
                 break;
@@ -152,7 +157,8 @@ void Config_PrintHelp(const char *progName) {
     printf("  -b, --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)\n");
     printf("  -i, --image=FILE   Image file to load\n");
     printf("  -s, --start=ADDR   Start address (default: 0)\n");
-    printf("  -d, --disasm       Enable disassembly output\n");
+    printf("  -a, --disasm       Enable disassembly output\n");
+    printf("  -d, --debugger     Enable DAP debugger\n");
     printf("  -v, --verbose      Enable verbose output\n");
     printf("  -h, --help         Show this help message\n\n");
     printf("Examples:\n");
