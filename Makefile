@@ -5,6 +5,13 @@ BUILD_TYPE ?= debug
 CC = gcc
 #CFLAGS = -Wall -O0 -g3 -ggdb3 -fno-omit-frame-pointer -fno-inline
 
+# Tools directory
+TOOLS_DIR := $(abspath tools)
+
+# LibDAP directory and variables
+LIBDAP_DIR := $(abspath external/libdap)
+LIBDAP_LIB_DIR := $(LIBDAP_DIR)/lib
+LIBDAP_INCLUDE_DIR := $(LIBDAP_DIR)/libdap/include
 
 #Set flags by build type
 ifeq ($(BUILD_TYPE),debug)
@@ -21,11 +28,11 @@ else
   $(error Unknown BUILD_TYPE '$(BUILD_TYPE)')
 endif
 
-
 # Build directory structure (using absolute paths)
 BUILD_DIR := $(abspath build)
 OBJ_DIR := $(BUILD_DIR)/obj
 LIB_DIR := $(BUILD_DIR)/lib
+BIN_DIR := $(BUILD_DIR)/bin
 
 # List of all modules
 MODULES := ndlib cpu machine devices debugger frontend/nd100x
@@ -33,8 +40,10 @@ MODULES := ndlib cpu machine devices debugger frontend/nd100x
 # Export variables for module makefiles
 export BUILD_TYPE
 export CC CFLAGS LDFLAGS
-export BUILD_DIR OBJ_DIR LIB_DIR
+export BUILD_DIR OBJ_DIR LIB_DIR BIN_DIR
 export MKPTYPES := $(TOOLS_DIR)/mkptypes
+# Export LibDAP paths for modules that need it
+export LIBDAP_DIR LIBDAP_LIB_DIR LIBDAP_INCLUDE_DIR
 
 # Default target
 .DEFAULT_GOAL := all
@@ -42,6 +51,7 @@ export MKPTYPES := $(TOOLS_DIR)/mkptypes
 # Create build directories
 create_dirs:
 	@mkdir -p $(LIB_DIR)
+	@mkdir -p $(BIN_DIR)
 	@$(foreach dir,$(MODULES),mkdir -p $(OBJ_DIR)/$(dir);)
 
 # Build mkptypes tool using its own Makefile
@@ -49,8 +59,18 @@ $(TOOLS_DIR)/mkptypes:
 	@echo "Building mkptypes tool..."
 	@$(MAKE) -C tools/mkptypes
 
+# Build LibDAP
+libdap:
+	@echo "Building LibDAP..."
+	@if [ ! -d "$(LIBDAP_DIR)" ]; then \
+		echo "Error: LibDAP directory not found at $(LIBDAP_DIR)"; \
+		exit 1; \
+	fi
+	@mkdir -p $(LIBDAP_DIR)/lib
+	@$(MAKE) -C $(LIBDAP_DIR) lib
+
 # Main targets
-all: | create_dirs $(TOOLS_DIR)/mkptypes
+all: | create_dirs $(TOOLS_DIR)/mkptypes libdap
 	@$(foreach module,$(MODULES),\
 		echo "Building module: $(module)" && \
 		if [ -f src/$(module)/Makefile ]; then \
@@ -63,9 +83,10 @@ all: | create_dirs $(TOOLS_DIR)/mkptypes
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BUILD_DIR)
+	@$(MAKE) -C $(LIBDAP_DIR) clean
 
 # Phony targets
-.PHONY: all debug sanitize release clean create_dirs 
+.PHONY: all debug sanitize release clean create_dirs libdap $(MODULES)
 
 debug:   BUILD_TYPE = debug
 debug:   all
