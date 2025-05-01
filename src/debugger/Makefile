@@ -30,6 +30,13 @@ MODULE_LIB := $(LIB_DIR)/lib$(MODULE).a
 # point this at wherever you built mkptypes
 MKPTYPES    := ./../../tools/mkptypes/mkptypes
 
+
+# Include LibDAP headers
+INCLUDES += -I$(LIBDAP_INCLUDE_DIR)
+
+# Link with LibDAP
+LDLIBS += -L$(LIBDAP_LIB_DIR) -ldap
+
 # Combine prototypes into debugger_protos.h
 debugger_protos.h: $(SRCS)
 	@echo "Creating combined prototype header $@"
