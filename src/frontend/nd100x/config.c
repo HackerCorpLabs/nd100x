@@ -27,6 +27,7 @@
 #include <getopt.h>
 
 #include "nd100x_types.h"
+#include "../../machine/machine_types.h"
 
 // Long options
 static struct option long_options[] = {
