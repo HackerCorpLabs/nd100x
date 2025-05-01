@@ -67,6 +67,19 @@ void handle_sigint(int sig) {
     machine_stop();
 }
 
+void dump_stats()
+{
+	getrusage(RUSAGE_SELF, used);	/* Read how much resources we used */
+
+	usertime=used->ru_utime.tv_sec+((float)used->ru_utime.tv_usec/1000000);
+	systemtime=used->ru_stime.tv_sec+((float)used->ru_stime.tv_usec/1000000);
+	totaltime=(float)usertime + (float)systemtime;
+
+	printf("Number of instructions run: %lu, time used: %f\n",instr_counter,totaltime); // maybe us macro PRIu64  for instr_counter?
+	printf("usertime: %f  systemtime: %f\n",usertime,systemtime);
+	printf("Current cpu cycle time is:%f microsecs\n",(totaltime/((double)instr_counter/1000000.0)));
+}
+
 void initialize()
 {
    srand ( time(NULL) ); /* Generate PRNG Seed */
@@ -81,7 +94,7 @@ void initialize()
 	
 	if (DISASM) disasm_init();
 
-	machine_init();
+	machine_init(config.debuggerEnabled);
 
 	program_load(config.bootType, config.imageFile, config.verbose);	
 	gPC = STARTADDR;
@@ -92,18 +105,7 @@ void initialize()
 }
 
 
-void dump_stats()
-{
-	getrusage(RUSAGE_SELF, used);	/* Read how much resources we used */
 
-	usertime=used->ru_utime.tv_sec+((float)used->ru_utime.tv_usec/1000000);
-	systemtime=used->ru_stime.tv_sec+((float)used->ru_stime.tv_usec/1000000);
-	totaltime=(float)usertime + (float)systemtime;
-
-	printf("Number of instructions run: %lu, time used: %f\n",instr_counter,totaltime); // maybe us macro PRIu64  for instr_counter?
-	printf("usertime: %f  systemtime: %f\n",usertime,systemtime);
-	printf("Current cpu cycle time is:%f microsecs\n",(totaltime/((double)instr_counter/1000000.0)));
-}
 
 void cleanup()
 {
@@ -136,8 +138,9 @@ int main(int argc, char *argv[])
 
 	initialize();
 
-	// Run the machine
-	machine_run();
+	// Run the machine until it stops	
+	machine_run(-1);
+	
 
 	if (DISASM)
 		disasm_dump();

@@ -39,6 +39,7 @@ typedef struct {
     bool disasmEnabled;
     bool verbose;
     bool showHelp;
+    bool debuggerEnabled;
 } Config_t;
 
 #endif // CONFIG_H 

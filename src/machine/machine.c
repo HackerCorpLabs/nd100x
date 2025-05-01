@@ -19,7 +19,8 @@
  * along with this program (in the main directory of the nd100em
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
-
+#include <pthread.h>
+#include <unistd.h>
 
 #include "machine_types.h"
 #include "machine_protos.h"
@@ -41,19 +42,18 @@ const char* boot_type_str[] = {
 };
 
 
-
 void 
-machine_init (void)
+machine_init (bool debuggerEnabled)
 {
     
     // Initialize the CPU
-    cpu_init();
+    cpu_init(debuggerEnabled);
     // Initialize IO devices
     IO_Init();
 
-    // Set the CPU to RUN mode
-    CurrentCPURunMode = RUN;
 
+    // Set the CPU to RUN mode
+    set_cpu_run_mode(CPU_RUNNING);
 }
 
 void 
@@ -64,17 +64,28 @@ cleanup_machine (void)
 }
 
 
-void 
-machine_run (void)
-{
-    // Run the CPU until it stops
-    cpu_run(-1);
+/// @brief Do NOT call from debugger thread
+/// @param ticks Number of ticks to run the CPU. Use -1 for infinite.
+void  machine_run (int ticks)
+{    
+    // Run the CPU until it stops but also handle debugger requests
+    do 
+    {    
+        while (get_cpu_run_mode() == CPU_PAUSED) {
+            //printf("Machine: CPU is paused, waiting for debugger to release. Sleeping 100ms\n");
+            usleep(100000);
+        }        
+        ticks = cpu_run(ticks);  
+
+        if (ticks == 0) break;
+    } while (get_cpu_run_mode() != CPU_SHUTDOWN);
+
 }
 
 void machine_stop()
 {
     // Stop the CPU
-    CurrentCPURunMode = STOP;
+    set_cpu_run_mode(CPU_STOPPED);
 }
 
 

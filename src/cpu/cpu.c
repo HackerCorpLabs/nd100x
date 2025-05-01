@@ -23,15 +23,41 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-// #define DEBUG_TRAP
+#define DEBUG_TRAP
 //#define DEBUG_PK_SWITCH
-//  #define DEBUG_IONOFF
+//  # define DEBUG_IONOFF
+
+#define _DEBUGGER_ENABLED_ // Enables debugger thread support
 
 #include <string.h>
 #include <setjmp.h>
+#include <unistd.h>
+
 
 #include "cpu_types.h"
 #include "cpu_protos.h"
+
+
+
+#ifdef _DEBUGGER_ENABLED_
+	#include <stdatomic.h>
+	extern void start_debugger();
+
+#ifdef _WIN32
+    #include <windows.h>
+	volatile LONG CurrentCPURunMode;
+	volatile LONG m_debuggerRequestedControl;
+#else
+    #include <stdatomic.h>
+	#include <pthread.h>
+	atomic_int CurrentCPURunMode;
+	atomic_bool m_debuggerRequestedControl;
+#endif
+
+
+#else
+int CurrentCPURunMode;
+#endif
 
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
@@ -41,14 +67,16 @@
 
 // Global CPU variable definitions
 _NDRAM_ VolatileMemory;
-_RUNMODE_ CurrentCPURunMode;
-_CPUTYPE_ CurrentCPUType;
+CpuType CurrentCPUType;
+
 
 struct CpuRegs *gReg = NULL;
 
 uint64_t  instr_counter = 0;
 ushort STARTADDR = 0;
 int DISASM = 0;
+
+bool m_debuggerEnabled = false;
 
 /* Instruction handling array */
 
@@ -414,12 +442,12 @@ void private_cpu_tick()
 	do_op(operand, false);
 }
 
-/// @brief run the CPU for a number of ticks. Use -1 for infinite.
+/// @brief run the CPU for a number of ticks. 
 /// @details This function runs the CPU for a number of ticks. It handles interrupts and checks for level switches.
-/// @param ticks 
-void cpu_run(int ticks)
+/// @param ticks Number of ticks to run the CPU. Use -1 for infinite.
+/// @return Returns the number of ticks left to run.
+int cpu_run(int ticks)
 {
-
 	// Set up longjmp target once at startup
 	if (setjmp(cpu_jmp_buf) != 0)
 	{
@@ -440,10 +468,27 @@ void cpu_run(int ticks)
 #endif
 	}
 
-
-	while ((CurrentCPURunMode != SHUTDOWN) && (ticks !=0 ))
+	
+	while (ticks !=0 )
 	{
-		if (CurrentCPURunMode != STOP)
+		CPURunMode current_run_mode = get_cpu_run_mode();
+
+		if (current_run_mode == CPU_SHUTDOWN)
+        {
+            break;  // Exit loop if shutting down
+        }
+        
+		// If CPU is in RUN mode, check if debugger has requested a pause
+		if (current_run_mode == CPU_RUNNING && m_debuggerEnabled)
+		{
+			if (debuggerRequestedControl())
+			{
+				debuggerTakeControl();				
+				return ticks;
+			}
+		}
+
+		if (current_run_mode != CPU_STOPPED) // Including Normal and Paused (=debugger mode)
 		{
 			private_cpu_tick();
 
@@ -454,21 +499,24 @@ void cpu_run(int ticks)
 			{
 				ticks--;
 			}
-
 		}
 
-        if (CurrentCPURunMode == STOP)
+        if (current_run_mode == CPU_STOPPED)
         {
             // OPCOM MODE ?
             printf("CPU: WAS STOPPED, SHUTTING DOWN\r\n");
-            CurrentCPURunMode = SHUTDOWN;
+			set_cpu_run_mode(CPU_SHUTDOWN);            
+			break;
         }
 	}	
+
+	return ticks;	
 }
 
 
-void cpu_init()
+void cpu_init(bool debuggerEnabled)
 {
+	m_debuggerEnabled = debuggerEnabled;
 	/* initialize an empty register set */
 	gReg = calloc(1, sizeof(struct CpuRegs));
 
@@ -480,7 +528,7 @@ void cpu_init()
 	gCSR = 1 << 2; /* this bit sets the cache as not available */
 
 	/* Set cpu as running for now. Probably should depend on settings */
-	CurrentCPURunMode = RUN;
+	CurrentCPURunMode = CPU_RUNNING;
 	instr_counter = 0;
 
 	// Allocate ShadowMemory for pagetables
@@ -493,6 +541,14 @@ void cpu_init()
 
 	if (DISASM)
 		disasm_setlbl(gPC);
+
+#ifdef _DEBUGGER_ENABLED_
+	if (debuggerEnabled)
+    {
+		start_debugger();
+    }
+#endif
+
 }
 
 void cleanup_cpu()
@@ -500,4 +556,82 @@ void cleanup_cpu()
 	// Destroy paging tables
 	DestroyPagingTables();
 }
+
+
+
+
+/// @brief Has the debugger requested control of the CPU?
+/// @return 
+bool debuggerRequestedControl()
+{
+#ifdef _DEBUGGER_ENABLED_	
+	#ifdef _WIN32
+        return (CPURunMode)InterlockedCompareExchange(
+            (volatile LONG *)&m_debuggerRequestedControl,
+            0,  // Exchange value (ignored)
+            0   // Comparand (ignored)
+        );
+    #else
+        return atomic_load(&m_debuggerRequestedControl);
+    #endif	
+#else
+	return false;
+#endif
+}
+
+
+int saved_run_mode = CPU_RUNNING;
+void debuggerTakeControl()
+{
+	saved_run_mode = get_cpu_run_mode();	
+	set_cpu_run_mode(CPU_PAUSED);
+}
+
+void debuggerReleaseControl()
+{
+	set_debugger_requested_control(false);
+	set_cpu_run_mode(saved_run_mode);
+}
+
+/// @brief Set the debugger requested control flag. Called by the debugger thread.
+/// @param requested 
+void set_debugger_requested_control(bool requested)
+{
+#ifdef _DEBUGGER_ENABLED_	
+	#ifdef _WIN32
+		InterlockedExchange((volatile LONG *)&m_debuggerRequestedControl, (LONG)requested);
+	#else
+		atomic_store(&m_debuggerRequestedControl, requested);
+	#endif
+#endif
+}
+
+void set_cpu_run_mode(CPURunMode new_mode) {
+#ifdef _DEBUGGER_ENABLED_	
+	#ifdef _WIN32
+		 InterlockedExchange((volatile LONG *)&CurrentCPURunMode, (LONG)new_mode);
+	#else
+		atomic_store(&CurrentCPURunMode, new_mode);    
+	#endif
+#else
+	CurrentCPURunMode = new_mode;
+#endif
+}
+
+CPURunMode get_cpu_run_mode(void) {
+#ifdef _DEBUGGER_ENABLED_
+    #ifdef _WIN32
+        return (CPURunMode)InterlockedCompareExchange(
+            (volatile LONG *)&CurrentCPURunMode,
+            0,  // Exchange value (ignored)
+            0   // Comparand (ignored)
+        );
+    #else
+        return atomic_load(&CurrentCPURunMode);
+    #endif	
+#else
+	return CurrentCPURunMode;
+#endif
+}
+
 

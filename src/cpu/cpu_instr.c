@@ -148,7 +148,7 @@ void unimplemented_instr(ushort operand)
 	printf("--------------------------------\r\n");
 	printf("\r\n");
 
-	// CurrentCPURunMode = STOP; /* OK unimplemented function, lets stop CPU and end program that way */
+	//set_cpu_run_mode(CPU_STOPPED); /* OK unimplemented function, lets stop CPU and end program that way */
 }
 
 
@@ -1091,7 +1091,7 @@ void ndfunc_opcom(ushort operand)
 	if (!CheckPriv())
 		return;
 
-	CurrentCPURunMode = STOP;
+	set_cpu_run_mode(CPU_STOPPED);
 }
 
 /// <summary>
@@ -1994,7 +1994,7 @@ void DoWAIT(ushort instr)
 		// The ND-110 stops with the program counter (P register) pointing at the instruction after the WAIT and the front panel RUN indicator is turned off.
 		// To restart the system, type ! on the console terminal
 		printf("\r\nWAIT when IONI is off PIL[%d] PC[%6o] PID[0x%4X] PIE[0x%4X] IONI[%d] PONI[%d] STS_HI[%4X] STS_LO[%4X]\r\n", gPIL, gPC, gPID, gPIE, STS_IONI, STS_PONI, gReg->reg_STS, gReg->reg[gPIL][_STS]);
-		CurrentCPURunMode = STOP;
+		set_cpu_run_mode(CPU_STOPPED);		
 		return;
 	}
 

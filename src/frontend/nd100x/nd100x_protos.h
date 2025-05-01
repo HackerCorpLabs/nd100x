@@ -10,8 +10,8 @@ void Config_PrintHelp(const char *progName);
 
 /* nd100x.c */
 void handle_sigint(int sig);
-void initialize(void);
 void dump_stats(void);
+void initialize(void);
 void cleanup(void);
 int main(int argc, char *argv[]);
 
