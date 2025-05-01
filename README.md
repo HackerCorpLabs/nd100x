@@ -90,6 +90,9 @@ The project is organized into several key components:
 ```bash
 git clone https://github.com/HackerCorpLabs/nd100x.git
 cd nd100x
+
+git submodule update --init --recursive
+
 ```
 
 2. Build the project:
@@ -122,7 +125,8 @@ Options:
   -b, --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)
   -i, --image=FILE   Image file to load
   -s, --start=ADDR   Start address (default: 0)
-  -d, --disasm       Enable disassembly output (dump after emulator stops)
+  -a, --disasm       Enable disassembly output (dump after emulator stops)
+  -d, --debugger     Enable Enable DAP debugger
   -v, --verbose      Enable verbose output
   -h, --help         Show this help message
 
