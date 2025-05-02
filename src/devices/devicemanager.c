@@ -303,26 +303,6 @@ uint16_t DeviceManager_Tick(void)
 
     return interruptBits;
 }
-
-uint16_t DeviceManager_Tick_RTC(void)
-{
-    uint16_t interruptBits = 0;
-    for (int i = 0; i < deviceManager.deviceCount; i++)
-    {
-        Device *dev = deviceManager.devices[i].device;
-        if (dev)
-        {
-            if (dev->isRTC)
-            {
-                interruptBits |= Device_Tick(dev);
-            }
-        }
-    }
-
-    return interruptBits;
-}
-
-
 Device *DeviceManager_GetDeviceByAddress(uint32_t address)
 {
     for (int i = 0; i < deviceManager.deviceCount; i++)

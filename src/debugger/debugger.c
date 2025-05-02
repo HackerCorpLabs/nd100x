@@ -12,7 +12,7 @@
 DAPServer* server;    
 
 
-#define _DEBUGGER_ENABLED_ // Enables debugger thread support
+//#define _DEBUGGER_ENABLED_ // Enables debugger thread support
 
 #ifdef _DEBUGGER_ENABLED_
 

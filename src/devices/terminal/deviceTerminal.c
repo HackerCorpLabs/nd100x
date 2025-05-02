@@ -105,6 +105,7 @@ static const size_t numDeviceDefinitions = sizeof(deviceDefinitions) / sizeof(De
 // Forward declaration of WriteEnd
 static bool WriteEnd(void *context, int param);
 
+
 static void Terminal_Reset(Device *self)
 {
     TerminalData *data = (TerminalData *)self->deviceData;
@@ -316,14 +317,12 @@ static void Terminal_Write(Device *self, uint32_t address, uint16_t value)
             Terminal_QueueKeyCode(self, c);
         }
         else
-        {
-            if (self->startAddress == 0300) // Console terminal
-            {
-                printf("%c", c);
-            }
-            else
-            {
-                // TODO: Handle none-console terminals (ie seriel port, tcp, ++) LATER DUDE
+        {            
+            // Use character device callback if available
+            if (self->deviceClass == DEVICE_CLASS_CHARACTER && self->charCallbacks.outputFunc) {
+                Device_OutputCharacter(self, c);
+            } else {
+                // Fallback to printf if no callback is set
                 printf("%c", c);
             }
         }
@@ -414,6 +413,13 @@ void Terminal_QueueKeyCode(Device *self, uint8_t keycode)
     // printf("Terminal_QueueKeyCode: %c, count: %ld IRQ[%d]\n", (char)keycode, data->inputQueue.count, data->inputStatus.bits.interruptEnabled);
 }
 
+// Character input handler for terminal devices
+static void Terminal_InputFunction(Device *device, char c) {
+    if (!device) return;
+    Terminal_QueueKeyCode(device, (uint8_t)c);
+}
+
+
 Device *CreateTerminalDevice(uint8_t thumbwheel)
 {
     Device *dev = malloc(sizeof(Device));
@@ -427,9 +433,9 @@ Device *CreateTerminalDevice(uint8_t thumbwheel)
         return NULL;
     }
 
-    // Initialize device base structure
-    Device_Init(dev, thumbwheel);
-
+    // Initialize device base structure as a character device
+    Device_Init(dev, thumbwheel, DEVICE_CLASS_CHARACTER, 0);
+    
     // Set up device-specific data
     memset(data, 0, sizeof(TerminalData));
 
@@ -452,6 +458,7 @@ Device *CreateTerminalDevice(uint8_t thumbwheel)
     // Set up device properties
     dev->identCode = def->identCode;
     dev->startAddress = def->addressBase;
+    dev->logicalDevice = def->logicalDevice;
     dev->endAddress = def->addressBase + 7;
     dev->interruptLevel = 10; // 10 = output, 12 = input
     strncpy(dev->memoryName, def->deviceName, sizeof(dev->memoryName) - 1);
@@ -473,6 +480,11 @@ Device *CreateTerminalDevice(uint8_t thumbwheel)
     // Ready to be written to
     data->outputStatus.bits.readyForTransfer = true;
 
+
+    // hook up  Device_SetCharacterInput to Terminal_QueueKeyCode
+    Device_SetCharacterInput(dev, Terminal_InputFunction);
+
     printf("Terminal device created: %s CODE[%o] ADDRESS[%o-%o] \n", dev->memoryName, dev->identCode, dev->startAddress, dev->endAddress);
     return dev;
 }
+

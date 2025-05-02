@@ -29,7 +29,8 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <fcntl.h>
-
+#include <unistd.h> // For read() system call
+#include <poll.h>   // For pollfd struct and POLLIN
 
 #include <signal.h>
 #include <unistd.h>
@@ -48,6 +49,8 @@
 
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
+#include "devices_types.h"
+#include "../../devices/devices_protos.h"
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
@@ -114,6 +117,16 @@ void cleanup()
 }
 
 
+// Character device output handler for terminals
+static void TerminalOutputHandler(Device *device, char c) 
+{
+    if (!device)
+        return;
+   
+   printf("%c",c);   
+}
+
+
 int main(int argc, char *argv[]) 
 {
 
@@ -138,9 +151,57 @@ int main(int argc, char *argv[])
 
 	initialize();
 
+	Device *terminal = DeviceManager_GetDeviceByAddress(0300);
+	Device_SetCharacterOutput(terminal, TerminalOutputHandler);
+
+	if (!terminal)
+	{
+		printf("Terminal device not found\n");
+		return EXIT_FAILURE;
+	}
+
 	// Run the machine until it stops	
-	machine_run(-1);
+	CPURunMode runMode = get_cpu_run_mode();
+
+	while (runMode != CPU_SHUTDOWN)
+	{
+		machine_run(5000);
+		runMode = get_cpu_run_mode();
+
+		if (runMode != CPU_SHUTDOWN)
+		{
+			// Check for keyboard input
 	
+            char recv_data[20];
+            int numbytes = 10;
+            int numread;
+
+            // Try to read from stdin
+            struct pollfd fds;
+            fds.fd = 0; // stdin
+            fds.events = POLLIN;
+            if (poll(&fds, 1, 0) > 0 && (fds.revents & POLLIN)) {
+                numread = read(0, recv_data, numbytes);                
+            } else {
+                numread = 0;
+            }
+            
+            for (int i = 0; i < numread; i++)
+            {
+                char ch = (char)recv_data[i];
+
+                // ND doesnt like \n
+                if (ch == '\n')
+                {
+                    ch = '\r';
+                }
+                Terminal_QueueKeyCode(terminal, ch);
+            }
+        }
+    }
+
+
+
 
 	if (DISASM)
 		disasm_dump();

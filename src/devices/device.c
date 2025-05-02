@@ -55,17 +55,22 @@ uint8_t Device_GetOddParity(uint8_t value)
     return Device_OddParityTable[value];
 }
 
-void Device_Init(Device *dev, uint8_t thumbwheel)
+
+void Device_Init(Device *dev, uint8_t thumbwheel, DeviceClass deviceClass, size_t blockSize)
 {
     if (!dev)
         return;
 
+    // Clear all fields
     memset(dev, 0, sizeof(Device));
+    
+    // Set basic device properties
     dev->startAddress = 0;
     dev->endAddress = 0;
     dev->interruptBits = 0;
     dev->interruptLevel = 0;
     dev->identCode = 0;
+    dev->deviceClass = deviceClass;
 
     // Initialize IO delay array
     dev->ioDelays = malloc(sizeof(DelayedIoInfo) * INITIAL_IO_DELAY_CAPACITY);
@@ -73,6 +78,27 @@ void Device_Init(Device *dev, uint8_t thumbwheel)
     {
         dev->ioDelayCapacity = INITIAL_IO_DELAY_CAPACITY;
         dev->ioDelayCount = 0;
+    }
+    
+    // Initialize based on device class
+    switch (deviceClass) {
+        case DEVICE_CLASS_CHARACTER:
+            // Initialize character device callbacks
+            memset(&dev->charCallbacks, 0, sizeof(CharacterDeviceCallbacks));
+            break;
+            
+        case DEVICE_CLASS_BLOCK:
+            // Initialize block device callbacks with specified block size
+            memset(&dev->blockCallbacks, 0, sizeof(BlockDeviceCallbacks));
+            dev->blockCallbacks.blockSize = (blockSize > 0 && blockSize <= MAX_BLOCK_SIZE) ? 
+                                          blockSize : MAX_BLOCK_SIZE;
+            break;
+            
+        case DEVICE_CLASS_RTC:
+        case DEVICE_CLASS_STANDARD:
+        default:
+            // No special initialization needed
+            break;
     }
 }
 
@@ -291,13 +317,97 @@ int32_t Device_IO_WriteWord(Device *dev, FILE *f, uint16_t data)
     return 0;
 }
 
-
-
-
-uint32_t Device_DMAWrite(uint32_t coreAddress, uint16_t data) {    
+void Device_DMAWrite(uint32_t coreAddress, uint16_t data) {    
     WritePhysicalMemory(coreAddress, data, false);    
 }
 
-int32_t Device_DMARead(uint32_t coreAddress) {
+int32_t Device_DMARead(uint32_t coreAddress)
+{
     return ReadPhysicalMemory(coreAddress, false);
+}
+
+// Character Device Functions
+
+// Set character device output handler
+void Device_SetCharacterOutput(Device *dev, CharacterDeviceOutputFunc outputFunc)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_CHARACTER)
+        return;
+        
+    dev->charCallbacks.outputFunc = outputFunc;
+}
+
+// Set character device input handler
+void Device_SetCharacterInput(Device *dev, CharacterDeviceInputFunc inputFunc)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_CHARACTER)
+        return;
+        
+    dev->charCallbacks.inputFunc = inputFunc;
+}
+
+// Output a character from the device
+void Device_OutputCharacter(Device *dev, char c)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_CHARACTER || !dev->charCallbacks.outputFunc)
+        return;
+        
+    dev->charCallbacks.outputFunc(dev, c);
+}
+
+// Input a character to the device
+void Device_InputCharacter(Device *dev, char c)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_CHARACTER || !dev->charCallbacks.inputFunc)
+        return;
+        
+    dev->charCallbacks.inputFunc(dev, c);
+}
+
+// Block Device Functions
+
+// Set block device read handler
+void Device_SetBlockRead(Device *dev, BlockDeviceReadFunc readFunc, void *userData)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK)
+        return;
+        
+    dev->blockCallbacks.readFunc = readFunc;
+    dev->blockCallbacks.userData = userData;
+}
+
+// Set block device write handler
+void Device_SetBlockWrite(Device *dev, BlockDeviceWriteFunc writeFunc, void *userData)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK)
+        return;
+        
+    dev->blockCallbacks.writeFunc = writeFunc;
+    if (userData != NULL) {
+        dev->blockCallbacks.userData = userData;
+    }
+}
+
+// Read a block from the device
+void Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK || !dev->blockCallbacks.readFunc || !buffer)
+        return;
+        
+    // Limit size to the device's block size
+    size_t readSize = (size <= dev->blockCallbacks.blockSize) ? size : dev->blockCallbacks.blockSize;
+    
+    dev->blockCallbacks.readFunc(dev, buffer, readSize, blockAddress);
+}
+
+// Write a block to the device
+void Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK || !dev->blockCallbacks.writeFunc || !buffer)
+        return;
+        
+    // Limit size to the device's block size
+    size_t writeSize = (size <= dev->blockCallbacks.blockSize) ? size : dev->blockCallbacks.blockSize;
+    
+    dev->blockCallbacks.writeFunc(dev, buffer, writeSize, blockAddress);
 }

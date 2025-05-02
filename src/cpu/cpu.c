@@ -27,7 +27,7 @@
 //#define DEBUG_PK_SWITCH
 //  # define DEBUG_IONOFF
 
-#define _DEBUGGER_ENABLED_ // Enables debugger thread support
+//#define _DEBUGGER_ENABLED_ // Enables debugger thread support
 
 #include <string.h>
 #include <setjmp.h>

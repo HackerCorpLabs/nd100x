@@ -1078,7 +1078,7 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     memset(data, 0, sizeof(SMDData));
 
     // Initialize device base structure
-    Device_Init(dev, thumbwheel);
+    Device_Init(dev, thumbwheel, DEVICE_CLASS_BLOCK, 2048);
 
     dev->deviceData = data;
 
