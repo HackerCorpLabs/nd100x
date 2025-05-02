@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ND100X WASM Emulator</title>
+  <!-- Add xterm.js and its CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .terminal-tabs {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .terminal-tab {
+      padding: 8px 16px;
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      border-radius: 5px 5px 0 0;
+      cursor: pointer;
+    }
+    .terminal-tab.active {
+      background-color: #000;
+      color: white;
+    }
+    .terminal-container {
+      height: 480px;
+      background-color: #000;
+      padding: 10px;
+      border-radius: 5px;
+      display: none;
+    }
+    .terminal-container.active {
+      display: block;
+    }
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 5px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ND100X Emulator - WebAssembly Version</h1>
+    <p id="status">Loading WebAssembly module...</p>
+
+    <div id="controls" class="control-panel" style="display: none;">
+      <select id="boot-type" style="padding: 8px 16px; margin-right: 10px;">
+        <option value="floppy">FLOPPY</option>
+        <option value="smd">SMD</option>
+      </select>
+      <button id="init-btn">Initialize</button>
+      <button id="start-btn" disabled>Start</button>
+      <button id="stop-btn" disabled>Stop</button>
+      
+      <div class="slider-container">
+        <label for="step-count">Step count:</label>
+        <input type="number" id="step-count" min="1" value="10" style="width: 80px;"/>
+        <button id="step-btn">Step</button>
+      </div>
+      
+      <div class="slider-container">
+        <label for="speed-slider">Instructions per frame:</label>
+        <input type="range" id="speed-slider" min="1000" max="100000" step="1000" value="10000" style="width: 200px;"/>
+        <span id="speed-value">10000</span>
+      </div>
+    </div>
+
+    <div class="terminal-tabs">
+      <div class="terminal-tab active" data-terminal="1">Console</div>
+      <div class="terminal-tab" data-terminal="5">Term 2</div>
+      <div class="terminal-tab" data-terminal="6">Term 3</div>
+      <div class="terminal-tab" data-terminal="7">Term 4</div>
+    </div>
+
+    <div id="terminal-container-1" class="terminal-container active"></div>
+    <div id="terminal-container-5" class="terminal-container"></div>
+    <div id="terminal-container-6" class="terminal-container"></div>
+    <div id="terminal-container-7" class="terminal-container"></div>
+    
+    <p>This is a browser-based version of the ND100X emulator.</p>
+    <p>You can also view console output in the browser's JavaScript console (press F12 to view).</p>
+  </div>
+
+  <script src="nd100wasm.js"></script>
+  <script>
+    // Store all terminals and their containers
+    const terminals = {};
+    const terminalContainers = {};
+    const terminalIds = [1, 5, 6, 7];
+    let activeTerminalId = 1;
+    let Module = null;
+    const RAW_MODE = true;
+
+    // Initialize all terminals
+    terminalIds.forEach(id => {
+      const container = document.getElementById(`terminal-container-${id}`);
+      terminalContainers[id] = container;
+      
+      const term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Courier New, monospace',
+        rows: 24,
+        cols: 80,
+        theme: {
+          background: '#000000',
+          foreground: '#ffffff'
+        }
+      });
+      
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(container);
+      fitAddon.fit();
+      
+      terminals[id] = {
+        term,
+        fitAddon,
+        container
+      };
+    });
+
+    // Make terminals responsive to window resize
+    window.addEventListener('resize', () => {
+      terminalIds.forEach(id => {
+        terminals[id].fitAddon.fit();
+      });
+    });
+
+    // Handle tab switching
+    document.querySelectorAll('.terminal-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const terminalId = parseInt(tab.dataset.terminal);
+        switchTerminal(terminalId);
+      });
+    });
+
+    function switchTerminal(id) {
+      // Update active tab
+      document.querySelectorAll('.terminal-tab').forEach(tab => {
+        tab.classList.toggle('active', parseInt(tab.dataset.terminal) === id);
+      });
+
+      // Update active terminal container
+      terminalIds.forEach(terminalId => {
+        terminalContainers[terminalId].classList.toggle('active', terminalId === id);
+      });
+
+      activeTerminalId = id;
+    }
+
+    // Function to register terminal callbacks
+    function registerTerminalCallbacks() {
+        if (!Module || !Module._SetTerminalOutputCallback) {
+            console.error("Module not ready for terminal callback registration");
+            return false;
+        }
+        
+        try {
+            // Create a JavaScript function that will be called from C
+            const outputCallback = Module.addFunction(function(terminalId, c) {
+                
+                // Write to the appropriate terminal
+                if (terminals[terminalId] && terminals[terminalId].term) {
+                    terminals[terminalId].term.write(String.fromCharCode(c));
+                } else {
+                    console.error(`Terminal ${terminalId} not found or term not initialized`);
+                }
+            }, 'vii'); // 'vii' means void return, int, int parameters
+            
+            // Register callbacks for all terminals
+            terminalIds.forEach(id => {
+                console.log(`Registering output callback for terminal ${id}`);
+                Module._SetTerminalOutputCallback(id, outputCallback);
+                console.log(`Terminal output callback registered for terminal ${id}`);
+            });
+            
+            return true;
+        } catch (e) {
+            console.error("Error registering terminal callback:", e);
+            return false;
+        }
+    }
+
+    // Function to send a key to the currently active terminal
+    function sendKey(keyCode) {
+        if (!Module || !Module._SendKeyToTerminal) {
+            console.error("SendKeyToTerminal not available, module loaded:", !!Module);
+            return false;
+        }
+        
+        try {
+            // Call the SendKeyToTerminal function with the active terminal ID and key code
+            const result = Module._SendKeyToTerminal(activeTerminalId, keyCode);
+            if (result !== 1) {
+                console.error("Failed to send key to terminal", activeTerminalId);
+                return false;
+            }
+            return true;
+        } catch (e) {
+            console.error("Error sending key to terminal:", e);
+            return false;
+        }
+    }
+
+    // Add event listeners to all terminals
+    terminalIds.forEach(id => {
+        terminals[id].term.onKey(({ key, domEvent }) => {
+            // Get current active terminal ID at time of key press
+            const currentActiveId = activeTerminalId;
+            
+            // Only process input for the active terminal
+            if (id !== currentActiveId) return;
+
+            const charCode = key.charCodeAt(0);
+            
+            if (RAW_MODE) {
+                if (domEvent.ctrlKey && charCode >= 65 && charCode <= 90) {
+                    const ctrlCode = charCode - 64;
+                    sendKey(ctrlCode);
+                } else if (charCode === 10) {
+                    sendKey(13);
+                } else {
+                    sendKey(charCode);
+                }
+                
+                if (charCode === 8 || charCode === 127) {
+                    terminals[id].term.write('\b \b');
+                }
+            }
+        });
+    });
+
+    // Write welcome messages to all terminals
+    terminalIds.forEach(id => {
+        const name = id === 1 ? 'Console' : `Term ${id}`;
+        terminals[id].term.writeln(`ND100X Emulator - ${name} Terminal`);
+        terminals[id].term.writeln('----------------------------------');        
+    });
+
+    // Emulation state
+    let emulationRunning = false;
+    let loopId = null;
+    let instructionsPerFrame = 10000;
+    let continuousStepMode = false;
+
+    function executeInstructionBatch() {
+        if (!emulationRunning && !continuousStepMode) {
+            return;
+        }
+        
+        if (!Module || !Module._Step) {
+            console.error("Step function not available");
+            return;
+        }
+        
+        try {
+            Module._Step(instructionsPerFrame);
+            
+            if (emulationRunning || continuousStepMode) {
+                loopId = requestAnimationFrame(executeInstructionBatch);
+            }
+        } catch (e) {
+            console.error("Error executing instructions:", e);
+            terminals[activeTerminalId].term.writeln(`\r\nError: ${e.message}`);
+            stopEmulation();
+        }
+    }
+
+    function startEmulation() {
+        if (emulationRunning) return;
+        
+        emulationRunning = true;
+        document.getElementById('status').textContent = 'Emulation running...';
+        terminals[activeTerminalId].term.writeln('\r\nEmulation started');
+        
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('stop-btn').disabled = false;
+        
+        loopId = requestAnimationFrame(executeInstructionBatch);
+    }
+
+    function stopEmulation() {
+        if (!emulationRunning && !continuousStepMode) return;
+        
+        emulationRunning = false;
+        continuousStepMode = false;
+        
+        if (loopId !== null) {
+            cancelAnimationFrame(loopId);
+            loopId = null;
+        }
+        
+        document.getElementById('status').textContent = 'Emulation stopped';
+        terminals[activeTerminalId].term.writeln('\r\nEmulation stopped');
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+    }
+
+    // Define configuration for Module
+    const moduleConfig = {
+        print: (text) => {
+            console.log(text);
+            terminals[activeTerminalId].term.writeln(text);
+        },
+        printErr: (text) => {
+            console.error(text);
+            terminals[activeTerminalId].term.writeln(`\x1b[31mERROR: ${text}\x1b[0m`);
+        },
+        onRuntimeInitialized: function() {
+            console.log("WASM Runtime Initialized");
+            terminals[activeTerminalId].term.writeln('\r\nWASM Runtime Initialized');
+        }
+    };
+    
+    // Create the Module variable by calling the factory function
+    console.log("Initializing ND100Module");
+    ND100Module(moduleConfig).then(moduleInstance => {
+        Module = moduleInstance;
+        console.log("ND100Module loaded successfully");
+        terminals[activeTerminalId].term.writeln('ND100Module loaded successfully');
+        
+        // Load SMD0.IMG
+        console.log("Loading SMD0.IMG...");
+        terminals[activeTerminalId].term.writeln('Loading SMD0.IMG...');
+        
+        fetch('SMD0.IMG')
+            .then(res => res.arrayBuffer())
+            .then(buf => {
+                try {
+                    Module.FS.writeFile('/SMD0.IMG', new Uint8Array(buf));
+                    console.log("SMD0.IMG loaded");
+                    terminals[activeTerminalId].term.writeln('SMD0.IMG loaded successfully');
+                } catch (e) {
+                    console.error("Error writing SMD0.IMG:", e);
+                    terminals[activeTerminalId].term.writeln(`\x1b[31mError writing SMD0.IMG: ${e.message}\x1b[0m`);
+                }
+            })
+            .catch(error => {
+                console.error("Failed to load SMD0.IMG:", error);   
+                terminals[activeTerminalId].term.writeln(`\x1b[31mFailed to load SMD0.IMG: ${error.message}\x1b[0m`);
+            });
+
+
+        // Load FLOPPY.IMG
+        console.log("Loading FLOPPY.IMG...");
+        terminals[activeTerminalId].term.writeln('Loading FLOPPY.IMG...');
+        
+        fetch('FLOPPY.IMG')
+            .then(res => res.arrayBuffer())
+            .then(buf => {
+                try {
+                    Module.FS.writeFile('/FLOPPY.IMG', new Uint8Array(buf));
+                    console.log("FLOPPY.IMG loaded");
+                    terminals[activeTerminalId].term.writeln('FLOPPY.IMG loaded successfully');
+                    
+                    document.getElementById('status').textContent = 'WebAssembly module loaded!';
+                    document.getElementById('controls').style.display = 'flex';
+                    
+                    // Connect buttons to exported WASM functions
+                    document.getElementById('init-btn').addEventListener('click', function() {
+                        console.log("Calling Init");
+                        terminals[activeTerminalId].term.writeln('\r\nInitializing ND100X Emulator...');
+                        
+                        // Get selected boot type
+                        const bootType = document.getElementById('boot-type').value;
+                        const bootSMD = bootType === 'smd';
+                        
+                        // Call Init with boot type parameter
+                        Module._Init(bootSMD);
+                        
+                        // Only register callbacks after initialization is complete
+                        if (registerTerminalCallbacks()) {
+                            console.log("Terminal callbacks registered successfully");
+                            // Enable start button only after callbacks are registered
+                            document.getElementById('start-btn').disabled = false;
+                            
+                            // Call main after initialization and callback registration
+                            console.log("Calling main");
+                            try {
+                                Module._main();
+                            } catch (e) {
+                                console.error("Error calling main:", e);
+                                terminals[activeTerminalId].term.writeln(`\x1b[31mError calling main: ${e.message}\x1b[0m`);
+                            }
+                        } else {
+                            console.error("Failed to register terminal callbacks");
+                            // Keep start button disabled if callbacks failed
+                            document.getElementById('start-btn').disabled = true;
+                        }
+                    });
+                    
+                    document.getElementById('start-btn').addEventListener('click', function() {
+                        console.log("Starting emulation");
+                        if (Module._Start) {
+                            Module._Start();
+                        }
+                        startEmulation();
+                    });
+                    
+                    document.getElementById('stop-btn').addEventListener('click', function() {
+                        console.log("Stopping emulation");
+                        stopEmulation();
+                        if (Module._Stop) {
+                            Module._Stop();
+                        }
+                    });
+                    
+                    document.getElementById('speed-slider').addEventListener('input', function(e) {
+                        instructionsPerFrame = parseInt(e.target.value);
+                        document.getElementById('speed-value').textContent = instructionsPerFrame;
+                    });
+                    
+                    document.getElementById('step-btn').addEventListener('click', function() {
+                        const steps = parseInt(document.getElementById('step-count').value) || 1;
+                        console.log("Stepping", steps, "instructions");
+                        terminals[activeTerminalId].term.writeln(`\r\nStepping ${steps} instructions`);
+                        
+                        if (Module._Step) {
+                            Module._Step(steps);
+                            
+                            if (event.shiftKey) {
+                                continuousStepMode = true;
+                                document.getElementById('status').textContent = 'Continuous step mode...';
+                                terminals[activeTerminalId].term.writeln('\r\nEntering continuous step mode');
+                                loopId = requestAnimationFrame(executeInstructionBatch);
+                            }
+                        }
+                    });
+                    
+                    // Don't call main automatically - wait for Init button
+                    console.log("Ready for initialization");
+                    terminals[activeTerminalId].term.writeln('\r\nReady for initialization - click Initialize button to start');
+                } catch (e) {
+                    console.error("Error writing FLOPPY.IMG:", e);
+                    terminals[activeTerminalId].term.writeln(`\x1b[31mError writing FLOPPY.IMG: ${e.message}\x1b[0m`);
+                }
+            })
+            .catch(error => {
+                console.error("Failed to load FLOPPY.IMG:", error);
+                terminals[activeTerminalId].term.writeln(`\x1b[31mFailed to load FLOPPY.IMG: ${error.message}\x1b[0m`);
+                document.getElementById('status').textContent = 'Error loading disk image: ' + error.message;
+            });
+    }).catch(err => {
+        console.error("Failed to initialize ND100Module:", err);
+        terminals[activeTerminalId].term.writeln(`\x1b[31mFailed to initialize ND100Module: ${err.message}\x1b[0m`);
+        document.getElementById('status').textContent = 'Error loading WebAssembly module: ' + err.message;
+    });
+  </script>
+</body>
+</html>
