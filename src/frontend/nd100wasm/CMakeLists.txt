@@ -66,7 +66,7 @@ if(PLATFORM_WASM)
     set(EMSCRIPTEN_LINK_FLAGS 
         "-s WASM=1 \
          -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','addFunction'] \
-         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Start','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback'] \
+         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback','_GetTerminalIdentCode'] \
          -s EXPORT_NAME='ND100Module' \
          -s MODULARIZE=1 \
          -s ALLOW_TABLE_GROWTH=1 \
@@ -106,13 +106,15 @@ if(PLATFORM_WASM)
     endif()
     
     # Copy the index.html from template if it exists
-    if(EXISTS "${CMAKE_SOURCE_DIR}/.vscode/template/index.html")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/template/index.html")
         configure_file(
-            "${CMAKE_SOURCE_DIR}/.vscode/template/index.html"
+            "${CMAKE_SOURCE_DIR}/template/index.html"
             "${CMAKE_BINARY_DIR}/bin/index.html"
             COPYONLY
         )
-        message(STATUS "Using custom index.html template from .vscode/template")
+        message(STATUS "Using custom index.html template from template/")
+    else()
+        message(FATAL_ERROR "Could not find index.html template in ${CMAKE_SOURCE_DIR}/template/")
     endif()
 endif()
 

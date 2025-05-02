@@ -65,28 +65,33 @@ static void WasmTerminalOutputHandler(Device *device, char c)
 {
     if (!device)
         return;
-        
-    // Find terminal ID in our array by device reference
-    int terminalId = -1;
+          
+    // Find terminal ID in our array by identCode reference    
     for (int i = 0; i < MAX_TERMINALS; i++) {
-        if (terminals[i] == device) {
-            terminalId = i;
-            break;
-        }
-    }
+        Device *term = terminals[i];
 
-    // If we found the terminal and have a callback, use it
-    if (terminalId >= 0 && terminalId < MAX_TERMINALS && terminalOutputCallbacks[terminalId]) {
-        terminalOutputCallbacks[terminalId](terminalId, c);
-    }
-    // No fallback printf - we only want output through the callback
+        if (term)
+        {
+            if (term->identCode == device->identCode && term->deviceClass == device->deviceClass) {                
+                if (terminalOutputCallbacks[i])
+                {                                  
+                    terminalOutputCallbacks[i](term->identCode , c);
+                }
+                else
+                {
+                    printf("No callback for terminal %d\n", term->identCode);
+                }
+                break;
+            }
+        }
+    }    
 }
 
 
 // Initialize the system
-EMSCRIPTEN_EXPORT void Init()
+EMSCRIPTEN_EXPORT void Init(int boot_smd)
 {
-    printf("ND100 WebAssembly Emulator Initializing...\n");
+ 
     
     // Only initialize once
     if (initialized) {
@@ -94,44 +99,76 @@ EMSCRIPTEN_EXPORT void Init()
         return;
     }
     
-    // Initialize machine components
-    machine_init(0); // No debugger in WASM version
-    
+    // Initialize machine components including devices
+    machine_init(0); // No debugger in WASM versionmake
+
     // Initialize terminal references - we'll start with console (index 0)
     terminals[0] = DeviceManager_GetDeviceByAddress(0300); // Console
     if (!terminals[0]) {
         printf("Warning: Console terminal device not found!\n");
-    } else {
-        printf("Console terminal device found at address %04o\n", terminals[0]->startAddress);
-        
-        // Set up character device output handler for the console terminal
-        Device_SetCharacterOutput(terminals[0], WasmTerminalOutputHandler);
-    }
-    
+    } 
 
+
+    // Add other terminals!!
+
+    //     {0340, 044, 044, "TERMINAL 5/ TET12"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
+    terminals[1]  = DeviceManager_GetDeviceByAddress(0340);
+
+    // {0350, 045, 045, "TERMINAL 6/ TET11"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 6);
+    terminals[2] = DeviceManager_GetDeviceByAddress(0350);
+
+    // {0360, 046, 046, "TERMINAL 7/ TET10"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
+    terminals[3] = DeviceManager_GetDeviceByAddress(0360);    
+
+    // Set up character device output handler for the console terminal
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i]) {
+            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);            
+        }
+    }
     
     
     // Load boot program (hardcoded for now)
-    program_load(BOOT_FLOPPY, "/FLOPPY.IMG", 1);
+    if (boot_smd)
+    {
+        program_load(BOOT_SMD, "SMD0.IMG", 1);
+    }
+    else
+    {
+        program_load(BOOT_FLOPPY, "FLOPPY.IMG", 1);
+    }
+    
+    
     gPC = STARTADDR; // Default start address
     
-    initialized = 1;
-    printf("ND100 WebAssembly Emulator Initialized.\n");
+    initialized = 1;    
 }
 
 // Send a key to a specific terminal device
-EMSCRIPTEN_EXPORT int SendKeyToTerminal(int terminalId, int keyCode)
+EMSCRIPTEN_EXPORT int SendKeyToTerminal(int identCode, int keyCode)
 {
-    // Validate terminalId is in range and device exists
-    if (terminalId < 0 || terminalId >= MAX_TERMINALS || !terminals[terminalId]) {
-        printf("Error: Invalid terminal ID %d\n", terminalId);
+    // Find the terminal with matching ID
+    Device* terminal = NULL;
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i] && terminals[i]->identCode == identCode) {
+            terminal = terminals[i];
+            break;
+        }
+    }
+
+    // Validate terminal was found
+    if (!terminal) {
+        printf("Error: Terminal with IdentCode %d not found\n", identCode);
         return 0; // Failure
     }
     
     // If device is a character device, use the character input function
-    if (terminals[terminalId]->deviceClass == DEVICE_CLASS_CHARACTER && 
-        terminals[terminalId]->charCallbacks.inputFunc) {
-        Device_InputCharacter(terminals[terminalId], (char)keyCode);
+    if (terminal->deviceClass == DEVICE_CLASS_CHARACTER && 
+        terminal->charCallbacks.inputFunc) {
+        Device_InputCharacter(terminal, (char)keyCode);
     } 
 
     return 1; // Success
@@ -145,6 +182,15 @@ EMSCRIPTEN_EXPORT int GetTerminalAddress(int terminalId)
     }
     
     return terminals[terminalId]->startAddress;
+}
+
+// Get the identCode of a terminal by ID (for JS tab naming)
+EMSCRIPTEN_EXPORT int GetTerminalIdentCode(int terminalId)
+{
+    if (terminalId < 0 || terminalId >= MAX_TERMINALS || !terminals[terminalId]) {
+        return -1;
+    }
+    return terminals[terminalId]->identCode;
 }
 
 // Setup with configuration
@@ -165,44 +211,37 @@ EMSCRIPTEN_EXPORT void Step(int steps)
     machine_run(steps);
 }
 
-// Start the emulation
-EMSCRIPTEN_EXPORT void Start()
-{
-    if (!initialized) {
-        Init();
-    }
-    
-    running = 1;
-    printf("ND100 Emulation started\n");
-}
 
 // Stop the emulation
 EMSCRIPTEN_EXPORT void Stop()
 {
     running = 0;
-    printf("ND100 Emulation stopped\n");
     //machine_stop();
 }
 
 // Set a callback for terminal output
-EMSCRIPTEN_EXPORT void SetTerminalOutputCallback(int terminalId, void (*callback)(int terminalId, char c))
+EMSCRIPTEN_EXPORT void SetTerminalOutputCallback(int identCode, void (*callback)(int identCode, char c))
 {
-    if (terminalId < 0 || terminalId >= MAX_TERMINALS) {
-        printf("Error: Invalid terminal ID %d\n", terminalId);
-        return;
-    }
-    
-    terminalOutputCallbacks[terminalId] = callback;
-    printf("Set output callback for terminal %d\n", terminalId);
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        Device *term = terminals[i];
+
+        if (term)
+        {
+            if (term->identCode == identCode) {         
+                terminalOutputCallbacks[i] = callback;                
+                return;
+            }
+        }
+    }    
 }
 
 // Main function for both Emscripten and non-Emscripten builds
 int main(int argc, char *argv[]) 
 {
 #ifdef EMSCRIPTEN
-    printf("ND100 WebAssembly Emulator starting...\n");
-    printf("Call Init() to initialize the system\n");
-    printf("Call Start() to begin emulation\n");
+    
+    //printf("Call Init() to initialize the system\n");
+    //printf("Call Start() to begin emulation\n");
     return 0;
 #else
     printf("nd100wasm: This program is intended to be compiled to WebAssembly.\n");

@@ -99,6 +99,19 @@ void initialize()
 
 	machine_init(config.debuggerEnabled);
 
+
+
+    //     {0340, 044, 044, "TERMINAL 5/ TET12"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
+    
+    // {0350, 045, 045, "TERMINAL 6/ TET11"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 6);
+    
+
+    // {0360, 046, 046, "TERMINAL 7/ TET10"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
+    
+
 	program_load(config.bootType, config.imageFile, config.verbose);	
 	gPC = STARTADDR;
 
