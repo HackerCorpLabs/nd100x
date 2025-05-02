@@ -1081,7 +1081,7 @@ void ndfunc_ident(ushort operand)
 	}
 }
 
-/********************SYSTEM FUNCTIONS  /*******************/
+/********************SYSTEM FUNCTIONS  *******************/
 
 
 /* OPCOM (Privileged)
@@ -1255,7 +1255,7 @@ void ndfunc_sex(ushort operand)
 	setbit_STS_MSB(_SEXI, 1);
 }
 
-/******************** CX FUNCTIONS  /*******************/
+/******************** CX FUNCTIONS  *******************/
 
 
 
