@@ -51,4 +51,5 @@ Thumbs.db
 
 # Project specific
 /tools/mkptypes/mkptypes
-machine.o
+/build/
+/build_wasm/
