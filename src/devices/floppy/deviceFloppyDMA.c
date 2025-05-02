@@ -583,7 +583,7 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     
 
     // Initialize device base structure
-    Device_Init(dev, thumbwheel);
+    Device_Init(dev, thumbwheel, DEVICE_CLASS_BLOCK, 1024);
 
 
 

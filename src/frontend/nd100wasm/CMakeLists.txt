@@ -65,9 +65,11 @@ if(PLATFORM_WASM)
     # Add Emscripten-specific compiler and linker flags
     set(EMSCRIPTEN_LINK_FLAGS 
         "-s WASM=1 \
-         -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
+         -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','addFunction'] \
+         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Start','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback'] \
          -s EXPORT_NAME='ND100Module' \
          -s MODULARIZE=1 \
+         -s ALLOW_TABLE_GROWTH=1 \
          --no-heap-copy \
          -s ALLOW_MEMORY_GROWTH=1"
     )
@@ -105,10 +107,12 @@ if(PLATFORM_WASM)
     
     # Copy the index.html from template if it exists
     if(EXISTS "${CMAKE_SOURCE_DIR}/.vscode/template/index.html")
-        install(FILES 
+        configure_file(
             "${CMAKE_SOURCE_DIR}/.vscode/template/index.html"
-            DESTINATION bin
+            "${CMAKE_BINARY_DIR}/bin/index.html"
+            COPYONLY
         )
+        message(STATUS "Using custom index.html template from .vscode/template")
     endif()
 endif()
 

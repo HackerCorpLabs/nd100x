@@ -209,19 +209,18 @@ Device* CreateRTCDevice(uint8_t thumbwheel) {
     }
 
     // Initialize device base structure
-    Device_Init(dev, thumbwheel);
+    Device_Init(dev, thumbwheel,DEVICE_CLASS_RTC,0);
 
     // Set up device-specific data
     memset(data, 0, sizeof(RTCData));
-
+    
     // Set up device properties based on thumbwheel
     switch (thumbwheel) {
         case 0:
             dev->identCode = 01;
             dev->startAddress = 010;
             dev->endAddress = 013;
-            dev->interruptLevel = 13;
-            dev->isRTC = 1;
+            dev->interruptLevel = 13;            
             strcpy(dev->memoryName, "RTC 1");
             break;
         case 1:

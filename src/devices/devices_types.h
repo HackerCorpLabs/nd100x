@@ -33,7 +33,7 @@
 
 // External function declaration
 
-void interrupt(ushort lvl, ushort sub); // cpu.c
+void interrupt(uint16_t lvl, uint16_t sub); // cpu.c
 
 // Physical memory functions in cpu_mms.c
 extern int ReadPhysicalMemory(int physicalAddress, bool privileged);
@@ -58,6 +58,42 @@ extern void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privil
 extern const uint8_t Device_OddParityTable[PARITY_TABLE_SIZE];
 
 
+// Device initialization/classification types
+typedef enum {
+    DEVICE_CLASS_STANDARD = 0,  // Standard device (no character or block I/O)
+    DEVICE_CLASS_CHARACTER,     // Character device (terminal, serial, etc.)
+    DEVICE_CLASS_BLOCK,         // Block device (disk, tape, etc.)
+    DEVICE_CLASS_RTC            // Real-time clock device
+} DeviceClass;
+
+// Forward declaration of Device structure
+struct Device;
+
+// Generic Character Device callback function types
+typedef void (*CharacterDeviceOutputFunc)(struct Device *device, char c);
+typedef void (*CharacterDeviceInputFunc)(struct Device *device, char c);
+
+// Character Device callback structure
+typedef struct {
+    CharacterDeviceOutputFunc outputFunc;  // Called when device outputs a character
+    CharacterDeviceInputFunc inputFunc;    // Called when device receives input
+} CharacterDeviceCallbacks;
+
+// Generic Block Device callback function types
+#define MAX_BLOCK_SIZE 2048
+
+
+typedef void (*BlockDeviceReadFunc)(struct Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress);
+typedef void (*BlockDeviceWriteFunc)(struct Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress);
+
+// Block Device callback structure
+typedef struct {
+    BlockDeviceReadFunc readFunc;        // Called when device reads a block
+    BlockDeviceWriteFunc writeFunc;      // Called when device writes a block
+    size_t blockSize;                    // Block size in bytes
+    void *userData;                      // User-defined data passed to callbacks
+} BlockDeviceCallbacks;
+
 // IO Delay callback function type
 typedef bool (*IODelayedCallback)(void *context, int param);
 
@@ -80,6 +116,7 @@ typedef struct Device {
     uint16_t interruptBits;
     uint16_t interruptLevel;  // Default interrupt level
     uint16_t identCode;      // Identcode for this device
+    uint16_t logicalDevice;  // Logical device ID for this device
     
     // Device name
     char memoryName[MAX_DEVICE_NAME];
@@ -97,13 +134,19 @@ typedef struct Device {
     void (*Write)(struct Device *self, uint32_t address, uint16_t value);
     uint16_t (*Ident)(struct Device *self, uint16_t level);
     
-    // special for onboard RTC
-    bool isRTC;
+    // Device classification
+    DeviceClass deviceClass;  // Type of device (standard, character, block, RTC)
+    
+    // Device callbacks
+    CharacterDeviceCallbacks charCallbacks;  // Character device callbacks (if deviceClass == DEVICE_CLASS_CHARACTER)
+    BlockDeviceCallbacks blockCallbacks;     // Block device callbacks (if deviceClass == DEVICE_CLASS_BLOCK)
     
     // Device-specific data
     void *deviceData;
     
 } Device;
+
+
 typedef struct {
     Device *devices[MAX_DEVICES];
     int count;

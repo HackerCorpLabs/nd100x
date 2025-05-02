@@ -153,7 +153,7 @@ Device* CreatePaperTapeDevice(uint8_t thumbwheel) {
     }
 
     // Initialize device base structure
-    Device_Init(dev, thumbwheel);
+    Device_Init(dev, thumbwheel, DEVICE_CLASS_CHARACTER, 0);
 
     // Set up device-specific data
     data->papertapeFile = NULL;

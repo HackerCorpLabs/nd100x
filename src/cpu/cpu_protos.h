@@ -1,49 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
-/* Prototypes from cpu_regs.c */
 
-/* cpu_regs.c */
-bool setPIL(char newLevel);
-void setPEA(ushort pea);
-void setPES(ushort pes);
-void setPGS(ushort pgs);
-void setreg(int r, int val);
-ushort getbit(ushort regnum, ushort stsbit);
-void clrbit(ushort regnum, ushort stsbit);
-void setbit_STS_MSB(ushort stsbit, char val);
-void setbit(ushort regnum, ushort stsbit, char val);
-void AdjustSTS(ushort reg_a, ushort operand, int result);
-
-/* Prototypes from cpu_mms.c */
-
-/* cpu_mms.c */
-bool CreatePagingTables(void);
-void DestroyPagingTables(void);
-ushort GetPTShadowAddress(uint pageTable, uint VPN, PageTableMode ptm);
-void PT_Write(uint address, ushort value);
-ushort PT_Read(uint address);
-uint GetPageTableEntry(uint pageTable, uint VPN, PageTableMode ptm);
-bool UpdatePageTableEntry(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
-uint SetPageUsed(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
-uint SetPageWritten(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
-char *GetPageTableEntryDebugInfo(ulong PTe);
-int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT);
-void UpdatePGS(uint pageTable, uint VPN, AccessMode am, bool permitViolation);
-bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool UseAPT, AccessMode am, uint virtualAddress);
-bool IsAddressShadowMemory(uint addr, bool privileged);
-int ReadVirtualMemory(uint virtualAddress, bool UseAPT);
-int ReadIndirectVirtualMemory(uint virtualAddress, bool UseAPT);
-int FetchVirtualMemory(uint virtualAddress, bool UseAPT);
-void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMode wm);
-int ReadPhysicalMemory(int physicalAddress, bool privileged);
-void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged);
-void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged, WriteMode wm);
-void HandleMemoryOutOfRange(uint physicalAddress);
-void HandleMPV(uint virtualAddress);
-void HandlePF(uint virtualAddress);
-
-/* Prototypes from cpu.c */
-
-/* cpu.c */
+/* /home/ronny/repos/nd100x/src/cpu/cpu.c */
 void do_op(ushort operand, bool isEXR);
 ushort New_GetEffectiveAddr(ushort instr, bool *use_apt);
 ushort calcIIC(void);
@@ -68,27 +25,7 @@ void set_debugger_requested_control(bool requested);
 void set_cpu_run_mode(CPURunMode new_mode);
 CPURunMode get_cpu_run_mode(void);
 
-/* Prototypes from float.c */
-
-/* float.c */
-long double pow2l(int i);
-int MUL32(unsigned long int *a, unsigned long int *b, unsigned long int *r);
-int old_NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
-int old_NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
-int NDFloat_Add(ushort *p_a, ushort *p_b, ushort *p_r);
-void old_DoNLZ(char scaling);
-void old_DoDNZ(char scaling);
-unsigned int ld_to_ndmant(long double mant);
-void ndmant_to_ld(unsigned int ndmant, long double *val);
-int NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
-int NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
-int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
-void DoNLZ(char scaling);
-void DoDNZ(char scaling);
-
-/* Prototypes from cpu_instr.c */
-
-/* cpu_instr.c */
+/* /home/ronny/repos/nd100x/src/cpu/cpu_instr.c */
 bool CheckPriv(void);
 short signExtend(ushort x);
 ushort do_add(ushort a, ushort b, ushort k);
@@ -228,16 +165,12 @@ void print_mask_binary(unsigned short mask);
 void Instruction_Add_Mask(int opcode, int mask, void *funcpointer);
 void Setup_Instructions(void);
 
-/* Prototypes from cpu_mopc.c */
-
-/* cpu_mopc.c */
+/* /home/ronny/repos/nd100x/src/cpu/cpu_mopc.c */
 int aoct2int(char *str);
 void mopc_cmd(char *cmdstr, char cmdc);
 void mopc_thread(void);
 
-/* Prototypes from cpu_disasm.c */
-
-/* cpu_disasm.c */
+/* /home/ronny/repos/nd100x/src/cpu/cpu_disasm.c */
 void OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
 void disasm_allocate(ushort addr);
 void disasm_instr(ushort addr, ushort instr);
@@ -252,3 +185,56 @@ ushort extract_opcode(ushort instr);
 ushort decode_140k(ushort instr);
 ushort decode_150k(ushort instr);
 
+/* /home/ronny/repos/nd100x/src/cpu/float.c */
+long double pow2l(int i);
+int MUL32(unsigned long int *a, unsigned long int *b, unsigned long int *r);
+int old_NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int old_NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Add(ushort *p_a, ushort *p_b, ushort *p_r);
+void old_DoNLZ(char scaling);
+void old_DoDNZ(char scaling);
+unsigned int ld_to_ndmant(long double mant);
+void ndmant_to_ld(unsigned int ndmant, long double *val);
+int NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
+void DoNLZ(char scaling);
+void DoDNZ(char scaling);
+
+/* /home/ronny/repos/nd100x/src/cpu/cpu_regs.c */
+bool setPIL(char newLevel);
+void setPEA(ushort pea);
+void setPES(ushort pes);
+void setPGS(ushort pgs);
+void setreg(int r, int val);
+ushort getbit(ushort regnum, ushort stsbit);
+void clrbit(ushort regnum, ushort stsbit);
+void setbit_STS_MSB(ushort stsbit, char val);
+void setbit(ushort regnum, ushort stsbit, char val);
+void AdjustSTS(ushort reg_a, ushort operand, int result);
+
+/* /home/ronny/repos/nd100x/src/cpu/cpu_mms.c */
+bool CreatePagingTables(void);
+void DestroyPagingTables(void);
+ushort GetPTShadowAddress(uint pageTable, uint VPN, PageTableMode ptm);
+void PT_Write(uint address, ushort value);
+ushort PT_Read(uint address);
+uint GetPageTableEntry(uint pageTable, uint VPN, PageTableMode ptm);
+bool UpdatePageTableEntry(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+uint SetPageUsed(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+uint SetPageWritten(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
+char *GetPageTableEntryDebugInfo(ulong PTe);
+int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT);
+void UpdatePGS(uint pageTable, uint VPN, AccessMode am, bool permitViolation);
+bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool UseAPT, AccessMode am, uint virtualAddress);
+bool IsAddressShadowMemory(uint addr, bool privileged);
+int ReadVirtualMemory(uint virtualAddress, bool UseAPT);
+int ReadIndirectVirtualMemory(uint virtualAddress, bool UseAPT);
+int FetchVirtualMemory(uint virtualAddress, bool UseAPT);
+void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMode wm);
+int ReadPhysicalMemory(int physicalAddress, bool privileged);
+void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged);
+void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged, WriteMode wm);
+void HandleMemoryOutOfRange(uint physicalAddress);
+void HandleMPV(uint virtualAddress);
+void HandlePF(uint virtualAddress);
