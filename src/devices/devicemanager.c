@@ -101,7 +101,7 @@ void DeviceManager_AddAllDevices(void)
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 0);
 
     // Add the PaperTape (TapeReader) at octal 400-403
-    DeviceManager_AddDevice(DEVICE_TYPE_PAPER_TAPE, 0);
+    //DeviceManager_AddDevice(DEVICE_TYPE_PAPER_TAPE, 0);
 
     // Add the FloppyPIO at octal 1560-1567
     // DeviceManager_AddDevice(DEVICE_TYPE_FLOPPY_PIO, 0);

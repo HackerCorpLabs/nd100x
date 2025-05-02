@@ -34,71 +34,71 @@
 static const DeviceDefinition deviceDefinitions[] = {
     // Group 1 (starts at offset 0)
     {0300, 01, 01, "CONSOLE TERMINAL - TERMINAL 1"},
-    {0310, 05, 11, "TERMINAL 2/ TET15"},
-    {0320, 06, 42, "TERMINAL 3/ TET14"},
-    {0330, 07, 43, "TERMINAL 4/ TET15"},
-    {0340, 044, 44, "TERMINAL 5/ TET12"},
-    {0350, 045, 45, "TERMINAL 6/ TET11"},
-    {0360, 046, 46, "TERMINAL 7/ TET10"},
-    {0370, 047, 47, "TERMINAL 8/ TET9"},
+    {0310, 05, 011, "TERMINAL 2/ TET15"},    // Something wrong with the defintion. Need to check
+    {0320, 06, 042, "TERMINAL 3/ TET14"},    // Something wrong with the defintion. Need to check
+    {0330, 07, 043, "TERMINAL 4/ TET15"},    // Something wrong with the defintion. Need to check  
+    {0340, 044, 044, "TERMINAL 5/ TET12"},
+    {0350, 045, 045, "TERMINAL 6/ TET11"},
+    {0360, 046, 046, "TERMINAL 7/ TET10"},
+    {0370, 047, 047, "TERMINAL 8/ TET9"},
 
     // Group 9
-    {01300, 050, 60, "TERMINAL 9"},
-    {01310, 051, 61, "TERMINAL 10"},
-    {01320, 052, 62, "TERMINAL 11"},
-    {01330, 053, 63, "TERMINAL 12"},
-    {01340, 054, 64, "TERMINAL 13"},
-    {01350, 055, 65, "TERMINAL 14"},
-    {01360, 056, 66, "TERMINAL 15"},
-    {01370, 057, 67, "TERMINAL 16"},
+    {01300, 050, 060, "TERMINAL 9"},
+    {01310, 051, 061, "TERMINAL 10"},
+    {01320, 052, 062, "TERMINAL 11"},
+    {01330, 053, 063, "TERMINAL 12"},
+    {01340, 054, 064, "TERMINAL 13"},
+    {01350, 055, 065, "TERMINAL 14"},
+    {01360, 056, 066, "TERMINAL 15"},
+    {01370, 057, 067, "TERMINAL 16"},
 
     // Group 17
-    {0200, 060, 7, "TERMINAL 17"},
-    {0210, 061, 17, "TERMINAL 18"},
-    {0220, 062, 52, "TERMINAL 19"},
-    {0230, 063, 53, "TERMINAL 20"},
-    {0240, 064, 54, "TERMINAL 21"},
-    {0250, 065, 55, "TERMINAL 22"},
-    {0260, 066, 56, "TERMINAL 23"},
-    {0270, 067, 57, "TERMINAL 24"},
+    {0200, 060, 07, "TERMINAL 17"},
+    {0210, 061, 017, "TERMINAL 18"},
+    {0220, 062, 052, "TERMINAL 19"},
+    {0230, 063, 053, "TERMINAL 20"},
+    {0240, 064, 054, "TERMINAL 21"},
+    {0250, 065, 055, "TERMINAL 22"},
+    {0260, 066, 056, "TERMINAL 23"},
+    {0270, 067, 057, "TERMINAL 24"},
 
     // Group 25
-    {01200, 070, 70, "TERMINAL 25"},
-    {01210, 071, 71, "TERMINAL 26"},
-    {01220, 072, 72, "TERMINAL 27"},
-    {01230, 073, 73, "TERMINAL 28"},
-    {01240, 074, 74, "TERMINAL 29/PHOTOS.1"},
-    {01250, 075, 75, "TERMINAL 30/PHOTOS.2"},
-    {01260, 076, 76, "TERMINAL 31/PHOTOS.3"},
-    {01270, 077, 77, "TERMINAL 32/PHOTOS.4"},
+    {01200, 070, 070, "TERMINAL 25"},
+    {01210, 071, 071, "TERMINAL 26"},
+    {01220, 072, 072, "TERMINAL 27"},
+    {01230, 073, 073, "TERMINAL 28"},
+    {01240, 074, 074, "TERMINAL 29/PHOTOS.1"},
+    {01250, 075, 075, "TERMINAL 30/PHOTOS.2"},
+    {01260, 076, 076, "TERMINAL 31/PHOTOS.3"},
+    {01270, 077, 077, "TERMINAL 32/PHOTOS.4"},
 
     // Group 33
-    {0640, 0124, 1040, "TERMINAL 33"},
-    {0650, 0125, 1041, "TERMINAL 34"},
-    {0660, 0126, 1042, "TERMINAL 35"},
-    {0670, 0127, 1043, "TERMINAL 36"},
+    {0640, 0124, 01040, "TERMINAL 33"},
+    {0650, 0125, 01041, "TERMINAL 34"},
+    {0660, 0126, 01042, "TERMINAL 35"},
+    {0670, 0127, 01043, "TERMINAL 36"},
 
     // Group 37
-    {01100, 0130, 1044, "TERMINAL 37"},
-    {01110, 0131, 1045, "TERMINAL 38"},
-    {01120, 0132, 1046, "TERMINAL 39"},
-    {01130, 0133, 1047, "TERMINAL 40"},
-    {01140, 0134, 1050, "TERMINAL 41"},
-    {01150, 0135, 1051, "TERMINAL 42"},
-    {01160, 0136, 1052, "TERMINAL 43"},
-    {01170, 0137, 1053, "TERMINAL 44"},
+    {01100, 0130, 01044, "TERMINAL 37"},
+    {01110, 0131, 01045, "TERMINAL 38"},
+    {01120, 0132, 01046, "TERMINAL 39"},
+    {01130, 0133, 01047, "TERMINAL 40"},
+    {01140, 0134, 01050, "TERMINAL 41"},
+    {01150, 0135, 01051, "TERMINAL 42"},
+    {01160, 0136, 01052, "TERMINAL 43"},
+    {01170, 0137, 01053, "TERMINAL 44"},
 
     // Group 45
-    {01400, 0140, 1054, "TERMINAL 45"},
-    {01410, 0141, 1055, "TERMINAL 46"},
-    {01420, 0142, 1056, "TERMINAL 47"},
-    {01430, 0143, 1057, "TERMINAL 48"},
+    {01400, 0140, 01054, "TERMINAL 45"},
+    {01410, 0141, 01055, "TERMINAL 46"},
+    {01420, 0142, 01056, "TERMINAL 47"},
+    {01430, 0143, 01057, "TERMINAL 48"},
 
     // Group 49
-    {01500, 0144, 1060, "TERMINAL 49"},
-    {01510, 0145, 1061, "TERMINAL 50"},
-    {01520, 0146, 1062, "TERMINAL 51"},
-    {01530, 0147, 1063, "TERMINAL 52"}};
+    {01500, 0144, 01060, "TERMINAL 49"},
+    {01510, 0145, 01061, "TERMINAL 50"},
+    {01520, 0146, 01062, "TERMINAL 51"},
+    {01530, 0147, 01063, "TERMINAL 52"}};
 
 static const size_t numDeviceDefinitions = sizeof(deviceDefinitions) / sizeof(DeviceDefinition);
 
