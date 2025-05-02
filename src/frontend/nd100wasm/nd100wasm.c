@@ -49,6 +49,7 @@
 // Global variables
 static int initialized = 0;
 static int running = 0;
+static int js_terminal_handler_enabled = 0;
 
 // Array of device references for quick access
 #define MAX_TERMINALS 16
@@ -60,12 +61,38 @@ typedef void (*TerminalOutputCallback)(int terminalId, char c);
 // Array of callbacks for terminal output
 static TerminalOutputCallback terminalOutputCallbacks[MAX_TERMINALS] = {NULL};
 
+// JavaScript terminal output handler - called from JavaScript
+EMSCRIPTEN_EXPORT void TerminalOutputToJS(int identCode, char c) {
+    // This is the C function that will be called from JavaScript
+    // We need a special emscripten wrapper to call from JavaScript to C
+    EM_ASM({
+        if (typeof window.handleTerminalOutputFromC === 'function') {
+            window.handleTerminalOutputFromC($0, $1);
+        } else {
+            console.error('handleTerminalOutputFromC not defined in JavaScript');
+        }
+    }, identCode, c);
+}
+
+// Enable or disable the JavaScript terminal handler
+EMSCRIPTEN_EXPORT void SetJSTerminalOutputHandler(int enable) {
+    js_terminal_handler_enabled = enable;
+    printf("JavaScript terminal handler %s\n", enable ? "enabled" : "disabled");
+}
+
 // Character device output handler for terminals
 static void WasmTerminalOutputHandler(Device *device, char c) 
 {
     if (!device)
         return;
           
+    if (js_terminal_handler_enabled) {
+        // Use JavaScript handler - direct call to JS without function pointers
+        TerminalOutputToJS(device->identCode, c);
+        return;
+    }
+    
+    // Traditional callback approach (with function pointers)
     // Find terminal ID in our array by identCode reference    
     for (int i = 0; i < MAX_TERMINALS; i++) {
         Device *term = terminals[i];
@@ -87,12 +114,9 @@ static void WasmTerminalOutputHandler(Device *device, char c)
     }    
 }
 
-
 // Initialize the system
 EMSCRIPTEN_EXPORT void Init(int boot_smd)
 {
- 
-    
     // Only initialize once
     if (initialized) {
         printf("Already initialized.\n");
@@ -108,9 +132,7 @@ EMSCRIPTEN_EXPORT void Init(int boot_smd)
         printf("Warning: Console terminal device not found!\n");
     } 
 
-
     // Add other terminals!!
-
     //     {0340, 044, 044, "TERMINAL 5/ TET12"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
     terminals[1]  = DeviceManager_GetDeviceByAddress(0340);
@@ -130,7 +152,6 @@ EMSCRIPTEN_EXPORT void Init(int boot_smd)
         }
     }
     
-    
     // Load boot program (hardcoded for now)
     if (boot_smd)
     {
@@ -140,7 +161,6 @@ EMSCRIPTEN_EXPORT void Init(int boot_smd)
     {
         program_load(BOOT_FLOPPY, "FLOPPY.IMG", 1);
     }
-    
     
     gPC = STARTADDR; // Default start address
     
@@ -211,7 +231,6 @@ EMSCRIPTEN_EXPORT void Step(int steps)
     machine_run(steps);
 }
 
-
 // Stop the emulation
 EMSCRIPTEN_EXPORT void Stop()
 {
@@ -219,7 +238,7 @@ EMSCRIPTEN_EXPORT void Stop()
     //machine_stop();
 }
 
-// Set a callback for terminal output
+// Set a callback for terminal output (traditional callback approach)
 EMSCRIPTEN_EXPORT void SetTerminalOutputCallback(int identCode, void (*callback)(int identCode, char c))
 {
     for (int i = 0; i < MAX_TERMINALS; i++) {
@@ -248,4 +267,4 @@ int main(int argc, char *argv[])
     printf("Please use emscripten to compile this program.\n");
     return 0;
 #endif
-}
+} 

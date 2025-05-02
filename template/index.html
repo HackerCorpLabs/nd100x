@@ -4,10 +4,67 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ND100X WASM Emulator</title>
+  
+  <!-- Define Module first, before any scripts -->
+  <script>
+    // Define the Module configuration object before loading any Emscripten code
+    var Module = {
+      print: function(text) { console.log(text); },
+      printErr: function(text) { console.error(text); },
+      onRuntimeInitialized: function() {
+        console.log("WASM Runtime Initialized");
+        // Set up the JavaScript handler for terminal output
+        setupTerminalOutputHandler();
+        initializeSystem();
+      }
+    };
+
+    // Global object to store terminal references
+    var terminals = {};
+    
+    // Function to handle terminal output from C/WASM
+    function handleTerminalOutput(identCode, charCode) {
+      if (terminals[identCode] && terminals[identCode].term) {
+        terminals[identCode].term.write(String.fromCharCode(charCode));
+      } else {
+        console.error(`Terminal with identCode ${identCode} not found or not initialized in handleTerminalOutput`);
+      }
+      // Return 1 to indicate success
+      return 1;
+    }
+    
+    // Make the terminal output handler available globally for C to call
+    window.handleTerminalOutputFromC = function(identCode, charCode) {
+      return handleTerminalOutput(identCode, charCode);
+    };
+    
+    // Setup the terminal output handler by exposing our JS function to C
+    function setupTerminalOutputHandler() {
+      // Check if our new functions exist in the module
+      if (typeof Module._TerminalOutputToJS === 'undefined' || 
+          typeof Module._SetJSTerminalOutputHandler === 'undefined') {
+        console.warn("Using legacy terminal output handler - new JS handler functions not found in WASM module");
+        console.warn("This requires ALLOW_TABLE_GROWTH to be set during compilation");
+        console.warn("Consider updating your nd100wasm.c to include the new terminal output handlers");
+        return false;
+      }
+      
+      console.log("Setting up JavaScript terminal output handler...");
+      
+      // Register our handler with the C code
+      Module._SetJSTerminalOutputHandler(1); // Enable JS handler mode
+      
+      console.log("JavaScript terminal output handler registered successfully");
+      return true;
+    }
+  </script>
+  
   <!-- Add xterm.js and its CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
+  <!-- Retro fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,30 +79,72 @@
     }
     .terminal-tabs {
       display: flex;
-      gap: 5px;
-      margin-bottom: 10px;
+      gap: 0;
+      margin-bottom: 0;
+      border-bottom: 2px solid #e0e0e0;
+      background: #f5f5f5;
+      padding-left: 8px;
+      position: relative;
+      z-index: 2;
     }
     .terminal-tab {
-      padding: 8px 16px;
-      background-color: #f5f5f5;
-      border: 1px solid #ddd;
+      position: relative;
+      top: 2px;
+      padding: 10px 28px 8px 28px;
+      background: #e9e9e9;
+      border: 1px solid #d0d0d0;
       border-bottom: none;
-      border-radius: 5px 5px 0 0;
+      border-radius: 10px 10px 0 0;
+      margin-right: 2px;
       cursor: pointer;
+      color: #444;
+      font-weight: 500;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
     }
     .terminal-tab.active {
-      background-color: #000;
-      color: white;
+      background: #fff;
+      color: #111;
+      z-index: 3;
+      box-shadow: 0 -2px 8px 0 rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.03);
+      border-bottom: 2px solid #fff;
+    }
+    .terminal-tab:not(.active):hover {
+      background: #f0f0f0;
+      color: #222;
     }
     .terminal-container {
       height: 480px;
       background-color: #000;
-      padding: 10px;
-      border-radius: 5px;
+      border-radius: 0 0 8px 8px;
+      border: 1px solid #e0e0e0;
+      border-top: none;
       display: none;
+      margin-bottom: 24px;
+      /* Remove padding for perfect fit */
+      padding: 0;
+      overflow: hidden;
+      position: relative;
     }
     .terminal-container.active {
       display: block;
+    }
+    .xterm {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    /* Custom scrollbar for terminal */
+    .xterm-viewport::-webkit-scrollbar {
+      width: 10px;
+      background: #222;
+    }
+    .xterm-viewport::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 5px;
+    }
+    .xterm-viewport {
+      scrollbar-width: thin;
+      scrollbar-color: #888 #222;
     }
     .control-panel {
       display: flex;
@@ -67,6 +166,17 @@
     button:disabled {
       background-color: #cccccc;
       cursor: not-allowed;
+    }
+    .reset-btn {
+      background-color: #e53935 !important;
+      color: #fff !important;
+      font-weight: bold;
+      position: relative;
+    }
+    .reset-btn .power-icon {
+      font-size: 1.2em;
+      margin-right: 6px;
+      vertical-align: middle;
     }
     .slider-container {
       display: flex;
@@ -101,27 +211,74 @@
           <option value="SMD0.IMG">SMD0.IMG</option>
         </select>
       </div>
+      <div class="slider-container">
+        <label for="font-family-select">Font:</label>
+        <select id="font-family-select">
+          <option value="monospace" selected>Monospace (default)</option>
+          <option value="'VT323', monospace">VT323 (Retro)</option>
+          <option value="'Fira Mono', monospace">Fira Mono</option>
+          <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
+          <option value="'Cascadia Mono', monospace">Cascadia Mono</option>
+          <option value="'Source Code Pro', monospace">Source Code Pro</option>
+        </select>
+      </div>
+      <div class="slider-container">
+        <label for="color-theme-select">Color:</label>
+        <select id="color-theme-select">
+          <option value="green">Green Phosphor (P1)</option>
+          <option value="amber">Amber Phosphor (P3)</option>
+          <option value="white">White Phosphor (P4)</option>
+          <option value="blue">Blue Phosphor (rare)</option>
+          <option value="paperwhite">Paper-White (VT420)</option>
+        </select>
+      </div>
     </div>
 
     <div class="terminal-tabs"></div>
     <!-- All terminal containers will be created dynamically by JS below this line -->    
   </div>
 
+  <!-- Load the Emscripten-generated JavaScript after Module is defined -->
   <script src="nd100wasm.js"></script>
+  
   <script>
     // Store all terminals and their containers
-    let terminals = {};
     let terminalContainers = {};
     let activeTerminalId = 1;
-    let Module = null;
     const RAW_MODE = true;
     let isInitialized = false;
 
+    // Default font and color theme
+    let selectedFontFamily = "monospace";
+    let selectedColorTheme = 'green';
+    // Color theme map
+    const colorThemes = {
+      green:      { background: '#000000', foreground: '#00FF00', cursor: '#00FF00' },
+      amber:      { background: '#000000', foreground: '#FFBF00', cursor: '#FFBF00' },
+      white:      { background: '#000000', foreground: '#F8F8F8', cursor: '#F8F8F8' },
+      blue:       { background: '#000000', foreground: '#00BFFF', cursor: '#00BFFF' },
+      paperwhite: { background: '#F8F8F8', foreground: '#222222', cursor: '#222222' }
+    };
+
+    // Function to measure the actual character cell size for a given font and size
+    function measureCharSize(fontFamily, fontSize) {
+        const span = document.createElement('span');
+        span.textContent = 'M';
+        span.style.position = 'absolute';
+        span.style.visibility = 'hidden';
+        span.style.fontFamily = fontFamily;
+        span.style.fontSize = fontSize + 'px';
+        document.body.appendChild(span);
+        const rect = span.getBoundingClientRect();
+        document.body.removeChild(span);
+        return { width: rect.width, height: rect.height };
+    }
+
     // Function to create a terminal container and tab
-    function createTerminal(id, name) {
+    function createTerminal(identCode, name) {
         // Create container
         const container = document.createElement('div');
-        container.id = `terminal-container-${id}`;
+        container.id = `terminal-container-${identCode}`;
         container.className = 'terminal-container';
         // Insert container immediately after the .terminal-tabs div
         const tabs = document.querySelector('.terminal-tabs');
@@ -134,21 +291,30 @@
         // Create tab
         const tab = document.createElement('div');
         tab.className = 'terminal-tab';
-        tab.dataset.terminal = id;
+        tab.dataset.terminal = identCode;
         tab.textContent = name;
         document.querySelector('.terminal-tabs').appendChild(tab);
         
-        // Initialize terminal
+        // Responsive font size based on container width
+        function getResponsiveFontSize() {
+            // 80 cols, 24 rows, estimate char width/height
+            const minFont = 18, maxFont = 36;
+            const width = container.offsetWidth || 960;
+            const height = container.offsetHeight || 480;
+            let fontW = Math.floor(width / 80);
+            let fontH = Math.floor(height / 24);
+            let fontSize = Math.max(minFont, Math.min(maxFont, Math.min(fontW, fontH)));
+            return fontSize;
+        }
+        
+        let fontSize = getResponsiveFontSize();
         const term = new Terminal({
-            cursorBlink: true,
-            fontSize: 14,
-            fontFamily: 'Courier New, monospace',
-            rows: 24,
-            cols: 80,
-            theme: {
-                background: '#000000',
-                foreground: '#ffffff'
-            }
+          cursorBlink: true,
+          fontSize: fontSize,
+          fontFamily: selectedFontFamily,
+          rows: 24,
+          cols: 80,
+          theme: colorThemes[selectedColorTheme]
         });
         
         const fitAddon = new FitAddon.FitAddon();
@@ -156,23 +322,42 @@
         term.open(container);
         fitAddon.fit();
         
+        // Responsive resize handler
+        function resizeTerminal() {
+            let newFont = getResponsiveFontSize();
+            if (term.options.fontSize !== newFont) {
+                term.options.fontSize = newFont;
+            }
+            // Update font family and color theme
+            term.options.fontFamily = selectedFontFamily;
+            term.options.theme = colorThemes[selectedColorTheme];
+            // Measure actual char size
+            const charSize = measureCharSize(selectedFontFamily, newFont);
+            container.style.width = (charSize.width * 80) + 'px';
+            container.style.height = (charSize.height * 24) + 'px';
+            fitAddon.fit();
+            term.refresh(0, term.rows - 1);
+        }
+        window.addEventListener('resize', resizeTerminal);
+        
         // Store references
-        terminals[id] = {
-            term,
-            fitAddon,
-            container
+        terminals[identCode] = {
+          term,
+          fitAddon,
+          container,
+          resizeTerminal
         };
-        terminalContainers[id] = container;
+        terminalContainers[identCode] = container;
         
         // Add click handler for tab
         tab.addEventListener('click', () => {
-            switchTerminal(id);
+            switchTerminal(identCode);
         });
         
         // Add keyboard input handler
         term.onKey(({ key, domEvent }) => {
             // Only process input for the active terminal
-            if (id !== activeTerminalId) return;
+            if (identCode !== activeTerminalId) return;
 
             const charCode = key.charCodeAt(0);
             
@@ -195,6 +380,9 @@
         // Write welcome message
         term.writeln(`ND100X Emulator - ${name}`);
         term.writeln('----------------------------------');
+        
+        // Initial resize
+        setTimeout(resizeTerminal, 0);
     }
 
     // Function to initialize all available terminals
@@ -203,6 +391,7 @@
             // If the module isn't ready, show a static Console tab named '1'
             document.querySelector('.terminal-tabs').innerHTML = '';
             document.querySelectorAll('.terminal-container').forEach(el => el.remove());
+            // Create console with identCode 1
             createTerminal(1, '1');
             switchTerminal(1);
             return;
@@ -211,78 +400,113 @@
         document.querySelectorAll('.terminal-container').forEach(el => el.remove());
         // Clear existing tabs and JS references
         document.querySelector('.terminal-tabs').innerHTML = '';
-        Object.keys(terminals).forEach(id => {
-            terminals[id].term.dispose();
+        Object.keys(terminals).forEach(identCode => {
+            terminals[identCode].term.dispose();
         });
         terminals = {};
         terminalContainers = {};
-        // Always create Console terminal (index 0) as '1'
+        
+        // Create a placeholder container for the console (identCode 1)
         createTerminal(1, '1');
-        // If initialized, add other terminals
+        
+        // Create terminals for any devices discovered after initialization
         if (isInitialized) {
-            for (let i = 1; i < 16; i++) {
+            // Scan for terminal devices and create UI elements for each one
+            // The array index 'i' is the internal device index, not the identCode
+            for (let i = 0; i < 16; i++) {
                 const address = Module._GetTerminalAddress(i);
                 if (address !== -1) {
                     const identCode = Module._GetTerminalIdentCode(i);
-                    const octalIdent = identCode !== -1 ? identCode.toString(8) : `Term ${i+1}`;
-                    createTerminal(i + 1, octalIdent);
+                    if (identCode !== -1 && identCode !== 1) { // Skip console which we already created
+                        // Create terminal with the device's octal identCode as the name
+                        createTerminal(identCode, identCode.toString(8));
+                    }
                 }
             }
         }
-        // Set first terminal as active if any
-        const firstId = Object.keys(terminals)[0];
-        if (firstId) switchTerminal(Number(firstId));
+        
+        // Set the console as the active terminal
+        switchTerminal(1);
     }
 
     // Make terminals responsive to window resize
     window.addEventListener('resize', () => {
         Object.values(terminals).forEach(terminal => {
-            terminal.fitAddon.fit();
+            terminal.resizeTerminal();
         });
     });
 
-    function switchTerminal(id) {
+    function switchTerminal(identCode) {
         // Update active tab
         document.querySelectorAll('.terminal-tab').forEach(tab => {
-            tab.classList.toggle('active', parseInt(tab.dataset.terminal) === id);
+          tab.classList.toggle('active', parseInt(tab.dataset.terminal) === identCode);
         });
 
         // Update active terminal container
-        Object.keys(terminalContainers).forEach(terminalId => {
-            terminalContainers[terminalId].classList.toggle('active', parseInt(terminalId) === id);
+        Object.keys(terminalContainers).forEach(termId => {
+            terminalContainers[termId].classList.toggle('active', parseInt(termId) === identCode);
         });
 
-        activeTerminalId = id;
+        activeTerminalId = identCode;
     }
 
     // Function to register terminal callbacks
     function registerTerminalCallbacks() {
-        if (!Module || !Module._SetTerminalOutputCallback) {
+        if (!Module) {
             console.error("Module not ready for terminal callback registration");
             return false;
         }
         
         try {
-            // Create a JavaScript function that will be called from C
-            const outputCallback = Module.addFunction(function(terminalId, c) {
-                // Write to the appropriate terminal
-                if (terminals[terminalId] && terminals[terminalId].term) {
-                    terminals[terminalId].term.write(String.fromCharCode(c));
-                } else {
-                    console.error(`Terminal ${terminalId} not found or term not initialized`);
-                }
-            }, 'vii'); // 'vii' means void return, int, int parameters
+            console.log("Setting up direct JS terminal callbacks...");
             
-            // Register callbacks for all terminals
-            Object.keys(terminals).forEach(id => {
-                console.log(`Registering output callback for terminal ${id}`);
-                Module._SetTerminalOutputCallback(parseInt(id), outputCallback);
-                console.log(`Terminal output callback registered for terminal ${id}`);
-            });
+            // Make sure all terminals have been created in the UI
+            if (Object.keys(terminals).length === 0) {
+                console.error("No terminals initialized");
+                return false;
+            }
             
-            return true;
+            console.log(`Found ${Object.keys(terminals).length} terminals ready for input/output`);
+            
+            // Check if we have a modern build with direct JS handlers
+            if (typeof Module._TerminalOutputToJS !== 'undefined' && 
+                typeof Module._SetJSTerminalOutputHandler !== 'undefined') {
+                console.log("Using modern direct JS terminal output handler");
+                return true; // Already setup in setupTerminalOutputHandler
+            }
+            
+            // LEGACY APPROACH - Use function pointers with Module.addFunction
+            console.log("Using legacy terminal callback approach with function pointers");
+            
+            if (typeof Module.addFunction === 'undefined') {
+                console.error("addFunction not available - make sure it's in EXPORTED_RUNTIME_METHODS");
+                return false;
+            }
+            
+            // Single callback for all terminals to minimize table growth
+            var singleCallback;
+            try {
+                singleCallback = Module.addFunction(function(identCode, charCode) {
+                    return handleTerminalOutput(identCode, charCode);
+                }, 'iii'); // Return int, take int, int parameters
+                
+                // Register for each terminal
+                Object.keys(terminals).forEach(identCode => {
+                    console.log(`Registering legacy callback for terminal with identCode ${identCode}`);
+                    if (Module._SetTerminalOutputCallback) {
+                        Module._SetTerminalOutputCallback(parseInt(identCode), singleCallback);
+                    }
+                });
+                
+                console.log("Legacy callbacks registered successfully");
+                return true;
+            } catch (e) {
+                console.error("Error registering legacy callbacks:", e);
+                console.error("You need to compile with -s ALLOW_TABLE_GROWTH=1");
+                return false;
+            }
         } catch (e) {
-            console.error("Error registering terminal callback:", e);
+            console.error("Error in registerTerminalCallbacks:", e);
             return false;
         }
     }
@@ -295,10 +519,16 @@
         }
         
         try {
-            // Call the SendKeyToTerminal function with the active terminal ID and key code
+            // activeTerminalId holds the identCode of the current terminal
+            if (!terminals[activeTerminalId]) {
+                console.error(`Terminal with identCode ${activeTerminalId} not found`);
+                return false;
+            }
+            
+            // Send the key to the terminal using its identCode
             const result = Module._SendKeyToTerminal(activeTerminalId, keyCode);
             if (result !== 1) {
-                console.error("Failed to send key to terminal", activeTerminalId);
+                console.error("Failed to send key to terminal with identCode", activeTerminalId);
                 return false;
             }
             return true;
@@ -367,107 +597,178 @@
         document.getElementById('stop-btn').disabled = true;
     }
 
-    // Define configuration for Module
-    const moduleConfig = {
-        print: (text) => {
-            console.log(text);
-        },
-        printErr: (text) => {
-            console.error(text);
-        },
-        onRuntimeInitialized: function() {
-            console.log("WASM Runtime Initialized");
-        }
-    };
-    
-    // Create the Module variable by calling the factory function
-    console.log("Initializing ND100Module");
-    ND100Module(moduleConfig).then(moduleInstance => {
-        Module = moduleInstance;
-        console.log("ND100Module loaded successfully");
+    // Function to load the disk images
+    function loadDiskImages() {
+        return new Promise((resolve, reject) => {
+            // First check if the FS API is available
+            if (typeof Module.FS === 'undefined') {
+                console.error("ERROR: Module.FS is not available! Check if FS was properly exported in EXPORTED_RUNTIME_METHODS.");
+                document.getElementById('status').textContent = 'Error: FS API not available. Check console.';
+                // Still show controls even if we can't load disk images
+                document.getElementById('controls').style.display = 'flex';
+                // We'll continue anyway since some functionality might still work
+                resolve();
+                return;
+            }
+            
+            console.log("Loading SMD0.IMG...");
+            fetch('SMD0.IMG')
+                .then(res => res.arrayBuffer())
+                .then(buf => {
+                    try {
+                        Module.FS.writeFile('/SMD0.IMG', new Uint8Array(buf));
+                        console.log("SMD0.IMG loaded");
+                        
+                        // Load FLOPPY.IMG
+                        console.log("Loading FLOPPY.IMG...");
+                        return fetch('FLOPPY.IMG');
+                    } catch (e) {
+                        console.error("Error writing SMD0.IMG:", e);
+                        // Continue even with error
+                        console.log("Attempting to load FLOPPY.IMG anyway...");
+                        return fetch('FLOPPY.IMG');
+                    }
+                })
+                .then(res => res.arrayBuffer())
+                .then(buf => {
+                    try {
+                        Module.FS.writeFile('/FLOPPY.IMG', new Uint8Array(buf));
+                        console.log("FLOPPY.IMG loaded");
+                        document.getElementById('status').textContent = 'WebAssembly module loaded!';
+                        document.getElementById('controls').style.display = 'flex';
+                        resolve();
+                    } catch (e) {
+                        console.error("Error writing FLOPPY.IMG:", e);
+                        // Still show controls even if we can't load disk images
+                        document.getElementById('status').textContent = 'Warning: Failed to load disk images. Some features may not work.';
+                        document.getElementById('controls').style.display = 'flex';
+                        resolve();
+                    }
+                })
+                .catch(error => {
+                    console.error("Failed to load disk images:", error);
+                    document.getElementById('status').textContent = 'Warning: Failed to load disk images. Some features may not work.';
+                    // Still show controls even if we can't load disk images
+                    document.getElementById('controls').style.display = 'flex';
+                    resolve();
+                });
+        });
+    }
+
+    // Main initialization function called from Module.onRuntimeInitialized
+    function initializeSystem() {
+        console.log("System initialization starting...");
+        document.getElementById('init-btn').disabled = false;
         
-        // Initialize terminals after module is loaded
-        initializeTerminals();
-        
-        // Load SMD0.IMG
-        console.log("Loading SMD0.IMG...");
-        
-        fetch('SMD0.IMG')
-            .then(res => res.arrayBuffer())
-            .then(buf => {
-                try {
-                    Module.FS.writeFile('/SMD0.IMG', new Uint8Array(buf));
-                    console.log("SMD0.IMG loaded");
-                    
-                    // Load FLOPPY.IMG
-                    console.log("Loading FLOPPY.IMG...");
-                    
-                    fetch('FLOPPY.IMG')
-                        .then(res => res.arrayBuffer())
-                        .then(buf => {
-                            try {
-                                Module.FS.writeFile('/FLOPPY.IMG', new Uint8Array(buf));
-                                console.log("FLOPPY.IMG loaded");
-                                
-                                document.getElementById('status').textContent = 'WebAssembly module loaded!';
-                                document.getElementById('controls').style.display = 'flex';
-                                
-                                // Connect buttons to exported WASM functions
-                                document.getElementById('init-btn').addEventListener('click', function() {
-                                    console.log("Calling Init");
-                                    // Determine boot device
-                                    const bootDevice = document.getElementById('boot-select').value;
-                                    const bootSmd = (bootDevice === 'smd') ? 1 : 0;
-                                    Module._Init(bootSmd);
-                                    // Set flag and scan for new terminals after Init
-                                    isInitialized = true;
-                                    initializeTerminals();
-                                    // Register callbacks after initialization
-                                    if (registerTerminalCallbacks()) {
-                                        console.log("Terminal callbacks registered successfully");
-                                        document.getElementById('start-btn').disabled = false;
-                                    } else {
-                                        console.error("Failed to register terminal callbacks");
-                                        document.getElementById('start-btn').disabled = true;
-                                    }
-                                });
-                                
-                                document.getElementById('start-btn').addEventListener('click', function() {
-                                    console.log("Starting emulation");
-                                    if (Module._Start) {
-                                        Module._Start();
-                                    }
-                                    startEmulation();
-                                });
-                                
-                                document.getElementById('stop-btn').addEventListener('click', function() {
-                                    console.log("Stopping emulation");
-                                    stopEmulation();
-                                    if (Module._Stop) {
-                                        Module._Stop();
-                                    }
-                                });
-                                
-                                console.log("Ready for initialization - click Initialize button to start");
-                            } catch (e) {
-                                console.error("Error writing FLOPPY.IMG:", e);
-                            }
-                        })
-                        .catch(error => {
-                            console.error("Failed to load FLOPPY.IMG:", error);
-                            document.getElementById('status').textContent = 'Error loading disk image: ' + error.message;
-                        });
-                } catch (e) {
-                    console.error("Error writing SMD0.IMG:", e);
-                }
+        // Load disk images
+        loadDiskImages()
+            .then(() => {
+                // Wait for fonts to load before creating the first terminal
+                return document.fonts.ready;
+            })
+            .then(() => {
+                initializeTerminals();
+                console.log("Terminals initialized");
             })
             .catch(error => {
-                console.error("Failed to load SMD0.IMG:", error);
-                document.getElementById('status').textContent = 'Error loading disk image: ' + error.message;
+                console.error("Error during initialization:", error);
+                document.getElementById('status').textContent = 'Error during initialization: ' + error.message;
             });
-    }).catch(err => {
-        console.error("Failed to initialize ND100Module:", err);
-        document.getElementById('status').textContent = 'Error loading WebAssembly module: ' + err.message;
+    }
+
+    // Button logic
+    const initBtn = document.getElementById('init-btn');
+    let isInitializedBtn = false;
+    
+    function setToResetButton() {
+        initBtn.innerHTML = '<span class="power-icon">&#x23FB;</span>RESET';
+        initBtn.classList.add('reset-btn');
+        initBtn.disabled = false;
+    }
+    
+    function setToInitButton() {
+        initBtn.textContent = 'Initialize';
+        initBtn.classList.remove('reset-btn');
+        initBtn.disabled = false;
+    }
+    
+    initBtn.addEventListener('click', function() {
+        if (!isInitializedBtn) {
+            // Initialize logic
+            console.log("Calling Init");
+            const bootDevice = document.getElementById('boot-select').value;
+            const bootSmd = (bootDevice === 'smd') ? 1 : 0;
+            Module._Init(bootSmd);
+            isInitialized = true;
+            initializeTerminals();
+            if (registerTerminalCallbacks()) {
+                console.log("Terminal callbacks registered successfully");
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('start-btn').onclick = function() {
+                    console.log("Starting emulation");
+                    if (Module._Start) {
+                        Module._Start();
+                    }
+                    startEmulation();
+                };
+                document.getElementById('stop-btn').onclick = function() {
+                    console.log("Stopping emulation");
+                    stopEmulation();
+                    if (Module._Stop) {
+                        Module._Stop();
+                    }
+                };
+            } else {
+                console.error("Failed to register terminal callbacks");
+                document.getElementById('start-btn').disabled = true;
+            }
+            setToResetButton();
+            isInitializedBtn = true;
+        } else {
+            // RESET logic: reload WASM and reset UI
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('status').textContent = 'Reloading...';
+            // Remove all terminals
+            document.querySelector('.terminal-tabs').innerHTML = '';
+            document.querySelectorAll('.terminal-container').forEach(el => el.remove());
+            Object.keys(terminals).forEach(id => {
+                terminals[id].term.dispose();
+            });
+            terminals = {};
+            terminalContainers = {};
+            isInitialized = false;
+            isInitializedBtn = false;
+            setToInitButton();
+            
+            // Instead of reloading the entire module, just restart
+            if (Module._Stop) {
+                Module._Stop();
+            }
+            document.getElementById('controls').style.display = 'flex';
+            document.getElementById('status').textContent = 'Ready to initialize';
+            initializeTerminals();
+        }
+    });
+
+    // Listen for font family and color theme changes
+    document.getElementById('font-family-select').addEventListener('change', function(e) {
+        selectedFontFamily = e.target.value;
+        Object.values(terminals).forEach(t => {
+            t.term.options.fontFamily = selectedFontFamily;
+            t.resizeTerminal();
+            t.fitAddon.fit();
+            t.term.refresh(0, t.term.rows - 1);
+        });
+    });
+    
+    document.getElementById('color-theme-select').addEventListener('change', function(e) {
+        selectedColorTheme = e.target.value;
+        Object.values(terminals).forEach(t => {
+            t.term.options.theme = colorThemes[selectedColorTheme];
+            t.resizeTerminal();
+            t.fitAddon.fit();
+            t.term.refresh(0, t.term.rows - 1);
+        });
     });
   </script>
 </body>

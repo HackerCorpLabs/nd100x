@@ -56,7 +56,7 @@ wasm: check-deps mkptypes
 	$(CMAKE) --build $(BUILD_DIR_WASM) -- -j$$(nproc 2>/dev/null || echo 4)
 	@echo "Copying index.html template to WASM build directory..."
 	@mkdir -p $(BUILD_DIR_WASM)/bin
-	@cp .vscode/template/index.html $(BUILD_DIR_WASM)/bin/
+	@cp template/index.html $(BUILD_DIR_WASM)/bin/
 	@echo ""
 	@echo "WebAssembly build completed successfully!"
 	@echo "To test in a browser, serve the build directory via HTTP:"

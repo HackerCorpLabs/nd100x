@@ -66,7 +66,7 @@ if(PLATFORM_WASM)
     set(EMSCRIPTEN_LINK_FLAGS 
         "-s WASM=1 \
          -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','addFunction'] \
-         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback','_GetTerminalIdentCode'] \
+         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback','_GetTerminalIdentCode','_TerminalOutputToJS','_SetJSTerminalOutputHandler'] \
          -s EXPORT_NAME='ND100Module' \
          -s MODULARIZE=1 \
          -s ALLOW_TABLE_GROWTH=1 \

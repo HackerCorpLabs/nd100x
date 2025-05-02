@@ -1,4 +1,17 @@
 cmake_minimum_required(VERSION 3.14)
+
+# Prevent in-source builds to protect the existing Makefile
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR 
+        "In-source builds are not allowed!\n"
+        "This would overwrite the existing Makefile in the root folder.\n"
+        "Please create a build directory and run cmake from there:\n"
+        "  mkdir -p build && cd build && cmake ..\n"
+        "To remove files created by an attempted in-source build, run:\n"
+        "  rm -rf CMakeCache.txt CMakeFiles/\n"
+    )
+endif()
+
 project(nd100x VERSION 0.1.0 DESCRIPTION "ND100X Emulator" LANGUAGES C CXX)
 
 # Options
@@ -36,11 +49,21 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Add subdirectories
+# Build mktypes tool first before we need it
+message(STATUS "Building mktypes tool...")
+execute_process(
+    COMMAND make -C ${CMAKE_SOURCE_DIR}/tools/mkptypes
+    RESULT_VARIABLE MKTYPES_RESULT
+)
+if(NOT MKTYPES_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to build mktypes tool. Error: ${MKTYPES_RESULT}")
+endif()
+
+# Add subdirectories in the correct order for header generation
 add_subdirectory(src/ndlib)
+add_subdirectory(src/machine)  # Machine comes before CPU to ensure headers are generated
 add_subdirectory(src/cpu)
 add_subdirectory(src/devices)
-add_subdirectory(src/machine)
 
 # Handle debugger conditionally based on platform
 if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
@@ -55,18 +78,25 @@ if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
     endif()
 endif()
 
-# Add frontend subdirectories
-add_subdirectory(src/frontend/nd100x)
-add_subdirectory(src/frontend/nd100wasm)
+# Add frontend subdirectories conditionally
+if(BUILD_WASM)
+    add_subdirectory(src/frontend/nd100wasm)
+else()
+    add_subdirectory(src/frontend/nd100x)
+endif()
 
-# Build mktypes tool
-message(STATUS "Building mktypes tool...")
-execute_process(
-    COMMAND make -C ${CMAKE_SOURCE_DIR}/tools/mkptypes
-    RESULT_VARIABLE MKTYPES_RESULT
-)
-if(NOT MKTYPES_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to build mktypes tool. Error: ${MKTYPES_RESULT}")
+# Apply Emscripten-specific settings when compiling for WASM
+if(PLATFORM_WASM OR BUILD_WASM)
+    set(EMSCRIPTEN_LINK_FLAGS
+        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','stackTrace','noExitRuntime','preloadPlugins','STACK_SIZE','FS','addFunction'] \
+         -s ALLOW_TABLE_GROWTH=1"
+    )
+    
+    # Only set these properties if the target exists
+    if(TARGET nd100wasm)
+        # Apply flags only to the WASM target
+        set_target_properties(nd100wasm PROPERTIES LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS}")
+    endif()
 endif()
 
 # Display helper messages
