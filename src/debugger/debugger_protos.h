@@ -7,3 +7,4 @@ void WaitForDebugger(void);
 void ReleaseDebugger(void);
 int ndx_server_init(int port);
 int ndx_server_stop(void);
+void debugger_kbd_input(char c);

@@ -38,6 +38,7 @@ static struct option long_options[] = {
     {"verbose", no_argument,       0, 'v'},
     {"help",    no_argument,       0, 'h'},
     {"debugger", no_argument,      0, 'd'},
+    {"port",    no_argument,       0, 'p'},
     {0, 0, 0, 0}
 };
 
@@ -50,6 +51,8 @@ void Config_Init(Config_t *config) {
     config->disasmEnabled = false;
     config->verbose = false;
     config->showHelp = false;
+    config->debuggerEnabled = false;
+    config->debuggerPort = 4711;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -122,7 +125,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     }
     
     // Check required arguments
-    if (!config->showHelp) {
+    if ((!config->showHelp && !config->debuggerEnabled)) {
         if (config->bootType == BOOT_NONE) {
             config->bootType = BOOT_SMD;
 
@@ -155,14 +158,16 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 void Config_PrintHelp(const char *progName) {
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
-    printf("  -b, --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)\n");
-    printf("  -i, --image=FILE   Image file to load\n");
-    printf("  -s, --start=ADDR   Start address (default: 0)\n");
-    printf("  -a, --disasm       Enable disassembly output\n");
-    printf("  -d, --debugger     Enable DAP debugger\n");
-    printf("  -v, --verbose      Enable verbose output\n");
-    printf("  -h, --help         Show this help message\n\n");
+    printf("  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)\n");
+    printf("  -i,      --image=FILE   Image file to load\n");
+    printf("  -s,      --start=ADDR   Start address (default: 0)\n");
+    printf("  -a,      --disasm       Enable disassembly output\n");
+    printf("  -d,      --debugger     Enable DAP debugger\n");
+    printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
+    printf("  -v,      --verbose      Enable verbose output\n");
+    printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);
     printf("  %s --boot=floppy --image=disk.img --start=0x1000 --disasm\n", progName);
+    printf("  %s --debugger\n", progName);
 } 
