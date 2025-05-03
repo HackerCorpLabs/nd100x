@@ -10,7 +10,7 @@ This project uses CMake as its build system. The structure is modular, with core
 - `cpu/` - CPU emulation module
 - `devices/` - Device emulation modules
 - `machine/` - Machine integration module
-- `debugger/` - Debugging support (Linux/Windows only)
+- `debugger/` - DAP Debugging support (Linux/Windows only)
 - `frontend/nd100x/` - Native frontend
 - `frontend/nd100wasm/` - WebAssembly frontend
 
@@ -20,7 +20,8 @@ This project uses CMake as its build system. The structure is modular, with core
 
 - CMake 3.14 or higher
 - C/C++ compiler (gcc, clang, MSVC)
-- For WebAssembly builds: Emscripten SDK
+- For WebAssembly builds: Emscripten SDK 
+    - See [How to build WASM document](HOWTO_BUILD_WASM.md)
 
 #### Building on Linux/macOS
 

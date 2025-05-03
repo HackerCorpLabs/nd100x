@@ -109,10 +109,10 @@ make release
 make sanitize
 ```
 
-The build system supports three different build types:
-- `debug`: Includes debug symbols and disables optimizations
-- `release`: Enables high-level optimizations for best performance
-- `sanitize`: Includes Address Sanitizer for debugging memory issues
+For more information on the build system, see the [How to build document](docs/HOWTO_BUILD.md).
+
+Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
+
 
 ### Command Line Options for nd100x
 
