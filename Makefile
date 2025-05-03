@@ -73,6 +73,13 @@ clean:
 	@echo "Cleaning build directories..."
 	rm -rf $(BUILD_DIR) $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) $(BUILD_DIR_SANITIZE) $(BUILD_DIR_WASM)
 
+
+update-libdap:
+	cd external/libdap && git fetch && git checkout origin/main
+	git add external/libdap
+	git commit -m "Update libdap submodule to latest commit"
+
+	
 install:
 	@echo "Installing..."
 	$(CMAKE) --install $(BUILD_DIR)
