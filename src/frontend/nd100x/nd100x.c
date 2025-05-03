@@ -52,6 +52,9 @@
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
+#include "debugger.h"
+#include "debugger_protos.h"
+
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
 
@@ -83,6 +86,8 @@ void dump_stats()
 	printf("Current cpu cycle time is:%f microsecs\n",(totaltime/((double)instr_counter/1000000.0)));
 }
 
+/// @brief Initialize the emulator. Add devices and load program
+
 void initialize()
 {
    srand ( time(NULL) ); /* Generate PRNG Seed */
@@ -111,7 +116,7 @@ void initialize()
     // {0360, 046, 046, "TERMINAL 7/ TET10"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
     
-
+    
 	program_load(config.bootType, config.imageFile, config.verbose);	
 	gPC = STARTADDR;
 
@@ -158,11 +163,15 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
     
+    if (config.debuggerEnabled) {
+        printf("DAP Debugger enabled on port %d\n", config.debuggerPort);
+    }
+
     // Set global variables from config
     DISASM = config.disasmEnabled;
     STARTADDR = config.startAddress;
 
-	initialize();
+    initialize();
 
 	Device *terminal = DeviceManager_GetDeviceByAddress(0300);
 	Device_SetCharacterOutput(terminal, TerminalOutputHandler);
@@ -173,12 +182,23 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
+    if (config.debuggerEnabled) {
+        set_cpu_run_mode(CPU_PAUSED);
+    }
+
 	// Run the machine until it stops	
 	CPURunMode runMode = get_cpu_run_mode();
 
 	while (runMode != CPU_SHUTDOWN)
 	{
-		machine_run(5000);
+        if (runMode == CPU_PAUSED) {
+            sleep_ms(100); // sleep 100ms
+        }
+        else
+        {
+            machine_run(5000);  
+        }
+
 		runMode = get_cpu_run_mode();
 
 		if (runMode != CPU_SHUTDOWN)
@@ -199,6 +219,7 @@ int main(int argc, char *argv[])
                 numread = 0;
             }
             
+                        
             for (int i = 0; i < numread; i++)
             {
                 char ch = (char)recv_data[i];
@@ -208,7 +229,14 @@ int main(int argc, char *argv[])
                 {
                     ch = '\r';
                 }
-                Terminal_QueueKeyCode(terminal, ch);
+
+                if (runMode == CPU_PAUSED) {
+                    debugger_kbd_input(ch);
+                }
+                else
+                {
+                    Terminal_QueueKeyCode(terminal, ch);
+                }
             }
         }
     }

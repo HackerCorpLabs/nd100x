@@ -55,3 +55,4 @@ Thumbs.db
 /build_wasm/
 FLOPPY.IMG
 SMD0.IMG
+/asm/

@@ -40,6 +40,7 @@ typedef struct {
     bool verbose;
     bool showHelp;
     bool debuggerEnabled;
+    int debuggerPort;
 } Config_t;
 
 #endif // CONFIG_H 
