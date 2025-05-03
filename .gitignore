@@ -53,3 +53,5 @@ Thumbs.db
 /tools/mkptypes/mkptypes
 /build/
 /build_wasm/
+FLOPPY.IMG
+SMD0.IMG

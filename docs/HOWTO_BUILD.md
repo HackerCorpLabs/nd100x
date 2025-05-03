@@ -23,6 +23,9 @@ This project uses CMake as its build system. The structure is modular, with core
 - For WebAssembly builds: Emscripten SDK 
     - See [How to build WASM document](HOWTO_BUILD_WASM.md)
 
+- cJSON library
+  - apt install libcjson-dev
+
 #### Building on Linux/macOS
 
 ```bash
