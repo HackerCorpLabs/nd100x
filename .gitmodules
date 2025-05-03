@@ -1,6 +1,6 @@
 [submodule "external/libdap"]
 	path = external/libdap
 	url = https://github.com/HackerCorpLabs/libdap
-[submodule "external/external/cJSON"]
-	path = external/external/cJSON
+[submodule "external/cJSON"]
+	path = external/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
