@@ -1947,8 +1947,8 @@ BSET <condition> <bit_no>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO`: Specificed bit equals zero<br>- `ONE`: Specified bit equals one<br>- `BAC`: Specified bit equals K<br>- `BCM`: Complement specified bit<br> |
-| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG`: Floating rounding flag<br>- `SSK`: 1-bit accumulator (K)<br>- `SSZ`: Error flag (Z)<br>- `SSQ`: Dynamic overflow flag (Q)<br>- `SSO`: Static overflow flag (O)<br>- `SSC`: Page table flag<br>- `SSM`: Page table flag<br> |
+| `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO` (`0000`): Specificed bit equals zero<br>- `ONE` (`0001`): Specified bit equals one<br>- `BAC` (`0002`): Specified bit equals K<br>- `BCM` (`0003`): Complement specified bit<br> |
+| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
 
 #### 📚 Examples
 
@@ -1998,8 +1998,8 @@ BSKP <condition> <bit_no>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO`: Specificed bit equals zero<br>- `ONE`: Specified bit equals one<br>- `BAC`: Specified bit equals K<br>- `BCM`: Complement specified bit<br> |
-| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG`: Floating rounding flag<br>- `SSK`: 1-bit accumulator (K)<br>- `SSZ`: Error flag (Z)<br>- `SSQ`: Dynamic overflow flag (Q)<br>- `SSO`: Static overflow flag (O)<br>- `SSC`: Page table flag<br>- `SSM`: Page table flag<br> |
+| `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO` (`0000`): Specificed bit equals zero<br>- `ONE` (`0001`): Specified bit equals one<br>- `BAC` (`0002`): Specified bit equals K<br>- `BCM` (`0003`): Complement specified bit<br> |
+| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
 
 #### 📚 Examples
 
@@ -2509,8 +2509,8 @@ COPY [sub-instruction(s)] <source> <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-6 | The opcode for register arithmetic |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -2939,7 +2939,7 @@ EXR <sr>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-3 | The opcode for execute instruction |
-| `register` | enum | 2-0 | Register containing instruction to execute<br><br>**Values:**<br>- `SD`: D register<br>- `SB`: B register<br>- `SL`: L register<br>- `SA`: A register<br>- `ST`: T register<br>- `SX`: X register<br> |
+| `register` | enum | 2-0 | Register containing instruction to execute<br><br>**Values:**<br>- `SD` (`000010`): D register<br>- `SB` (`000030`): B register<br>- `SL` (`000040`): L register<br>- `SA` (`000050`): A register<br>- `ST` (`000060`): T register<br>- `SX` (`000070`): X register<br> |
 
 #### 📚 Examples
 
@@ -3255,7 +3255,7 @@ Transfer IDENT code of interrupting device with highest priority on the specifie
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-6 | The opcode determines what type of operation occurs |
-| `level_code` | enum | 5-0 | The interrupt level code<br><br>**Values:**<br>- `PL10`: Level 10<br>- `PL11`: Level 11<br>- `PL12`: Level 12<br>- `PL13`: Level 13<br> |
+| `level_code` | enum | 5-0 | The interrupt level code<br><br>**Values:**<br>- `PL10` (`000004`): Level 10<br>- `PL11` (`000011`): Level 11<br>- `PL12` (`000022`): Level 12<br>- `PL13` (`000043`): Level 13<br> |
 
 --------------------------------------------------------------------------------
 
@@ -3685,7 +3685,7 @@ IRR <level> <register>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-7 | The opcode for inter-register read |
 | `level` | uint4 | 6-3 | Privilege level to access (0-15) |
-| `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS`: Status register<br>- `DD`: D register<br>- `DP`: P register<br>- `DB`: B register<br>- `DL`: L register<br>- `DA`: A register<br>- `DT`: T register<br>- `DX`: X register<br> |
+| `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS` (`000000`): Status register<br>- `DD` (`000001`): D register<br>- `DP` (`000002`): P register<br>- `DB` (`000003`): B register<br>- `DL` (`000004`): L register<br>- `DA` (`000005`): A register<br>- `DT` (`000006`): T register<br>- `DX` (`000007`): X register<br> |
 
 #### 📚 Examples
 
@@ -3735,7 +3735,7 @@ IRW <level> <register>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-7 | The opcode for inter-register read |
 | `level` | uint4 | 6-3 | Privilege level to access (0-15) |
-| `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS`: Status register<br>- `DD`: D register<br>- `DP`: P register<br>- `DB`: B register<br>- `DL`: L register<br>- `DA`: A register<br>- `DT`: T register<br>- `DX`: X register<br> |
+| `register` | enum | 2-0 | Register to read from specified level<br><br>**Values:**<br>- `STS` (`000000`): Status register<br>- `DD` (`000001`): D register<br>- `DP` (`000002`): P register<br>- `DB` (`000003`): B register<br>- `DL` (`000004`): L register<br>- `DA` (`000005`): A register<br>- `DT` (`000006`): T register<br>- `DX` (`000007`): X register<br> |
 
 #### 📚 Examples
 
@@ -5005,7 +5005,7 @@ LRB <level>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
 | `level` | uint4 | 6-3 | The level to load the register block to |
-| `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB`: Store Register Block<br>- `LRB`: Load Register Block<br> |
+| `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB` (`0`): Store Register Block<br>- `LRB` (`2`): Load Register Block<br> |
 
 #### 📚 Examples
 
@@ -5200,7 +5200,7 @@ MCL <internal_register>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
-| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `STS`: <br>- `PID`: <br>- `PIE`: <br> |
+| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `STS` (`0001`): <br>- `PID` (`0006`): <br>- `PIE` (`0007`): <br> |
 
 #### 📚 Examples
 
@@ -5480,6 +5480,8 @@ Word block move.
 
 This instruction moves a block of words from one area of memory to another. The type of transfer is determined by the opcode field ΔΔ, with the base octal code 1431ΔΔ.
 
+  ```
+
   ┌───────┬─────────────┬─────────────┐
   │ ΔΔ₈   │ move from:  │ move to:    │
   ├───────┼─────────────┼─────────────┤
@@ -5493,6 +5495,9 @@ This instruction moves a block of words from one area of memory to another. The 
   │ 07₈   │ phy.memory  │ APT*        │
   │ 10₈   │ phy.memory  │ phy.memory* │
   └───────┴─────────────┴─────────────┘
+  
+``` 
+
   * = privileged instruction
   PT  = normal page table
   APT = alternative page table
@@ -5642,7 +5647,7 @@ MST <register>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
-| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `STS`: <br>- `PID`: <br>- `PIE`: <br> |
+| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `STS` (`0001`): <br>- `PID` (`0006`): <br>- `PIE` (`0007`): <br> |
 
 --------------------------------------------------------------------------------
 
@@ -6152,8 +6157,8 @@ RADD [sub-instruction(s)] <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6252,8 +6257,8 @@ RAND [sub-instruction(s)] <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 📚 Examples
 
@@ -6313,7 +6318,7 @@ RCLR <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode for register arithmetic |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6373,7 +6378,7 @@ RDCR <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode for register arithmetic |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6439,8 +6444,8 @@ RDIV <source> <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-6 | The opcode for register arithmetic |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6727,8 +6732,8 @@ REXO [flags] <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 📚 Examples
 
@@ -6824,7 +6829,7 @@ RINC <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode for register arithmetic |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6887,8 +6892,8 @@ RMPY <source> <destination>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-6 | The opcode for register arithmetic |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -6969,8 +6974,8 @@ RORA <sub-instruction(s)> <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -7046,8 +7051,8 @@ RSUB <sub-instruction> <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -7251,7 +7256,7 @@ SAD <shift_type> <shift_counter>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic`: Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT`: Rotational shift. Most and least significant bits are connected.<br>- `ZIN`: Zero end input<br>- `LIN`: Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
+| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic` (`00`): Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT` (`01`): Rotational shift. Most and least significant bits are connected.<br>- `ZIN` (`10`): Zero end input<br>- `LIN` (`11`): Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
 | `register` | enum | 7-8 | The register to shift |
 | `mask6` | numeric | 6 | Always 0 |
 | `SHR` | assembler_flag | 0 | This a feature of the assembler. This mnemonic can be used to specify shift right, so that instead of calculating the 2's complement for the number of right shifts required, SHR can be used. |
@@ -7738,7 +7743,7 @@ SHA <shift_type> <shift_counter>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic`: Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT`: Rotational shift. Most and least significant bits are connected.<br>- `ZIN`: Zero end input<br>- `LIN`: Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
+| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic` (`00`): Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT` (`01`): Rotational shift. Most and least significant bits are connected.<br>- `ZIN` (`10`): Zero end input<br>- `LIN` (`11`): Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
 | `register` | enum | 7-8 | The register to shift |
 | `mask6` | numeric | 6 | Always 0 |
 | `SHR` | assembler_flag | 0 | This a feature of the assembler. This mnemonic can be used to specify shift right, so that instead of calculating the 2's complement for the number of right shifts required, SHR can be used. |
@@ -7789,7 +7794,7 @@ SHD <shift_type> <shift_counter>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic`: Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT`: Rotational shift. Most and least significant bits are connected.<br>- `ZIN`: Zero end input<br>- `LIN`: Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
+| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic` (`00`): Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT` (`01`): Rotational shift. Most and least significant bits are connected.<br>- `ZIN` (`10`): Zero end input<br>- `LIN` (`11`): Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
 | `register` | enum | 7-8 | The register to shift |
 | `mask6` | numeric | 6 | Always 0 |
 | `SHR` | assembler_flag | 0 | This a feature of the assembler. This mnemonic can be used to specify shift right, so that instead of calculating the 2's complement for the number of right shifts required, SHR can be used. |
@@ -7921,7 +7926,7 @@ SHT <shift_type> <shift_counter>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic`: Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT`: Rotational shift. Most and least significant bits are connected.<br>- `ZIN`: Zero end input<br>- `LIN`: Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
+| `shift_type` | enum | 10-9 | <br><br>**Values:**<br>- `Arithmetic` (`00`): Arithmetic shift. During right shift, bit 15 is extended. During left shift, zeros are shifted in from right.<br>- `ROT` (`01`): Rotational shift. Most and least significant bits are connected.<br>- `ZIN` (`10`): Zero end input<br>- `LIN` (`11`): Link end input. The last vacated bit is fed to M after every shift instruction.<br> |
 | `register` | enum | 7-8 | The register to shift |
 | `mask6` | numeric | 6 | Always 0 |
 | `SHR` | assembler_flag | 0 | This a feature of the assembler. This mnemonic can be used to specify shift right, so that instead of calculating the 2's complement for the number of right shifts required, SHR can be used. |
@@ -7966,6 +7971,8 @@ Four flags are affected by this calculation:
 
 The condition codes are as follows:
 
+  ```
+
     ┌───────┬─────────┬──────────────────────────────┬────────────────────────┐
     │ bits  │ mnemonic│ description                  │ flag(s) condition      │
     │10 9 8 │         │                              │ if true                │
@@ -7979,6 +7986,8 @@ The condition codes are as follows:
     │ 1 1 0 │ LST     │ Less than * †                │ S + O = 1              │
     │ 1 1 1 │ MLST    │ Magnitude less than *        │ C = 0                  │
     └───────┴─────────┴──────────────────────────────┴────────────────────────┘
+  
+```
 
 * Overflow is taken care of
 † Contents of sr and dr are treated as signed numbers
@@ -8010,7 +8019,7 @@ SKP <dr> <condition> <sr>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
-| `condition` | enum | 10-8 | Condition to skip the next instruction<br><br>**Values:**<br>- `EQL`: Equal<br>- `GEQ`: Greater or equal to (signed)<br>- `GRE`: Greater or equal to (overflow, signed)<br>- `MGRE`: Magnitude greater or equal to (overflow, unsigned)<br>- `UEQ`: Unequal<br>- `LSS`: Less than (overflow, unsigned)<br>- `LST`: Less than (overflow, signed)<br>- `MLST`: Magnitude less than (overflow, unsigned)<br> |
+| `condition` | enum | 10-8 | Condition to skip the next instruction<br><br>**Values:**<br>- `EQL` (`0`): Equal<br>- `GEQ` (`1`): Greater or equal to (signed)<br>- `GRE` (`2`): Greater or equal to (overflow, signed)<br>- `MGRE` (`3`): Magnitude greater or equal to (overflow, unsigned)<br>- `UEQ` (`4`): Unequal<br>- `LSS` (`5`): Less than (overflow, unsigned)<br>- `LST` (`6`): Less than (overflow, signed)<br>- `MLST` (`7`): Magnitude less than (overflow, unsigned)<br> |
 | `zeros` | value | 7-6 | Must be 00 |
 | `sr` | src_register | 5-3 | The source register to be compared with the destination register |
 | `dr` | dst_register | 2-0 | The destination register to be compared with the source register |
@@ -8110,7 +8119,7 @@ SRB <level>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
 | `level` | uint4 | 6-3 | The level to load the register block to |
-| `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB`: Store Register Block<br>- `LRB`: Load Register Block<br> |
+| `type` | enum | 2-0 | The type of register block function<br><br>**Values:**<br>- `SRB` (`0`): Store Register Block<br>- `LRB` (`2`): Load Register Block<br> |
 
 #### 📚 Examples
 
@@ -8730,8 +8739,8 @@ SWAP <sub-instruction(s)> <source> <destination>
 | `CM1` | flag | 7 | Use one's complement of source |
 | `CM2` | flag | 8-7 | Two's complement (CM1 AD1) |
 | `CLD` | flag | 6 | Clear destination before operation |
-| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD`: D register as source<br>- `SP`: P register as source<br>- `SB`: B register as source<br>- `SL`: L register as source<br>- `SA`: A register as source<br>- `ST`: T register as source<br>- `SX`: X register as source<br>- `ZERO`: Source value equals zero<br> |
-| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD`: D register as destination<br>- `DP`: P register as destination<br>- `DB`: B register as destination<br>- `DL`: L register as destination<br>- `DA`: A register as destination<br>- `DT`: T register as destination<br>- `DX`: X register as destination<br> |
+| `source` | enum | 5-3 | Source register (sr)<br><br>**Values:**<br>- `SD` (`000010`): D register as source<br>- `SP` (`000020`): P register as source<br>- `SB` (`000030`): B register as source<br>- `SL` (`000040`): L register as source<br>- `SA` (`000050`): A register as source<br>- `ST` (`000060`): T register as source<br>- `SX` (`000070`): X register as source<br>- `ZERO` (`000000`): Source value equals zero<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 🚩 Flags Affected
 
@@ -8874,7 +8883,7 @@ TRA <internal_register>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
-| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `PANS`: Panel status<br>- `STS`: Status register<br>- `OPR`: Operator's panel switch register<br>- `PSR`: Paging status register<br>- `PVL`: Previous level code register<br>- `IIC`: Internal interrupt code register<br>- `PID`: Priority interrupt detect register<br>- `PIE`: Priority enable detect register<br>- `CSR`: Cache status register<br>- `ACTL`: Active level register<br>- `ALD`: Automatic load descriptor<br>- `PES`: Parity error status register<br>- `PGC`: Paging control register<br>- `PEA`: Parity error address register<br>- `CS`: Control store<br> |
+| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `PANS` (`0000`): Panel status<br>- `STS` (`0001`): Status register<br>- `OPR` (`0002`): Operator's panel switch register<br>- `PSR` (`0003`): Paging status register<br>- `PVL` (`0004`): Previous level code register<br>- `IIC` (`0005`): Internal interrupt code register<br>- `PID` (`0006`): Priority interrupt detect register<br>- `PIE` (`0007`): Priority enable detect register<br>- `CSR` (`0010`): Cache status register<br>- `ACTL` (`0011`): Active level register<br>- `ALD` (`0012`): Automatic load descriptor<br>- `PES` (`0013`): Parity error status register<br>- `PGC` (`0014`): Paging control register<br>- `PEA` (`0015`): Parity error address register<br>- `CS` (`0017`): Control store<br> |
 
 --------------------------------------------------------------------------------
 
@@ -8916,7 +8925,7 @@ TRR <internal_register>
 | Name | Type | Bits | Description |
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-4 | The opcode determines what type of operation occurs |
-| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `PANC`: Panel control<br>- `STS`: Status register<br>- `LMP`: Panel data display buffer register<br>- `PCR`: Paging control register<br>- `IIE`: Internal interrupt enable register<br>- `PID`: Priority interrupt detect register<br>- `PIE`: Priority interrupt enable register<br>- `CCL`: Cache clear register<br>- `LCIL`: Lower cache inhibit limit register<br>- `UCIL`: Upper cache inhibit limit register<br>- `CILP`: Cache inhibit page register<br>- `ECCR`: Error correction control register<br>- `CS`: Control Store<br> |
+| `internal_register` | enum | 3-0 | The CPU internal register<br><br>**Values:**<br>- `PANC` (`0000`): Panel control<br>- `STS` (`0001`): Status register<br>- `LMP` (`0002`): Panel data display buffer register<br>- `PCR` (`0003`): Paging control register<br>- `IIE` (`0005`): Internal interrupt enable register<br>- `PID` (`0006`): Priority interrupt detect register<br>- `PIE` (`0007`): Priority interrupt enable register<br>- `CCL` (`0010`): Cache clear register<br>- `LCIL` (`0011`): Lower cache inhibit limit register<br>- `UCIL` (`0012`): Upper cache inhibit limit register<br>- `CILP` (`0013`): Cache inhibit page register<br>- `ECCR` (`0015`): Error correction control register<br>- `CS` (`0017`): Control Store<br> |
 
 --------------------------------------------------------------------------------
 
