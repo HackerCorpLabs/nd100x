@@ -42,63 +42,70 @@ target_link_libraries(debugger
     PUBLIC machine
 )
 
-# Check if libdap exists
-if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
-    # Find required dependencies
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(CJSON QUIET libcjson)
+# Only define WITH_DEBUGGER when globally enabled
+if(DEBUGGER_ENABLED)
+    target_compile_definitions(debugger PRIVATE
+        WITH_DEBUGGER
+    )
+    message(STATUS "Debugger module: WITH_DEBUGGER flag set")
+
+    # Only include DAP and symbols libraries if debugger is enabled 
+
+    # Check if libdap exists
+    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+        # Find required dependencies
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(CJSON QUIET libcjson)
+        endif()
+
+        # Include libdap
+        target_include_directories(debugger
+            PRIVATE ${LIBDAP_INCLUDE_DIR}
+        )
+
+        # Link with libdap - change from dap to dap_objects
+        target_link_libraries(debugger
+            PRIVATE dap_objects
+        )
+
+        # Add DAP_ENABLED definition
+        target_compile_definitions(debugger
+            PRIVATE DAP_ENABLED=1
+        )
+
+        message(STATUS "Debugger module: DAP support enabled (using libdap)")
+    else()
+        message(STATUS "Debugger module: DAP support disabled (libdap not found)")
     endif()
 
-    # Include libdap
-    target_include_directories(debugger
-        PRIVATE ${LIBDAP_INCLUDE_DIR}
-    )
+    # Check if libsymbols exists
+    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+        # Set libsymbols include directory
+        set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
 
-    # Link with libdap - change from dap to dap_objects
-    target_link_libraries(debugger
-        PRIVATE dap_objects
-    )
+        # Include libsymbols
+        target_include_directories(debugger
+            PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
+        )
 
-    # Add DAP_ENABLED definition
-    target_compile_definitions(debugger
-        PRIVATE DAP_ENABLED=1
-    )
+        # Link with libsymbols
+        target_link_libraries(debugger
+            PRIVATE symbols_objects
+        )
 
-    message(STATUS "Debugger module: DAP support enabled (using libdap)")
+        message(STATUS "Debugger module: Symbol support enabled (using libsymbols)")
+    else()
+        message(STATUS "Debugger module: Symbol support disabled (libsymbols not found)")
+    endif()
+
 else()
-    message(STATUS "Debugger module: DAP support disabled (libdap not found)")
-endif()
-
-# Check if libsymbols exists
-if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
-    # Set libsymbols include directory
-    set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
-    
-    # Include libsymbols
-    target_include_directories(debugger
-        PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
-    )
-    
-    # Link with libsymbols
-    target_link_libraries(debugger
-        PRIVATE symbols_objects
-    )
-    
-    message(STATUS "Debugger module: Symbol support enabled (using libsymbols)")
-else()
-    message(STATUS "Debugger module: Symbol support disabled (libsymbols not found)")
+    message(STATUS "Debugger module: WITH_DEBUGGER flag not set, using stub implementations")
 endif()
 
 # Set properties
 set_target_properties(debugger PROPERTIES
     POSITION_INDEPENDENT_CODE ON
-)
-
-# Always compile with WITH_DEBUGGER and _DEBUGGER_ENABLED_ defined
-target_compile_definitions(debugger PRIVATE 
-    WITH_DEBUGGER
-    _DEBUGGER_ENABLED_
 )
 
 # Install targets
@@ -110,4 +117,4 @@ install(TARGETS debugger
 # Install headers
 install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
     DESTINATION include/debugger
-) 
+)

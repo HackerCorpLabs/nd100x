@@ -33,16 +33,8 @@ target_compile_definitions(nd100x PRIVATE
     DEBUG
 )
 
-# If debugger is enabled, add the include and link with debugger lib
-if(PLATFORM_LINUX OR PLATFORM_WINDOWS OR PLATFORM_RISCV)
-    target_include_directories(nd100x PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/debugger
-    )
-    
-    # Link with debugger library
-    target_link_libraries(nd100x PRIVATE
-        debugger
-    )
+# If debugger is enabled, add external library dependencies
+if(DEBUGGER_ENABLED )
     # If libdap is available, link with it
     if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
         target_include_directories(nd100x PRIVATE
@@ -50,7 +42,6 @@ if(PLATFORM_LINUX OR PLATFORM_WINDOWS OR PLATFORM_RISCV)
         )
         target_link_libraries(nd100x PRIVATE
             dap_objects
-            
         )
     endif()
     
