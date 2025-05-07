@@ -14,6 +14,7 @@ target_include_directories(nd100x PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ndlib
     ${CMAKE_SOURCE_DIR}/src/devices
     ${CMAKE_SOURCE_DIR}/src/machine
+    ${CMAKE_SOURCE_DIR}/src/debugger
 )
 
 # Link with required libraries
@@ -22,6 +23,7 @@ target_link_libraries(nd100x PRIVATE
     devices
     cpu
     ndlib
+    debugger
     m
 )
 
@@ -32,7 +34,7 @@ target_compile_definitions(nd100x PRIVATE
 )
 
 # If debugger is enabled, add the include and link with debugger lib
-if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
+if(PLATFORM_LINUX OR PLATFORM_WINDOWS OR PLATFORM_RISCV)
     target_include_directories(nd100x PRIVATE
         ${CMAKE_SOURCE_DIR}/src/debugger
     )
@@ -41,7 +43,6 @@ if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
     target_link_libraries(nd100x PRIVATE
         debugger
     )
-    
     # If libdap is available, link with it
     if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
         target_include_directories(nd100x PRIVATE
@@ -49,6 +50,17 @@ if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
         )
         target_link_libraries(nd100x PRIVATE
             dap_objects
+            
+        )
+    endif()
+    
+    # If libsymbols is available, link with it
+    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+        target_include_directories(nd100x PRIVATE
+            ${CMAKE_SOURCE_DIR}/external/libsymbols/include
+        )
+        target_link_libraries(nd100x PRIVATE
+            symbols_objects
         )
     endif()
 endif()

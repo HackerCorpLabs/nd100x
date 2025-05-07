@@ -1,11 +1,6 @@
 # Debugger Module
 project(debugger)
 
-# Only build for Linux/Windows platforms
-if(NOT PLATFORM_LINUX AND NOT PLATFORM_WINDOWS)
-    message(STATUS "Skipping debugger build for non-Linux/Windows platform")
-    return()
-endif()
 
 # Find source files
 file(GLOB SOURCES "*.c")
@@ -73,6 +68,26 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
     message(STATUS "Debugger module: DAP support enabled (using libdap)")
 else()
     message(STATUS "Debugger module: DAP support disabled (libdap not found)")
+endif()
+
+# Check if libsymbols exists
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+    # Set libsymbols include directory
+    set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
+    
+    # Include libsymbols
+    target_include_directories(debugger
+        PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
+    )
+    
+    # Link with libsymbols
+    target_link_libraries(debugger
+        PRIVATE symbols_objects
+    )
+    
+    message(STATUS "Debugger module: Symbol support enabled (using libsymbols)")
+else()
+    message(STATUS "Debugger module: Symbol support disabled (libsymbols not found)")
 endif()
 
 # Set properties

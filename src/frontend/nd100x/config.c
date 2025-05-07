@@ -70,6 +70,7 @@ static BOOT_TYPE parseBootType(const char *bootStr) {
 bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int option_index = 0;
     int c;
+    char *endptr;
     
     while ((c = getopt_long(argc, argv, "b:i:s:dvh",
                            long_options, &option_index)) != -1) {
@@ -91,7 +92,6 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 break;
                 
             case 's':
-                char *endptr;
                 config->startAddress = strtoul(optarg, &endptr, 0);
                 if (*endptr != '\0') {
                     fprintf(stderr, "Invalid start address: %s\n", optarg);

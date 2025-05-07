@@ -3,16 +3,24 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#define _DEBUGGER_ENABLED_
 
 #include "debugger.h"
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
+#ifdef _DEBUGGER_ENABLED_
 #include "../../external/libdap/libdap/include/dap_server.h"
+#include "../../external/libdap/libdap/include/dap_server_cmds.h"
+#include "../../external/libsymbols/include/symbols.h"
+#include "symbols_support.h"
 
 // DAP server instance
 DAPServer* server;    
 
+// Global symbol table
+static symbol_table_t* g_symbol_table = NULL;
+#endif
 
 //#define _DEBUGGER_ENABLED_ // Enables debugger thread support
 
@@ -140,41 +148,309 @@ void ReleaseDebugger() {
 }   
         
 
-// Function to step the CPU one instruction
-static int step_cpu(DAPServer *server) {
-    (void)server;
-
+int step_cpu(DAPServer *server, int steps) {
     WaitForDebugger();    
-    cpu_run(1);
-    ushort PC = gPC;
-    ReleaseDebugger();
-    return PC;
-}
-
-// Function to step the CPU to the next source line
-static int step_cpu_line(DAPServer *server) {
-    (void)server;
+    cpu_run(steps);    
     
-    //TODO:  Identify how many instructions to run for a line
-    WaitForDebugger();    
-    cpu_run(1);
-    ushort PC = gPC;
+    server->debugger_state.program_counter = gPC;
+
+    // If we have symbol information, update source line
+    if (g_symbol_table) {
+        int line = 0;
+        const char* filename = get_source_location(gPC, &line);
+        if (filename && line > 0) {
+            server->debugger_state.source_line = line;
+            // source_file may not be present in all DAPServer versions
+            // just update the line number for now
+            // TODO: Add support for source file mapping in the DAP server
+        }
+    }
+
     ReleaseDebugger();
-    return PC;
+    return 0;
 }
 
-// Function to step the CPU to the next statement
-static int step_cpu_statement(DAPServer *server) {
-    (void)server;
-    //TODO:  Identify how many instructions to run for a line
+/********************************** CALLBACKS **********************************/
+static int cmd_next(DAPServer *server) {
+    // Use the step context that was populated by the protocol handler
+    int thread_id = server->current_command.context.step.thread_id;
+    // Extract granularity from the context
+    StepGranularity granularity = DAP_STEP_GRANULARITY_STATEMENT;
+    if (server->current_command.context.step.granularity) {
+        if (strcmp(server->current_command.context.step.granularity, "instruction") == 0) {
+            granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
+        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
+            granularity = DAP_STEP_GRANULARITY_LINE;
+        }
+    }
 
-    WaitForDebugger();    
-    cpu_run(1);
-    ushort PC = gPC;
-    ReleaseDebugger();
-    return PC;
+    // TODO- care about granularity?
+    
+
+    // TODO: Implement step in
+    step_cpu(server,1);
+
+    
+
+    // TODO: Implement mapping of PC to source line
+    server->debugger_state.source_line++;
+
+
+    return 0;    
+
 }
 
+
+static int cmd_step_in(DAPServer *server) {
+    // Use the step context that was populated by the protocol handler
+    int thread_id = server->current_command.context.step.thread_id;
+    int target_id = server->current_command.context.step.target_id;
+    // Extract granularity from the context
+    StepGranularity granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
+    if (server->current_command.context.step.granularity) {
+        if (strcmp(server->current_command.context.step.granularity, "statement") == 0) {
+            granularity = DAP_STEP_GRANULARITY_STATEMENT;
+        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
+            granularity = DAP_STEP_GRANULARITY_LINE;
+        }
+    }
+    
+    // TODO- care about granularity?
+    
+
+    // TODO: Implement step in
+    step_cpu(server,1);
+
+    
+
+    // TODO: Implement mapping of PC to source line
+    server->debugger_state.source_line++;
+
+    return 0;    
+}
+
+static int cmd_step_out(DAPServer *server) {
+    // Use the step context that was populated by the protocol handler
+    int thread_id = server->current_command.context.step.thread_id;
+    // Extract granularity from the context
+    StepGranularity granularity = DAP_STEP_GRANULARITY_STATEMENT;
+    if (server->current_command.context.step.granularity) {
+        if (strcmp(server->current_command.context.step.granularity, "instruction") == 0) {
+            granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
+        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
+            granularity = DAP_STEP_GRANULARITY_LINE;
+        }
+    }
+    
+    // TODO- care about granularity?
+    
+
+    // TODO: Implement step in
+    step_cpu(server,1);
+
+    
+
+    // TODO: Implement mapping of PC to source line
+    server->debugger_state.source_line++;
+}
+
+
+/**
+ * @brief Callback for setting exception breakpoints
+ * 
+ * @param server The DAP server
+ * @return int 0 on success, non-zero on failure
+ */
+static int on_set_exception_breakpoints(DAPServer *server) {
+    
+    // Access filter data from the server's current command context
+    const char** filters = server->current_command.context.exception.filters;
+    size_t filter_count = server->current_command.context.exception.filter_count;
+    const char** conditions = server->current_command.context.exception.conditions;
+    size_t condition_count = server->current_command.context.exception.condition_count;
+
+#if 0    
+    // Clear existing exception filters
+    if (mock_debugger.exception_filters) {
+        for (size_t i = 0; i < mock_debugger.exception_filter_count; i++) {
+            free(mock_debugger.exception_filters[i].filter_id);
+            free(mock_debugger.exception_filters[i].condition);
+        }
+        free(mock_debugger.exception_filters);
+        mock_debugger.exception_filters = NULL;
+        mock_debugger.exception_filter_count = 0;
+    }
+    
+    // If no filters specified, we're done
+    if (filter_count == 0 || !filters) {
+        DBG_MOCK_LOG("No exception filters specified, cleared all filters");
+        return 0;
+    }
+    
+    // Allocate memory for the filters
+    mock_debugger.exception_filters = calloc(filter_count, sizeof(ExceptionBreakpointFilter));
+    if (!mock_debugger.exception_filters) {
+        DBG_MOCK_LOG("Error: Failed to allocate memory for exception filters");
+        return -1;
+    }
+    mock_debugger.exception_filter_count = filter_count;
+    
+    // Process each filter
+    for (size_t i = 0; i < filter_count; i++) {
+        if (filters[i]) {
+            mock_debugger.exception_filters[i].filter_id = strdup(filters[i]);
+            mock_debugger.exception_filters[i].enabled = true;
+            
+            // Check if we have a condition for this filter
+            if (conditions && i < condition_count && conditions[i]) {
+                mock_debugger.exception_filters[i].condition = strdup(conditions[i]);
+                DBG_MOCK_LOG("Added exception filter '%s' with condition: %s", 
+                          mock_debugger.exception_filters[i].filter_id,
+                          mock_debugger.exception_filters[i].condition);
+            } else {
+                mock_debugger.exception_filters[i].condition = NULL;
+                DBG_MOCK_LOG("Added exception filter '%s' with no condition", 
+                          mock_debugger.exception_filters[i].filter_id);
+            }
+        }
+    }
+#endif
+    return 0;
+}
+
+
+
+/**
+ * @brief Command callback for setting breakpoints
+ * 
+ * @param server DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
+static int cmd_set_breakpoints(DAPServer* server) {
+    
+
+#if 0    
+    DBG_MOCK_LOG("Handling setBreakpoints request");
+
+    // Extract source file info from breakpoint context
+    const char* source_path = server->current_command.context.breakpoint.source_path;
+    
+    int breakpoint_count = server->current_command.context.breakpoint.breakpoint_count;
+    
+    if (!source_path || breakpoint_count <= 0) {
+        DBG_MOCK_LOG("Missing required breakpoint information");
+        return -1;
+    }
+    
+    // Get filename from path
+    const char* source_name = strrchr(source_path, '/');
+    if (source_name) {
+        source_name++; // Skip the slash
+    } else {
+        source_name = source_path; // No slash found, use the whole path
+    }
+    
+    DBG_MOCK_LOG("Setting %d breakpoints in %s", breakpoint_count, source_path);
+    
+    // Step 1: Clear existing breakpoints for this source
+    clear_breakpoints_for_source(source_path);
+    
+    // Step 2: Ensure we have enough capacity for new breakpoints
+    if (mock_debugger.breakpoint_count + breakpoint_count > mock_debugger.breakpoint_capacity) {
+        int new_capacity = mock_debugger.breakpoint_capacity == 0 ? 16 : mock_debugger.breakpoint_capacity * 2;
+        while (new_capacity < mock_debugger.breakpoint_count + breakpoint_count) {
+            new_capacity *= 2;
+        }
+        
+        MockBreakpoint* new_breakpoints = realloc(mock_debugger.breakpoints, 
+                                                 new_capacity * sizeof(MockBreakpoint));
+        if (!new_breakpoints) {
+            DBG_MOCK_LOG("Failed to allocate memory for breakpoints");
+            return -1;
+        }
+        
+        mock_debugger.breakpoints = new_breakpoints;
+        mock_debugger.breakpoint_capacity = new_capacity;
+    }
+    
+    // Step 3: Add each new breakpoint
+    for (int i = 0; i < breakpoint_count; i++) {
+        int bp_idx = mock_debugger.breakpoint_count;
+        memset(&mock_debugger.breakpoints[bp_idx], 0, sizeof(MockBreakpoint));
+        
+        // Set basic properties
+        mock_debugger.breakpoints[bp_idx].id = bp_idx + 1; // 1-based IDs
+        mock_debugger.breakpoints[bp_idx].verified = true; // Mock always verifies
+        
+        // Get the line number from the breakpoints array in the current command context
+        const DAPBreakpoint* bp = &server->current_command.context.breakpoint.breakpoints[i];
+        mock_debugger.breakpoints[bp_idx].line = bp->line;
+        mock_debugger.breakpoints[bp_idx].column = bp->column > 0 ? bp->column : 0;
+        
+        // Store source information
+        mock_debugger.breakpoints[bp_idx].source_path = strdup(source_path);
+        mock_debugger.breakpoints[bp_idx].source_name = strdup(source_name);
+        
+        // Copy over additional properties if they exist
+        if (bp->condition) {
+            mock_debugger.breakpoints[bp_idx].condition = strdup(bp->condition);
+        }
+        
+        if (bp->hit_condition) {
+            mock_debugger.breakpoints[bp_idx].hit_condition = strdup(bp->hit_condition);
+        }
+        
+        if (bp->log_message) {
+            mock_debugger.breakpoints[bp_idx].log_message = strdup(bp->log_message);
+        }
+        
+        mock_debugger.breakpoint_count++;
+        
+        // Send console output about the new breakpoint
+        char output_msg[256];
+        snprintf(output_msg, sizeof(output_msg), "Added breakpoint %d at line %d in %s\n", 
+                 mock_debugger.breakpoints[bp_idx].id,
+                 mock_debugger.breakpoints[bp_idx].line,
+                 source_name);
+        dap_server_send_output_event(server, "console", output_msg);
+        
+        DBG_MOCK_LOG("Added breakpoint %d at line %d in %s", 
+                  mock_debugger.breakpoints[bp_idx].id,
+                  mock_debugger.breakpoints[bp_idx].line,
+                  mock_debugger.breakpoints[bp_idx].source_path);
+    }
+#endif    
+    return 0;
+}
+
+/**********************************END OF CALLBACKS **********************************/
+
+
+/**
+ * @brief Set up the default capabilities for the mock server
+ * 
+ * This function configures which DAP capabilities our mock server
+ * actually supports based on our implementation.
+ * 
+ * @param server The DAP server instance
+ * @return int The number of capabilities set
+ */
+int set_default_dap_capabilities(DAPServer *server) {
+    if (!server) {
+        return -1;
+    }
+            
+    return dap_server_set_capabilities(server,
+        // These capabilities are fully implemented in the mock server
+        DAP_CAP_CONFIG_DONE_REQUEST, true,
+        DAP_CAP_EVALUATE_FOR_HOVERS, true,
+        DAP_CAP_RESTART_REQUEST, true,
+        DAP_CAP_TERMINATE_REQUEST, true,
+        
+        // End of capabilities
+        DAP_CAP_COUNT
+    );
+}
 
 int ndx_server_init(int port) {
      // Initialize DAP server
@@ -187,8 +463,7 @@ int ndx_server_init(int port) {
                     .port = port
                 }
             }
-        },                
-        .stop_at_entry = false,        
+        },                        
     };
 
     server = dap_server_create(&config);
@@ -198,9 +473,21 @@ int ndx_server_init(int port) {
 
 
     // Hook up callbacks
-    server->step_cpu = step_cpu;
-    server->step_cpu_line = step_cpu_line;
-    server->step_cpu_statement = step_cpu_statement;
+    // Set up stepping callbacks through command callbacks only
+    // Register command-specific implementations using the wrapper functions
+    dap_server_register_command_callback(server, DAP_CMD_NEXT, cmd_next);
+    dap_server_register_command_callback(server, DAP_CMD_STEP_IN, cmd_step_in);
+    dap_server_register_command_callback(server, DAP_CMD_STEP_OUT, cmd_step_out);
+    
+    // Register exception breakpoint callback
+    dap_server_register_command_callback(server, DAP_CMD_SET_EXCEPTION_BREAKPOINTS, on_set_exception_breakpoints);
+    
+    // Register breakpoint callback
+    dap_server_register_command_callback(server, DAP_CMD_SET_BREAKPOINTS, cmd_set_breakpoints);
+    
+    // Configure which capabilities are supported
+    set_default_dap_capabilities(server);
+
 
 
     int ret = dap_server_start(server);
@@ -226,9 +513,165 @@ int ndx_server_stop() {
 
 void debugger_kbd_input(char c) {
     if (c == '.') {
-        printf(".");
+        printf("%6o\n", gPC);
+    }
+
+    if (c==' ') {
+        cpu_run(100);
+        printf("%6o\n", gPC);
     }
 }
 
+// Add this before the end of the #ifdef _DEBUGGER_ENABLED_ section
+#ifdef _DEBUGGER_ENABLED_
+/**
+ * @brief Initialize symbol table support for the debugger
+ * 
+ * This function loads symbols from a specified binary or map file.
+ * 
+ * @param filename Path to the binary or map file containing symbols
+ * @return int 0 on success, non-zero on failure
+ */
+int init_symbol_support(const char* filename) {
+    if (!filename) {
+        fprintf(stderr, "Error: No symbol file specified\n");
+        return -1;
+    }
+    
+    // Free previous symbol table if it exists
+    if (g_symbol_table) {
+        symbols_free(g_symbol_table);
+        g_symbol_table = NULL;
+    }
+    
+    // Initialize symbol table
+    g_symbol_table = symbols_create();
+    if (!g_symbol_table) {
+        fprintf(stderr, "Error: Failed to create symbol table\n");
+        return -1;
+    }
+    
+    // Try loading symbols from the file (try both map and aout formats)
+    bool result = false;
+    
+    // First try map file format
+    result = symbols_load_map(g_symbol_table, filename);
+    
+    // If that fails, try a.out format
+    if (!result) {
+        result = symbols_load_aout(g_symbol_table, filename);
+    }
+    
+    // If all loading attempts failed
+    if (!result) {
+        fprintf(stderr, "Error: Failed to load symbols from %s\n", filename);
+        symbols_free(g_symbol_table);
+        g_symbol_table = NULL;
+        return -1;
+    }
+    
+    printf("Loaded symbols from %s\n", filename);
+    
+    return 0;
+}
+
+/**
+ * @brief Find a symbol by address
+ * 
+ * @param symtab Symbol table to search
+ * @param address Memory address to look up
+ * @return const char* Symbol name or NULL if not found
+ */
+const char* find_symbol_by_address(symbol_table_t* symtab, uint16_t address) {
+    if (!symtab) {
+        return NULL;
+    }
+    
+    const symbol_entry_t* entry = symbols_lookup_by_address(symtab, address);
+    if (entry && entry->name) {
+        return entry->name;
+    }
+    
+    return NULL;
+}
+
+/**
+ * @brief Helper function to find a symbol by address using the global symbol table
+ * 
+ * @param address Memory address to look up
+ * @return const char* Symbol name or NULL if not found
+ */
+const char* get_symbol_for_address(uint16_t address) {
+    return find_symbol_by_address(g_symbol_table, address);
+}
+
+/**
+ * @brief Get source file and line for an address
+ * 
+ * @param address Memory address to look up
+ * @param line Pointer to store the line number
+ * @return const char* Source filename or NULL if not found
+ */
+const char* get_source_location(uint16_t address, int* line) {
+    if (!g_symbol_table || !line) {
+        return NULL;
+    }
+    
+    *line = symbols_get_line(g_symbol_table, address);
+    return symbols_get_file(g_symbol_table, address);
+}
+
+/**
+ * @brief Function to register symbol information with the DAP server
+ * 
+ * @param server The DAP server instance
+ * @param symbol_file Path to the symbol file
+ * @return int 0 on success, non-zero on failure
+ */
+int register_symbol_file_with_dap(DAPServer *server, const char* symbol_file) {
+    if (!server || !symbol_file) {
+        return -1;
+    }
+    
+    // Load symbols
+    int result = init_symbol_support(symbol_file);
+    if (result != 0) {
+        return result;
+    }
+    
+    // Send a console output event to notify the client
+    char message[256];
+    snprintf(message, sizeof(message), "Loaded symbol information from %s\n", symbol_file);
+    dap_server_send_output_event(server, "console", message);
+    
+    return 0;
+}
+#endif // _DEBUGGER_ENABLED_
 
 #endif // _DEBUGGER_ENABLED_
+
+// Empty implementations when debugger is not enabled
+#ifndef _DEBUGGER_ENABLED_
+
+
+
+
+
+void start_debugger() {
+    // Do nothing when debugger is not enabled
+}
+
+int ndx_server_init(int port) {
+    (void)port;
+    return -1; // Not implemented
+}
+
+int ndx_server_stop() {
+    return -1; // Not implemented
+}
+
+void debugger_kbd_input(char c) {
+    (void)c; // Unused parameter
+}
+
+#endif // !_DEBUGGER_ENABLED_

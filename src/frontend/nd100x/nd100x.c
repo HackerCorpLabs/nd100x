@@ -52,12 +52,13 @@
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
-#include "debugger.h"
-#include "debugger_protos.h"
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
 
+
+// dont include debugger.h here, it will cause other problems, but we define the function here
+void debugger_kbd_input(char c) ;
 
 struct rusage *used;
 //extern double instr_counter;  // likely from cpu.h
