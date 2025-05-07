@@ -27,7 +27,6 @@
 //#define DEBUG_PK_SWITCH
 //  # define DEBUG_IONOFF
 
-//#define _DEBUGGER_ENABLED_ // Enables debugger thread support
 
 #include <string.h>
 #include <setjmp.h>
@@ -39,7 +38,7 @@
 
 
 
-#ifdef _DEBUGGER_ENABLED_
+#ifdef WITH_DEBUGGER
 	#include <stdatomic.h>
 	extern void start_debugger();
 
@@ -542,7 +541,7 @@ void cpu_init(bool debuggerEnabled)
 	if (DISASM)
 		disasm_setlbl(gPC);
 
-#ifdef _DEBUGGER_ENABLED_
+#ifdef WITH_DEBUGGER
 	if (debuggerEnabled)
     {
 		start_debugger();
@@ -564,7 +563,7 @@ void cleanup_cpu()
 /// @return 
 bool debuggerRequestedControl()
 {
-#ifdef _DEBUGGER_ENABLED_	
+#ifdef WITH_DEBUGGER	
 	#ifdef _WIN32
         return (CPURunMode)InterlockedCompareExchange(
             (volatile LONG *)&m_debuggerRequestedControl,
@@ -597,7 +596,7 @@ void debuggerReleaseControl()
 /// @param requested 
 void set_debugger_requested_control(bool requested)
 {
-#ifdef _DEBUGGER_ENABLED_	
+#ifdef WITH_DEBUGGER	
 	#ifdef _WIN32
 		InterlockedExchange((volatile LONG *)&m_debuggerRequestedControl, (LONG)requested);
 	#else
@@ -607,7 +606,7 @@ void set_debugger_requested_control(bool requested)
 }
 
 void set_cpu_run_mode(CPURunMode new_mode) {
-#ifdef _DEBUGGER_ENABLED_	
+#ifdef WITH_DEBUGGER	
 	#ifdef _WIN32
 		 InterlockedExchange((volatile LONG *)&CurrentCPURunMode, (LONG)new_mode);
 	#else
@@ -619,7 +618,7 @@ void set_cpu_run_mode(CPURunMode new_mode) {
 }
 
 CPURunMode get_cpu_run_mode(void) {
-#ifdef _DEBUGGER_ENABLED_
+#ifdef WITH_DEBUGGER
     #ifdef _WIN32
         return (CPURunMode)InterlockedCompareExchange(
             (volatile LONG *)&CurrentCPURunMode,
