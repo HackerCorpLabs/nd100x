@@ -3,28 +3,47 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define _DEBUGGER_ENABLED_
+#define WITH_DEBUGGER
+
+
 
 #include "debugger.h"
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
-#ifdef _DEBUGGER_ENABLED_
+#ifdef WITH_DEBUGGER
+
 #include "../../external/libdap/libdap/include/dap_server.h"
 #include "../../external/libdap/libdap/include/dap_server_cmds.h"
 #include "../../external/libsymbols/include/symbols.h"
 #include "symbols_support.h"
+#include "machine_types.h"
+#include "machine_protos.h"
+
+#include "ndlib_types.h"
+#include "ndlib_protos.h"
+
+// Forward declarations for CPU breakpoint functions
+extern void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage);
+extern void breakpoint_manager_remove(BreakpointManager *mgr, uint16_t address, int type);
+extern int breakpoint_manager_check(uint16_t address, BreakpointEntry** matches[], int* matchCount);
+
+// Define scope IDs
+#define SCOPE_ID_LOCALS 1000
+#define SCOPE_ID_REGISTERS 1001
+#define SCOPE_ID_INTERNAL_REGISTERS 1002
+
+#define SCOPE_ID_STATUS_FLAGS 1100
+#define SCOPE_ID_MEM_PT 1101
+#define SCOPE_ID_MEM_APT 1102
+
 
 // DAP server instance
 DAPServer* server;    
 
 // Global symbol table
 static symbol_table_t* g_symbol_table = NULL;
-#endif
 
-//#define _DEBUGGER_ENABLED_ // Enables debugger thread support
-
-#ifdef _DEBUGGER_ENABLED_
 
 #ifdef _WIN32
     #include <windows.h>
@@ -133,127 +152,1003 @@ void start_debugger() {
 }
 
 
-/* DAP INTEGRATION */
-void WaitForDebugger() {
-    set_debugger_requested_control(true);          
-
-    while (get_cpu_run_mode() != CPU_PAUSED) {
-        usleep(100000);  // 100 ms wait before checking again
+const char* cpuStopReasonToString(CpuStopReason r) {
+    switch (r) {
+        case STOP_REASON_STEP: return "step";
+        case STOP_REASON_BREAKPOINT: return "breakpoint";
+        case STOP_REASON_EXCEPTION: return "exception";
+        case STOP_REASON_PAUSE: return "pause";
+        case STOP_REASON_ENTRY: return "entry";
+        case STOP_REASON_GOTO: return "goto";
+        case STOP_REASON_FUNCTION_BREAKPOINT: return "function breakpoint";
+        case STOP_REASON_DATA_BREAKPOINT: return "data breakpoint";
+        case STOP_REASON_INSTRUCTION_BREAKPOINT: return "instruction breakpoint";
+        default: return "pause";
     }
 }
 
-// Release control of the CPU, let the CPU run normal again
-void ReleaseDebugger() {
-    debuggerReleaseControl();   
-}   
-        
 
-int step_cpu(DAPServer *server, int steps) {
-    WaitForDebugger();    
-    cpu_run(steps);    
+static int cmd_wait_for_debugger (DAPServer *server) 
+{
+    // Tell CPU thread we want it to pause
+    if (get_cpu_run_mode() == CPU_SHUTDOWN) return -1; // CPU is shutting down, no need to pause
+
+    set_debugger_request_pause(true);
+
+    // Now wait until CPU acknowledges and grants control
+    while(!get_debugger_control_granted()) {
+        usleep(1000);  // small sleep to avoid busy spin
+    }
+
+    CpuStopReason reason = get_cpu_stop_reason();
     
-    server->debugger_state.program_counter = gPC;
-
-    // If we have symbol information, update source line
-    if (g_symbol_table) {
-        int line = 0;
-        const char* filename = get_source_location(gPC, &line);
-        if (filename && line > 0) {
-            server->debugger_state.source_line = line;
-            // source_file may not be present in all DAPServer versions
-            // just update the line number for now
-            // TODO: Add support for source file mapping in the DAP server
+    if (reason != STOP_REASON_NONE)
+    {
+        const char* dap_reason_str = cpuStopReasonToString(reason);
+        if (dap_server_send_stopped_event(server, dap_reason_str, NULL)==0)
+        {                
+            // Mesaage sent succesfully, now clear the stop reason
+            set_cpu_stop_reason(STOP_REASON_NONE);        
         }
     }
 
-    ReleaseDebugger();
+    // CPU is paused; debugger now owns control
     return 0;
 }
 
+static int cmd_release_debugger (DAPServer *server) 
+{
+    // Release debugger's request to pause (let CPU decide to run/step)
+    set_debugger_request_pause(false);
+
+
+
+#if 0
+
+    // If debugger intends CPU to keep paused → keep cpu_run_mode == CPU_PAUSED
+    // If debugger wants to resume → set cpu_run_mode = CPU_RUNNING
+    // (this depends on DAP command semantics)
+
+    if (server->continue_on_release) {
+        // Example field: continue after command
+        atomic_store(&cpu_run_mode, CPU_RUNNING);
+    }
+    else if (server->step_on_release) {
+        // Request CPU to execute one step
+        atomic_store(&cpu_run_mode, CPU_STEP_PENDING);
+    }
+    else {
+        // Keep paused → do nothing
+    }
+#endif
+
+    // Notify CPU thread that debugger control is released
+    set_debugger_control_granted(false);    
+    
+    return 0;
+}
+   
+
+int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
+    if (!server) {
+        return -1;
+    }
+    
+    uint16_t current_pc = gPC;
+    uint16_t target_pc = 0;
+    bool stepping_to_line = false;
+    
+    
+
+    // If we have symbol table and want to step by line
+    if (g_symbol_table && (granularity == DAP_STEP_GRANULARITY_LINE || granularity == DAP_STEP_GRANULARITY_STATEMENT)) {
+        // Get the next line's address
+        target_pc = symbols_get_next_line_address(g_symbol_table, current_pc);
+        
+        if (target_pc != 0 && target_pc != current_pc) {
+            stepping_to_line = true;
+            printf("Stepping to next line at address %06o\n", target_pc);
+        } else {
+            printf("No line information found, falling back to instruction stepping\n");
+        }
+    }
+    else
+    { 
+         dap_server_send_output_category(server, DAP_OUTPUT_STDERR, "NO SYMBOLS");
+    }
+    
+
+    // Set a temporary breakpoint at the target address if we're stepping to a line
+    if (stepping_to_line && target_pc != 0 && target_pc != current_pc) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Setting temporary breakpoint at address %06o", target_pc);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+        
+        // Use the CPU's breakpoint system to set a temporary breakpoint
+        // This breakpoint will be automatically removed when hit
+        breakpoint_manager_add(target_pc, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+        
+        CPURunMode run_mode = get_cpu_run_mode();
+        if (run_mode == CPU_PAUSED)
+        {
+            // CPU is paused, so we need to resume it
+            set_cpu_run_mode(CPU_RUNNING);
+        }
+        // Now run CPU until it hits the breakpoint
+        while (run_mode == CPU_RUNNING ) 
+        {
+            // Run a batch of instructions (100 at a time to avoid excessive checking)
+            cpu_run(100);
+            
+            // Check if we've hit our target or another breakpoint
+            if (get_cpu_run_mode() == CPU_BREAKPOINT || gPC == target_pc) {
+                break;
+            }
+            
+            // Safety check - don't run forever
+            steps -= 100;
+            if (steps <= 0) {
+                printf("Warning: Step limit reached before finding next line\n");
+                dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
+                                             "Step limit reached before finding target line");
+                break;
+            }
+        }
+    } else {
+        // Always run exactly one instruction, regardless of the steps parameter
+        // This ensures we don't run off beyond the intended step
+        cpu_run(1);
+    }
+    
+    // Update debugger state with current PC
+    server->debugger_state.program_counter = gPC;
+
+    char steptxt[256];    
+    sprintf(steptxt,"Stepping from %6o to %6o\n", current_pc, gPC);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, steptxt);
+    
+    // Update source mapping information
+    if (g_symbol_table) {
+        int line = 0;
+        const char* filename = get_source_location(gPC, &line);
+        
+        if (filename && line > 0) {                             
+            printf("Mapped PC %06o to %s:%d\n", gPC, filename, line);
+            server->debugger_state.source_line = line;
+        } else {
+            printf("No source mapping found for PC %06o\n", gPC);
+        }
+    }
+    
+    return 0;
+}
+
+
+
+
 /********************************** CALLBACKS **********************************/
+
+
+/**
+ * @brief Common handler for step operations
+ * 
+ * This function handles the common logic for all step commands (next, step in, step out).
+ * It reads the granularity from the command context and performs the appropriate stepping.
+ * 
+ * @param server The DAP server instance
+ * @param step_type A string describing the step type for logging ("next", "step in", "step out")
+ * @return int 0 on success, non-zero on failure
+ */
+static int handle_step_command(DAPServer *server, const char* step_type) {
+    if (!server) {
+        return -1;
+    }    
+    // Access the step command context
+    StepCommandContext *ctx = &server->current_command.context.step;
+    
+    // Log the stepping action
+    char log_message[256];
+    snprintf(log_message, sizeof(log_message), 
+             "Handling %s command for thread %d", step_type, ctx->thread_id);    
+    dap_server_send_output(server, log_message);
+    
+    // Handle different granularity types
+    switch (ctx->granularity) {
+        case DAP_STEP_GRANULARITY_INSTRUCTION:
+            snprintf(log_message, sizeof(log_message), 
+                     "Stepping by instruction (%s)\n", step_type);
+            dap_server_send_output(server, log_message);
+            
+            // Increment PC by one instruction for instruction stepping
+            server->debugger_state.program_counter += 1;
+            break;
+            
+        case DAP_STEP_GRANULARITY_LINE:
+            snprintf(log_message, sizeof(log_message), 
+                     "Stepping by line (%s)\n", step_type);
+            dap_server_send_output(server, log_message);
+            
+            // For line stepping, increment PC and line
+            server->debugger_state.program_counter += 4;
+            server->debugger_state.source_line += 1;
+            break;
+            
+        case DAP_STEP_GRANULARITY_STATEMENT:
+        default:
+            snprintf(log_message, sizeof(log_message), 
+                     "Stepping by statement (%s)\n", step_type);
+            dap_server_send_output(server, log_message);
+            
+            // For statement stepping, increment PC and line (same as line in our mock)
+            server->debugger_state.program_counter += 4;
+            server->debugger_state.source_line += 1;
+            break;
+    }
+    
+    // Let the CPU run until it hits a breakpoint or we have reached the target
+
+
+    // Update the debugger state to indicate we are not stopped anymore
+    server->debugger_state.has_stopped = false;
+    
+    return 0;
+}
+
+/**
+ * @brief Step Next command handler
+ * 
+ * Handles the 'next' command by stepping over the current line/statement
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
 static int cmd_next(DAPServer *server) {
-    // Use the step context that was populated by the protocol handler
-    int thread_id = server->current_command.context.step.thread_id;
-    // Extract granularity from the context
-    StepGranularity granularity = DAP_STEP_GRANULARITY_STATEMENT;
-    if (server->current_command.context.step.granularity) {
-        if (strcmp(server->current_command.context.step.granularity, "instruction") == 0) {
-            granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
-        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
-            granularity = DAP_STEP_GRANULARITY_LINE;
-        }
-    }
-
-    // TODO- care about granularity?
-    
-
-    // TODO: Implement step in
-    step_cpu(server,1);
-
-    
-
-    // TODO: Implement mapping of PC to source line
-    server->debugger_state.source_line++;
-
-
-    return 0;    
-
+    return handle_step_command(server, "next");
 }
 
-
+/**
+ * @brief Step In command handler
+ * 
+ * Handles the 'stepIn' command by stepping into a function call
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
 static int cmd_step_in(DAPServer *server) {
-    // Use the step context that was populated by the protocol handler
-    int thread_id = server->current_command.context.step.thread_id;
-    int target_id = server->current_command.context.step.target_id;
-    // Extract granularity from the context
-    StepGranularity granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
-    if (server->current_command.context.step.granularity) {
-        if (strcmp(server->current_command.context.step.granularity, "statement") == 0) {
-            granularity = DAP_STEP_GRANULARITY_STATEMENT;
-        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
-            granularity = DAP_STEP_GRANULARITY_LINE;
-        }
-    }
-    
-    // TODO- care about granularity?
-    
-
-    // TODO: Implement step in
-    step_cpu(server,1);
-
-    
-
-    // TODO: Implement mapping of PC to source line
-    server->debugger_state.source_line++;
-
-    return 0;    
+    return handle_step_command(server, "step in");
 }
 
+/**
+ * @brief Step Out command handler
+ * 
+ * Handles the 'stepOut' command by stepping out of the current function
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
 static int cmd_step_out(DAPServer *server) {
-    // Use the step context that was populated by the protocol handler
-    int thread_id = server->current_command.context.step.thread_id;
-    // Extract granularity from the context
-    StepGranularity granularity = DAP_STEP_GRANULARITY_STATEMENT;
-    if (server->current_command.context.step.granularity) {
-        if (strcmp(server->current_command.context.step.granularity, "instruction") == 0) {
-            granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
-        } else if (strcmp(server->current_command.context.step.granularity, "line") == 0) {
-            granularity = DAP_STEP_GRANULARITY_LINE;
+    return handle_step_command(server, "step out");
+}
+
+/**
+ * @brief Handle DAP scopes request
+ *
+ * This function creates scope objects for the variables visible in the current stack frame.
+ * It defines several scopes:
+ * 1. Locals - Local variables
+ * 2. CPU Registers - CPU register values
+ * 3. Memory - Memory regions
+ *
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
+static int cmd_scopes(DAPServer *server) {
+    if (!server) {
+        return -1;
+    }
+    
+    // Extract frame_id from the command context
+    int frame_id = server->current_command.context.scopes.frame_id;
+    
+    printf("Scopes request for frame ID: %d\n", frame_id);
+    
+    // Define the number of scopes we'll provide
+    const int NUM_SCOPES = 3; // Locals, Registers, Memory
+    
+    // Allocate memory for the scopes
+    DAPScope* scopes = (DAPScope*)calloc(NUM_SCOPES, sizeof(DAPScope));
+    if (!scopes) {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
+                                      "Error: Failed to allocate memory for scopes\n");
+        return -1;
+    }
+    
+    // Set up Locals scope
+    int scope_index = 0;
+    scopes[scope_index].name = strdup("Locals");
+    scopes[scope_index].variables_reference = SCOPE_ID_LOCALS;
+    scopes[scope_index].named_variables = 5; // Number of local variables
+    scopes[scope_index].indexed_variables = 0;
+    scopes[scope_index].expensive = false;
+    // Source location fields are optional, set to 0/NULL
+    scopes[scope_index].source_path = NULL;
+    scopes[scope_index].line = 0;
+    scopes[scope_index].column = 0;
+    scopes[scope_index].end_line = 0;
+    scopes[scope_index].end_column = 0;
+    
+    // Set up CPU Registers scope
+    scope_index++;
+    scopes[scope_index].name = strdup("CPU Registers");
+    scopes[scope_index].variables_reference = SCOPE_ID_REGISTERS;
+    scopes[scope_index].named_variables = 8; // STS, D, P, B, L, A, T, X
+    scopes[scope_index].indexed_variables = 0;
+    scopes[scope_index].expensive = false;
+    // Source location fields are optional, set to 0/NULL
+    scopes[scope_index].source_path = NULL;
+    scopes[scope_index].line = 0;
+    scopes[scope_index].column = 0;
+    scopes[scope_index].end_line = 0;
+    scopes[scope_index].end_column = 0;
+    
+
+    // Set up Internal Registers scope
+    scope_index++;
+    scopes[scope_index].name = strdup("Internal Registers");
+    scopes[scope_index].variables_reference = SCOPE_ID_INTERNAL_REGISTERS;
+    scopes[scope_index].named_variables = 13; // No variables in this scope
+    scopes[scope_index].indexed_variables = 0;
+    // Source location fields are optional, set to 0/NULL
+    scopes[scope_index].source_path = NULL;
+    scopes[scope_index].line = 0;
+    scopes[scope_index].column = 0;
+    scopes[scope_index].end_line = 0;
+    scopes[scope_index].end_column = 0;
+    
+
+    // Set up Memory scope
+    scope_index++;
+    scopes[scope_index].name = strdup("Memory");
+    scopes[scope_index].variables_reference = SCOPE_ID_MEM_PT;
+    scopes[scope_index].named_variables = 3; // Number of memory regions
+    scopes[scope_index].indexed_variables = 0; 
+    scopes[scope_index].expensive = true; // Memory access is expensive
+    // Source location fields are optional, set to 0/NULL
+    scopes[scope_index].source_path = NULL;
+    scopes[scope_index].line = 0;
+    scopes[scope_index].column = 0;
+    scopes[scope_index].end_line = 0;
+    scopes[scope_index].end_column = 0;
+    
+    // Store the scopes in the command context for the DAP server to use
+    server->current_command.context.scopes.scopes = scopes;
+    server->current_command.context.scopes.scope_count = NUM_SCOPES;
+    
+    return 0;
+}
+
+/**
+ * @brief Helper function to add a variable to the server's variable array
+ * 
+ * @param server The DAP server instance
+ * @param name Variable name
+ * @param value Variable value
+ * @param type Variable type
+ * @param variables_reference Reference for child variables (0 for leaf variables)
+ * @param memory_reference Optional memory reference
+ * @param kind Variable kind (property, method, etc.)
+ * @param attributes Array of attribute flags
+ * @param num_attributes Number of attributes
+ * @return DAPVariable* Pointer to the newly added variable or NULL on failure
+ */
+static DAPVariable* add_variable_to_array(
+    DAPServer *server,
+    const char* name,
+    const char* value,
+    const char* type,
+    int variables_reference,
+    uint32_t memory_reference,
+    const char* kind,
+    const char** attributes,
+    int num_attributes
+) {
+    if (!server || !name || !value) {
+        return NULL;
+    }
+    
+    // Increase the count and reallocate the array
+    server->current_command.context.variables.count++;
+    server->current_command.context.variables.variable_array = realloc(
+        server->current_command.context.variables.variable_array, 
+        server->current_command.context.variables.count * sizeof(DAPVariable)
+    );
+    
+    if (!server->current_command.context.variables.variable_array) {
+        server->current_command.context.variables.count--;
+        return NULL;
+    }
+    
+    // Get a pointer to the newly added variable
+    DAPVariable* var = &server->current_command.context.variables.variable_array[
+        server->current_command.context.variables.count - 1
+    ];
+    
+    // Initialize the variable with the provided values
+    if (name)
+        var->name = strdup(name);
+    else
+        var->name = NULL;
+        
+    if (value)
+        var->value = strdup(value);
+    else
+        var->value = NULL;
+        
+    if (type)
+        var->type = strdup(type);
+    else
+        var->type = NULL;
+        
+    var->variables_reference = variables_reference;
+    var->named_variables = 0;
+    var->indexed_variables = 0;
+    var->evaluate_name = NULL;
+    
+    // Set memory reference
+    var->memory_reference = memory_reference;
+    
+    // Handle presentation hint (default initialization)
+    var->presentation_hint.has_kind = false;
+    var->presentation_hint.has_visibility = false;
+    var->presentation_hint.attributes = DAP_VARIABLE_ATTR_NONE;
+    
+    // Set kind if provided
+    if (kind && kind[0] != '\0') {
+        var->presentation_hint.has_kind = true;
+        
+        // Map string kind to enum
+        if (strcmp(kind, "property") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_PROPERTY;
+        } else if (strcmp(kind, "method") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_METHOD;
+        } else if (strcmp(kind, "class") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_CLASS;
+        } else if (strcmp(kind, "data") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_DATA;
+        } else if (strcmp(kind, "event") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_EVENT;
+        } else if (strcmp(kind, "baseClass") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_BASE_CLASS;
+        } else if (strcmp(kind, "innerClass") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_INNER_CLASS;
+        } else if (strcmp(kind, "interface") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_INTERFACE;
+        } else if (strcmp(kind, "mostDerived") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_MOST_DERIVED;
+        } else if (strcmp(kind, "virtual") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_VIRTUAL;
+        } else if (strcmp(kind, "dataBreakpoint") == 0) {
+            var->presentation_hint.kind = DAP_VARIABLE_KIND_DATABREAKPOINT;
+        } else {
+            // Unknown kind
+            var->presentation_hint.has_kind = false;
         }
     }
     
-    // TODO- care about granularity?
+    // Set attributes if provided
+    if (attributes && num_attributes > 0) {
+        for (int i = 0; i < num_attributes; i++) {
+            if (!attributes[i]) continue;
+            
+            if (strcmp(attributes[i], "static") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_STATIC;
+            } else if (strcmp(attributes[i], "constant") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_CONSTANT;
+            } else if (strcmp(attributes[i], "readOnly") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_READONLY;
+            } else if (strcmp(attributes[i], "rawString") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_RAWSTRING;
+            } else if (strcmp(attributes[i], "hasObjectId") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_HASOBJECTID;
+            } else if (strcmp(attributes[i], "canHaveObjectId") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_CANHAVEOBJECTID;
+            } else if (strcmp(attributes[i], "hasSideEffects") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_HASSIDEEFFECTS;
+            } else if (strcmp(attributes[i], "hasDataBreakpoint") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_HASDATABREAKPOINT;
+            } else if (strcmp(attributes[i], "hasChildren") == 0) {
+                var->presentation_hint.attributes |= DAP_VARIABLE_ATTR_HASCHILDREN;
+            }
+        }
+    }
     
-
-    // TODO: Implement step in
-    step_cpu(server,1);
-
-    
-
-    // TODO: Implement mapping of PC to source line
-    server->debugger_state.source_line++;
+    return var;
 }
 
+/**
+ * @brief Add local variables to the variables array
+ * 
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer 
+ */
+static void add_local_variables(DAPServer *server, char* info_message, size_t info_message_size) {
+    snprintf(info_message, info_message_size, 
+             "Loading local variables for current context\n");
+    
+    // No local variables in this example, but in a real implementation
+    // this would add variables from the current stack frame
+    
+    // Property kind for all variables
+    const char* property_kind = "property";
+    const char* no_attributes[] = {NULL};
+    
+    // Example dummy variable
+    add_variable_to_array(
+        server,
+        "dummy",       // name
+        "0",           // value
+        "integer",     // type
+        0,             // variablesReference
+        0,             // memoryReference (no memory reference for locals)
+        property_kind, // kind
+        no_attributes, // attributes
+        0              // num_attributes
+    );
+}
+
+/**
+ * @brief Add CPU register variables to the variables array
+ * 
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer
+ */
+static void add_register_variables(DAPServer *server, char* info_message, size_t info_message_size) {
+    snprintf(info_message, info_message_size, 
+             "Loading CPU registers\n");
+    
+    // Property kind with readonly attribute
+    const char* property_kind = "property";
+    const char* readonly_attrs[] = {"readOnly"};
+    
+    // Register formatting
+    char value_str[32];
+    
+
+    // Add the ST register (Status register)
+    snprintf(value_str, sizeof(value_str), "%06o", gSTSr);
+    add_variable_to_array(
+        server,
+        "STS",             // name
+        value_str,         // value
+        "bitmap",         // type
+        SCOPE_ID_STATUS_FLAGS,   // variablesReference
+        (uint32_t)&gA,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+    
+
+    // Add the D register (Data register)
+    snprintf(value_str, sizeof(value_str), "%06o", gD);
+    add_variable_to_array(
+        server,
+        "D",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gA,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+    
+    // Add the P register (program counter)
+    snprintf(value_str, sizeof(value_str), "%06o", gPC);
+    add_variable_to_array(
+        server,
+        "P",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gPC,    // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+
+    // Add the B register (Base register)
+    snprintf(value_str, sizeof(value_str), "%06o", gB);
+    add_variable_to_array(
+        server,
+        "B",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gB,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+
+    // Add the L register (Link register)
+    snprintf(value_str, sizeof(value_str), "%06o", gL);
+    add_variable_to_array(
+        server,
+        "L",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gL,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+
+
+    // Add the A register (Accumulator)
+    snprintf(value_str, sizeof(value_str), "%06o", gA);
+    add_variable_to_array(
+        server,
+        "A",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gA,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+    
+    // Add the T register (Temporary register)
+    snprintf(value_str, sizeof(value_str), "%06o", gT);
+    add_variable_to_array(
+        server,
+        "T",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gT,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+
+    // Add the X register
+    snprintf(value_str, sizeof(value_str), "%06o", gX);
+    add_variable_to_array(
+        server,
+        "X",               // name
+        value_str,         // value
+        "integer",         // type
+        0,                 // variablesReference
+        (uint32_t)&gX,     // memoryReference
+        property_kind,     // kind
+        readonly_attrs,    // attributes
+        1                  // num_attributes
+    );
+    
+}
+
+/**
+ * @brief Add internal CPU register variables to the variables array
+ * 
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer
+ */
+static void add_internal_registers_variables(DAPServer *server, char* info_message, size_t info_message_size) {
+    snprintf(info_message, info_message_size, 
+             "Loading internal CPU registers\n");
+    
+    // Property kind with readonly attribute
+    const char* property_kind = "property";
+    const char* readonly_attrs[] = {"readOnly"};
+    
+    // Register formatting
+    char value_str[32];
+    
+    // Define the internal registers with their addresses
+    struct {
+        const char* name;
+        uint16_t* reg_ptr;
+        const char* type;
+    } internal_regs[] = {
+        {"PANC", &gReg->reg_PANC, "octal"}, // Panel control
+        {"PANS", &gReg->reg_PANS, "octal"}, // Panel status
+        {"OPR", &gReg->reg_OPR, "octal"},   // Operator register
+        {"LMP", &gReg->reg_LMP, "octal"},   // Panel data display buffer register
+        {"PGS", &gReg->reg_PGS, "octal"},   // Paging status register
+        {"PVL", &gReg->reg_PVL, "octal"},   // Page violation limit register
+        {"IIC", &gReg->reg_IIC, "octal"},   // Internal interrupt code register
+        {"IID", &gReg->reg_IID, "octal"},   // Internal interrupt detect register
+        {"IIE", &gReg->reg_IIE, "octal"},   // Internal interrupt enable register
+        {"PID", &gReg->reg_PID, "octal"},   // Priority interrupt detect register
+        {"PIE", &gReg->reg_PIE, "octal"},   // Priority interrupt enable register
+        {"CSR", &gReg->reg_CSR, "octal"},   // Control store register
+        {"CCL", &gReg->reg_CCL, "octal"},   // Cache clear register
+        {"LCIL", &gReg->reg_LCIL, "octal"}, // Lower cache inhibit limit register
+        {"ALD", &gReg->reg_ALD, "octal"},   // Auto-load descriptor register
+        {"UCIL", &gReg->reg_UCIL, "octal"}, // Upper cache inhibit limit register
+        {"PES", &gReg->reg_PES, "octal"},   // Page error status register
+        {"PGC", &gReg->reg_PGC, "octal"},   // Page count register
+        {"PEA", &gReg->reg_PEA, "octal"},   // Page error address register
+        {"ECCR", &gReg->reg_ECCR, "octal"}, // Error correction control register
+    };
+    
+    const int num_regs = sizeof(internal_regs) / sizeof(internal_regs[0]);
+    
+    // Add each internal register to the variable array
+    for (int i = 0; i < num_regs; i++) {
+        // Format the register value in octal
+        snprintf(value_str, sizeof(value_str), "%06o", *(internal_regs[i].reg_ptr));
+        
+        // Add the register to the variable array
+        add_variable_to_array(
+            server,
+            internal_regs[i].name,    // name
+            value_str,                // value
+            internal_regs[i].type,    // type
+            0,                        // variablesReference (no children)
+            (uint32_t)(internal_regs[i].reg_ptr), // memoryReference
+            property_kind,            // kind
+            readonly_attrs,           // attributes
+            1                         // num_attributes
+        );
+    }
+}
+
+/**
+ * @brief Add status flags from the STS register to the variables array
+ * 
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer
+ */
+static void add_status_flag_variables(DAPServer *server, char* info_message, size_t info_message_size) {
+    snprintf(info_message, info_message_size, 
+             "Loading CPU status flags\n");
+    
+    // Property kind with readonly attribute
+    const char* property_kind = "property";
+    const char* readonly_attrs[] = {"readOnly"};
+    
+    // Status flag definitions with bit positions
+    struct {
+        const char* name;
+        int bit_pos;
+        const char* description;
+    } status_flags[] = {
+        {"PTM", 0, "Program Test Mode"},
+        {"TG", 1, "Trap Generate"},
+        {"K", 2, "Stack Overflow Flag"},
+        {"Z", 3, "Zero Flag"},
+        {"Q", 4, "Q Flag"},
+        {"O", 5, "Overflow Flag"},
+        {"C", 6, "Carry Flag"},
+        {"M", 7, "Memory Parity Error Flag"},
+        {"PL", 8, "Program Level (bits 8-11)"},
+        {"N100", 12, "Nord 100 Indicator"},
+        {"SEXI", 13, "Extended MMS Addressing Indicator"},
+        {"PONI", 14, "Memory Management On/Off Indicator"},
+        {"IONI", 15, "Interrupt System On/Off Indicator"}
+    };
+    
+    const int num_flags = sizeof(status_flags) / sizeof(status_flags[0]);
+    
+    // Get the current STS register value
+    uint16_t sts_value = gSTSr;
+    
+    // Add each flag to the variable array
+    for (int i = 0; i < num_flags; i++) {
+        // Get the bit value (special handling for PL which is 4 bits)
+        bool value;
+        char value_str[32];
+        
+        if (strcmp(status_flags[i].name, "PL") == 0) {
+            // Extract 4-bit PL field
+            int pl_value = (sts_value >> 8) & 0x0F;
+            snprintf(value_str, sizeof(value_str), "%d", pl_value);
+    } else {
+            // Extract 1-bit flags
+            value = (sts_value >> status_flags[i].bit_pos) & 0x01;
+            snprintf(value_str, sizeof(value_str), "%s", value ? "true" : "false");
+        }
+        
+        // Create a display name with description
+        char display_name[64];
+        snprintf(display_name, sizeof(display_name), "%s (%s)", 
+                 status_flags[i].name, status_flags[i].description);
+        
+        // Add the flag to the variable array
+        add_variable_to_array(
+            server,
+            display_name,          // name with description
+            value_str,             // value (true/false or numeric for PL)
+            strcmp(status_flags[i].name, "PL") == 0 ? "integer" : "boolean", // type
+            0,                     // variablesReference (no children)
+            0,                     // memoryReference
+            property_kind,         // kind
+            readonly_attrs,        // attributes
+            1                      // num_attributes
+        );
+    }
+}
+
+/**
+ * @brief Add memory regions to the variables array
+ * 
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer
+ */
+static void add_memory_region_variables(DAPServer *server, char* info_message, size_t info_message_size) {
+    snprintf(info_message, info_message_size, 
+             "Loading memory regions (Code section, Data section, etc.)\n");
+    
+    // Property kind with readonly attribute
+    const char* property_kind = "property";
+    const char* no_attributes[] = {NULL};
+    
+    // Add memory regions - these are examples and should be adjusted based on
+    // the actual memory layout of the ND-100 system
+    
+    // Code section - an example region where program code resides
+    add_variable_to_array(
+        server,
+        "Memory (Code - PT)",     // name
+        "000000-077777",    // value
+        "memory",           // type
+        1,                  // variablesReference
+        SCOPE_ID_MEM_PT,    // memoryReference
+        property_kind,      // kind
+        no_attributes,      // attributes
+        0                   // num_attributes
+    );
+    
+    // Data section - an example region where data resides
+    add_variable_to_array(
+        server,
+        "Memory (DATA - APT)",     // name
+        "000000-077777",    // value
+        "memory",           // type
+        SCOPE_ID_MEM_APT,   // variablesReference
+        0000,               // memoryReference
+        property_kind,      // kind
+        no_attributes,      // attributes
+        0                   // num_attributes
+    );
+}
+
+/**
+ * @brief Handle DAP variables request
+ * 
+ * This function provides variables for the requested container (scope).
+ * It creates variables based on CPU state, memory content, etc.
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
+static int cmd_variables(DAPServer *server) {
+    if (!server) {
+        return -1;
+    }
+    
+    // Extract variables reference from the command context
+    int variables_reference = server->current_command.context.variables.variables_reference;
+    
+    printf("Variables request for reference: %d\n", variables_reference);
+    
+    // Buffer for informational messages
+    char info_message[256] = {0};
+
+    // Handle different variable reference types
+    switch (variables_reference) {
+        case SCOPE_ID_LOCALS: {
+            // Use our helper function for local variables
+            add_local_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+        
+        case SCOPE_ID_REGISTERS: {
+            // Use our helper function for register variables
+            add_register_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+
+        case SCOPE_ID_INTERNAL_REGISTERS: {
+            // Use our helper function for internal registers variables
+            add_internal_registers_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+         
+        case SCOPE_ID_STATUS_FLAGS: {
+            // Use our helper function for status flag variables
+            add_status_flag_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+
+        case SCOPE_ID_MEM_PT: { // TODO: Make sure we read through PT
+            // Use our helper function for memory region variables
+            add_memory_region_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+
+        case SCOPE_ID_MEM_APT: { // TODO: Force PT to be APT
+            // Use our helper function for memory region variables
+            add_memory_region_variables(server, info_message, sizeof(info_message));
+            break;
+        }
+            
+        default:
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Unknown variable reference\n");
+            break;
+    }
+    
+    // Output info message if we have one
+    if (info_message[0] != '\0') {
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, info_message);
+    }
+       
+    return 0;
+}
+
+/**
+ * @brief Handle DAP stackTrace request
+ * 
+ * This function creates a stack trace response with the current call stack,
+ * including source file locations and line numbers. In this implementation,
+ * we create at least one stack frame for the current PC location.
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, -1 on failure
+ */
+static int cmd_stack_trace(DAPServer *server) {
+
+    if (!server)
+    {
+        return -1;
+    }
+    
+    // Log stack trace request to debugger console
+    char log_message[256];
+    snprintf(log_message, sizeof(log_message), 
+             "StackTrace request for thread %d (start=%d, count=%d)", 
+             server->debugger_state.current_thread_id, 
+             server->current_command.context.stack_trace.start_frame, 
+             server->current_command.context.stack_trace.levels);
+    dap_server_send_output(server, log_message);
+    
+    // For the mock implementation, we'll use a default source file if none is set
+    if (!server->debugger_state.source_path && !server->debugger_state.source_name) {
+        // Example source information for the mock debugger
+        if (!server->debugger_state.source_path) {
+            server->debugger_state.source_path = strdup("/tmp/unknown.s");
+        }
+        
+        if (!server->debugger_state.source_name) {
+            server->debugger_state.source_name = strdup("unknown.s");
+        }
+        
+        snprintf(log_message, sizeof(log_message), "Using source: %s", server->debugger_state.source_path);
+        dap_server_send_output(server, log_message);
+    }
+    
+    // Set default line/column if not set
+    if (server->debugger_state.source_line <= 0) {
+        server->debugger_state.source_line = 1;
+    }
+    
+    if (server->debugger_state.source_column <= 0) {
+        server->debugger_state.source_column = 1;
+    }
+    
+    // The handle_stack_trace function will build a response based on the debugger state
+    
+    return 0;
+}
 
 /**
  * @brief Callback for setting exception breakpoints
@@ -262,6 +1157,9 @@ static int cmd_step_out(DAPServer *server) {
  * @return int 0 on success, non-zero on failure
  */
 static int on_set_exception_breakpoints(DAPServer *server) {
+    if (!server) {
+        return -1;
+    }
     
     // Access filter data from the server's current command context
     const char** filters = server->current_command.context.exception.filters;
@@ -269,52 +1167,10 @@ static int on_set_exception_breakpoints(DAPServer *server) {
     const char** conditions = server->current_command.context.exception.conditions;
     size_t condition_count = server->current_command.context.exception.condition_count;
 
-#if 0    
-    // Clear existing exception filters
-    if (mock_debugger.exception_filters) {
-        for (size_t i = 0; i < mock_debugger.exception_filter_count; i++) {
-            free(mock_debugger.exception_filters[i].filter_id);
-            free(mock_debugger.exception_filters[i].condition);
-        }
-        free(mock_debugger.exception_filters);
-        mock_debugger.exception_filters = NULL;
-        mock_debugger.exception_filter_count = 0;
-    }
+    // Log the received exception filters
+    printf("Received %zu exception filters and %zu conditions\n", filter_count, condition_count);
     
-    // If no filters specified, we're done
-    if (filter_count == 0 || !filters) {
-        DBG_MOCK_LOG("No exception filters specified, cleared all filters");
-        return 0;
-    }
-    
-    // Allocate memory for the filters
-    mock_debugger.exception_filters = calloc(filter_count, sizeof(ExceptionBreakpointFilter));
-    if (!mock_debugger.exception_filters) {
-        DBG_MOCK_LOG("Error: Failed to allocate memory for exception filters");
-        return -1;
-    }
-    mock_debugger.exception_filter_count = filter_count;
-    
-    // Process each filter
-    for (size_t i = 0; i < filter_count; i++) {
-        if (filters[i]) {
-            mock_debugger.exception_filters[i].filter_id = strdup(filters[i]);
-            mock_debugger.exception_filters[i].enabled = true;
-            
-            // Check if we have a condition for this filter
-            if (conditions && i < condition_count && conditions[i]) {
-                mock_debugger.exception_filters[i].condition = strdup(conditions[i]);
-                DBG_MOCK_LOG("Added exception filter '%s' with condition: %s", 
-                          mock_debugger.exception_filters[i].filter_id,
-                          mock_debugger.exception_filters[i].condition);
-            } else {
-                mock_debugger.exception_filters[i].condition = NULL;
-                DBG_MOCK_LOG("Added exception filter '%s' with no condition", 
-                          mock_debugger.exception_filters[i].filter_id);
-            }
-        }
-    }
-#endif
+    // TODO: Implement exception breakpoint handling
     return 0;
 }
 
@@ -327,18 +1183,16 @@ static int on_set_exception_breakpoints(DAPServer *server) {
  * @return int 0 on success, non-zero on failure
  */
 static int cmd_set_breakpoints(DAPServer* server) {
-    
-
-#if 0    
-    DBG_MOCK_LOG("Handling setBreakpoints request");
+    if (!server) {
+        return -1;
+    }
 
     // Extract source file info from breakpoint context
     const char* source_path = server->current_command.context.breakpoint.source_path;
-    
     int breakpoint_count = server->current_command.context.breakpoint.breakpoint_count;
     
     if (!source_path || breakpoint_count <= 0) {
-        DBG_MOCK_LOG("Missing required breakpoint information");
+        printf("Missing required breakpoint information\n");
         return -1;
     }
     
@@ -350,106 +1204,354 @@ static int cmd_set_breakpoints(DAPServer* server) {
         source_name = source_path; // No slash found, use the whole path
     }
     
-    DBG_MOCK_LOG("Setting %d breakpoints in %s", breakpoint_count, source_path);
+    printf("Setting %d breakpoints in %s\n", breakpoint_count, source_path);
     
-    // Step 1: Clear existing breakpoints for this source
-    clear_breakpoints_for_source(source_path);
+    // TODO: Implement breakpoint handling
     
-    // Step 2: Ensure we have enough capacity for new breakpoints
-    if (mock_debugger.breakpoint_count + breakpoint_count > mock_debugger.breakpoint_capacity) {
-        int new_capacity = mock_debugger.breakpoint_capacity == 0 ? 16 : mock_debugger.breakpoint_capacity * 2;
-        while (new_capacity < mock_debugger.breakpoint_count + breakpoint_count) {
-            new_capacity *= 2;
-        }
-        
-        MockBreakpoint* new_breakpoints = realloc(mock_debugger.breakpoints, 
-                                                 new_capacity * sizeof(MockBreakpoint));
-        if (!new_breakpoints) {
-            DBG_MOCK_LOG("Failed to allocate memory for breakpoints");
-            return -1;
-        }
-        
-        mock_debugger.breakpoints = new_breakpoints;
-        mock_debugger.breakpoint_capacity = new_capacity;
-    }
+    // Send console output about the setup
+    char output_msg[256];
+    snprintf(output_msg, sizeof(output_msg), "Set %d breakpoints in %s\n", 
+             breakpoint_count, source_name);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, output_msg);
     
-    // Step 3: Add each new breakpoint
-    for (int i = 0; i < breakpoint_count; i++) {
-        int bp_idx = mock_debugger.breakpoint_count;
-        memset(&mock_debugger.breakpoints[bp_idx], 0, sizeof(MockBreakpoint));
-        
-        // Set basic properties
-        mock_debugger.breakpoints[bp_idx].id = bp_idx + 1; // 1-based IDs
-        mock_debugger.breakpoints[bp_idx].verified = true; // Mock always verifies
-        
-        // Get the line number from the breakpoints array in the current command context
-        const DAPBreakpoint* bp = &server->current_command.context.breakpoint.breakpoints[i];
-        mock_debugger.breakpoints[bp_idx].line = bp->line;
-        mock_debugger.breakpoints[bp_idx].column = bp->column > 0 ? bp->column : 0;
-        
-        // Store source information
-        mock_debugger.breakpoints[bp_idx].source_path = strdup(source_path);
-        mock_debugger.breakpoints[bp_idx].source_name = strdup(source_name);
-        
-        // Copy over additional properties if they exist
-        if (bp->condition) {
-            mock_debugger.breakpoints[bp_idx].condition = strdup(bp->condition);
-        }
-        
-        if (bp->hit_condition) {
-            mock_debugger.breakpoints[bp_idx].hit_condition = strdup(bp->hit_condition);
-        }
-        
-        if (bp->log_message) {
-            mock_debugger.breakpoints[bp_idx].log_message = strdup(bp->log_message);
-        }
-        
-        mock_debugger.breakpoint_count++;
-        
-        // Send console output about the new breakpoint
-        char output_msg[256];
-        snprintf(output_msg, sizeof(output_msg), "Added breakpoint %d at line %d in %s\n", 
-                 mock_debugger.breakpoints[bp_idx].id,
-                 mock_debugger.breakpoints[bp_idx].line,
-                 source_name);
-        dap_server_send_output_event(server, "console", output_msg);
-        
-        DBG_MOCK_LOG("Added breakpoint %d at line %d in %s", 
-                  mock_debugger.breakpoints[bp_idx].id,
-                  mock_debugger.breakpoints[bp_idx].line,
-                  mock_debugger.breakpoints[bp_idx].source_path);
-    }
-#endif    
     return 0;
 }
 
-/**********************************END OF CALLBACKS **********************************/
-
+/**
+ * @brief Initialize symbol table support for the debugger
+ * 
+ * This function loads symbols from a specified file, trying all supported formats:
+ * 1. Map file format
+ * 2. a.out binary format
+ * 3. STABS .s file format
+ * 
+ * @param filename Path to the symbol file
+ * @return int 0 on success, non-zero on failure
+ */
+int init_symbol_support(const char* filename) {
+    if (!filename) {
+        fprintf(stderr, "Error: No symbol file specified\n");
+        return -1;
+    }
+    
+    // Free previous symbol table if it exists
+    if (g_symbol_table) {
+        symbols_free(g_symbol_table);
+        g_symbol_table = NULL;
+    }
+    
+    // Initialize symbol table
+    g_symbol_table = symbols_create();
+    if (!g_symbol_table) {
+        fprintf(stderr, "Error: Failed to create symbol table\n");
+        return -1;
+    }
+    
+    // Try loading symbols from the file in different formats
+    bool result = false;
+    
+    // First try map file format
+    printf("Attempting to load symbols from map file: %s\n", filename);
+    result = symbols_load_map(g_symbol_table, filename);
+    if (result) {
+        printf("Successfully loaded symbols from map file: %s\n", filename);
+        return 0;
+    }
+    
+    // If that fails, try a.out format
+    printf("Map file format failed, trying a.out format: %s\n", filename);
+    result = symbols_load_aout(g_symbol_table, filename);
+    if (result) {
+        printf("Successfully loaded symbols from a.out binary: %s\n", filename);
+        return 0;
+    }
+    
+    // If that fails too, try STABS format
+    printf("a.out format failed, trying STABS format: %s\n", filename);
+    result = symbols_load_stabs(g_symbol_table, filename);
+    if (result) {
+        printf("Successfully loaded symbols from STABS file: %s\n", filename);
+        return 0;
+    }
+    
+    // If all loading attempts failed
+    fprintf(stderr, "Error: Failed to load symbols from %s in any supported format\n", filename);
+    symbols_free(g_symbol_table);
+    g_symbol_table = NULL;
+    return -1;
+}
 
 /**
- * @brief Set up the default capabilities for the mock server
- * 
- * This function configures which DAP capabilities our mock server
- * actually supports based on our implementation.
+ * @brief Register symbol information with the DAP server
  * 
  * @param server The DAP server instance
- * @return int The number of capabilities set
+ * @param symbol_file Path to the symbol file
+ * @return int 0 on success, non-zero on failure
  */
-int set_default_dap_capabilities(DAPServer *server) {
+int register_symbol_file_with_dap(DAPServer *server, const char* symbol_file) {
+    if (!server || !symbol_file) {
+        return -1;
+    }
+    
+    // Load symbols
+    int result = init_symbol_support(symbol_file);
+    if (result != 0) {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
+                                      "Failed to load symbols from any supported format\n");
+        return result;
+    }
+    
+    // Get symbol statistics
+    int symbol_count = 0;
+    int line_count = 0;
+    
+    // Send a console output event to notify the client
+    char message[256];
+    snprintf(message, sizeof(message), "Loaded symbol information from %s\n", symbol_file);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
+    
+    // Print more detailed info about symbols
+    // In a real implementation, you would count symbols and line entries
+    snprintf(message, sizeof(message), "Symbol table contains address-to-line mapping information\n");
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
+    
+    return 0;
+}
+
+/**
+ * @brief Handle the launch request from DAP
+ * 
+ * This function initializes the debugger environment for the specified program:
+ * 1. Sets up necessary debugger state with program and source information
+ * 2. Initializes execution context and resets debugger state
+ * 3. Loads symbol information if map file is provided
+ * 4. Sends appropriate events to the client
+ * 
+ * @param server The DAP server instance
+ * @return int 0 on success, non-zero on failure
+ */
+static int cmd_launch_callback(DAPServer* server) {
     if (!server) {
         return -1;
     }
-            
-    return dap_server_set_capabilities(server,
-        // These capabilities are fully implemented in the mock server
-        DAP_CAP_CONFIG_DONE_REQUEST, true,
-        DAP_CAP_EVALUATE_FOR_HOVERS, true,
-        DAP_CAP_RESTART_REQUEST, true,
-        DAP_CAP_TERMINATE_REQUEST, true,
+    
+    printf("Launch command received\n");
+    
+    // Extract launch parameters from debugger state
+    const char* program_path = server->debugger_state.program_path;
+    const char* source_path = server->debugger_state.source_path;
+    const char* map_path = server->debugger_state.map_path;
+    bool stop_at_entry = server->debugger_state.stop_at_entry;
+    bool no_debug = server->debugger_state.no_debug;
+    
+    // Log command line arguments if provided
+    char** args = server->debugger_state.args;
+    int args_count = server->debugger_state.args_count;
+    
+    if (!program_path) {
+        printf("Error: Missing program path in debugger state\n");
+        return -1;
+    }
+    
+    printf("Launching program: %s\n", program_path ? program_path : "(null)");
+    printf("Source path: %s\n", source_path ? source_path : "(not specified)");
+    printf("Map file: %s\n", map_path ? map_path : "(not specified)");
+    printf("Stop at entry: %s\n", stop_at_entry ? "yes" : "no");
+    printf("No debug: %s\n", no_debug ? "yes" : "no");
+    
+    // Log command line arguments if present
+    if (args && args_count > 0) {
+        char arg_log[1024] = "Command line arguments:";
+        size_t log_pos = strlen(arg_log);
         
-        // End of capabilities
-        DAP_CAP_COUNT
-    );
+        for (int i = 0; i < args_count && i < 10; i++) { // Limit to 10 args in log
+            if (args[i]) {
+                int written = snprintf(arg_log + log_pos, sizeof(arg_log) - log_pos, 
+                                     " '%s'", args[i]);
+                if (written > 0) {
+                    log_pos += written;
+                }
+            }
+        }
+        
+        if (args_count > 10) {
+            snprintf(arg_log + log_pos, sizeof(arg_log) - log_pos, " ... (%d more)", 
+                    args_count - 10);
+        }
+        
+        printf("%s\n", arg_log);
+    }
+    
+    // Reset CPU state to appropriate values
+    // In a real debugger, this would be where we would initialize the CPU
+    // with the program's binary data
+    
+    // Set debugger state
+    server->is_running = true;
+    server->attached = true;
+    server->debugger_state.has_stopped = true;
+    server->debugger_state.current_thread_id = 1; // make sure we have a thread id
+
+
+    server->debugger_state.source_line = 1;   // Start at line 1
+    server->debugger_state.source_column = 1; // Start at column 1
+    // Try to load symbols using different approaches
+    bool symbols_loaded = false;
+
+
+    // Load program
+    if (program_path) {
+        printf("Attempting to load program: %s\n", program_path);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                      "Loading program...\n");
+         
+    	program_load(BOOT_AOUT, program_path, true);	
+         gPC = STARTADDR;
+    }
+    
+    // If map file is provided, try it first
+    if (map_path) {
+        printf("Attempting to load symbols from map file: %s\n", map_path);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                      "Loading symbols from map file...\n");
+        
+        if (register_symbol_file_with_dap(server, map_path) == 0) {
+            symbols_loaded = true;
+            
+            // Send a detailed message about the symbols
+            char message[256];
+            snprintf(message, sizeof(message), "Successfully loaded symbols from map file: %s\n", map_path);
+            dap_server_send_output_category(server, DAP_OUTPUT_IMPORTANT, message);
+        }
+    }
+    
+    // If no symbols yet and we have a program path, try it as a.out
+    if (!symbols_loaded && program_path) {
+        printf("Attempting to load symbols from program binary: %s\n", program_path);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                      "Loading symbols from program binary...\n");
+        
+        if (register_symbol_file_with_dap(server, program_path) == 0) {
+            symbols_loaded = true;
+            
+            // Send a detailed message about the symbols
+            char message[256];
+            snprintf(message, sizeof(message), "Successfully loaded symbols from binary: %s\n", program_path);
+            dap_server_send_output_category(server, DAP_OUTPUT_IMPORTANT, message);
+        }
+    }
+    
+    // Check for potential STABS file (look for .s file with same base name as program)
+    if (!symbols_loaded && program_path) {
+        char stabs_path[600] = {0};
+        
+        // Get base program name without extension
+        const char* program_basename = strrchr(program_path, '/');
+        if (program_basename) {
+            program_basename++; // Skip the slash
+        } else {
+            program_basename = program_path;
+        }
+        
+        // Find extension
+        const char* extension = strrchr(program_basename, '.');
+        if (extension) {
+            // Take only the base name
+            size_t base_len = extension - program_basename;
+            char base_name[256] = {0};
+            strncpy(base_name, program_basename, base_len < 255 ? base_len : 255);
+            
+            // Create potential STABS file path (same directory, .s extension)
+            char dir_path[256] = {0};
+            if (program_basename > program_path) {
+                // Copy directory part
+                size_t dir_len = program_basename - program_path - 1; // -1 to exclude the slash
+                strncpy(dir_path, program_path, dir_len < 255 ? dir_len : 255);
+            }
+            
+            // Construct full STABS path
+            if (dir_path[0]) {
+                snprintf(stabs_path, sizeof(stabs_path), "%s/%s.s", dir_path, base_name);
+            } else {
+                snprintf(stabs_path, sizeof(stabs_path), "%s.s", base_name);
+            }
+            
+            // Try to load STABS file
+            printf("Attempting to load symbols from STABS file: %s\n", stabs_path);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                          "Looking for STABS debug file...\n");
+            
+            // Check if file exists before trying to load
+            FILE* f = fopen(stabs_path, "r");
+            if (f) {
+                fclose(f);
+                
+                dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                              "Found STABS file, loading symbols...\n");
+                                              
+                if (register_symbol_file_with_dap(server, stabs_path) == 0) {
+                    symbols_loaded = true;
+                    
+                    // Send a detailed message about the symbols
+                    char message[1024];
+                    snprintf(message, sizeof(message), "Successfully loaded symbols from STABS: %s\n", stabs_path);
+                    dap_server_send_output_category(server, DAP_OUTPUT_IMPORTANT, message);
+                }
+            } else {
+                dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, 
+                                              "No STABS debug file found\n");
+            }
+        }
+    }
+    
+    // If no symbols loaded from any source, warn the user
+    if (!symbols_loaded) {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
+                                      "Warning: No symbols loaded. Source level debugging may not work correctly.\n");
+    }
+      // Update the server's program counter from the CPU
+    server->debugger_state.program_counter = gPC;
+    
+    // If we have symbols, try to map initial PC to a source line
+    if (g_symbol_table) {
+        int line = symbols_get_line(g_symbol_table, gPC);
+        const char* file = symbols_get_file(g_symbol_table, gPC);
+        
+        
+
+
+        if (line > 0 && file) {
+            server->debugger_state.source_line = line;    
+            // Show initial source mapping
+            char message[256];
+            snprintf(message, sizeof(message), "Initial PC %06o mapped to %s:%d\n", 
+                     gPC, file, line);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
+        }
+    }
+    
+    // Send process event to indicate execution started
+    dap_server_send_process_event(server, program_path, 1, true, "launch");
+    
+
+    // Output a confirmation message to the debug console
+    char message[256];
+    snprintf(message, sizeof(message), "Launched program: %s\n", program_path);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
+            
+
+    // Send stopped event if stopAtEntry is true
+    if (stop_at_entry) {
+        dap_server_send_stopped_event(server, "entry", "Stopped at program entry");
+        printf("Stopped at entry point\n");
+        set_cpu_run_mode(CPU_PAUSED);
+    } else {
+        // Send thread started event
+        dap_server_send_thread_event(server, "started", 1);                
+        set_cpu_run_mode(CPU_RUNNING);
+    }
+
+    return 0; // Return success to ensure the response is properly set
 }
 
 int ndx_server_init(int port) {
@@ -473,6 +1575,13 @@ int ndx_server_init(int port) {
 
 
     // Hook up callbacks
+
+    
+    // Hook up commands for stopping and starting the debugger's access to the CPU
+    dap_server_register_command_callback(server, DAP_WAIT_FOR_DEBUGGER, cmd_wait_for_debugger);
+    dap_server_register_command_callback(server, DAP_RELEASE_DEBUGGER, cmd_release_debugger);
+
+
     // Set up stepping callbacks through command callbacks only
     // Register command-specific implementations using the wrapper functions
     dap_server_register_command_callback(server, DAP_CMD_NEXT, cmd_next);
@@ -485,6 +1594,18 @@ int ndx_server_init(int port) {
     // Register breakpoint callback
     dap_server_register_command_callback(server, DAP_CMD_SET_BREAKPOINTS, cmd_set_breakpoints);
     
+    // Register launch callback
+    dap_server_register_command_callback(server, DAP_CMD_LAUNCH, cmd_launch_callback);
+    
+    // Register stack trace callback
+    dap_server_register_command_callback(server, DAP_CMD_STACK_TRACE, cmd_stack_trace);
+
+    // Register scopes callback
+    dap_server_register_command_callback(server, DAP_CMD_SCOPES, cmd_scopes);
+
+    // Register variables callback
+    dap_server_register_command_callback(server, DAP_CMD_VARIABLES, cmd_variables);
+
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
 
@@ -513,68 +1634,19 @@ int ndx_server_stop() {
 
 void debugger_kbd_input(char c) {
     if (c == '.') {
-        printf("%6o\n", gPC);
+        int runMode = get_cpu_run_mode();
+        
+        printf("P=%6o  RunMode=%d\n", gPC, runMode);
     }
 
     if (c==' ') {
-        cpu_run(100);
+        cpu_run(1);
         printf("%6o\n", gPC);
     }
 }
 
-// Add this before the end of the #ifdef _DEBUGGER_ENABLED_ section
-#ifdef _DEBUGGER_ENABLED_
-/**
- * @brief Initialize symbol table support for the debugger
- * 
- * This function loads symbols from a specified binary or map file.
- * 
- * @param filename Path to the binary or map file containing symbols
- * @return int 0 on success, non-zero on failure
- */
-int init_symbol_support(const char* filename) {
-    if (!filename) {
-        fprintf(stderr, "Error: No symbol file specified\n");
-        return -1;
-    }
-    
-    // Free previous symbol table if it exists
-    if (g_symbol_table) {
-        symbols_free(g_symbol_table);
-        g_symbol_table = NULL;
-    }
-    
-    // Initialize symbol table
-    g_symbol_table = symbols_create();
-    if (!g_symbol_table) {
-        fprintf(stderr, "Error: Failed to create symbol table\n");
-        return -1;
-    }
-    
-    // Try loading symbols from the file (try both map and aout formats)
-    bool result = false;
-    
-    // First try map file format
-    result = symbols_load_map(g_symbol_table, filename);
-    
-    // If that fails, try a.out format
-    if (!result) {
-        result = symbols_load_aout(g_symbol_table, filename);
-    }
-    
-    // If all loading attempts failed
-    if (!result) {
-        fprintf(stderr, "Error: Failed to load symbols from %s\n", filename);
-        symbols_free(g_symbol_table);
-        g_symbol_table = NULL;
-        return -1;
-    }
-    
-    printf("Loaded symbols from %s\n", filename);
-    
-    return 0;
-}
-
+// Add this before the end of the #ifdef WITH_DEBUGGER section
+#ifdef WITH_DEBUGGER
 /**
  * @brief Find a symbol by address
  * 
@@ -620,38 +1692,12 @@ const char* get_source_location(uint16_t address, int* line) {
     *line = symbols_get_line(g_symbol_table, address);
     return symbols_get_file(g_symbol_table, address);
 }
+#endif // WITH_DEBUGGER
 
-/**
- * @brief Function to register symbol information with the DAP server
- * 
- * @param server The DAP server instance
- * @param symbol_file Path to the symbol file
- * @return int 0 on success, non-zero on failure
- */
-int register_symbol_file_with_dap(DAPServer *server, const char* symbol_file) {
-    if (!server || !symbol_file) {
-        return -1;
-    }
-    
-    // Load symbols
-    int result = init_symbol_support(symbol_file);
-    if (result != 0) {
-        return result;
-    }
-    
-    // Send a console output event to notify the client
-    char message[256];
-    snprintf(message, sizeof(message), "Loaded symbol information from %s\n", symbol_file);
-    dap_server_send_output_event(server, "console", message);
-    
-    return 0;
-}
-#endif // _DEBUGGER_ENABLED_
-
-#endif // _DEBUGGER_ENABLED_
+#endif // WITH_DEBUGGER
 
 // Empty implementations when debugger is not enabled
-#ifndef _DEBUGGER_ENABLED_
+#ifndef WITH_DEBUGGER
 
 
 
@@ -674,4 +1720,30 @@ void debugger_kbd_input(char c) {
     (void)c; // Unused parameter
 }
 
-#endif // !_DEBUGGER_ENABLED_
+#endif // !WITH_DEBUGGER
+
+/**
+ * @brief Set up the default capabilities for the mock server
+ * 
+ * This function configures which DAP capabilities our mock server
+ * actually supports based on our implementation.
+ * 
+ * @param server The DAP server instance
+ * @return int The number of capabilities set
+ */
+int set_default_dap_capabilities(DAPServer *server) {
+    if (!server) {
+        return -1;
+    }
+            
+    return dap_server_set_capabilities(server,
+        // These capabilities are fully implemented in the mock server
+        DAP_CAP_CONFIG_DONE_REQUEST, true,
+        DAP_CAP_EVALUATE_FOR_HOVERS, true,
+        DAP_CAP_RESTART_REQUEST, true,
+        DAP_CAP_TERMINATE_REQUEST, true,
+        
+        // End of capabilities
+        DAP_CAP_COUNT
+    );
+}

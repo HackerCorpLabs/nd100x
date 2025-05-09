@@ -44,13 +44,19 @@
 
 #ifdef _WIN32
     #include <windows.h>
-	volatile LONG CurrentCPURunMode;
-	volatile LONG m_debuggerRequestedControl;
+	volatile LONG cpu_run_mode;
+	volatile LONG debugger_stop_reason;
+	volatile LONG debugger_request_pause;
+	volatile LONG debugger_control_granted;
 #else
     #include <stdatomic.h>
 	#include <pthread.h>
-	atomic_int CurrentCPURunMode;
-	atomic_bool m_debuggerRequestedControl;
+
+	atomic_int cpu_run_mode;           // CPURunMode
+	atomic_int cpu_stop_reason;     // CpuStopReason
+	atomic_bool debugger_request_pause; // set by DAP thread to request pause
+	atomic_bool debugger_control_granted; // set by CPU thread when paused and debugger can access
+
 #endif
 
 
@@ -447,6 +453,9 @@ void private_cpu_tick()
 /// @return Returns the number of ticks left to run.
 int cpu_run(int ticks)
 {
+
+	if (get_debugger_control_granted()) return ticks; // Debugger has control, return immediately
+
 	// Set up longjmp target once at startup
 	if (setjmp(cpu_jmp_buf) != 0)
 	{
@@ -480,11 +489,14 @@ int cpu_run(int ticks)
 		// If CPU is in RUN mode, check if debugger has requested a pause
 		if (current_run_mode == CPU_RUNNING && m_debuggerEnabled)
 		{
-			if (debuggerRequestedControl())
+			if (get_debugger_request_pause())
 			{
-				debuggerTakeControl();				
+				set_debugger_control_granted(true);				
 				return ticks;
 			}
+
+
+			check_for_breakpoint(); // Check if we hit a breakpoint
 		}
 
 		if (current_run_mode != CPU_STOPPED) // Including Normal and Paused (=debugger mode)
@@ -527,7 +539,7 @@ void cpu_init(bool debuggerEnabled)
 	gCSR = 1 << 2; /* this bit sets the cache as not available */
 
 	/* Set cpu as running for now. Probably should depend on settings */
-	CurrentCPURunMode = CPU_RUNNING;
+	cpu_run_mode = CPU_RUNNING;
 	instr_counter = 0;
 
 	// Allocate ShadowMemory for pagetables
@@ -558,75 +570,125 @@ void cleanup_cpu()
 
 
 
-
-/// @brief Has the debugger requested control of the CPU?
-/// @return 
-bool debuggerRequestedControl()
-{
-#ifdef WITH_DEBUGGER	
-	#ifdef _WIN32
-        return (CPURunMode)InterlockedCompareExchange(
-            (volatile LONG *)&m_debuggerRequestedControl,
-            0,  // Exchange value (ignored)
-            0   // Comparand (ignored)
-        );
-    #else
-        return atomic_load(&m_debuggerRequestedControl);
-    #endif	
-#else
-	return false;
-#endif
-}
-
-
-int saved_run_mode = CPU_RUNNING;
-void debuggerTakeControl()
-{
-	saved_run_mode = get_cpu_run_mode();	
-	set_cpu_run_mode(CPU_PAUSED);
-}
-
-void debuggerReleaseControl()
-{
-	set_debugger_requested_control(false);
-	set_cpu_run_mode(saved_run_mode);
-}
-
-/// @brief Set the debugger requested control flag. Called by the debugger thread.
+/// @brief Request from the debugger to take control of the CPU
 /// @param requested 
-void set_debugger_requested_control(bool requested)
+void set_debugger_request_pause(bool requested)
 {
 #ifdef WITH_DEBUGGER	
 	#ifdef _WIN32
-		InterlockedExchange((volatile LONG *)&m_debuggerRequestedControl, (LONG)requested);
+		InterlockedExchange((volatile LONG *)&debugger_request_pause, (LONG)requested);
 	#else
-		atomic_store(&m_debuggerRequestedControl, requested);
+		atomic_store(&debugger_request_pause, requested);
 	#endif
 #endif
 }
 
+/// @brief Check if the debugger has requested to pause the CPU
+/// @return true if the debugger has requested to pause the CPU, false otherwise
+/// @details This function is used to check if the debugger has requested to pause the CPU.
+bool get_debugger_request_pause(void) {
+	#ifdef WITH_DEBUGGER
+		#ifdef _WIN32
+			return (CPURunMode)InterlockedCompareExchange(
+				(volatile LONG *)&debugger_request_pause,
+				0,  // Exchange value (ignored)
+				0   // Comparand (ignored)
+			);
+		#else
+			return atomic_load(&debugger_request_pause);
+		#endif	
+	#else
+		return false;
+	#endif
+}
+
+/// @brief Set the debugger control granted flag
+/// @param requested
+/// @details This function is used to set the debugger control granted flag.
+void set_debugger_control_granted(bool requested)
+{
+#ifdef WITH_DEBUGGER	
+	#ifdef _WIN32
+		InterlockedExchange((volatile LONG *)&debugger_control_granted, (LONG)requested);
+	#else
+		atomic_store(&debugger_control_granted, requested);
+	#endif
+#endif
+}
+
+/// @brief Check if the debugger control is granted
+/// @details This function is used to check if the debugger control is granted.
+/// @return  true if the debugger control is granted, false otherwise
+bool get_debugger_control_granted(void) {
+	#ifdef WITH_DEBUGGER
+		#ifdef _WIN32
+			return (CPURunMode)InterlockedCompareExchange(
+				(volatile LONG *)&debugger_control_granted,
+				0,  // Exchange value (ignored)
+				0   // Comparand (ignored)
+			);
+		#else
+			return atomic_load(&debugger_control_granted);
+		#endif	
+	#else
+		return false;
+	#endif
+}
+
+/// @brief Set the debugger stop reason
+/// @param reason The reason for stopping the cpu
+void set_cpu_stop_reason(CpuStopReason reason) {
+#ifdef WITH_DEBUGGER	
+	#ifdef _WIN32
+		InterlockedExchange((volatile LONG *)&cpu_stop_reason, (LONG)reason);
+	#else
+		atomic_store(&cpu_stop_reason, reason);
+	#endif
+#endif
+}
+
+
+CpuStopReason get_cpu_stop_reason(void) {
+#ifdef WITH_DEBUGGER
+	#ifdef _WIN32
+		return (CpuStopReason)InterlockedCompareExchange(
+			(volatile LONG *)&cpu_stop_reason,
+			0,  // Exchange value (ignored)
+			0   // Comparand (ignored)
+		);
+	#else
+		return atomic_load(&cpu_stop_reason);
+	#endif
+#else
+	return STOP_REASON_NONE;
+#endif	
+}
+	
+
+
 void set_cpu_run_mode(CPURunMode new_mode) {
 #ifdef WITH_DEBUGGER	
 	#ifdef _WIN32
-		 InterlockedExchange((volatile LONG *)&CurrentCPURunMode, (LONG)new_mode);
+		 InterlockedExchange((volatile LONG *)&cpu_run_mode, (LONG)new_mode);
 	#else
-		atomic_store(&CurrentCPURunMode, new_mode);    
+		atomic_store(&cpu_run_mode, new_mode);    
 	#endif
 #else
 	CurrentCPURunMode = new_mode;
 #endif
 }
 
+
 CPURunMode get_cpu_run_mode(void) {
 #ifdef WITH_DEBUGGER
     #ifdef _WIN32
         return (CPURunMode)InterlockedCompareExchange(
-            (volatile LONG *)&CurrentCPURunMode,
+            (volatile LONG *)&cpu_run_mode,
             0,  // Exchange value (ignored)
             0   // Comparand (ignored)
         );
     #else
-        return atomic_load(&CurrentCPURunMode);
+        return atomic_load(&cpu_run_mode);
     #endif	
 #else
 	return CurrentCPURunMode;

@@ -18,10 +18,12 @@ void private_cpu_tick(void);
 int cpu_run(int ticks);
 void cpu_init(bool debuggerEnabled);
 void cleanup_cpu(void);
-bool debuggerRequestedControl(void);
-void debuggerTakeControl(void);
-void debuggerReleaseControl(void);
-void set_debugger_requested_control(bool requested);
+void set_debugger_request_pause(bool requested);
+bool get_debugger_request_pause(void);
+void set_debugger_control_granted(bool requested);
+bool get_debugger_control_granted(void);
+void set_cpu_stop_reason(CpuStopReason reason);
+CpuStopReason get_cpu_stop_reason(void);
 void set_cpu_run_mode(CPURunMode new_mode);
 CPURunMode get_cpu_run_mode(void);
 

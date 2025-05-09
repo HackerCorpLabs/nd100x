@@ -193,6 +193,10 @@ int main(int argc, char *argv[])
 	while (runMode != CPU_SHUTDOWN)
 	{
         if (runMode == CPU_PAUSED) {
+            if (get_debugger_request_pause())
+			{
+				set_debugger_control_granted(true);							
+			}
             sleep_ms(100); // sleep 100ms
         }
         else
@@ -202,6 +206,7 @@ int main(int argc, char *argv[])
 
 		runMode = get_cpu_run_mode();
 
+        // Handle keyboard input to console
 		if (runMode != CPU_SHUTDOWN)
 		{
 			// Check for keyboard input

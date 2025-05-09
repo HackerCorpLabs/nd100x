@@ -79,22 +79,6 @@ typedef enum {
 } LoadState;
 
 
-// ** A OUT */
-
-#define TEXT_START 0x0000
-#define DATA_START(a_text) (TEXT_START + (a_text))
-
-// Structure for the ND-100 a.out header (8 16-bit fields = 16 bytes)
-typedef struct {
-    uint16_t a_magic;   // magic number identifying valid a.out file
-    uint16_t a_text;    // size of text segment (in bytes)
-    uint16_t a_data;    // size of initialized data segment (in bytes)
-    uint16_t a_bss;     // size of uninitialized (zero-filled) data (in bytes)
-    uint16_t a_syms;    // size of symbol table (optional)
-    uint16_t a_entry;   // entry point (where execution starts)
-    uint16_t a_zp;      // size of zero page
-    uint16_t a_flag;    // flags for relocation/symbols/etc
-} aout_header_t;
 
 
 
@@ -116,6 +100,28 @@ typedef struct {
 } aout_nlist_t;
 
 
+#ifdef _DEFINE_LOCAL_A_OUT_
+// ** A OUT */
+
+#define TEXT_START 0x0000
+#define DATA_START(a_text) (TEXT_START + (a_text))
+
+
+// Structure for the ND-100 a.out header (8 16-bit fields = 16 bytes)
+typedef struct {
+    uint16_t a_magic;   // magic number identifying valid a.out file
+    uint16_t a_text;    // size of text segment (in bytes)
+    uint16_t a_data;    // size of initialized data segment (in bytes)
+    uint16_t a_bss;     // size of uninitialized (zero-filled) data (in bytes)
+    uint16_t a_syms;    // size of symbol table (optional)
+    uint16_t a_entry;   // entry point (where execution starts)
+    uint16_t a_zp;      // size of zero page
+    uint16_t a_flag;    // flags for relocation/symbols/etc
+} aout_header_t;
+
+
+
+
 // Symbol types
 #define N_UNDF  0x0  // Undefined
 #define N_ABS   0x1  // Absolute
@@ -125,5 +131,8 @@ typedef struct {
 #define N_ZREL  0x5  // Zero page relative
 #define N_EXT   0x20 // External symbol
 
+
 #endif
 
+
+#endif // 

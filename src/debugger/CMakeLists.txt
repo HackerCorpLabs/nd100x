@@ -13,6 +13,7 @@ set(DEBUGGER_SOURCE_FILES
 
 # Add include directories - locate libdap if present
 set(LIBDAP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libdap/libdap/include")
+set(NDLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/src/ndlib")
 
 # Generate prototypes with mktypes
 add_custom_command(
@@ -30,7 +31,7 @@ add_library(debugger STATIC ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/debugger_prot
 # Include directories
 target_include_directories(debugger
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/ndlib
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/ndlib
     PRIVATE ${CMAKE_SOURCE_DIR}/src/cpu
     PRIVATE ${CMAKE_SOURCE_DIR}/src/machine
 )

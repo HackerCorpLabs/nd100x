@@ -55,6 +55,8 @@
 #include "ndlib_protos.h"
 #include <stdlib.h>
 #include <string.h>
+#include "../../external/libsymbols/include/symbols.h"
+#include "../../external/libsymbols/include/nlist.h"
 
 // Physical memory functions in cpu_mms.c
 extern int ReadPhysicalMemory(int physicalAddress, bool privileged);
