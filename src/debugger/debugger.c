@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define WITH_DEBUGGER
 
@@ -152,6 +153,26 @@ void start_debugger() {
 }
 
 
+void stop_debugger() {
+    
+	// Clean up the debugger thread
+    if (p_debugger_thread) {
+        // Signal the thread to terminate
+        // (You might need to add a flag to signal the thread to exit)
+
+
+        #ifdef _WIN32
+            TerminateThread(p_debugger_thread, 0);
+        #else
+            pthread_kill(p_debugger_thread, SIGINT);
+        #endif
+
+        // Wait for the thread to finish
+        pthread_join(p_debugger_thread, NULL);
+    }
+}
+
+
 const char* cpuStopReasonToString(CpuStopReason r) {
     switch (r) {
         case STOP_REASON_STEP: return "step";
@@ -170,6 +191,8 @@ const char* cpuStopReasonToString(CpuStopReason r) {
 
 static int cmd_wait_for_debugger (DAPServer *server) 
 {
+    printf("DAP adapter has requested CPU pause\n");
+
     // Tell CPU thread we want it to pause
     if (get_cpu_run_mode() == CPU_SHUTDOWN) return -1; // CPU is shutting down, no need to pause
 
@@ -180,47 +203,16 @@ static int cmd_wait_for_debugger (DAPServer *server)
         usleep(1000);  // small sleep to avoid busy spin
     }
 
-    CpuStopReason reason = get_cpu_stop_reason();
-    
-    if (reason != STOP_REASON_NONE)
-    {
-        const char* dap_reason_str = cpuStopReasonToString(reason);
-        if (dap_server_send_stopped_event(server, dap_reason_str, NULL)==0)
-        {                
-            // Mesaage sent succesfully, now clear the stop reason
-            set_cpu_stop_reason(STOP_REASON_NONE);        
-        }
-    }
-
     // CPU is paused; debugger now owns control
     return 0;
 }
 
 static int cmd_release_debugger (DAPServer *server) 
 {
-    // Release debugger's request to pause (let CPU decide to run/step)
+    printf("DAP adapter has requested CPU resume\n");
+
+    // Release debugger's request to pause (let CPU decide to run/step)    
     set_debugger_request_pause(false);
-
-
-
-#if 0
-
-    // If debugger intends CPU to keep paused → keep cpu_run_mode == CPU_PAUSED
-    // If debugger wants to resume → set cpu_run_mode = CPU_RUNNING
-    // (this depends on DAP command semantics)
-
-    if (server->continue_on_release) {
-        // Example field: continue after command
-        atomic_store(&cpu_run_mode, CPU_RUNNING);
-    }
-    else if (server->step_on_release) {
-        // Request CPU to execute one step
-        atomic_store(&cpu_run_mode, CPU_STEP_PENDING);
-    }
-    else {
-        // Keep paused → do nothing
-    }
-#endif
 
     // Notify CPU thread that debugger control is released
     set_debugger_control_granted(false);    
@@ -228,8 +220,24 @@ static int cmd_release_debugger (DAPServer *server)
     return 0;
 }
    
+static int cmd_check_cpu_events(DAPServer *server) {
+    
+    CpuStopReason reason = get_cpu_stop_reason();
+    if (reason != STOP_REASON_NONE)
+    {
+        const char* dap_reason_str = cpuStopReasonToString(reason);
+        if (dap_server_send_stopped_event(server, dap_reason_str, NULL)==0)
+        {                
+            // Mesaage sent succesfully, now clear the stop reason
+            set_cpu_stop_reason(STOP_REASON_NONE);        
+            dap_server_send_output_category(server, DAP_OUTPUT_STDOUT, dap_reason_str);
+        }
+    }
+    
+    return 0;
+}
 
-int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
+int step_cpu(DAPServer *server,  const char* step_type) {
     if (!server) {
         return -1;
     }
@@ -239,17 +247,30 @@ int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
     bool stepping_to_line = false;
     
     
+  // Access the step command context
+    StepCommandContext *ctx = &server->current_command.context.step;
+
+        // Log the stepping action
+    char log_message[256];
+    snprintf(log_message, sizeof(log_message), 
+             "Handling %s command for thread %d", step_type, ctx->thread_id);    
+    dap_server_send_output(server, log_message);
+    
 
     // If we have symbol table and want to step by line
-    if (g_symbol_table && (granularity == DAP_STEP_GRANULARITY_LINE || granularity == DAP_STEP_GRANULARITY_STATEMENT)) {
+    if (g_symbol_table && (ctx->granularity == DAP_STEP_GRANULARITY_LINE || ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)) {
         // Get the next line's address
         target_pc = symbols_get_next_line_address(g_symbol_table, current_pc);
         
         if (target_pc != 0 && target_pc != current_pc) {
             stepping_to_line = true;
-            printf("Stepping to next line at address %06o\n", target_pc);
+            snprintf(log_message, sizeof(log_message), 
+            "Stepping to next line at address %06o\n", target_pc);
+            dap_server_send_output(server, log_message);
         } else {
-            printf("No line information found, falling back to instruction stepping\n");
+            snprintf(log_message, sizeof(log_message), 
+            "No line information found, falling back to instruction stepping\n");
+            dap_server_send_output(server, log_message);
         }
     }
     else
@@ -261,7 +282,7 @@ int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
     // Set a temporary breakpoint at the target address if we're stepping to a line
     if (stepping_to_line && target_pc != 0 && target_pc != current_pc) {
         char msg[256];
-        snprintf(msg, sizeof(msg), "Setting temporary breakpoint at address %06o", target_pc);
+        snprintf(msg, sizeof(msg), "Setting temporary breakpoint at address %06o\n", target_pc);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
         
         // Use the CPU's breakpoint system to set a temporary breakpoint
@@ -273,53 +294,9 @@ int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
         {
             // CPU is paused, so we need to resume it
             set_cpu_run_mode(CPU_RUNNING);
-        }
-        // Now run CPU until it hits the breakpoint
-        while (run_mode == CPU_RUNNING ) 
-        {
-            // Run a batch of instructions (100 at a time to avoid excessive checking)
-            cpu_run(100);
-            
-            // Check if we've hit our target or another breakpoint
-            if (get_cpu_run_mode() == CPU_BREAKPOINT || gPC == target_pc) {
-                break;
-            }
-            
-            // Safety check - don't run forever
-            steps -= 100;
-            if (steps <= 0) {
-                printf("Warning: Step limit reached before finding next line\n");
-                dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
-                                             "Step limit reached before finding target line");
-                break;
-            }
-        }
-    } else {
-        // Always run exactly one instruction, regardless of the steps parameter
-        // This ensures we don't run off beyond the intended step
-        cpu_run(1);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Switched CPU to running mode\n");
+        }        
     }
-    
-    // Update debugger state with current PC
-    server->debugger_state.program_counter = gPC;
-
-    char steptxt[256];    
-    sprintf(steptxt,"Stepping from %6o to %6o\n", current_pc, gPC);
-    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, steptxt);
-    
-    // Update source mapping information
-    if (g_symbol_table) {
-        int line = 0;
-        const char* filename = get_source_location(gPC, &line);
-        
-        if (filename && line > 0) {                             
-            printf("Mapped PC %06o to %s:%d\n", gPC, filename, line);
-            server->debugger_state.source_line = line;
-        } else {
-            printf("No source mapping found for PC %06o\n", gPC);
-        }
-    }
-    
     return 0;
 }
 
@@ -342,7 +319,7 @@ int step_cpu(DAPServer *server, int steps, StepGranularity granularity) {
 static int handle_step_command(DAPServer *server, const char* step_type) {
     if (!server) {
         return -1;
-    }    
+    }
     // Access the step command context
     StepCommandContext *ctx = &server->current_command.context.step;
     
@@ -388,8 +365,7 @@ static int handle_step_command(DAPServer *server, const char* step_type) {
     // Let the CPU run until it hits a breakpoint or we have reached the target
 
 
-    // Update the debugger state to indicate we are not stopped anymore
-    server->debugger_state.has_stopped = false;
+
     
     return 0;
 }
@@ -403,7 +379,7 @@ static int handle_step_command(DAPServer *server, const char* step_type) {
  * @return int 0 on success, non-zero on failure
  */
 static int cmd_next(DAPServer *server) {
-    return handle_step_command(server, "next");
+    return step_cpu(server, "next");
 }
 
 /**
@@ -415,7 +391,7 @@ static int cmd_next(DAPServer *server) {
  * @return int 0 on success, non-zero on failure
  */
 static int cmd_step_in(DAPServer *server) {
-    return handle_step_command(server, "step in");
+    return step_cpu(server, "step in");
 }
 
 /**
@@ -427,7 +403,7 @@ static int cmd_step_in(DAPServer *server) {
  * @return int 0 on success, non-zero on failure
  */
 static int cmd_step_out(DAPServer *server) {
-    return handle_step_command(server, "step out");
+    return step_cpu(server, "step out");
 }
 
 /**
@@ -453,7 +429,7 @@ static int cmd_scopes(DAPServer *server) {
     printf("Scopes request for frame ID: %d\n", frame_id);
     
     // Define the number of scopes we'll provide
-    const int NUM_SCOPES = 3; // Locals, Registers, Memory
+    const int NUM_SCOPES = 4; // Locals, Registers, Internal Registers, Memory
     
     // Allocate memory for the scopes
     DAPScope* scopes = (DAPScope*)calloc(NUM_SCOPES, sizeof(DAPScope));
@@ -496,7 +472,7 @@ static int cmd_scopes(DAPServer *server) {
     scope_index++;
     scopes[scope_index].name = strdup("Internal Registers");
     scopes[scope_index].variables_reference = SCOPE_ID_INTERNAL_REGISTERS;
-    scopes[scope_index].named_variables = 13; // No variables in this scope
+    scopes[scope_index].named_variables = 20; // 20 internal registers
     scopes[scope_index].indexed_variables = 0;
     // Source location fields are optional, set to 0/NULL
     scopes[scope_index].source_path = NULL;
@@ -523,7 +499,7 @@ static int cmd_scopes(DAPServer *server) {
     // Store the scopes in the command context for the DAP server to use
     server->current_command.context.scopes.scopes = scopes;
     server->current_command.context.scopes.scope_count = NUM_SCOPES;
-    
+           
     return 0;
 }
 
@@ -724,7 +700,7 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "bitmap",         // type
         SCOPE_ID_STATUS_FLAGS,   // variablesReference
-        (uint32_t)&gA,     // memoryReference
+        (uintptr_t)&gA & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
@@ -739,13 +715,13 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gA,     // memoryReference
+        (uintptr_t)&gA & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
     
-    // Add the P register (program counter)
+    // Add the P register (Program Counter)
     snprintf(value_str, sizeof(value_str), "%06o", gPC);
     add_variable_to_array(
         server,
@@ -753,13 +729,13 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gPC,    // memoryReference
+        (uintptr_t)&gPC & 0xFFFFFFFF,    // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
 
-    // Add the B register (Base register)
+    // Add the B register (B register)
     snprintf(value_str, sizeof(value_str), "%06o", gB);
     add_variable_to_array(
         server,
@@ -767,7 +743,7 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gB,     // memoryReference
+        (uintptr_t)&gB & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
@@ -781,12 +757,11 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gL,     // memoryReference
+        (uintptr_t)&gL & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
-
 
     // Add the A register (Accumulator)
     snprintf(value_str, sizeof(value_str), "%06o", gA);
@@ -796,13 +771,13 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gA,     // memoryReference
+        (uintptr_t)&gA & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
     
-    // Add the T register (Temporary register)
+    // Add the T register (T register)
     snprintf(value_str, sizeof(value_str), "%06o", gT);
     add_variable_to_array(
         server,
@@ -810,13 +785,13 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gT,     // memoryReference
+        (uintptr_t)&gT & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
 
-    // Add the X register
+    // Add the X register (Index register)
     snprintf(value_str, sizeof(value_str), "%06o", gX);
     add_variable_to_array(
         server,
@@ -824,12 +799,11 @@ static void add_register_variables(DAPServer *server, char* info_message, size_t
         value_str,         // value
         "integer",         // type
         0,                 // variablesReference
-        (uint32_t)&gX,     // memoryReference
+        (uintptr_t)&gX & 0xFFFFFFFF,     // memoryReference - safely truncate to 32-bit if needed
         property_kind,     // kind
         readonly_attrs,    // attributes
         1                  // num_attributes
     );
-    
 }
 
 /**
@@ -892,7 +866,7 @@ static void add_internal_registers_variables(DAPServer *server, char* info_messa
             value_str,                // value
             internal_regs[i].type,    // type
             0,                        // variablesReference (no children)
-            (uint32_t)(internal_regs[i].reg_ptr), // memoryReference
+            (uintptr_t)(internal_regs[i].reg_ptr) & 0xFFFFFFFF, // memoryReference - safely truncate to 32-bit if needed
             property_kind,            // kind
             readonly_attrs,           // attributes
             1                         // num_attributes
@@ -1035,7 +1009,7 @@ static int cmd_variables(DAPServer *server) {
     if (!server) {
         return -1;
     }
-    
+
     // Extract variables reference from the command context
     int variables_reference = server->current_command.context.variables.variables_reference;
     
@@ -1043,6 +1017,10 @@ static int cmd_variables(DAPServer *server) {
     
     // Buffer for informational messages
     char info_message[256] = {0};
+
+    // Reset variable array count
+    server->current_command.context.variables.count = 0;
+    server->current_command.context.variables.variable_array = NULL;
 
     // Handle different variable reference types
     switch (variables_reference) {
@@ -1091,7 +1069,11 @@ static int cmd_variables(DAPServer *server) {
     if (info_message[0] != '\0') {
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, info_message);
     }
-       
+
+    // The variables will be used by handle_variables and converted to JSON
+    // We don't need to clean up here, as the caller (handle_variables) will handle it
+    // This is intentional to allow the response to be sent before freeing the memory
+           
     return 0;
 }
 
@@ -1121,32 +1103,86 @@ static int cmd_stack_trace(DAPServer *server) {
              server->current_command.context.stack_trace.levels);
     dap_server_send_output(server, log_message);
     
-    // For the mock implementation, we'll use a default source file if none is set
-    if (!server->debugger_state.source_path && !server->debugger_state.source_name) {
-        // Example source information for the mock debugger
-        if (!server->debugger_state.source_path) {
-            server->debugger_state.source_path = strdup("/tmp/unknown.s");
-        }
+
+    // Get current PC value
+    uint16_t current_pc = gPC;
+    
+    // Initialize stack frame information
+    server->current_command.context.stack_trace.frame_count = 1; // We'll create one frame for now
+    server->current_command.context.stack_trace.frames = malloc(sizeof(DAPStackFrame));
+    
+    if (!server->current_command.context.stack_trace.frames) {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR, 
+                                      "Error: Failed to allocate memory for stack frames\n");
+        return -1;
+    }
+    
+    // Initialize the frame
+    DAPStackFrame* frame = &server->current_command.context.stack_trace.frames[0];
+    frame->id = 0; // First frame has ID 0
+    frame->name = NULL;
+    frame->source_path = NULL;
+    frame->source_name = NULL;
+    frame->line = 0;
+    frame->column = 0;
+    frame->end_line = 0;
+    frame->end_column = 0;
+    frame->can_restart = false;
+    frame->instruction_pointer_reference = NULL;
+    frame->module_id = NULL;
+    frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
+    
+    // Try to get symbol information if we have a symbol table
+    if (g_symbol_table) {
+        // Get source location information
+        int line = symbols_get_line(g_symbol_table, current_pc);
+        const char* file = symbols_get_file(g_symbol_table, current_pc);
+        const symbol_entry_t* symbol = symbols_lookup_by_address(g_symbol_table, current_pc);
         
-        if (!server->debugger_state.source_name) {
-            server->debugger_state.source_name = strdup("unknown.s");
+        if (line > 0 && file) {
+            // We found source information
+            frame->line = line;
+            frame->source_path = strdup(file);
+            
+            // Extract source name from path
+            const char* name = strrchr(file, '/');
+            if (name) {
+                frame->source_name = strdup(name + 1);
+            } else {
+                frame->source_name = strdup(file);
+            }
+            
+            // Create a frame name from the symbol or PC
+            char frame_name[256];
+            if (symbol && symbol->name) {
+                snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, current_pc);
+            } else {
+                snprintf(frame_name, sizeof(frame_name), "frame at %06o", current_pc);
+            }
+            frame->name = strdup(frame_name);
+            
+            // Log the source mapping
+            char log_msg[256];
+            snprintf(log_msg, sizeof(log_msg), "PC %06o mapped to %s:%d\n", 
+                     current_pc, file, line);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
+        } else {
+            // No source information found, use PC as frame name
+            char frame_name[256];
+            snprintf(frame_name, sizeof(frame_name), "frame at %06o", current_pc);
+            frame->name = strdup(frame_name);
         }
-        
-        snprintf(log_message, sizeof(log_message), "Using source: %s", server->debugger_state.source_path);
-        dap_server_send_output(server, log_message);
+    } else {
+        // No symbol table, just use PC as frame name
+        char frame_name[256];
+        snprintf(frame_name, sizeof(frame_name), "frame at %06o", current_pc);
+        frame->name = strdup(frame_name);
     }
     
-    // Set default line/column if not set
-    if (server->debugger_state.source_line <= 0) {
-        server->debugger_state.source_line = 1;
-    }
+    // Set instruction pointer reference
     
-    if (server->debugger_state.source_column <= 0) {
-        server->debugger_state.source_column = 1;
-    }
-    
-    // The handle_stack_trace function will build a response based on the debugger state
-    
+    frame->instruction_pointer_reference = current_pc;
+
     return 0;
 }
 
@@ -1545,6 +1581,7 @@ static int cmd_launch_callback(DAPServer* server) {
         dap_server_send_stopped_event(server, "entry", "Stopped at program entry");
         printf("Stopped at entry point\n");
         set_cpu_run_mode(CPU_PAUSED);
+        set_cpu_stop_reason(STOP_REASON_ENTRY);
     } else {
         // Send thread started event
         dap_server_send_thread_event(server, "started", 1);                
@@ -1580,7 +1617,7 @@ int ndx_server_init(int port) {
     // Hook up commands for stopping and starting the debugger's access to the CPU
     dap_server_register_command_callback(server, DAP_WAIT_FOR_DEBUGGER, cmd_wait_for_debugger);
     dap_server_register_command_callback(server, DAP_RELEASE_DEBUGGER, cmd_release_debugger);
-
+    dap_server_register_command_callback(server, DAP_CHECK_CPU_EVENTS, cmd_check_cpu_events);
 
     // Set up stepping callbacks through command callbacks only
     // Register command-specific implementations using the wrapper functions
@@ -1605,7 +1642,7 @@ int ndx_server_init(int port) {
 
     // Register variables callback
     dap_server_register_command_callback(server, DAP_CMD_VARIABLES, cmd_variables);
-
+    
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
 

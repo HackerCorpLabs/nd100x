@@ -36,7 +36,7 @@ static int hash_address(uint16_t address)
 }
 
 // Initialize
-void breakpoint_manager_init(BreakpointManager *mgr)
+void breakpoint_manager_init()
 {
     mgr= (BreakpointManager *)malloc(sizeof(BreakpointManager));
     if (!mgr)
@@ -48,9 +48,22 @@ void breakpoint_manager_init(BreakpointManager *mgr)
     memset(mgr->buckets, 0, sizeof(mgr->buckets));
 }
 
+void breakpoint_manager_cleanup()
+{
+    if (mgr) {
+        breakpoint_manager_clear();
+        free(mgr);
+    }
+}
+
 // Add (create new entry or append to list)
 void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage)
 {
+
+    if (mgr == NULL) {
+        breakpoint_manager_init(mgr);
+    }
+
     int h = hash_address(address);
 
     // Prevent adding duplicate temporary breakpoint at address
@@ -78,7 +91,7 @@ void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *c
 }
 
 // Remove entries at address matching type (or all if type == -1)
-void breakpoint_manager_remove(BreakpointManager *mgr, uint16_t address, int type)
+void breakpoint_manager_remove(uint16_t address, int type)
 {
     int h = hash_address(address);
     BreakpointEntry *prev = NULL;
@@ -109,7 +122,7 @@ void breakpoint_manager_remove(BreakpointManager *mgr, uint16_t address, int typ
 }
 
 // Clear all breakpoints
-void breakpoint_manager_clear(BreakpointManager *mgr)
+void breakpoint_manager_clear()
 {
     for (int h = 0; h < HASH_SIZE; h++)
     {
@@ -204,7 +217,7 @@ int check_for_breakpoint(void)
     
                 if (bp->type == BP_TYPE_TEMPORARY) {
                     // Auto-remove temp breakpoint
-                    breakpoint_manager_remove(&mgr, bp->address, BP_TYPE_TEMPORARY);
+                    breakpoint_manager_remove(bp->address, BP_TYPE_TEMPORARY);
                 }
             }
         }

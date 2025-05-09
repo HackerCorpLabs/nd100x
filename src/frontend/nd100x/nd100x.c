@@ -192,16 +192,36 @@ int main(int argc, char *argv[])
 
 	while (runMode != CPU_SHUTDOWN)
 	{
-        if (runMode == CPU_PAUSED) {
-            if (get_debugger_request_pause())
-			{
-				set_debugger_control_granted(true);							
-			}
+
+
+
+        if(get_debugger_control_granted())
+        {
+            // DAP adapter has control, so we need to wait for it to release control
             sleep_ms(100); // sleep 100ms
         }
         else
         {
-            machine_run(5000);  
+            // Check if DAP adapter has requested a pause
+            if (get_debugger_request_pause())
+            {
+                printf("Pausing CPU...\n");
+                set_debugger_control_granted(true);
+                continue;
+            }
+
+
+            // ND100x has control, so we need to run the machine
+            runMode = get_cpu_run_mode();
+            if (runMode == CPU_RUNNING)
+            {
+                machine_run(5000);  
+            }
+            else
+            {
+                // CPU is paused, so we need to wait for the debugger to release control
+                sleep_ms(100); // sleep 100ms
+            }
         }
 
 		runMode = get_cpu_run_mode();
@@ -236,7 +256,7 @@ int main(int argc, char *argv[])
                     ch = '\r';
                 }
 
-                if (runMode == CPU_PAUSED) {
+                if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
                     debugger_kbd_input(ch);
                 }
                 else

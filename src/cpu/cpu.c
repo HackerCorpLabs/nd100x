@@ -454,7 +454,10 @@ void private_cpu_tick()
 int cpu_run(int ticks)
 {
 
-	if (get_debugger_control_granted()) return ticks; // Debugger has control, return immediately
+	if (get_debugger_control_granted()) {		
+		usleep(100000); // Sleep 100ms
+		return ticks; // Debugger has control, return immediately
+	}
 
 	// Set up longjmp target once at startup
 	if (setjmp(cpu_jmp_buf) != 0)
@@ -487,19 +490,19 @@ int cpu_run(int ticks)
         }
         
 		// If CPU is in RUN mode, check if debugger has requested a pause
-		if (current_run_mode == CPU_RUNNING && m_debuggerEnabled)
+		if (m_debuggerEnabled)
 		{
-			if (get_debugger_request_pause())
+			//if ((current_run_mode == CPU_RUNNING)||(current_run_mode == CPU_BREAKPOINT))
 			{
-				set_debugger_control_granted(true);				
-				return ticks;
-			}
-
-
-			check_for_breakpoint(); // Check if we hit a breakpoint
+				if (get_debugger_request_pause())
+				{
+					set_debugger_control_granted(true);				
+					return ticks;
+				}
+			}			
 		}
 
-		if (current_run_mode != CPU_STOPPED) // Including Normal and Paused (=debugger mode)
+		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
 			private_cpu_tick();
 
@@ -509,6 +512,15 @@ int cpu_run(int ticks)
 			if (ticks > 0)
 			{
 				ticks--;
+			}
+
+			if (m_debuggerEnabled)
+			{
+				// Check if we hit a breakpoint
+				if (check_for_breakpoint() != STOP_REASON_NONE)
+				{
+					return ticks;
+				}
 			}
 		}
 
@@ -539,7 +551,7 @@ void cpu_init(bool debuggerEnabled)
 	gCSR = 1 << 2; /* this bit sets the cache as not available */
 
 	/* Set cpu as running for now. Probably should depend on settings */
-	cpu_run_mode = CPU_RUNNING;
+	set_cpu_run_mode(CPU_RUNNING);
 	instr_counter = 0;
 
 	// Allocate ShadowMemory for pagetables
@@ -554,7 +566,7 @@ void cpu_init(bool debuggerEnabled)
 		disasm_setlbl(gPC);
 
 #ifdef WITH_DEBUGGER
-	if (debuggerEnabled)
+	if (m_debuggerEnabled)
     {
 		start_debugger();
     }
@@ -566,6 +578,14 @@ void cleanup_cpu()
 {
 	// Destroy paging tables
 	DestroyPagingTables();
+
+#ifdef WITH_DEBUGGER
+	if (m_debuggerEnabled)
+    {
+		stop_debugger();
+    }
+#endif
+
 }
 
 

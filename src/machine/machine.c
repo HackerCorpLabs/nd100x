@@ -69,17 +69,12 @@ cleanup_machine (void)
 void  machine_run (int ticks)
 {    
     // Run the CPU until it stops but also handle debugger requests
-    while (get_cpu_run_mode() != CPU_SHUTDOWN);
+    while (get_cpu_run_mode() != CPU_SHUTDOWN)
     {    
-        while (get_debugger_control_granted()) 
-        {
-            //printf("Machine: CPU is paused, waiting for debugger to release. Sleeping 100ms\n");
-            usleep(100000);
-            continue;
-        }        
         ticks = cpu_run(ticks);  
 
         if (ticks == 0) return; // No more ticks to run
+        if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
     } 
 }
 
