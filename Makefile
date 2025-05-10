@@ -151,6 +151,12 @@ run: debug
 	DISASM_ARG=$$([ "$(DISASM)" = "1" ] && echo "--disasm" || echo ""); \
 	$(BUILD_DIR)/bin/nd100x --boot=$(BOOT_TYPE) $$IMAGE_ARG --start=$(START_ADDR) $$VERBOSE_ARG $$DEBUGGER_ARG $$DISASM_ARG
 
+
+runv: debug	
+	@echo "Running with valgrind.."
+	valgrind --leak-check=full  $(BUILD_DIR)/bin/nd100x -d -v
+
+
 help:
 	@echo "ND100X Makefile Help"
 	@echo "-------------------------------------------------------------------------------"
@@ -168,6 +174,7 @@ help:
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"
+	@echo "  runv          - Build and run with valgrind"
 	@echo "  help          - Show this help"
 	@echo ""
 	@echo "Run options (environment variables):"
