@@ -156,7 +156,7 @@ Run options (environment variables):
   DISASM=1                            Enable disassembly output
 
 Platform-specific features:
-  Linux/Windows: _DEBUGGER_ENABLED_ is automatically set for cpu/debugger
+  Linux/Windows: WITH_DEBUGGER is automatically set for cpu/debugger
                  This enables Debug Adapter Protocol (DAP) support
   WebAssembly:   Debugger is disabled, optimized for browser performance
 
