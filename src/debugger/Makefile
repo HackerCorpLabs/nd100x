@@ -14,7 +14,7 @@ CFLAGS += -D_GNU_SOURCE -DDEBUG
 #CFLAGS = -Wall -O0 -fno-aggressive-loop-optimizations -ggdb -DDEBUG
 
 # Module name (used for build output paths)
-MODULE := cpu
+MODULE := debugger
 
 # Build paths - use parent's paths if available, otherwise set defaults
 BUILD_DIR ?= ../../build
@@ -54,7 +54,7 @@ create_dirs:
 
 
 # Build the library
-all: | create_dirs $(MODULE_LIB)
+all: | create_dirs debugger_protos.h $(MODULE_LIB)
 
 # Create the static library
 $(MODULE_LIB): $(OBJS)

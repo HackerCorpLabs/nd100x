@@ -240,3 +240,13 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
 void HandleMemoryOutOfRange(uint physicalAddress);
 void HandleMPV(uint virtualAddress);
 void HandlePF(uint virtualAddress);
+
+/* /home/ronny/repos/nd100x/src/cpu/cpu_bkpt.c */
+void breakpoint_manager_init(void);
+void breakpoint_manager_cleanup(void);
+void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage);
+void breakpoint_manager_remove(uint16_t address, int type);
+void breakpoint_manager_clear(void);
+int breakpoint_manager_check(uint16_t address, BreakpointEntry **matches[], int *matchCount);
+int check_for_breakpoint(void);
+CpuStopReason stopReasonFromBreakpoint(BreakpointType t);

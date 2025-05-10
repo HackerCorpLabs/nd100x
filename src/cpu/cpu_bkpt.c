@@ -61,7 +61,7 @@ void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *c
 {
 
     if (mgr == NULL) {
-        breakpoint_manager_init(mgr);
+        breakpoint_manager_init();
     }
 
     int h = hash_address(address);

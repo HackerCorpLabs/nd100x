@@ -2,7 +2,7 @@
 SRC_DIR := .
 
 # Source files in dependency order
-CORE_SRCS := cpu_regs.c cpu_mms.c cpu.c float.c
+CORE_SRCS := cpu_regs.c cpu_mms.c cpu.c float.c cpu_bkpt.c
 INSTR_SRCS := cpu_instr.c cpu_mopc.c cpu_disasm.c
 SRCS := $(CORE_SRCS) $(INSTR_SRCS)
 

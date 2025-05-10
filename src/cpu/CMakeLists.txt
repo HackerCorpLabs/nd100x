@@ -14,6 +14,7 @@ set(CPU_SOURCE_FILES
     float.c
     cpu_regs.c
     cpu_mms.c
+    cpu_bkpt.c
 )
 
 # Generate prototypes with mktypes - use string replacement instead of wildcard
@@ -27,6 +28,7 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/float.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_regs.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_mms.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_bkpt.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for CPU"
     VERBATIM
