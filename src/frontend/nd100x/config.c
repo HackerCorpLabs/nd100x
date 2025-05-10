@@ -72,7 +72,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:dvh",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
