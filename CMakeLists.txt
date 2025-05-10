@@ -73,6 +73,32 @@ endif()
 if(DEBUGGER_ENABLED)
     add_definitions(-DWITH_DEBUGGER )
     message(STATUS "Enabling debugger support with WITH_DEBUGGER flag")
+    
+    # Create a directory structure for cjson headers
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
+    
+    # Copy cJSON.h to the expected location
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/external/cJSON/cJSON.h
+        ${CMAKE_BINARY_DIR}/include/cjson/cJSON.h
+        COPYONLY
+    )
+    
+    # Add this to the include path
+    include_directories(${CMAKE_BINARY_DIR}/include)
+    
+    # Add libdap if it exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
+        set(BUILD_DAP_TEST_TOOLS ${BUILD_DAP_TOOLS} CACHE BOOL "Build libdap test tools" FORCE)
+        add_subdirectory(external/libdap)
+        message(STATUS "DAP library support enabled (only for Linux/Windows builds)")
+    endif()
+    
+    # Add libsymbols if it exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
+        add_subdirectory(external/libsymbols)
+        message(STATUS "Symbol library support enabled")
+    endif()
 else()    
     message(STATUS "Debugger support disabled")
 endif()
@@ -98,45 +124,6 @@ add_subdirectory(src/machine)
 add_subdirectory(src/cpu)
 add_subdirectory(src/devices)
 add_subdirectory(src/debugger)
-
-# Add debugger if enabled
-if(DEBUGGER_ENABLED)
-    # Always build cJSON as a static library, regardless of BUILD_SHARED_LIBS global setting
-    # Save the original BUILD_SHARED_LIBS value
-    set(ORIGINAL_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
-    
-    # Force cJSON to be built as static library
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-    set(ENABLE_CJSON_TEST OFF CACHE INTERNAL "")
-    set(ENABLE_CJSON_FUZZ OFF CACHE INTERNAL "")
-    set(ENABLE_CJSON_UTILS OFF CACHE INTERNAL "")
-    set(ENABLE_CJSON_EXAMPLES OFF CACHE INTERNAL "")
-    set(ENABLE_TARGET_EXPORT OFF CACHE INTERNAL "")
-    add_subdirectory(external/cJSON)
-    
-    # Create a directory structure for cjson headers - for all platforms
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
-    # Copy cJSON.h to the expected location
-    configure_file(${CMAKE_SOURCE_DIR}/external/cJSON/cJSON.h ${CMAKE_BINARY_DIR}/include/cjson/cJSON.h COPYONLY)
-    # Add this to the include path
-    include_directories(${CMAKE_BINARY_DIR}/include)
-    
-    # Restore the original BUILD_SHARED_LIBS value for subsequent libraries
-    set(BUILD_SHARED_LIBS ${ORIGINAL_BUILD_SHARED_LIBS} CACHE BOOL "Build shared libraries" FORCE)
-    
-    # Add libdap if it exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
-        set(BUILD_DAP_TEST_TOOLS ${BUILD_DAP_TOOLS} CACHE BOOL "Build libdap test tools" FORCE)
-        add_subdirectory(external/libdap)
-        message(STATUS "DAP library support enabled (only for Linux/Windows builds)")
-    endif()
-    
-    # Add libsymbols if it exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
-        add_subdirectory(external/libsymbols)
-        message(STATUS "Symbol library support enabled")
-    endif()
-endif()
 
 # Add frontend subdirectories conditionally
 if(BUILD_WASM)

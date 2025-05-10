@@ -21,11 +21,9 @@
 #include "ndlib_types.h"
 #include "ndlib_protos.h"
 
+#include "debugger_protos.h"
+
 // Forward declarations for CPU breakpoint functions
-extern void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage);
-extern void breakpoint_manager_remove(BreakpointManager *mgr, uint16_t address, int type);
-extern int breakpoint_manager_check(uint16_t address, BreakpointEntry** matches[], int* matchCount);
-extern void breakpoint_manager_clear(void);
 
 // Define scope IDs
 #define SCOPE_ID_LOCALS 1000
@@ -1789,35 +1787,9 @@ const char* get_source_location(uint16_t address, int* line) {
     *line = symbols_get_line(g_symbol_table, address);
     return symbols_get_file(g_symbol_table, address);
 }
-#endif // WITH_DEBUGGER
-
-#endif // WITH_DEBUGGER
-
-// Empty implementations when debugger is not enabled
-#ifndef WITH_DEBUGGER
 
 
 
-
-
-void start_debugger() {
-    // Do nothing when debugger is not enabled
-}
-
-int ndx_server_init(int port) {
-    (void)port;
-    return -1; // Not implemented
-}
-
-int ndx_server_stop() {
-    return -1; // Not implemented
-}
-
-void debugger_kbd_input(char c) {
-    (void)c; // Unused parameter
-}
-
-#endif // !WITH_DEBUGGER
 
 /**
  * @brief Set up the default capabilities for the mock server
@@ -1844,3 +1816,31 @@ int set_default_dap_capabilities(DAPServer *server) {
         DAP_CAP_COUNT
     );
 }
+#endif // WITH_DEBUGGER
+
+#endif // WITH_DEBUGGER
+
+// Empty implementations when debugger is not enabled
+#ifndef WITH_DEBUGGER
+
+
+void start_debugger() {
+    // Do nothing when debugger is not enabled
+}
+
+int ndx_server_init(int port) {
+    (void)port;
+    return -1; // Not implemented
+}
+
+int ndx_server_stop() {
+    return -1; // Not implemented
+}
+
+void debugger_kbd_input(char c) {
+    (void)c; // Unused parameter
+}
+
+
+
+#endif // !WITH_DEBUGGER
