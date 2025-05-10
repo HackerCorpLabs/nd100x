@@ -193,7 +193,7 @@ int check_for_breakpoint(void)
     if (breakpoint_manager_check(pc, &hits, &hitCount)) {
         for (int i = 0; i < hitCount; i++) {
             BreakpointEntry* bp = hits[i];
-            printf("[CPU] Hit breakpoint at %04X type=%d hitCount=%d\n", pc, bp->type, bp->hitCount);
+            printf("[CPU] Hit breakpoint at %06o type=%d hitCount=%d\n", pc, bp->type, bp->hitCount);
     
             // Evaluate condition expression if applicable
             bool condition_ok = true; // TODO: implement evaluator

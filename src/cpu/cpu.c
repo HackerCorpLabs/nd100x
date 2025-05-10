@@ -568,6 +568,7 @@ void cpu_init(bool debuggerEnabled)
 #ifdef WITH_DEBUGGER
 	if (m_debuggerEnabled)
     {
+		breakpoint_manager_init();
 		start_debugger();
     }
 #endif

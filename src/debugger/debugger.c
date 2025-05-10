@@ -4,10 +4,6 @@
 #include <unistd.h>
 #include <signal.h>
 
-#define WITH_DEBUGGER
-
-
-
 #include "debugger.h"
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
@@ -16,6 +12,7 @@
 
 #include "../../external/libdap/libdap/include/dap_server.h"
 #include "../../external/libdap/libdap/include/dap_server_cmds.h"
+#include "../../external/libdap/libdap/include/dap_protocol.h"
 #include "../../external/libsymbols/include/symbols.h"
 #include "symbols_support.h"
 #include "machine_types.h"
@@ -28,6 +25,7 @@
 extern void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage);
 extern void breakpoint_manager_remove(BreakpointManager *mgr, uint16_t address, int type);
 extern int breakpoint_manager_check(uint16_t address, BreakpointEntry** matches[], int* matchCount);
+extern void breakpoint_manager_clear(void);
 
 // Define scope IDs
 #define SCOPE_ID_LOCALS 1000
@@ -404,6 +402,21 @@ static int cmd_step_in(DAPServer *server) {
  */
 static int cmd_step_out(DAPServer *server) {
     return step_cpu(server, "step out");
+}
+
+
+
+static int cmd_continue(DAPServer *server) {
+
+    CPURunMode run_mode = get_cpu_run_mode();
+    if((run_mode == CPU_PAUSED)||(run_mode == CPU_BREAKPOINT))
+    {
+        set_cpu_run_mode(CPU_RUNNING);
+        return 0;
+    }
+
+    return 1; // Error
+
 }
 
 /**
@@ -1109,6 +1122,7 @@ static int cmd_stack_trace(DAPServer *server) {
     
     // Initialize stack frame information
     server->current_command.context.stack_trace.frame_count = 1; // We'll create one frame for now
+    server->current_command.context.stack_trace.total_frames = server->current_command.context.stack_trace.frame_count; 
     server->current_command.context.stack_trace.frames = malloc(sizeof(DAPStackFrame));
     
     if (!server->current_command.context.stack_trace.frames) {
@@ -1128,7 +1142,7 @@ static int cmd_stack_trace(DAPServer *server) {
     frame->end_line = 0;
     frame->end_column = 0;
     frame->can_restart = false;
-    frame->instruction_pointer_reference = NULL;
+    frame->instruction_pointer_reference = 0;
     frame->module_id = NULL;
     frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
     
@@ -1242,7 +1256,50 @@ static int cmd_set_breakpoints(DAPServer* server) {
     
     printf("Setting %d breakpoints in %s\n", breakpoint_count, source_path);
     
-    // TODO: Implement breakpoint handling
+    // Clear any existing breakpoints
+    breakpoint_manager_clear();
+
+    // Process each breakpoint
+    for(int i = 0; i < breakpoint_count; i++) {
+        DAPBreakpoint* bp = &server->current_command.context.breakpoint.breakpoints[i];
+        
+        bool validSymbol  = false;
+        // Try to get the memory address for this line number
+        uint16_t address = 0;
+        if (g_symbol_table) {
+            // Get the address for this line in the source file
+            validSymbol = symbols_find_address(g_symbol_table, source_path, &address, bp->line);
+        }
+        
+        if (!validSymbol) {
+            // If we couldn't map the line to an address, log it and continue
+            
+            char msg[256];
+            snprintf(msg, sizeof(msg), "Warning: Could not map line %d to memory address - missing N_SO for %s\n", bp->line, source_path);            
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+
+            bp->verified = false; 
+            bp->message = strdup(msg);
+            continue;
+        }
+
+        bp->verified = true;
+
+        // Add the breakpoint to the manager
+        breakpoint_manager_add(
+            address,                    // Memory address
+            BP_TYPE_USER,              // Type of breakpoint
+            bp->condition,             // Optional condition expression
+            bp->hit_condition,         // Optional hit condition
+            bp->log_message            // Optional log message
+        );
+        
+        // Log the breakpoint addition
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Added breakpoint at address %06o (line %d)\n", 
+                 address, bp->line);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+    }
     
     // Send console output about the setup
     char output_msg[256];
@@ -1624,6 +1681,9 @@ int ndx_server_init(int port) {
     dap_server_register_command_callback(server, DAP_CMD_NEXT, cmd_next);
     dap_server_register_command_callback(server, DAP_CMD_STEP_IN, cmd_step_in);
     dap_server_register_command_callback(server, DAP_CMD_STEP_OUT, cmd_step_out);
+
+    // Register continue callback
+    dap_server_register_command_callback(server, DAP_CMD_CONTINUE, cmd_continue);
     
     // Register exception breakpoint callback
     dap_server_register_command_callback(server, DAP_CMD_SET_EXCEPTION_BREAKPOINTS, on_set_exception_breakpoints);
