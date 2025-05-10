@@ -4,3 +4,6 @@
 [submodule "external/cJSON"]
 	path = external/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "external/libsymbols"]
+	path = external/libsymbols
+	url = https://github.com/HackerCorpLabs/libsymbols

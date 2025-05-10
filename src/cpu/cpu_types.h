@@ -240,7 +240,7 @@ extern InstrFunc instr_funcs[65536];
 //#define MEMPTSIZE 16384
 
 // Lets just use 4MW (8MB) for now.. seems like 'CONFIG' is having some strange issues with 16MW (32MB) - at least detection is saying  "Total memory size....: 65504.000 Mbytes"
-#define MEMPTSIZE 1024*8
+#define MEMPTSIZE 1024*2
 
 /* Volatile Memory
  * Fixed to MEMPTSIZE KWords for now.
@@ -319,6 +319,7 @@ struct CpuRegs {
 
 
 typedef enum {
+	CPU_UNKNOWN_STATE, // Unknown state
 	CPU_RUNNING, // CPU is running normally
 	CPU_BREAKPOINT, // CPU hit a breakpoint 
 	CPU_PAUSED,  // CPU is paused and waiting for debugger to resume	
@@ -453,5 +454,49 @@ extern CpuType CurrentCPUType;
 extern uint64_t  instr_counter ;
 extern ushort STARTADDR;
 extern int DISASM;
+
+
+
+//********** Breakpoints **********
+
+#define HASH_SIZE 256   // adjust depending on address space
+
+typedef enum {
+	BT_NONE = 0,
+    BP_TYPE_USER,
+    BP_TYPE_TEMPORARY,
+    BP_TYPE_FUNCTION,
+    BP_TYPE_DATA,
+	BP_TYPE_INSTRUCTION
+} BreakpointType;
+
+typedef struct BreakpointEntry {
+    uint16_t address;
+    BreakpointType type;
+    char* condition;     // expression string (NULL if none)
+    char* hitCondition;  // numeric string or expression (NULL if none)
+    char* logMessage;    // log message (NULL if none)
+    int hitCount;        // internal counter
+    struct BreakpointEntry* next;
+} BreakpointEntry;
+
+typedef struct {
+    BreakpointEntry* buckets[HASH_SIZE];    
+} BreakpointManager;
+
+/// @brief Enumeration of CPU stop reasons for the debugger
+/// @details This enum is used to indicate the reason for stopping the CPU in the debugger. - aligned with DAP spec
+typedef enum {
+    STOP_REASON_NONE,
+    STOP_REASON_STEP,
+    STOP_REASON_BREAKPOINT,
+    STOP_REASON_EXCEPTION,
+    STOP_REASON_PAUSE,
+    STOP_REASON_ENTRY,
+    STOP_REASON_GOTO,
+    STOP_REASON_FUNCTION_BREAKPOINT,
+    STOP_REASON_DATA_BREAKPOINT,
+    STOP_REASON_INSTRUCTION_BREAKPOINT
+} CpuStopReason;
 
 #endif // CPU_TYPES_H
