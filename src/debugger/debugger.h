@@ -13,5 +13,10 @@
     #define WIN_RESULT void*
 #endif
 
+// Function declarations
+void start_debugger();
+int ndx_server_init(int port);
+int ndx_server_stop();
+void debugger_kbd_input(char c);
 
 #endif

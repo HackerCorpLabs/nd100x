@@ -48,7 +48,7 @@ target_link_libraries(cpu
 
 # Add debugger support for Linux and Windows builds
 if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
-    target_compile_definitions(cpu PRIVATE _DEBUGGER_ENABLED_)
+    target_compile_definitions(cpu PRIVATE WITH_DEBUGGER)
     message(STATUS "CPU module: Debugger support enabled")
 endif()
 

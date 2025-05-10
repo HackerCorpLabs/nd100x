@@ -53,7 +53,7 @@ if /i "%~1"=="--help" (
     echo   --help             Show this help message
     echo.
     echo Platform-specific features:
-    echo   - Windows/Linux: Automatically defines _DEBUGGER_ENABLED_ for CPU/debugger modules
+    echo   - Windows/Linux: Automatically defines WITH_DEBUGGER for CPU/debugger modules
     echo   - Windows/Linux: Enables DAP (Debug Adapter Protocol) integration
     echo   - WebAssembly:   No debugger support, optimized for browser performance
     exit /b 0
@@ -112,7 +112,7 @@ if %BUILD_WASM%==1 (
     echo To install, run: cmake --install "%WASM_BUILD_DIR%" --config %BUILD_TYPE%
 ) else (
     echo To install, run: cmake --install %BUILD_DIR% --config %BUILD_TYPE%
-    echo Note: This build includes debugger support with _DEBUGGER_ENABLED_ flag
+    echo Note: This build includes debugger support with WITH_DEBUGGER flag
 )
 
 endlocal 
