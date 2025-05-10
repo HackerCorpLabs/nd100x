@@ -72,6 +72,7 @@ The project is organized into several key components:
 - `src/devices/` - Device emulation (I/O, peripherals)
 - `src/machine/` - Machine state and main emulation loop
 - `src/ndlib/` - Supporting library functions (loading BPUN and a.out formats++)
+- `src/debugger/` - DAP Debugger supporting functionality
 - `src/frontend/` - User interface and emulator frontend(s)
 - `tools/` - Development and build tools
 - `images/` - Norsk-Data SMD disk, floppy and BPUN files.
@@ -109,10 +110,9 @@ make release
 make sanitize
 ```
 
-For more information on the build system, see the [How to build document](docs/HOWTO_BUILD.md).
-
-Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
-
+- For more information on the build system, see the [How to build document](docs/HOWTO_BUILD.md).
+- Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
+- Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
 
 ### Command Line Options for nd100x
 
@@ -209,6 +209,11 @@ Remember to end your code with 'opcom' to make the emulator stop executing your 
 
 Overview of all [assembly instructions ](docs/cpu_documentation.md)
 
+
+## Multiple systems
+
+The nd100x emulator has been compuiled and tested on multiple different systems.
+For more information, read the [Tested systems](docs/SYSTEMS.md) document
 ## License
 
 See the [LICENSE](LICENSE) file for detailed licensing information.

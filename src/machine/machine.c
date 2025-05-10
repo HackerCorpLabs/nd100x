@@ -69,17 +69,13 @@ cleanup_machine (void)
 void  machine_run (int ticks)
 {    
     // Run the CPU until it stops but also handle debugger requests
-    do 
+    while (get_cpu_run_mode() != CPU_SHUTDOWN)
     {    
-        while (get_cpu_run_mode() == CPU_PAUSED) {
-            //printf("Machine: CPU is paused, waiting for debugger to release. Sleeping 100ms\n");
-            usleep(100000);
-        }        
         ticks = cpu_run(ticks);  
 
-        if (ticks == 0) break;
-    } while (get_cpu_run_mode() != CPU_SHUTDOWN);
-
+        if (ticks == 0) return; // No more ticks to run
+        if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
+    } 
 }
 
 void machine_stop()
@@ -118,10 +114,12 @@ void machine_stop()
  */
 
 
- void program_load(BOOT_TYPE bootType, char *imageFile, bool verbose)
+ void program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
  {
      int bootAddress;
      int result;
+     STARTADDR = 0;
+
  
      switch (bootType)
      {
