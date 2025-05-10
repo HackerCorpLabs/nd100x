@@ -52,12 +52,13 @@
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
-#include "debugger.h"
-#include "debugger_protos.h"
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
 
+
+// dont include debugger.h here, it will cause other problems, but we define the function here
+void debugger_kbd_input(char c) ;
 
 struct rusage *used;
 //extern double instr_counter;  // likely from cpu.h
@@ -191,16 +192,41 @@ int main(int argc, char *argv[])
 
 	while (runMode != CPU_SHUTDOWN)
 	{
-        if (runMode == CPU_PAUSED) {
+
+
+
+        if(get_debugger_control_granted())
+        {
+            // DAP adapter has control, so we need to wait for it to release control
             sleep_ms(100); // sleep 100ms
         }
         else
         {
-            machine_run(5000);  
+            // Check if DAP adapter has requested a pause
+            if (get_debugger_request_pause())
+            {
+                printf("Pausing CPU...\n");
+                set_debugger_control_granted(true);
+                continue;
+            }
+
+
+            // ND100x has control, so we need to run the machine
+            runMode = get_cpu_run_mode();
+            if (runMode == CPU_RUNNING)
+            {
+                machine_run(5000);  
+            }
+            else
+            {
+                // CPU is paused, so we need to wait for the debugger to release control
+                sleep_ms(100); // sleep 100ms
+            }
         }
 
 		runMode = get_cpu_run_mode();
 
+        // Handle keyboard input to console
 		if (runMode != CPU_SHUTDOWN)
 		{
 			// Check for keyboard input
@@ -230,7 +256,7 @@ int main(int argc, char *argv[])
                     ch = '\r';
                 }
 
-                if (runMode == CPU_PAUSED) {
+                if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
                     debugger_kbd_input(ch);
                 }
                 else
