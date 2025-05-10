@@ -114,6 +114,15 @@ make sanitize
 - Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
 - Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
 
+
+## Updating Git submodules
+
+Sometimes the submodules are updated and you need to manually refresh them
+
+- git submodule update --init --recursive
+
+
+
 ### Command Line Options for nd100x
 
 The emulator supports the following command line options:
