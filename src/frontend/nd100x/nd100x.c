@@ -52,6 +52,9 @@
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
+#ifdef WITH_DEBUGGER
+void stop_debugger_thread();
+#endif
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
@@ -70,8 +73,46 @@ Config_t config;
 
 
 void handle_sigint(int sig) {
-    printf("\nCaught SIGINT (Ctrl-C). Cleaning up...\n");
+    printf("\nCaught signal %d (Ctrl-C). Cleaning up...\n", sig);
+        
+#ifdef WITH_DEBUGGER    
+     // Stop the debugger server
+    stop_debugger_thread();
+#endif
+    
     machine_stop();
+    // Exit the program
+    exit(0);
+
+}
+
+
+void register_signals()
+{
+#ifdef _WIN32
+    // Windows signal handling
+    signal(SIGINT, handle_sigint);
+    signal(SIGTERM, handle_sigint);
+#else
+    // POSIX signal handling using sigaction
+    struct sigaction sa;
+    sa.sa_handler = handle_sigint;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+    if (sigaction(SIGABRT, &sa, NULL) == -1) {
+        perror("sigabrt");
+        exit(1);
+    }
+#endif
 }
 
 void dump_stats()
@@ -95,10 +136,9 @@ void initialize()
    used=calloc(1,sizeof(struct rusage)); /* Perf counter stuff */
 	
 
-	blocksignals();
-
-	// Register signal handler
-	signal(SIGINT, handle_sigint);
+	//blocksignals();
+	register_signals();
+	
 
 	
 	if (DISASM) disasm_init();

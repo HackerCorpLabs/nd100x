@@ -48,6 +48,10 @@ machine_init (bool debuggerEnabled)
     
     // Initialize the CPU
     cpu_init(debuggerEnabled);
+
+    // Initialize the CPU debugger (if enabled, starts the debugger thread)
+    init_cpu_debugger();
+
     // Initialize IO devices
     IO_Init();
 

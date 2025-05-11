@@ -8,6 +8,8 @@
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
+#define WITH_DEBUGGER
+
 #ifdef WITH_DEBUGGER
 
 #include "../../external/libdap/libdap/include/dap_server.h"
@@ -74,6 +76,8 @@ void *debugger_thread(void *arg)
         THREAD_RETURN(0);              
     }
 
+    // Hook up sigint handler to terminate the server
+    signal(SIGINT, ndx_server_terminate);
 
     printf("NDX debugger listening on port %d...\n", port);
     printf("Press Ctrl+C to exit\n");
@@ -84,50 +88,6 @@ void *debugger_thread(void *arg)
         ndx_server_stop();    
         THREAD_RETURN(0);    
     }
-
-#if _old_
-    while (true) {
-        printf("Debugger thread running\n");
-        sleep(10);  // Let the CPU run a bit
-
-        set_debugger_requested_control(true);           
-    
-        // Wait for the CPU to pause
-        while (get_cpu_run_mode() != CPU_PAUSED) {
-            usleep(100000);  // 100 ms wait before checking again
-        }    
-
-        printf("Debugger: CPU is paused. Reading state...\n");
-
-
-        printf("CPU STATE 1:\n");
-        printf("  PC  = %06o\n", gPC);
-        printf("  A = %06o\n", gA);
-        printf("  X = %06o\n", gX);  
-
-
-        printf(">>>>>>>>>>--------------------------------\n");
-        printf("Debugger: Stepping CPU\n");  
-        // Stepping 10
-        cpu_run(1000);
-        printf("------------------>>>>>>>>>>-------------\n");
-
-        printf("  PC  = %06o\n", gPC);
-        printf("  A = %06o\n", gA);
-        printf("  X = %06o\n", gX);  
-
-        
-
-
-
-        printf("Debugger: resuming CPU\n");        
-        printf("============================================\n");
-
-        // Release control of the CPU, let the CPU run normal again
-        debuggerReleaseControl();                    
-    }
-
-#endif // _old_
 
     THREAD_RETURN(0);
 }
@@ -148,8 +108,17 @@ void start_debugger() {
     #endif
 }
 
+/// @brief Terminate the DAP server
+/// @param exit_code 
+void ndx_server_terminate(int sig) {
 
-void stop_debugger() {
+    // Sends a terminated event to the client and terminate the DAP server
+   dap_server_terminate(server, 0);
+}
+
+
+/// @brief Stop the DAP server thread
+void stop_debugger_thread() {
     
 	// Clean up the debugger thread
     if (p_debugger_thread) {
@@ -167,6 +136,7 @@ void stop_debugger() {
         pthread_join(p_debugger_thread, NULL);
     }
 }
+
 
 
 const char* cpuStopReasonToString(CpuStopReason r) {
@@ -242,17 +212,15 @@ int step_cpu(DAPServer *server,  const char* step_type) {
     uint16_t target_pc = 0;
     bool stepping_to_line = false;
     
-    
-  // Access the step command context
+    // Access the step command context
     StepCommandContext *ctx = &server->current_command.context.step;
 
-        // Log the stepping action
+    // Log the stepping action
     char log_message[256];
     snprintf(log_message, sizeof(log_message), 
              "Handling %s command for thread %d", step_type, ctx->thread_id);    
     dap_server_send_output(server, log_message);
     
-
     // If we have symbol table and want to step by line
     if (g_symbol_table && (ctx->granularity == DAP_STEP_GRANULARITY_LINE || ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)) {
         // Get the next line's address
@@ -274,7 +242,6 @@ int step_cpu(DAPServer *server,  const char* step_type) {
          dap_server_send_output_category(server, DAP_OUTPUT_STDERR, "NO SYMBOLS");
     }
     
-
     // Set a temporary breakpoint at the target address if we're stepping to a line
     if (stepping_to_line && target_pc != 0 && target_pc != current_pc) {
         char msg[256];
@@ -1646,6 +1613,113 @@ static int cmd_launch_callback(DAPServer* server) {
     return 0; // Return success to ensure the response is properly set
 }
 
+/// @brief Handle the restart request from DAP
+/// @param server The DAP server instance
+/// @return 0 if successful, -1 if error
+/// @details This function handles the restart request from DAP.
+/// It sends a response to the client with success=true.
+static int cmd_restart(DAPServer* server) {
+    printf("Restart command received\n");
+
+    // Respond to the client with success=true
+
+    // Create response body
+    cJSON *body = cJSON_CreateObject();
+    if (!body) {
+        return -1;
+    }
+
+    // Add success status
+    cJSON_AddBoolToObject(body, "success", true);
+
+    // Send the response
+    dap_server_send_response(server, DAP_CMD_RESTART, server->sequence++, 
+                            server->current_command.request_seq, true, body);
+
+    // Clean up
+    cJSON_Delete(body);
+
+    
+
+    // Clear breakpoints
+    breakpoint_manager_clear();
+
+    // Reset CPU state
+    cpu_reset();
+
+    // Call launch callback to restart the program
+    return cmd_launch_callback(server);
+
+    return 0;
+}
+
+/// @brief Handle the disconnect request from DAP
+/// @param server The DAP server instance
+/// @return 0 if successful, -1 if error
+/// @details This function handles the disconnect request from DAP.
+/// It sends an exited event to the client, a terminated event to the client,
+/// and a response to the client.
+static int cmd_disconnect(DAPServer* server) {
+    printf("Disconnect command received\n");
+
+    dap_server_send_exited_event(server, 0);
+
+    // Send a terminated event to the client
+    dap_server_send_terminated_event(server, false);
+
+
+    // Send the response
+    dap_server_send_response(server, DAP_CMD_DISCONNECT, server->sequence++, 
+                            server->current_command.request_seq, true, NULL);
+
+    if (server->current_command.context.disconnect.terminate_debuggee) {
+        // Kill your process/emulator/thread safely
+        set_cpu_run_mode(CPU_SHUTDOWN);
+    }
+
+    return 0;
+}
+
+/// @brief Handle the terminate request from DAP
+
+/// @param server The DAP server instance
+/// @return 0 if successful, -1 if error
+/// @details This function handles the terminate request from DAP.
+/// It sends a response to the client with success=true.
+/// Please stop the debuggee, but don't tear down the debug session completely yet.
+static int cmd_terminate(DAPServer* server) {
+    printf("Terminate command received\n");
+
+    
+    // Send the response
+    dap_server_send_response(server, DAP_CMD_TERMINATE, server->sequence++, 
+                            server->current_command.request_seq, true, NULL);
+
+
+    // Send an exited event to the client
+    dap_server_send_exited_event(server, 0);
+
+    // Send a terminated event to the client
+    dap_server_send_terminated_event(server, false);
+
+
+    // DAP Adapter should now
+    // 1. Stop/kill the emulator or target process
+    // 2. Free any target-specific resources (RAM, CPU, threads, memory mappings, file handles...)
+    // Here we do:
+    // Set the CPU run mode to paused
+    set_cpu_run_mode(CPU_PAUSED);
+    return 0;
+}
+
+
+
+/// @brief Initialize the DAP server
+/// @param port The port to listen on
+/// @return 0 if successful, -1 if error
+/// @details This function initializes the DAP server.
+/// It creates a new DAP server instance and registers the necessary callbacks.
+/// It then starts the server and returns the result.
 int ndx_server_init(int port) {
      // Initialize DAP server
     DAPServerConfig config = {
@@ -1668,6 +1742,17 @@ int ndx_server_init(int port) {
 
     // Hook up callbacks
 
+    // Register launch callback
+    dap_server_register_command_callback(server, DAP_CMD_LAUNCH, cmd_launch_callback);
+
+    // Register restart callback
+    dap_server_register_command_callback(server, DAP_CMD_RESTART, cmd_restart);
+
+    // Disconnect request
+    dap_server_register_command_callback(server, DAP_CMD_DISCONNECT, cmd_disconnect);
+
+    // Terminate request
+    dap_server_register_command_callback(server, DAP_CMD_TERMINATE, cmd_terminate);
     
     // Hook up commands for stopping and starting the debugger's access to the CPU
     dap_server_register_command_callback(server, DAP_WAIT_FOR_DEBUGGER, cmd_wait_for_debugger);
@@ -1689,8 +1774,6 @@ int ndx_server_init(int port) {
     // Register breakpoint callback
     dap_server_register_command_callback(server, DAP_CMD_SET_BREAKPOINTS, cmd_set_breakpoints);
     
-    // Register launch callback
-    dap_server_register_command_callback(server, DAP_CMD_LAUNCH, cmd_launch_callback);
     
     // Register stack trace callback
     dap_server_register_command_callback(server, DAP_CMD_STACK_TRACE, cmd_stack_trace);

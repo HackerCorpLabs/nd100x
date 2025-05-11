@@ -39,6 +39,8 @@
 
 
 #ifdef WITH_DEBUGGER
+	void stop_debugger_thread();
+
 	#include <stdatomic.h>
 	extern void start_debugger();
 
@@ -565,16 +567,48 @@ void cpu_init(bool debuggerEnabled)
 	if (DISASM)
 		disasm_setlbl(gPC);
 
-#ifdef WITH_DEBUGGER
-	if (m_debuggerEnabled)
-    {
-		breakpoint_manager_init();
-		start_debugger();
-    }
-#endif
-
 }
 
+/// @brief Initialize the CPU debugger
+/// @details This function initializes the CPU debugger thread
+
+void init_cpu_debugger()
+{	
+#ifdef WITH_DEBUGGER
+	if (!m_debuggerEnabled) return;
+	breakpoint_manager_init();
+	start_debugger();
+#endif
+}
+
+/// @brief Reset the CPU
+/// @details This function resets the CPU registers and memory. It also destroys the paging tables and recreates them.
+void cpu_reset()
+{
+
+	/* Initialize volatile memory to zero */
+	memset(&VolatileMemory, 0, sizeof(VolatileMemory));
+
+	// Reset registers
+	memset(gReg, 0, sizeof(struct CpuRegs));
+
+	// setbit(_STS, _O, 1);
+	setbit_STS_MSB(_N100, 1);
+	gCSR = 1 << 2; /* this bit sets the cache as not available */
+
+	// Destroy paging tables (they will be recreated when cpu is initialized)
+	DestroyPagingTables();
+
+	// Allocate ShadowMemory for pagetables
+	CreatePagingTables();
+
+
+	set_cpu_run_mode(CPU_RUNNING);
+	instr_counter = 0;
+}
+
+/// @brief Cleanup the CPU
+/// @details This function cleans up the CPU. It destroys the paging tables and stops the debugger thread.
 void cleanup_cpu()
 {
 	// Destroy paging tables
@@ -583,7 +617,7 @@ void cleanup_cpu()
 #ifdef WITH_DEBUGGER
 	if (m_debuggerEnabled)
     {
-		stop_debugger();
+		stop_debugger_thread();
     }
 #endif
 

@@ -17,6 +17,8 @@ bool checkAndSwitch(void);
 void private_cpu_tick(void);
 int cpu_run(int ticks);
 void cpu_init(bool debuggerEnabled);
+void init_cpu_debugger(void);
+void cpu_reset(void);
 void cleanup_cpu(void);
 void set_debugger_request_pause(bool requested);
 bool get_debugger_request_pause(void);

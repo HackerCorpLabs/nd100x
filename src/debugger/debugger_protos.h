@@ -3,7 +3,8 @@
 /* /home/ronny/repos/nd100x/src/debugger/debugger.c */
 int debugger_thread_win(LPVOID lpParam);
 void start_debugger(void);
-void stop_debugger(void);
+void ndx_server_terminate(int sig);
+void stop_debugger_thread(void);
 const char *cpuStopReasonToString(CpuStopReason r);
 int step_cpu(DAPServer *server, const char *step_type);
 int init_symbol_support(const char *filename);
