@@ -76,14 +76,15 @@ void handle_sigint(int sig) {
     printf("\nCaught signal %d (Ctrl-C). Cleaning up...\n", sig);
         
 #ifdef WITH_DEBUGGER    
-     // Stop the debugger server
+    // Stop the debugger server gracefully
     stop_debugger_thread();
 #endif
     
+    // Stop the machine
     machine_stop();
+    
     // Exit the program
     exit(0);
-
 }
 
 
@@ -98,7 +99,7 @@ void register_signals()
     struct sigaction sa;
     sa.sa_handler = handle_sigint;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sa.sa_flags = SA_RESTART;  // Restart interrupted system calls
     
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         perror("sigaction");
