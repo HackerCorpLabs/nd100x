@@ -117,17 +117,6 @@ void do_op(ushort operand, bool isEXR)
 				   this way we are as flexible as possible as we
 				   implement io calls. */
 
-	// After JPL instruction, we need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
-	if (gDebuggerEnabled)
-	{
-		// JPL instruction?
-		if ((operand & 0xF800) == 0134000)
-		{
-			// We need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
-			debugger_update_jpl_entrypoint(gPC);
-		}
-	}
-
 }
 
 
@@ -466,6 +455,18 @@ void private_cpu_tick()
 	// Execute instruction
 	instr_counter++;
 	do_op(operand, false);
+
+
+	// After JPL instruction, we need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+	if (gDebuggerEnabled)
+	{
+		// JPL instruction?
+		if ((operand & 0xF800) == 0134000)
+		{
+			// We need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+			debugger_update_jpl_entrypoint(gPC);
+		}
+	}
 }
 
 /// @brief Helper function for debugger to check if the next instruction is a jump, conditional jump or skp 

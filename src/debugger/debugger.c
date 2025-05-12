@@ -326,18 +326,19 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         // Calculate the return address (next instruction after JPL)
         uint16_t return_address = pc + 1;
 
-        // Add the new frame to our circular buffer
-        stack_trace.frames[stack_trace.current_frame].pc = pc;
-        stack_trace.frames[stack_trace.current_frame].operand = operand;
-        stack_trace.frames[stack_trace.current_frame].return_address = return_address;
-        stack_trace.frames[stack_trace.current_frame].entry_point = pc; // the address where JPL will jump to (will be updated when JPL is executed)
 
-        // Update frame tracking
         stack_trace.current_frame = (stack_trace.current_frame + 1) % MAX_STACK_FRAMES;
         if (stack_trace.frame_count < MAX_STACK_FRAMES)
         {
             stack_trace.frame_count++;
         }
+
+
+        // Add the new frame to our circular buffer
+        stack_trace.frames[stack_trace.current_frame].pc = pc;
+        stack_trace.frames[stack_trace.current_frame].operand = operand;
+        stack_trace.frames[stack_trace.current_frame].return_address = return_address;
+        stack_trace.frames[stack_trace.current_frame].entry_point = 0; // the address where JPL will jump to (will be updated when JPL is executed)      
 
         // Log the new frame for debugging
         char log_msg[256];
@@ -349,8 +350,14 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
     else if (is_exit)
     {
         // For EXIT, we need to remove the last frame
-        if (stack_trace.frame_count > 0)
+        if (stack_trace.frame_count > 1)
         {
+            // Clear the current frame
+            stack_trace.frames[stack_trace.current_frame].pc =0;
+            stack_trace.frames[stack_trace.current_frame].operand = 0;
+            stack_trace.frames[stack_trace.current_frame].return_address = 0;
+            stack_trace.frames[stack_trace.current_frame].entry_point = 0;
+
             // Move back one frame
             stack_trace.current_frame = (stack_trace.current_frame - 1 + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
             stack_trace.frame_count--;
@@ -1371,15 +1378,38 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
  */
 static int cmd_stack_trace(DAPServer *server)
 {
-
     if (!server)
     {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
+                                      "Error: Invalid server instance\n");
         return -1;
     }
 
+    // Validate stack trace availability
     if (stack_trace.frame_count == 0)
     {
-        printf("No stack trace available\n");
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
+                                      "No stack trace available\n");
+        return -1;
+    }
+
+    // Extract and validate request parameters
+    int stack_levels = server->current_command.context.stack_trace.levels;
+    int stack_start_frame = server->current_command.context.stack_trace.start_frame;
+    int frame_count = stack_trace.frame_count;
+
+    // Validate input parameters
+    if (stack_levels <= 0)
+    {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
+                                      "Error: Invalid stack levels requested\n");
+        return -1;
+    }
+
+    if (stack_start_frame < 0)
+    {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
+                                      "Error: Invalid start frame requested\n");
         return -1;
     }
 
@@ -1388,26 +1418,9 @@ static int cmd_stack_trace(DAPServer *server)
     snprintf(log_message, sizeof(log_message),
              "StackTrace request for thread %d (start=%d, count=%d)",
              server->debugger_state.current_thread_id,
-             server->current_command.context.stack_trace.start_frame,
-             server->current_command.context.stack_trace.levels);
+             stack_start_frame,
+             stack_levels);
     dap_server_send_output(server, log_message);
-
-
-    // Max number of frames to return.
-    int stack_levels = server->current_command.context.stack_trace.levels;
-
-    //	Index into the call stack (for pagination).
-    int stack_start_frame = server->current_command.context.stack_trace.start_frame;
-
-    // Number of all tacked frames
-    int frame_count = stack_trace.frame_count;
-
-    // Number of frames to return to the DAP client
-
-    // Based on the number of stack levels and start frame, we need to calculate the number of frames to return.
-    // We need to make sure we don't return more frames than we have.
-    // We need to make sure we don't return frames that don't exist.
-    // We need to make sure we return the frames in reverse order (most recent first).
 
     // Calculate number of frames to return
     int frames_to_return = stack_levels;
@@ -1415,11 +1428,14 @@ static int cmd_stack_trace(DAPServer *server)
     {
         frames_to_return = frame_count - stack_start_frame;
     }
-    // Number of frames to skip
-    int frames_to_skip = stack_start_frame;
-    if (stack_start_frame > frame_count)
+
+    // If no frames to return after calculations, return empty result
+    if (frames_to_return <= 0)
     {
-        frames_to_skip = frame_count;
+        server->current_command.context.stack_trace.frame_count = 0;
+        server->current_command.context.stack_trace.total_frames = frame_count;
+        server->current_command.context.stack_trace.frames = NULL;
+        return 0;
     }
 
     // Allocate memory for the stack frames
@@ -1427,25 +1443,121 @@ static int cmd_stack_trace(DAPServer *server)
     server->current_command.context.stack_trace.total_frames = frame_count;
     server->current_command.context.stack_trace.frames = malloc(sizeof(DAPStackFrame) * frames_to_return);
 
-    // If we failed to allocate memory for the stack frames, return an error
+    // Check for allocation failure
     if (!server->current_command.context.stack_trace.frames)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                        "Error: Failed to allocate memory for stack frames\n");
+                                      "Error: Failed to allocate memory for stack frames\n");
         return -1;
     }
-
-
-
 
     // Fill in the stack frames in reverse order (most recent first)
     for (int i = 0; i < frames_to_return; i++)
     {
+        // Calculate frame index - we want to go from newest to oldest
+        // current_frame points to the newest frame, so we start there and go backwards
         int frame_idx = (stack_trace.current_frame - i + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
+
+        // For the currrent frame, update PC
+        if (frame_idx == stack_trace.current_frame)
+        {
+            stack_trace.frames[frame_idx].pc = gPC;
+        }
 
         uint16_t memory_reference = stack_trace.frames[frame_idx].pc;
         uint16_t entry_point = stack_trace.frames[frame_idx].entry_point;
-        update_stack_frame(server, i, frame_idx, memory_reference, entry_point);
+
+        // Update frame with enhanced information
+        DAPStackFrame *frame = &server->current_command.context.stack_trace.frames[i];
+        frame->id = frame_idx;
+        frame->name = NULL;
+        frame->source_path = NULL;
+        frame->source_name = NULL;
+        frame->line = 0;
+        frame->column = 0;
+        frame->end_line = 0;
+        frame->end_column = 0;
+        frame->can_restart = false;
+        frame->instruction_pointer_reference = memory_reference;
+        frame->module_id = NULL;
+        frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
+
+
+        
+        // Try to get symbol information
+        const symbol_entry_t *symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
+        for (int i = 0; i < symbol_tables.symbol_table_aout->count; i++)
+        {
+            const symbol_entry_t *symbol = &symbol_tables.symbol_table_aout->entries[i];
+            if (symbol->address == entry_point)
+            {
+                printf("Symbol found: %s at %06o\n", symbol->name, symbol->address);
+            }
+        }
+
+        // Get source location information
+        int line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
+        const char *file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+
+        if (line > 0 && file)
+        {
+            // We found source information
+            frame->line = line;
+            frame->source_path = strdup(file);
+
+            // Extract source name from path
+            const char *name = strrchr(file, '/');
+            if (name)
+            {
+                frame->source_name = strdup(name + 1);
+            }
+            else
+            {
+                frame->source_name = strdup(file);
+            }
+
+            // Create a frame name with symbol and address information
+            char frame_name[256];
+            if (symbol && symbol->name)
+            {
+                snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
+            }
+            else
+            {
+                snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
+            }
+            frame->name = strdup(frame_name);
+
+            // Log the source mapping
+            char log_msg[256];
+            snprintf(log_msg, sizeof(log_msg), "PC %06o mapped to %s:%d\n",
+                     memory_reference, file, line);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
+        }
+        else
+        {
+            // No source information found, use PC as frame name
+            char frame_name[256];
+            if (symbol && symbol->name)
+            {
+                snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
+            }
+            else
+            {
+                snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
+            }
+            frame->name = strdup(frame_name);
+        }
+
+        // Set presentation hint based on frame type
+        if (symbol && symbol->type == SYMBOL_TYPE_FUNCTION)
+        {
+            frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
+        }
+        else
+        {
+            frame->presentation_hint = DAP_FRAME_PRESENTATION_LABEL;
+        }
     }
 
     return 0;
