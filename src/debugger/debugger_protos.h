@@ -9,6 +9,7 @@ const char *cpuStopReasonToString(CpuStopReason r);
 int32_t find_stack_return_address(void);
 void debugger_build_stack_trace(uint16_t pc, uint16_t operand);
 int step_cpu(DAPServer *server, StepType step_type);
+void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16_t memory_reference);
 int init_symbol_support(const char *filename);
 int register_symbol_file_with_dap(DAPServer *server, const char *symbol_file);
 int ndx_server_init(int port);
