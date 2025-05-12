@@ -69,6 +69,8 @@ int CurrentCPURunMode;
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 
+// forward declaration for debugger.c function 
+void debugger_build_stack_trace(uint16_t pc, uint16_t operand);
 
 //#define DEBUG_TRAP
 
@@ -444,9 +446,60 @@ void private_cpu_tick()
 		}
 	}
 
+	if (m_debuggerEnabled)
+	{
+		// Debugger need to build the stack-trace to be used for single stepping (step-out)
+		debugger_build_stack_trace(gPC, operand);
+	}
+
 	// Execute instruction
 	instr_counter++;
 	do_op(operand, false);
+}
+
+/// @brief Helper function for debugger to check if the next instruction is a jump, conditional jump or skp 
+/// @return true if the next instruction is a jump, jaf, or similar, false otherwise
+bool cpu_instruction_is_jump()
+{
+	ushort operand =  MemoryFetch(gPC, false); 
+
+	// JMP
+	if ((operand & 0xF800) == 0124000) return true;
+
+	// JPL
+	//if ((operand & 0xF800) == 0134000) return true;
+
+	// CJPs - Conditional jumps
+
+	// JAP
+	if ((operand & 0xFF00) == 0130000) return true;
+
+	// JAN
+	if ((operand & 0xFF00) == 0130400) return true;
+
+	// JAZ
+	if ((operand & 0xFF00) == 0131000) return true;
+
+	// JAF
+	if ((operand & 0xFF00) == 0131400) return true;
+
+	// JPC
+	if ((operand & 0xFF00) == 0132000) return true;
+
+	// JNC
+	if ((operand & 0xFF00) == 0132400) return true;
+
+	// JXZ
+	if ((operand & 0xFF00) == 0133000) return true;
+
+	// JXN
+	if ((operand & 0xFF00) == 0133400) return true;
+
+	// SKP
+	if ((operand & 0xF8C0) == 0140000) return true;
+
+
+	return false;
 }
 
 /// @brief run the CPU for a number of ticks. 

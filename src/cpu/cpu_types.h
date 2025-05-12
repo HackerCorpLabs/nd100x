@@ -482,6 +482,9 @@ typedef struct BreakpointEntry {
 
 typedef struct {
     BreakpointEntry* buckets[HASH_SIZE];    
+	
+	// Number of instructions to step (for single stepping when we cant set a breakpoint)
+	int step_count;
 } BreakpointManager;
 
 /// @brief Enumeration of CPU stop reasons for the debugger

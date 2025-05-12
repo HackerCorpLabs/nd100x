@@ -15,6 +15,7 @@ ushort MemoryRead(ushort addr, bool UseAPT);
 ushort MemoryFetch(ushort addr, bool UseAPT);
 bool checkAndSwitch(void);
 void private_cpu_tick(void);
+bool cpu_instruction_is_jump(void);
 int cpu_run(int ticks);
 void cpu_init(bool debuggerEnabled);
 void init_cpu_debugger(void);
@@ -246,6 +247,7 @@ void HandlePF(uint virtualAddress);
 /* /home/ronny/repos/nd100x/src/cpu/cpu_bkpt.c */
 void breakpoint_manager_init(void);
 void breakpoint_manager_cleanup(void);
+void breakpoint_manager_step_one(void);
 void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage);
 void breakpoint_manager_remove(uint16_t address, int type);
 void breakpoint_manager_clear(void);
