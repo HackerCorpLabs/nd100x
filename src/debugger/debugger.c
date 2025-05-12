@@ -41,7 +41,8 @@
 DAPServer *server;
 
 // Global symbol table
-static symbol_table_t *g_symbol_table = NULL;
+
+SymbolTables symbol_tables;
 
 // Structure to hold the stack trace information
 StackTrace stack_trace;
@@ -64,9 +65,11 @@ pthread_t p_debugger_thread;
 static atomic_bool debugger_thread_should_exit = false;
 
 // Signal handler for the debugger thread
-static void debugger_signal_handler(int sig) {
-    if (sig == SIGINT) {
-        atomic_store(&debugger_thread_should_exit, true);        
+static void debugger_signal_handler(int sig)
+{
+    if (sig == SIGINT)
+    {
+        atomic_store(&debugger_thread_should_exit, true);
     }
 }
 
@@ -76,8 +79,8 @@ debugger_thread_win(LPVOID lpParam)
 void *debugger_thread(void *arg)
 #endif
 {
-#ifdef _WIN32   
-   // Hook up sigint handler to terminate the server
+#ifdef _WIN32
+    // Hook up sigint handler to terminate the server
     signal(SIGINT, debugger_signal_handler);
 #else
     // Set up signal handler for this thread
@@ -102,8 +105,9 @@ void *debugger_thread(void *arg)
     // Run the server's message processing loop with periodic checks for exit
     while (server->is_running)
     {
-        if (debugger_thread_should_exit) break;
-        
+        if (debugger_thread_should_exit)
+            break;
+
         if (dap_server_run(server) != 0)
         {
             fprintf(stderr, "Error: Server message loop failed.\n");
@@ -114,13 +118,13 @@ void *debugger_thread(void *arg)
     }
 
     printf("Stopping DAP server\n");
-    
+
     // Stop the server and transport
     dap_server_stop(server);
 
     // Clean up before exiting
     dap_server_free(server);
-    server = NULL;    
+    server = NULL;
     THREAD_RETURN(0);
 }
 
@@ -156,7 +160,8 @@ void stop_debugger_thread()
     debugger_thread_should_exit = true;
 
     // Wait for the thread to finish
-    if (p_debugger_thread) {
+    if (p_debugger_thread)
+    {
 #ifdef _WIN32
         WaitForSingleObject(p_debugger_thread, INFINITE);
         CloseHandle(p_debugger_thread);
@@ -275,6 +280,20 @@ int32_t find_stack_return_address()
     return stack_trace.frames[prev_frame].return_address;
 }
 
+/// @brief Update the entry point of the JPL instruction
+/// @param pc Program counter of the JPL instruction
+/// @param operand Operand of the JPL instruction
+void debugger_update_jpl_entrypoint(uint16_t ea)
+{
+    if (stack_trace.frame_count == 0)
+    {
+        return;
+    }
+
+    // Update the entry point of the JPL instruction
+    stack_trace.frames[stack_trace.current_frame].entry_point = ea;
+}
+
 /// @brief Called by the CPU before executing an instruction
 /// @details This function is called by the CPU before executing an instruction.
 /// It builds the stack trace and sends it to the DAP server.
@@ -282,10 +301,24 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
 {
 
     // Check if this is a JPL instruction
-    bool is_jpl =  ((operand & 0xF800) == 0134000);
+    bool is_jpl = ((operand & 0xF800) == 0134000);
 
     // Check if this is an EXIT instruction (146142)
     bool is_exit = (operand == 0146142);
+
+    // Is this the first frame?
+    if (stack_trace.frame_count == 0)
+    {
+        stack_trace.frame_count = 1;
+        stack_trace.current_frame = 0;
+
+        // Add the root frame to our circular buffer        
+        stack_trace.frames[stack_trace.current_frame].operand = operand;
+        stack_trace.frames[stack_trace.current_frame].return_address = pc;
+        stack_trace.frames[stack_trace.current_frame].entry_point = pc;
+        stack_trace.frames[stack_trace.current_frame].pc = pc;
+    }
+    
 
     if (is_jpl)
     {
@@ -297,6 +330,7 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         stack_trace.frames[stack_trace.current_frame].pc = pc;
         stack_trace.frames[stack_trace.current_frame].operand = operand;
         stack_trace.frames[stack_trace.current_frame].return_address = return_address;
+        stack_trace.frames[stack_trace.current_frame].entry_point = pc; // the address where JPL will jump to (will be updated when JPL is executed)
 
         // Update frame tracking
         stack_trace.current_frame = (stack_trace.current_frame + 1) % MAX_STACK_FRAMES;
@@ -312,9 +346,7 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
         return;
     }
-    
-    
-    if (is_exit)
+    else if (is_exit)
     {
         // For EXIT, we need to remove the last frame
         if (stack_trace.frame_count > 0)
@@ -328,8 +360,15 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
             snprintf(log_msg, sizeof(log_msg), "Removed stack frame at PC=%06o\n", pc);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
         }
+
+        return;
     }
-    
+    else
+    {
+        stack_trace.frames[stack_trace.current_frame].pc = pc;
+    }
+
+
 }
 
 /// @brief Step the CPU by the given step type
@@ -361,7 +400,8 @@ int step_cpu(DAPServer *server, StepType step_type)
         {
             // Set a temporary breakpoint at the return address
             int return_address = find_stack_return_address();
-            if (return_address <0) return -1;
+            if (return_address < 0)
+                return -1;
 
             breakpoint_manager_add(return_address, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
             ensure_cpu_running();
@@ -378,10 +418,10 @@ int step_cpu(DAPServer *server, StepType step_type)
         }
 
         // If we have symbol table and want to step by line
-        if (g_symbol_table && ((ctx->granularity == DAP_STEP_GRANULARITY_LINE) || (ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)))
+        if (symbol_tables.symbol_table_map && ((ctx->granularity == DAP_STEP_GRANULARITY_LINE) || (ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)))
         {
             // Get the next line's address
-            target_pc = symbols_get_next_line_address(g_symbol_table, current_pc);
+            target_pc = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
 
             if (target_pc != 0 && target_pc != current_pc)
             {
@@ -414,7 +454,7 @@ int step_cpu(DAPServer *server, StepType step_type)
 
     // Step in - step one instruction (F11)
     if (step_type == STEP_IN)
-    {        
+    {
         snprintf(log_message, sizeof(log_message), "Stepping on instruction from %06o\n", current_pc);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
 
@@ -434,7 +474,7 @@ int step_cpu(DAPServer *server, StepType step_type)
             breakpoint_manager_add(return_address, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
             ensure_cpu_running();
             return 0;
-        }        
+        }
     }
 
     return -1;
@@ -1230,16 +1270,16 @@ static int cmd_variables(DAPServer *server)
     return 0;
 }
 
-
-
-/// @brief Update a stack frame with the given memory reference
+/// @brief Update a DAP response stack frame with the given memory reference
 /// @param server DAP server instance
 /// @param frame_index Index of the frame in the stack trace
 /// @param frame_id Unique ID of the frame
 /// @param memory_reference Memory reference of the frame
+/// @param entry_point Entry point of the frame
 /// @return 0 on success, -1 on failure
-void update_stack_frame (DAPServer *server, int frame_index, int frame_id, uint16_t memory_reference  ) {
-     // Initialize the frame
+void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16_t memory_reference, uint16_t entry_point)
+{
+    // Initialize the frame
     DAPStackFrame *frame = &server->current_command.context.stack_trace.frames[frame_index];
     frame->id = frame_id;
     frame->name = NULL;
@@ -1255,32 +1295,40 @@ void update_stack_frame (DAPServer *server, int frame_index, int frame_id, uint1
     frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
 
     // Try to get symbol information if we have a symbol table
-    if (g_symbol_table)
+    // Get source location information
+    int line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
+    const char *file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+    const symbol_entry_t *symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
+
+    if (line > 0 && file)
     {
-        // Get source location information
-        int line = symbols_get_line(g_symbol_table, memory_reference);
-        const char *file = symbols_get_file(g_symbol_table, memory_reference);
-        const symbol_entry_t *symbol = symbols_lookup_by_address(g_symbol_table, memory_reference);
+        // We found source information
+        frame->line = line;
+        frame->source_path = strdup(file);
 
-        if (line > 0 && file)
+        // Extract source name from path
+        const char *name = strrchr(file, '/');
+        if (name)
         {
-            // We found source information
-            frame->line = line;
-            frame->source_path = strdup(file);
+            frame->source_name = strdup(name + 1);
+        }
+        else
+        {
+            frame->source_name = strdup(file);
+        }
 
-            // Extract source name from path
-            const char *name = strrchr(file, '/');
-            if (name)
-            {
-                frame->source_name = strdup(name + 1);
-            }
-            else
-            {
-                frame->source_name = strdup(file);
-            }
+        // Create a frame name from the symbol or PC
 
-            // Create a frame name from the symbol or PC
-            char frame_name[256];
+        char frame_name[256];
+
+        // If we have a symbol, use it to create a frame name
+        if (symbol && symbol->name)
+        {
+            snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
+        }
+        else
+        {
+            // No symbol, use PC as frame name
             if (symbol && symbol->name)
             {
                 snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
@@ -1288,35 +1336,28 @@ void update_stack_frame (DAPServer *server, int frame_index, int frame_id, uint1
             else
             {
                 snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-            }
-            frame->name = strdup(frame_name);
+            }            
+        }
+        
+        frame->name = strdup(frame_name);
 
-            // Log the source mapping
-            char log_msg[256];
-            snprintf(log_msg, sizeof(log_msg), "PC %06o mapped to %s:%d\n",
-                     memory_reference, file, line);
-            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
-        }
-        else
-        {
-            // No source information found, use PC as frame name
-            char frame_name[256];
-            snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-            frame->name = strdup(frame_name);
-        }
+        // Log the source mapping
+        char log_msg[256];
+        snprintf(log_msg, sizeof(log_msg), "PC %06o mapped to %s:%d\n",
+                 memory_reference, file, line);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
     }
     else
     {
-        // No symbol table, just use PC as frame name
+        // No source information found, use PC as frame name
         char frame_name[256];
         snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-        frame->name = strdup(frame_name);   
+        frame->name = strdup(frame_name);
     }
 
     // Set instruction pointer reference
     frame->instruction_pointer_reference = memory_reference;
 }
-
 
 /**
  * @brief Handle DAP stackTrace request
@@ -1336,6 +1377,12 @@ static int cmd_stack_trace(DAPServer *server)
         return -1;
     }
 
+    if (stack_trace.frame_count == 0)
+    {
+        printf("No stack trace available\n");
+        return -1;
+    }
+
     // Log stack trace request to debugger console
     char log_message[256];
     snprintf(log_message, sizeof(log_message),
@@ -1346,47 +1393,34 @@ static int cmd_stack_trace(DAPServer *server)
     dap_server_send_output(server, log_message);
 
 
-    // If the number of tracked stack frames is 0 - we create ONE stack frame with the the symbol information for the current PC.
-    if (stack_trace.frame_count == 0) {
-
-        server->current_command.context.stack_trace.frame_count = 1;
-        server->current_command.context.stack_trace.total_frames = 1;
-        server->current_command.context.stack_trace.frames = malloc(sizeof(DAPStackFrame) *  server->current_command.context.stack_trace.frame_count);
-
-        update_stack_frame(server, 0, 0,gPC);
-        return 0;
-    }   
-
-
     // Max number of frames to return.
     int stack_levels = server->current_command.context.stack_trace.levels;
 
     //	Index into the call stack (for pagination).
     int stack_start_frame = server->current_command.context.stack_trace.start_frame;
 
-
     // Number of all tacked frames
-    int frame_count = stack_trace.frame_count+1;
-
+    int frame_count = stack_trace.frame_count;
 
     // Number of frames to return to the DAP client
 
     // Based on the number of stack levels and start frame, we need to calculate the number of frames to return.
     // We need to make sure we don't return more frames than we have.
     // We need to make sure we don't return frames that don't exist.
-    // We need to make sure we return the frames in reverse order (most recent first).  
-    
+    // We need to make sure we return the frames in reverse order (most recent first).
+
     // Calculate number of frames to return
     int frames_to_return = stack_levels;
-    if (frames_to_return > (frame_count - stack_start_frame)) {
+    if (frames_to_return > (frame_count - stack_start_frame))
+    {
         frames_to_return = frame_count - stack_start_frame;
     }
     // Number of frames to skip
     int frames_to_skip = stack_start_frame;
-    if (stack_start_frame > frame_count) {
+    if (stack_start_frame > frame_count)
+    {
         frames_to_skip = frame_count;
-    }   
-
+    }
 
     // Allocate memory for the stack frames
     server->current_command.context.stack_trace.frame_count = frames_to_return;
@@ -1402,16 +1436,16 @@ static int cmd_stack_trace(DAPServer *server)
     }
 
 
-    // Fill in the current frame in stack trace 0
-    update_stack_frame(server, 0, 0, gPC);
+
 
     // Fill in the stack frames in reverse order (most recent first)
-    for (int i = 1; i < frames_to_return; i++) {
+    for (int i = 0; i < frames_to_return; i++)
+    {
         int frame_idx = (stack_trace.current_frame - i + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
-        DAPStackFrame* frame = &server->current_command.context.stack_trace.frames[frame_idx];
 
-        uint16_t memory_reference = stack_trace.frames[frame_idx].return_address;
-        update_stack_frame(server, i, frame_idx, memory_reference);
+        uint16_t memory_reference = stack_trace.frames[frame_idx].pc;
+        uint16_t entry_point = stack_trace.frames[frame_idx].entry_point;
+        update_stack_frame(server, i, frame_idx, memory_reference, entry_point);
     }
 
     return 0;
@@ -1490,10 +1524,10 @@ static int cmd_set_breakpoints(DAPServer *server)
         bool validSymbol = false;
         // Try to get the memory address for this line number
         uint16_t address = 0;
-        if (g_symbol_table)
+        if (symbol_tables.symbol_table_aout)
         {
             // Get the address for this line in the source file
-            validSymbol = symbols_find_address(g_symbol_table, source_path, &address, bp->line);
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_aout, source_path, &address, bp->line);
         }
 
         if (!validSymbol)
@@ -1536,6 +1570,27 @@ static int cmd_set_breakpoints(DAPServer *server)
     return 0;
 }
 
+void free_symbol_table()
+{
+    if (symbol_tables.symbol_table_map)
+    {
+        symbols_free(symbol_tables.symbol_table_map);
+        symbol_tables.symbol_table_map = NULL;
+    }
+
+    if (symbol_tables.symbol_table_aout)
+    {
+        symbols_free(symbol_tables.symbol_table_aout);
+        symbol_tables.symbol_table_aout = NULL;
+    }
+
+    if (symbol_tables.symbol_table_stabs)
+    {
+        symbols_free(symbol_tables.symbol_table_stabs);
+        symbol_tables.symbol_table_stabs = NULL;
+    }
+}
+
 /**
  * @brief Initialize symbol table support for the debugger
  *
@@ -1547,104 +1602,65 @@ static int cmd_set_breakpoints(DAPServer *server)
  * @param filename Path to the symbol file
  * @return int 0 on success, non-zero on failure
  */
-int init_symbol_support(const char *filename)
+
+int init_symbol_support(const char *filename, SymbolType symbol_type)
 {
     if (!filename)
     {
-        fprintf(stderr, "Error: No symbol file specified\n");
         return -1;
     }
 
-    // Free previous symbol table if it exists
-    if (g_symbol_table)
+    // Allocate symbol table if it doesn't exist
+    if (symbol_tables.symbol_table_map == NULL)
     {
-        symbols_free(g_symbol_table);
-        g_symbol_table = NULL;
+        symbol_tables.symbol_table_map = symbols_create();
     }
 
-    // Initialize symbol table
-    g_symbol_table = symbols_create();
-    if (!g_symbol_table)
+    if (symbol_tables.symbol_table_aout == NULL)
+    {
+        symbol_tables.symbol_table_aout = symbols_create();
+    }
+
+    if (symbol_tables.symbol_table_stabs == NULL)
+    {
+        symbol_tables.symbol_table_stabs = symbols_create();
+    }
+
+    if (symbol_tables.symbol_table_map == NULL || symbol_tables.symbol_table_aout == NULL || symbol_tables.symbol_table_stabs == NULL)
     {
         fprintf(stderr, "Error: Failed to create symbol table\n");
+        free_symbol_table();
         return -1;
     }
 
     // Try loading symbols from the file in different formats
     bool result = false;
 
-    // First try map file format
-    printf("Attempting to load symbols from map file: %s\n", filename);
-    result = symbols_load_map(g_symbol_table, filename);
-    if (result)
+    switch (symbol_type)
     {
-        printf("Successfully loaded symbols from map file: %s\n", filename);
-        return 0;
-    }
+    case SYMBOL_TYPE_MAP:
+        result = symbols_load_map(symbol_tables.symbol_table_map, filename);
+        break;
 
-    // If that fails, try a.out format
-    printf("Map file format failed, trying a.out format: %s\n", filename);
-    result = symbols_load_aout(g_symbol_table, filename);
-    if (result)
-    {
-        printf("Successfully loaded symbols from a.out binary: %s\n", filename);
-        return 0;
-    }
+    case SYMBOL_TYPE_AOUT:
+        result = symbols_load_aout(symbol_tables.symbol_table_aout, filename);
+        break;
 
-    // If that fails too, try STABS format
-    printf("a.out format failed, trying STABS format: %s\n", filename);
-    result = symbols_load_stabs(g_symbol_table, filename);
-    if (result)
-    {
-        printf("Successfully loaded symbols from STABS file: %s\n", filename);
-        return 0;
-    }
-
-    // If all loading attempts failed
-    fprintf(stderr, "Error: Failed to load symbols from %s in any supported format\n", filename);
-    symbols_free(g_symbol_table);
-    g_symbol_table = NULL;
-    return -1;
-}
-
-/**
- * @brief Register symbol information with the DAP server
- *
- * @param server The DAP server instance
- * @param symbol_file Path to the symbol file
- * @return int 0 on success, non-zero on failure
- */
-int register_symbol_file_with_dap(DAPServer *server, const char *symbol_file)
-{
-    if (!server || !symbol_file)
-    {
+    case SYMBOL_TYPE_STABS:
+        result = symbols_load_stabs(symbol_tables.symbol_table_stabs, filename);
+        break;
+    default:
+        fprintf(stderr, "Error: Unsupported symbol type: %d\n", symbol_type);
         return -1;
     }
 
-    // Load symbols
-    int result = init_symbol_support(symbol_file);
-    if (result != 0)
+    if (result)
     {
-        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                        "Failed to load symbols from any supported format\n");
-        return result;
+        printf("Successfully loaded symbols from %s\n", filename);
+        return 0;
     }
 
-    // Get symbol statistics
-    int symbol_count = 0;
-    int line_count = 0;
-
-    // Send a console output event to notify the client
-    char message[256];
-    snprintf(message, sizeof(message), "Loaded symbol information from %s\n", symbol_file);
-    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
-
-    // Print more detailed info about symbols
-    // In a real implementation, you would count symbols and line entries
-    snprintf(message, sizeof(message), "Symbol table contains address-to-line mapping information\n");
-    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
-
-    return 0;
+    return -1;
 }
 
 /**
@@ -1745,14 +1761,17 @@ static int cmd_launch_callback(DAPServer *server)
         gPC = STARTADDR;
     }
 
-    // If map file is provided, try it first
+    // Clear old symbols
+    free_symbol_table();
+    // Load symbols !!
+
     if (map_path)
     {
         printf("Attempting to load symbols from map file: %s\n", map_path);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                         "Loading symbols from map file...\n");
 
-        if (register_symbol_file_with_dap(server, map_path) == 0)
+        if (init_symbol_support(map_path, SYMBOL_TYPE_MAP) == 0)
         {
             symbols_loaded = true;
 
@@ -1763,14 +1782,14 @@ static int cmd_launch_callback(DAPServer *server)
         }
     }
 
-    // If no symbols yet and we have a program path, try it as a.out
-    if (!symbols_loaded && program_path)
+    // If we have a.out file, try to update symbols from it
+    if (program_path)
     {
         printf("Attempting to load symbols from program binary: %s\n", program_path);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                         "Loading symbols from program binary...\n");
 
-        if (register_symbol_file_with_dap(server, program_path) == 0)
+        if (init_symbol_support(program_path, SYMBOL_TYPE_AOUT) == 0)
         {
             symbols_loaded = true;
 
@@ -1839,7 +1858,7 @@ static int cmd_launch_callback(DAPServer *server)
                 dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                                 "Found STABS file, loading symbols...\n");
 
-                if (register_symbol_file_with_dap(server, stabs_path) == 0)
+                if (init_symbol_support(stabs_path, SYMBOL_TYPE_STABS) == 0)
                 {
                     symbols_loaded = true;
 
@@ -1866,22 +1885,23 @@ static int cmd_launch_callback(DAPServer *server)
     // Update the server's program counter from the CPU
     server->debugger_state.program_counter = gPC;
 
-    // If we have symbols, try to map initial PC to a source line
-    if (g_symbol_table)
-    {
-        int line = symbols_get_line(g_symbol_table, gPC);
-        const char *file = symbols_get_file(g_symbol_table, gPC);
+    // Create initial stack trace
+    debugger_build_stack_trace(gPC, 0);
 
-        if (line > 0 && file)
-        {
-            server->debugger_state.source_line = line;
-            // Show initial source mapping
-            char message[256];
-            snprintf(message, sizeof(message), "Initial PC %06o mapped to %s:%d\n",
-                     gPC, file, line);
-            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
-        }
+    // If we have symbols, try to map initial PC to a source line
+    int line = symbols_get_line(symbol_tables.symbol_table_map, gPC);
+    const char *file = symbols_get_file(symbol_tables.symbol_table_map, gPC);
+
+    if (line > 0 && file)
+    {
+        server->debugger_state.source_line = line;
+        // Show initial source mapping
+        char message[256];
+        snprintf(message, sizeof(message), "Initial PC %06o mapped to %s:%d\n",
+                    gPC, file, line);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
     }
+
 
     // Send process event to indicate execution started
     dap_server_send_process_event(server, program_path, 1, true, "launch");
@@ -2079,9 +2099,10 @@ int ndx_server_init(int port)
 
     // Start server and transport layer
     int result = dap_server_start(server);
-    if (result != 0) {
+    if (result != 0)
+    {
         return result;
-    } 
+    }
 
     return 0;
 }
@@ -2148,7 +2169,7 @@ const char *find_symbol_by_address(symbol_table_t *symtab, uint16_t address)
  */
 const char *get_symbol_for_address(uint16_t address)
 {
-    return find_symbol_by_address(g_symbol_table, address);
+    return find_symbol_by_address(symbol_tables.symbol_table_aout, address);
 }
 
 /**
@@ -2160,13 +2181,13 @@ const char *get_symbol_for_address(uint16_t address)
  */
 const char *get_source_location(uint16_t address, int *line)
 {
-    if (!g_symbol_table || !line)
+    if (!symbol_tables.symbol_table_map || !line)
     {
         return NULL;
     }
 
-    *line = symbols_get_line(g_symbol_table, address);
-    return symbols_get_file(g_symbol_table, address);
+    *line = symbols_get_line(symbol_tables.symbol_table_map, address);
+    return symbols_get_file(symbol_tables.symbol_table_map, address);
 }
 
 /**

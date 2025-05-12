@@ -71,6 +71,7 @@ int CurrentCPURunMode;
 
 // forward declaration for debugger.c function 
 void debugger_build_stack_trace(uint16_t pc, uint16_t operand);
+void debugger_update_jpl_entrypoint(uint16_t ea);
 
 //#define DEBUG_TRAP
 
@@ -85,7 +86,7 @@ uint64_t  instr_counter = 0;
 ushort STARTADDR = 0;
 int DISASM = 0;
 
-bool m_debuggerEnabled = false;
+
 
 /* Instruction handling array */
 
@@ -116,6 +117,16 @@ void do_op(ushort operand, bool isEXR)
 				   this way we are as flexible as possible as we
 				   implement io calls. */
 
+	// After JPL instruction, we need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+	if (gDebuggerEnabled)
+	{
+		// JPL instruction?
+		if ((operand & 0xF800) == 0134000)
+		{
+			// We need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+			debugger_update_jpl_entrypoint(gPC);
+		}
+	}
 
 }
 
@@ -446,7 +457,7 @@ void private_cpu_tick()
 		}
 	}
 
-	if (m_debuggerEnabled)
+	if (gDebuggerEnabled)
 	{
 		// Debugger need to build the stack-trace to be used for single stepping (step-out)
 		debugger_build_stack_trace(gPC, operand);
@@ -545,7 +556,7 @@ int cpu_run(int ticks)
         }
         
 		// If CPU is in RUN mode, check if debugger has requested a pause
-		if (m_debuggerEnabled)
+		if (gDebuggerEnabled)
 		{
 			//if ((current_run_mode == CPU_RUNNING)||(current_run_mode == CPU_BREAKPOINT))
 			{
@@ -569,7 +580,7 @@ int cpu_run(int ticks)
 				ticks--;
 			}
 
-			if (m_debuggerEnabled)
+			if (gDebuggerEnabled)
 			{
 				// Check if we hit a breakpoint
 				if (check_for_breakpoint() != STOP_REASON_NONE)
@@ -593,8 +604,7 @@ int cpu_run(int ticks)
 
 
 void cpu_init(bool debuggerEnabled)
-{
-	m_debuggerEnabled = debuggerEnabled;
+{	
 	/* initialize an empty register set */
 	gReg = calloc(1, sizeof(struct CpuRegs));
 
@@ -617,6 +627,8 @@ void cpu_init(bool debuggerEnabled)
 
 	gALD = 01560; // oct 1560 (ALD position 4, Binary load from 1560) // Floppy
 
+	gDebuggerEnabled = debuggerEnabled;
+
 	if (DISASM)
 		disasm_setlbl(gPC);
 
@@ -628,7 +640,7 @@ void cpu_init(bool debuggerEnabled)
 void init_cpu_debugger()
 {	
 #ifdef WITH_DEBUGGER
-	if (!m_debuggerEnabled) return;
+	if (!gDebuggerEnabled) return;
 	breakpoint_manager_init();
 	start_debugger();
 #endif
@@ -668,7 +680,7 @@ void cleanup_cpu()
 	DestroyPagingTables();
 
 #ifdef WITH_DEBUGGER
-	if (m_debuggerEnabled)
+	if (gDebuggerEnabled)
     {
 		stop_debugger_thread();
     }
