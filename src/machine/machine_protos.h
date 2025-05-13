@@ -6,6 +6,7 @@ void cleanup_machine(void);
 void machine_run(int ticks);
 void machine_stop(void);
 void setdefaultconfig(void);
+void write_memory(uint16_t address, uint16_t value);
 void program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose);
 
 /* /home/ronny/repos/nd100x/src/machine/io.c */
