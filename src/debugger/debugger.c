@@ -273,11 +273,8 @@ int32_t find_stack_return_address()
         return -1;
     }
 
-    // Get the previous frame's index
-    int prev_frame = (stack_trace.current_frame - 1 + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
-
     // Get the return address of the previous frame
-    return stack_trace.frames[prev_frame].return_address;
+    return stack_trace.frames[stack_trace.current_frame].return_address;
 }
 
 /// @brief Update the entry point of the JPL instruction
@@ -339,12 +336,7 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         stack_trace.frames[stack_trace.current_frame].operand = operand;
         stack_trace.frames[stack_trace.current_frame].return_address = return_address;
         stack_trace.frames[stack_trace.current_frame].entry_point = 0; // the address where JPL will jump to (will be updated when JPL is executed)      
-
-        // Log the new frame for debugging
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "Added stack frame: PC=%06o, Operand=%06o, Return=%06o\n",
-                 pc, operand, return_address);
-        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
+        
         return;
     }
     else if (is_exit)
@@ -360,12 +352,7 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
 
             // Move back one frame
             stack_trace.current_frame = (stack_trace.current_frame - 1 + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
-            stack_trace.frame_count--;
-
-            // Log the frame removal
-            char log_msg[256];
-            snprintf(log_msg, sizeof(log_msg), "Removed stack frame at PC=%06o\n", pc);
-            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
+            stack_trace.frame_count--;  
         }
 
         return;
@@ -581,20 +568,24 @@ static int cmd_scopes(DAPServer *server)
 
     // Set up Locals scope
     int scope_index = 0;
-    scopes[scope_index].name = strdup("Locals");
-    scopes[scope_index].variables_reference = SCOPE_ID_LOCALS;
-    scopes[scope_index].named_variables = 5; // Number of local variables
-    scopes[scope_index].indexed_variables = 0;
-    scopes[scope_index].expensive = false;
-    // Source location fields are optional, set to 0/NULL
-    scopes[scope_index].source_path = NULL;
-    scopes[scope_index].line = 0;
-    scopes[scope_index].column = 0;
-    scopes[scope_index].end_line = 0;
-    scopes[scope_index].end_column = 0;
+
+    if (stack_trace.frames[stack_trace.current_frame].variables.number_of_variables > 0)
+    {
+        scopes[scope_index].name = strdup("Locals");        
+        scopes[scope_index].variables_reference = SCOPE_ID_LOCALS;
+        scopes[scope_index].named_variables = stack_trace.frames[stack_trace.current_frame].variables.number_of_variables; // Number of local variables
+        scopes[scope_index].indexed_variables = 0;
+        scopes[scope_index].expensive = false;
+        // Source location fields are optional, set to 0/NULL
+        scopes[scope_index].source_path = NULL;
+        scopes[scope_index].line = 0;
+        scopes[scope_index].column = 0;
+        scopes[scope_index].end_line = 0;
+        scopes[scope_index].end_column = 0;     
+        scope_index++;
+    }
 
     // Set up CPU Registers scope
-    scope_index++;
     scopes[scope_index].name = strdup("CPU Registers");
     scopes[scope_index].variables_reference = SCOPE_ID_REGISTERS;
     scopes[scope_index].named_variables = 8; // STS, D, P, B, L, A, T, X
@@ -831,8 +822,7 @@ static DAPVariable *add_variable_to_array(
  */
 static void add_local_variables(DAPServer *server, char *info_message, size_t info_message_size)
 {
-    snprintf(info_message, info_message_size,
-             "Loading local variables for current context\n");
+  
 
     // No local variables in this example, but in a real implementation
     // this would add variables from the current stack frame
@@ -1219,8 +1209,11 @@ static int cmd_variables(DAPServer *server)
     {
     case SCOPE_ID_LOCALS:
     {
-        // Use our helper function for local variables
-        add_local_variables(server, info_message, sizeof(info_message));
+        if (stack_trace.frames[stack_trace.current_frame].variables.number_of_variables > 0)
+        {
+            // Use our helper function for local variables
+            add_local_variables(server, info_message, sizeof(info_message));
+        }
         break;
     }
 
@@ -1413,15 +1406,6 @@ static int cmd_stack_trace(DAPServer *server)
         return -1;
     }
 
-    // Log stack trace request to debugger console
-    char log_message[256];
-    snprintf(log_message, sizeof(log_message),
-             "StackTrace request for thread %d (start=%d, count=%d)",
-             server->debugger_state.current_thread_id,
-             stack_start_frame,
-             stack_levels);
-    dap_server_send_output(server, log_message);
-
     // Calculate number of frames to return
     int frames_to_return = stack_levels;
     if (frames_to_return > (frame_count - stack_start_frame))
@@ -1483,9 +1467,24 @@ static int cmd_stack_trace(DAPServer *server)
         frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
 
 
-        
+        //symbols_dump_all(symbol_tables.symbol_table_aout);
+
         // Try to get symbol information
         const symbol_entry_t *symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
+        if (symbol && symbol->name)
+        {
+            frame->name = strdup(symbol->name);
+            frame->valid_symbol = true;
+            frame->symbol_entry_point = entry_point;                                
+        }
+        else
+        {
+            frame->name = strdup("<unknown>");
+            frame->valid_symbol = false;
+        }
+
+
+        /*
         for (int i = 0; i < symbol_tables.symbol_table_aout->count; i++)
         {
             const symbol_entry_t *symbol = &symbol_tables.symbol_table_aout->entries[i];
@@ -1494,6 +1493,7 @@ static int cmd_stack_trace(DAPServer *server)
                 printf("Symbol found: %s at %06o\n", symbol->name, symbol->address);
             }
         }
+        */
 
         // Get source location information
         int line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
@@ -1516,38 +1516,10 @@ static int cmd_stack_trace(DAPServer *server)
                 frame->source_name = strdup(file);
             }
 
-            // Create a frame name with symbol and address information
-            char frame_name[256];
-            if (symbol && symbol->name)
-            {
-                snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
-            }
-            else
-            {
-                snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-            }
-            frame->name = strdup(frame_name);
+            
 
-            // Log the source mapping
-            char log_msg[256];
-            snprintf(log_msg, sizeof(log_msg), "PC %06o mapped to %s:%d\n",
-                     memory_reference, file, line);
-            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_msg);
         }
-        else
-        {
-            // No source information found, use PC as frame name
-            char frame_name[256];
-            if (symbol && symbol->name)
-            {
-                snprintf(frame_name, sizeof(frame_name), "%s at %06o", symbol->name, memory_reference);
-            }
-            else
-            {
-                snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-            }
-            frame->name = strdup(frame_name);
-        }
+      
 
         // Set presentation hint based on frame type
         if (symbol && symbol->type == SYMBOL_TYPE_FUNCTION)

@@ -16,6 +16,25 @@
     #define WIN_RESULT void*
 #endif
 
+
+/// @brief Variable in the current stack frame
+/// TODO: Not yet implemented and supported by the DAP
+typedef struct {
+    /// @brief Name of the variable
+    char *name;
+    /// @brief Value of the variable
+    char *value;
+    /// @brief Type of the variable
+    char *type;
+} Variable;
+
+typedef struct {
+    /// @brief Number of local variables in the current stack frame
+    int number_of_variables;
+    /// @brief Array of local variables
+    Variable *variables;
+} LocalVariables;
+
 // Define the maximum number of stack frames we'll track
 #define MAX_STACK_FRAMES 20
 
@@ -29,12 +48,21 @@ typedef struct {
     uint16_t return_address;
     /// @brief Entry point of the stack frame
     uint16_t entry_point;
+
+    /// @brief Local variables in the current stack frame
+    LocalVariables variables;
 } StackFrame;
+
+
+
+
+
 
 typedef struct {
     StackFrame frames[MAX_STACK_FRAMES];
     int current_frame;
     int frame_count;
+
 } StackTrace;
 
 
