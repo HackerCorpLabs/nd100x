@@ -245,8 +245,7 @@ int main(int argc, char *argv[])
         {
             // Check if DAP adapter has requested a pause
             if (get_debugger_request_pause())
-            {
-                printf("Pausing CPU...\n");
+            {                
                 set_debugger_control_granted(true);
                 continue;
             }

@@ -201,8 +201,6 @@ const char *cpuStopReasonToString(CpuStopReason r)
 
 static int cmd_wait_for_debugger(DAPServer *server)
 {
-    printf("DAP adapter has requested CPU pause\n");
-
     // Tell CPU thread we want it to pause
     if (get_cpu_run_mode() == CPU_SHUTDOWN)
         return -1; // CPU is shutting down, no need to pause
@@ -221,8 +219,6 @@ static int cmd_wait_for_debugger(DAPServer *server)
 
 static int cmd_release_debugger(DAPServer *server)
 {
-    printf("DAP adapter has requested CPU resume\n");
-
     // Release debugger's request to pause (let CPU decide to run/step)
     set_debugger_request_pause(false);
 
@@ -1195,7 +1191,7 @@ static int cmd_variables(DAPServer *server)
     // Extract variables reference from the command context
     int variables_reference = server->current_command.context.variables.variables_reference;
 
-    printf("Variables request for reference: %d\n", variables_reference);
+    //printf("Variables request for reference: %d\n", variables_reference);
 
     // Buffer for informational messages
     char info_message[256] = {0};
