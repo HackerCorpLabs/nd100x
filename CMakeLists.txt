@@ -28,7 +28,7 @@ option(DEBUGGER_ENABLED "Enable debugger support" ON)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(BUILD_RISCV OR CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
         set(PLATFORM_RISCV TRUE)
-        set(DEBUGGER_ENABLED FALSE) # Disable debugger for RISC-V because of dependency issues to aout.h
+        set(DEBUGGER_ENABLED FALSE) 
         message(STATUS "Building for RISC-V Linux")
     else()
         set(PLATFORM_LINUX TRUE)        
