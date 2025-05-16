@@ -1602,15 +1602,16 @@ static int cmd_set_breakpoints(DAPServer *server)
         DAPBreakpoint *bp = &server->current_command.context.breakpoint.breakpoints[i];
 
         bool validSymbol = false;
-        // Try to get the memory address for this line number
+        // Try to get the a valid memory address for this line number
         uint16_t address = 0;
-        if (symbol_tables.symbol_table_aout)
+        uint16_t diff = 0;
+        if (symbol_tables.symbol_table_map)
         {
             // Get the address for this line in the source file
-            validSymbol = symbols_find_address(symbol_tables.symbol_table_aout, source_path, &address, bp->line);
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_map, source_path, &address,&diff, bp->line);
         }
 
-        if (!validSymbol)
+        if ((!validSymbol) || (diff != 0))
         {
             // If we couldn't map the line to an address, log it and continue
 
