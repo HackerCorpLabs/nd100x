@@ -11,6 +11,20 @@ This document lists all the systems where nd100x has been tested
   - Fully compatible with all features
   - Performance optimized for both WSL and VM environments
 
+### FreeBSD 14.2-RELEASE
+- **Environment**: Native FreeBSD installation
+- **Status**: ✅ Tested and Verified
+- **Specifications**:
+  - **Version**: 14.2-RELEASE
+  - **Branch**: releng/14.2-n269506-c8918d6c7412
+  - **Kernel**: GENERIC
+  - **Architecture**: amd64
+- **Notes**:
+  - Native FreeBSD support
+  - No external dependencies required
+  - Uses internal cJSON implementation
+  - Compatible with all core features
+
 ## WebAssembly (WASM)
 
 ### Browser Environment
