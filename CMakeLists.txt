@@ -20,10 +20,6 @@ option(BUILD_WASM "Build for WebAssembly using Emscripten" OFF)
 option(BUILD_RISCV "Build for RISC-V Linux using gcc-riscv64-unknown-linux-musl" OFF)
 option(DEBUGGER_ENABLED "Enable debugger support" ON)
 
-
-
-
-
 # Platform detection
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(BUILD_RISCV OR CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
@@ -47,6 +43,17 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     endif()
 else()
     message(WARNING "Unsupported platform: ${CMAKE_SYSTEM_NAME}")
+endif()
+
+# Add cJSON as an object library first
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON")
+    add_library(cjson_objects OBJECT
+        external/cJSON/cJSON.c
+    )
+    target_include_directories(cjson_objects PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON
+    )
+    message(STATUS "cJSON library support enabled")
 endif()
 
 # Handle RISC-V specific configuration
@@ -91,6 +98,9 @@ if(DEBUGGER_ENABLED)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
         set(BUILD_DAP_TEST_TOOLS ${BUILD_DAP_TOOLS} CACHE BOOL "Build libdap test tools" FORCE)
         add_subdirectory(external/libdap)
+        if(TARGET dap_objects)
+            target_link_libraries(dap_objects PRIVATE cjson_objects)
+        endif()
         message(STATUS "DAP library support enabled (only for Linux/Windows builds)")
     endif()
 else()    

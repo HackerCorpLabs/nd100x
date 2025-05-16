@@ -205,6 +205,7 @@ int NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short
 int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
 void DoNLZ(char scaling);
 void DoDNZ(char scaling);
+long double truncl(long double x);
 
 /* /home/ronny/repos/nd100x/src/cpu/cpu_regs.c */
 bool setPIL(char newLevel);

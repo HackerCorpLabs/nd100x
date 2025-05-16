@@ -41,6 +41,7 @@ target_link_libraries(debugger
     PUBLIC ndlib
     PUBLIC cpu
     PUBLIC machine
+    PRIVATE cjson_objects
 )
 
 # Only define WITH_DEBUGGER when globally enabled
@@ -54,12 +55,6 @@ if(DEBUGGER_ENABLED)
 
     # Check if libdap exists
     if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
-        # Find required dependencies
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            pkg_check_modules(CJSON QUIET libcjson)
-        endif()
-
         # Include libdap
         target_include_directories(debugger
             PRIVATE ${LIBDAP_INCLUDE_DIR}
@@ -68,6 +63,7 @@ if(DEBUGGER_ENABLED)
         # Link with libdap - change from dap to dap_objects
         target_link_libraries(debugger
             PRIVATE dap_objects
+            PRIVATE cjson_objects
         )
 
         # Add DAP_ENABLED definition
