@@ -44,16 +44,16 @@ if(DEBUGGER_ENABLED )
             dap_objects
         )
     endif()
-    
-    # If libsymbols is available, link with it
-    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
-        target_include_directories(nd100x PRIVATE
-            ${CMAKE_SOURCE_DIR}/external/libsymbols/include
-        )
-        target_link_libraries(nd100x PRIVATE
-            symbols_objects
-        )
-    endif()
+endif()
+
+# Always link with libsymbols for a.out support
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+    target_include_directories(nd100x PRIVATE
+        ${CMAKE_SOURCE_DIR}/external/libsymbols/include
+    )
+    target_link_libraries(nd100x PRIVATE
+        symbols_objects
+    )
 endif()
 
 # Add installation rule to copy config file

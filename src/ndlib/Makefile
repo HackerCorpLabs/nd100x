@@ -2,7 +2,7 @@
 SRC_DIR := .
 
 # Source files in dependency order
-SRCS := log.c ndlib.c bpun.c aout.c
+SRCS := log.c ndlib.c load_aout.c load_bpun.c
 
 # Include paths
 INCLUDES := -I$(SRC_DIR) -I../cpu

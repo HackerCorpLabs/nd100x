@@ -40,65 +40,6 @@ struct config_t *pCFG = NULL;
  * 
  */
 
-void 
-blocksignals (void)
-{
-	static sigset_t new_set;
-	static sigset_t old_set;
-	sigemptyset(&new_set);
-	sigemptyset(&old_set);
-
-	/* set signals now */
-	if (false) // DEAMON is not used in this project
-	{
-		sigaddset(&new_set, SIGCHLD); /* ignore child */
-		sigaddset(&new_set, SIGTSTP); /* ignore tty signals */
-		sigaddset(&new_set, SIGTTOU);
-		sigaddset(&new_set, SIGTTIN);
-	}
-	sigaddset(&new_set, SIGALRM); /* ignore timer for process.. this one we will install handler for later */
-	sigaddset(&new_set, SIGINT);  /* kill signal we will catch in handles */
-	sigaddset(&new_set, SIGHUP);  /* see above */
-	sigaddset(&new_set, SIGTERM); /* see above */
-}
-
-void 
-setsignalhandlers (void)
-{
-	// static sigset_t   new_set;
-	// static sigset_t   old_set;
-
-	// static struct sigaction act;
-	// static struct sigaction act_alrm;
-
-	/* set up handler for SIGINT, SIGHUP, SIGTERM */
-	/*
-	act.sa_handler = &shutdown;
-	sigemptyset (&act.sa_mask);
-	sigaction (SIGINT, &act, NULL);
-	sigaction (SIGHUP, &act, NULL);
-	sigaction (SIGTERM, &act, NULL);
-	sigemptyset (&new_set);
-	sigemptyset (&old_set);
-	sigaddset (&new_set, SIGINT);
-	sigaddset (&new_set, SIGHUP);
-	sigaddset (&new_set, SIGTERM);
-	*/
-
-	/* set up handler for SIGALARM */
-	/*
-	act_alrm.sa_handler = &rtc_handler;
-	sigemptyset (&act_alrm.sa_mask);
-	sigaction (SIGALRM, &act_alrm, NULL);
-	sigemptyset (&new_set);
-	sigemptyset (&old_set);
-	sigaddset (&new_set, SIGALRM);
-
-	*/
-	return;
-}
-
-
 void unsetcbreak(void)
 { /* prepare to exit this program. */
 	tcsetattr(0, TCSADRAIN, &savetty);

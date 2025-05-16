@@ -32,6 +32,7 @@ target_include_directories(nd100wasm PRIVATE
     ${CMAKE_SOURCE_DIR}/src/devices/floppy
     ${CMAKE_SOURCE_DIR}/src/devices/smd
     ${CMAKE_SOURCE_DIR}/src/machine
+    ${CMAKE_SOURCE_DIR}/external/libsymbols/include
 )
 
 # Modify nd100wasm.c to not include missing nd100x_types.h for now
@@ -52,6 +53,7 @@ target_link_libraries(nd100wasm PRIVATE
     cpu
     devices
     machine
+    symbols_objects
 )
 
 # Emscripten-specific configurations

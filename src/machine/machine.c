@@ -31,6 +31,10 @@
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
 
+#include "../../external/libsymbols/include/symbols.h"
+#include "../../external/libsymbols/include/aout.h"
+
+
 
 const char* boot_type_str[] = {
     "none",
@@ -48,6 +52,10 @@ machine_init (bool debuggerEnabled)
     
     // Initialize the CPU
     cpu_init(debuggerEnabled);
+
+    // Initialize the CPU debugger (if enabled, starts the debugger thread)
+    init_cpu_debugger();
+
     // Initialize IO devices
     IO_Init();
 
@@ -114,6 +122,16 @@ void machine_stop()
  */
 
 
+/// @brief Callback function to write to memory. Used by aout loader.  
+/// @param address Address to write to
+/// @param value Value to write
+void write_memory(uint16_t address, uint16_t value)
+{
+    // Write the value to the memory at the given address
+    WritePhysicalMemory(address, value, false);
+    if (DISASM) disasm_addword(address, value);
+}
+
  void program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
  {
      int bootAddress;
@@ -142,7 +160,7 @@ void machine_stop()
          STARTADDR = bootAddress;
          break;
     case BOOT_AOUT:
-        bootAddress = load_aout(imageFile, verbose);
+        bootAddress = load_aout(imageFile, verbose, write_memory);
         if (bootAddress < 0)
         {
             printf("Error loading AOUT file '%s'\n", imageFile);

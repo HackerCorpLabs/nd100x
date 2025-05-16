@@ -28,14 +28,17 @@
 BreakpointManager *mgr;
 
 
-// Hash size for the breakpoint manager
-// Hash function
+/// @brief Hash function for the breakpoint manager
+/// @param address Memory address to hash
+/// @return Hash value  
 static int hash_address(uint16_t address)
 {
     return address % HASH_SIZE;
 }
 
-// Initialize
+/// @brief Initialize the breakpoint manager
+/// @return void
+/// @note Initialize the breakpoint manager
 void breakpoint_manager_init()
 {
     mgr= (BreakpointManager *)malloc(sizeof(BreakpointManager));
@@ -48,6 +51,9 @@ void breakpoint_manager_init()
     memset(mgr->buckets, 0, sizeof(mgr->buckets));
 }
 
+/// @brief Cleanup the breakpoint manager
+/// @return void
+/// @note Clean up and free the breakpoint manager memory
 void breakpoint_manager_cleanup()
 {
     if (mgr) {
@@ -56,7 +62,20 @@ void breakpoint_manager_cleanup()
     }
 }
 
-// Add (create new entry or append to list)
+/// @brief Set the step count to 1
+/// @return void
+/// @note Used by the debugger to single step
+void breakpoint_manager_step_one()
+{
+    mgr->step_count=1;
+}
+
+/// @brief Add breakpoint (create new entry or append to list)
+/// @param address Memory address to add breakpoint to
+/// @param type Breakpoint type (user, function, data, instruction, temporary)
+/// @param condition Condition expression (optional - not yet supported)
+/// @param hitCondition Hit condition expression (optional)
+/// @param logMessage Log message (optional)
 void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *condition, const char *hitCondition, const char *logMessage)
 {
 
@@ -90,7 +109,9 @@ void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *c
     mgr->buckets[h] = entry;
 }
 
-// Remove entries at address matching type (or all if type == -1)
+/// @brief Remove entries at address matching type (or all if type == -1)
+/// @param address Memory address to remove breakpoints from
+/// @param type Breakpoint type to remove (or all if type == -1)
 void breakpoint_manager_remove(uint16_t address, int type)
 {
     int h = hash_address(address);
@@ -121,7 +142,9 @@ void breakpoint_manager_remove(uint16_t address, int type)
     }
 }
 
-// Clear all breakpoints
+/// @brief Clear all breakpoints   
+/// @return void
+/// @note Clear all breakpoints
 void breakpoint_manager_clear()
 {
     for (int h = 0; h < HASH_SIZE; h++)
@@ -140,8 +163,11 @@ void breakpoint_manager_clear()
     }
 }
 
-// Query breakpoints at address
-// Returns number of matching entries
+/// @brief Query breakpoints at address
+/// @param address Memory address to query breakpoints from
+/// @param matches Array to store matching breakpoints
+/// @param matchCount Number of matching breakpoints
+/// @return Number of matching entries
 int breakpoint_manager_check( uint16_t address, BreakpointEntry** matches[], int* matchCount) {
     int h = hash_address(address);
     BreakpointEntry* curr = mgr->buckets[h];
@@ -182,14 +208,31 @@ int breakpoint_manager_check( uint16_t address, BreakpointEntry** matches[], int
 
 /// @brief Check if the current program counter (PC) matches any breakpoints.
 /// @return BreakpointType
+/// @note Check if the current program counter (PC) matches any breakpoints.
 int check_for_breakpoint(void)
 {
+
+    // Auto-initialize the breakpoint manager if it is not initialized
+    if (mgr == NULL) {
+        breakpoint_manager_init();
+    }
 
     BreakpointEntry** hits;
     int hitCount;
     BreakpointType btType = BT_NONE;
     uint16_t pc = gPC;
 
+    // Check for single step
+    if (mgr->step_count > 0) {
+        mgr->step_count--;
+        if (mgr->step_count == 0) {
+            set_cpu_stop_reason(STOP_REASON_STEP);
+            set_cpu_run_mode(CPU_BREAKPOINT);
+            return STOP_REASON_STEP;
+        }
+    }
+
+    // Check for breakpoints
     if (breakpoint_manager_check(pc, &hits, &hitCount)) {
         for (int i = 0; i < hitCount; i++) {
             BreakpointEntry* bp = hits[i];
@@ -227,7 +270,9 @@ int check_for_breakpoint(void)
     return btType;
 }
 
-
+/// @brief Convert breakpoint type to stop reason
+/// @param t Breakpoint type
+/// @return Stop reason
 CpuStopReason stopReasonFromBreakpoint(BreakpointType t) {
     switch (t) {
         case BP_TYPE_USER: return STOP_REASON_BREAKPOINT;

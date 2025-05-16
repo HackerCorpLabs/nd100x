@@ -6,6 +6,7 @@ void Config_PrintHelp(const char *progName);
 
 /* /home/ronny/repos/nd100x/src/frontend/nd100x/nd100x.c */
 void handle_sigint(int sig);
+void register_signals(void);
 void dump_stats(void);
 void initialize(void);
 void cleanup(void);

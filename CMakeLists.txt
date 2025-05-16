@@ -28,7 +28,7 @@ option(DEBUGGER_ENABLED "Enable debugger support" ON)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(BUILD_RISCV OR CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
         set(PLATFORM_RISCV TRUE)
-        set(DEBUGGER_ENABLED FALSE) # Disable debugger for RISC-V because of dependency issues to aout.h
+        set(DEBUGGER_ENABLED FALSE) 
         message(STATUS "Building for RISC-V Linux")
     else()
         set(PLATFORM_LINUX TRUE)        
@@ -93,14 +93,14 @@ if(DEBUGGER_ENABLED)
         add_subdirectory(external/libdap)
         message(STATUS "DAP library support enabled (only for Linux/Windows builds)")
     endif()
-    
-    # Add libsymbols if it exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
-        add_subdirectory(external/libsymbols)
-        message(STATUS "Symbol library support enabled")
-    endif()
 else()    
     message(STATUS "Debugger support disabled")
+endif()
+
+# Add libsymbols if it exists - always include this for a.out support
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
+    add_subdirectory(external/libsymbols)
+    message(STATUS "Symbol library support enabled")
 endif()
 
 # Output directories
