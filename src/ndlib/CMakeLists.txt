@@ -7,8 +7,7 @@ file(GLOB HEADERS "*.h")
 
 # List specific source files instead of using wildcard
 set(NDLIB_SOURCE_FILES
-    aout.c
-    bpun.c
+    load_bpun.c
     ndlib.c
     log.c
 )
@@ -17,8 +16,7 @@ set(NDLIB_SOURCE_FILES
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/aout.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/bpun.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/load_bpun.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/ndlib.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/log.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     DEPENDS ${SOURCES}

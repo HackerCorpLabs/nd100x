@@ -459,7 +459,6 @@ void ndfunc_jpl(ushort operand)
 	gL = gPC;
 	gPC = gEA;
 
-	
 	if (DISASM)
 		disasm_userel(old_gPC, gPC);
 }

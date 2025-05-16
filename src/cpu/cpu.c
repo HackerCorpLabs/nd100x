@@ -39,6 +39,8 @@
 
 
 #ifdef WITH_DEBUGGER
+	void stop_debugger_thread();
+
 	#include <stdatomic.h>
 	extern void start_debugger();
 
@@ -67,6 +69,9 @@ int CurrentCPURunMode;
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 
+// forward declaration for debugger.c function 
+void debugger_build_stack_trace(uint16_t pc, uint16_t operand);
+void debugger_update_jpl_entrypoint(uint16_t ea);
 
 //#define DEBUG_TRAP
 
@@ -81,7 +86,7 @@ uint64_t  instr_counter = 0;
 ushort STARTADDR = 0;
 int DISASM = 0;
 
-bool m_debuggerEnabled = false;
+
 
 /* Instruction handling array */
 
@@ -111,7 +116,6 @@ void do_op(ushort operand, bool isEXR)
 	instr_funcs[operand](operand); /* call using a function pointer from the array
 				   this way we are as flexible as possible as we
 				   implement io calls. */
-
 
 }
 
@@ -442,9 +446,75 @@ void private_cpu_tick()
 		}
 	}
 
+#ifdef WITH_DEBUGGER
+	if (gDebuggerEnabled)
+	{
+		// Debugger need to build the stack-trace to be used for single stepping (step-out)
+		debugger_build_stack_trace(gPC, operand);
+	}
+#endif
+
 	// Execute instruction
 	instr_counter++;
 	do_op(operand, false);
+
+#ifdef WITH_DEBUGGER
+	// After JPL instruction, we need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+	if (gDebuggerEnabled)
+	{
+		// JPL instruction?
+		if ((operand & 0xF800) == 0134000)
+		{
+			// We need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
+			debugger_update_jpl_entrypoint(gPC);
+		}
+	}
+#endif
+}
+
+/// @brief Helper function for debugger to check if the next instruction is a jump, conditional jump or skp 
+/// @return true if the next instruction is a jump, jaf, or similar, false otherwise
+bool cpu_instruction_is_jump()
+{
+	ushort operand =  MemoryFetch(gPC, false); 
+
+	// JMP
+	if ((operand & 0xF800) == 0124000) return true;
+
+	// JPL
+	//if ((operand & 0xF800) == 0134000) return true;
+
+	// CJPs - Conditional jumps
+
+	// JAP
+	if ((operand & 0xFF00) == 0130000) return true;
+
+	// JAN
+	if ((operand & 0xFF00) == 0130400) return true;
+
+	// JAZ
+	if ((operand & 0xFF00) == 0131000) return true;
+
+	// JAF
+	if ((operand & 0xFF00) == 0131400) return true;
+
+	// JPC
+	if ((operand & 0xFF00) == 0132000) return true;
+
+	// JNC
+	if ((operand & 0xFF00) == 0132400) return true;
+
+	// JXZ
+	if ((operand & 0xFF00) == 0133000) return true;
+
+	// JXN
+	if ((operand & 0xFF00) == 0133400) return true;
+
+	// SKP
+	if ((operand & 0xF8C0) == 0140000) return true;
+
+
+	return false;
 }
 
 /// @brief run the CPU for a number of ticks. 
@@ -453,11 +523,12 @@ void private_cpu_tick()
 /// @return Returns the number of ticks left to run.
 int cpu_run(int ticks)
 {
-
+#ifdef WITH_DEBUGGER
 	if (get_debugger_control_granted()) {		
 		usleep(100000); // Sleep 100ms
 		return ticks; // Debugger has control, return immediately
 	}
+#endif
 
 	// Set up longjmp target once at startup
 	if (setjmp(cpu_jmp_buf) != 0)
@@ -489,19 +560,6 @@ int cpu_run(int ticks)
             break;  // Exit loop if shutting down
         }
         
-		// If CPU is in RUN mode, check if debugger has requested a pause
-		if (m_debuggerEnabled)
-		{
-			//if ((current_run_mode == CPU_RUNNING)||(current_run_mode == CPU_BREAKPOINT))
-			{
-				if (get_debugger_request_pause())
-				{
-					set_debugger_control_granted(true);				
-					return ticks;
-				}
-			}			
-		}
-
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
 			private_cpu_tick();
@@ -514,7 +572,8 @@ int cpu_run(int ticks)
 				ticks--;
 			}
 
-			if (m_debuggerEnabled)
+#ifdef WITH_DEBUGGER
+			if (gDebuggerEnabled)
 			{
 				// Check if we hit a breakpoint
 				if (check_for_breakpoint() != STOP_REASON_NONE)
@@ -522,6 +581,7 @@ int cpu_run(int ticks)
 					return ticks;
 				}
 			}
+#endif
 		}
 
         if (current_run_mode == CPU_STOPPED)
@@ -538,8 +598,7 @@ int cpu_run(int ticks)
 
 
 void cpu_init(bool debuggerEnabled)
-{
-	m_debuggerEnabled = debuggerEnabled;
+{	
 	/* initialize an empty register set */
 	gReg = calloc(1, sizeof(struct CpuRegs));
 
@@ -562,28 +621,62 @@ void cpu_init(bool debuggerEnabled)
 
 	gALD = 01560; // oct 1560 (ALD position 4, Binary load from 1560) // Floppy
 
+	gDebuggerEnabled = debuggerEnabled;
+
 	if (DISASM)
 		disasm_setlbl(gPC);
 
-#ifdef WITH_DEBUGGER
-	if (m_debuggerEnabled)
-    {
-		breakpoint_manager_init();
-		start_debugger();
-    }
-#endif
-
 }
 
+/// @brief Initialize the CPU debugger
+/// @details This function initializes the CPU debugger thread
+
+void init_cpu_debugger()
+{	
+#ifdef WITH_DEBUGGER
+	if (!gDebuggerEnabled) return;
+	breakpoint_manager_init();
+	start_debugger();
+#endif
+}
+
+/// @brief Reset the CPU
+/// @details This function resets the CPU registers and memory. It also destroys the paging tables and recreates them.
+void cpu_reset()
+{
+
+	/* Initialize volatile memory to zero */
+	memset(&VolatileMemory, 0, sizeof(VolatileMemory));
+
+	// Reset registers
+	memset(gReg, 0, sizeof(struct CpuRegs));
+
+	// setbit(_STS, _O, 1);
+	setbit_STS_MSB(_N100, 1);
+	gCSR = 1 << 2; /* this bit sets the cache as not available */
+
+	// Destroy paging tables (they will be recreated when cpu is initialized)
+	DestroyPagingTables();
+
+	// Allocate ShadowMemory for pagetables
+	CreatePagingTables();
+
+
+	set_cpu_run_mode(CPU_RUNNING);
+	instr_counter = 0;
+}
+
+/// @brief Cleanup the CPU
+/// @details This function cleans up the CPU. It destroys the paging tables and stops the debugger thread.
 void cleanup_cpu()
 {
 	// Destroy paging tables
 	DestroyPagingTables();
 
 #ifdef WITH_DEBUGGER
-	if (m_debuggerEnabled)
+	if (gDebuggerEnabled)
     {
-		stop_debugger();
+		stop_debugger_thread();
     }
 #endif
 

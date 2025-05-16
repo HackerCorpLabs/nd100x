@@ -312,8 +312,11 @@ struct CpuRegs {
 	bool	has_instr_cntr;
 	ushort	instructioncounter;
 	/* flag for breakpoint and breakpoint address */
-	bool	has_breakpoint;
+	bool	has_breakpoint;	
 	ushort	breakpoint;
+
+	// Debugger enabled flag
+	bool	debugger_enabled;
 };
 
 
@@ -398,6 +401,7 @@ typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, 
 #define STS_PONI ((gReg->reg_STS >>14 ) & 0x01)	/* Memory management on/off indicator */
 #define STS_IONI ((gReg->reg_STS >>15 ) & 0x01)	/* Interrupt system on/off indicator */
 
+#define gDebuggerEnabled gReg->debugger_enabled
 
 /*
 
@@ -482,6 +486,9 @@ typedef struct BreakpointEntry {
 
 typedef struct {
     BreakpointEntry* buckets[HASH_SIZE];    
+	
+	// Number of instructions to step (for single stepping when we cant set a breakpoint)
+	int step_count;
 } BreakpointManager;
 
 /// @brief Enumeration of CPU stop reasons for the debugger
