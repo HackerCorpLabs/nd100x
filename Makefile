@@ -26,7 +26,6 @@ check-deps:
 	@echo "Checking dependencies..."
 	@command -v cmake >/dev/null 2>&1 || { echo "Error: cmake not found. Please install cmake."; exit 1; }
 	@command -v gcc >/dev/null 2>&1 || { echo "Error: gcc not found. Please install gcc."; exit 1; }
-	@test -e /usr/include/cjson/cJSON.h || { echo "Warning: cJSON development headers not found. Please install libcjson-dev."; }
 	@echo "All core dependencies found."
 
 # Check for RISC-V specific dependencies
