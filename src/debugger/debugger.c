@@ -9,8 +9,6 @@
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
-#define WITH_DEBUGGER
-
 #ifdef WITH_DEBUGGER
 
 #include "../../external/libdap/libdap/include/dap_server.h"

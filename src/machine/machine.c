@@ -32,6 +32,7 @@
 #include "../ndlib/ndlib_protos.h"
 
 #include "../../external/libsymbols/include/symbols.h"
+#include "../../external/libsymbols/include/aout.h"
 
 
 

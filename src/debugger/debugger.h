@@ -2,7 +2,10 @@
 #define _DEBUGGER_H_
 
 #include <stdint.h>
+
+#ifdef WITH_DEBUGGER
 #include "symbols.h"
+#endif
 
 #ifdef _WIN32
     #define THREAD_FUNC DWORD WINAPI
@@ -57,7 +60,7 @@ typedef struct {
 
 
 
-
+#ifdef WITH_DEBUGGER
 typedef struct {
     StackFrame frames[MAX_STACK_FRAMES];
     int current_frame;
@@ -71,7 +74,7 @@ typedef struct {
     symbol_table_t *symbol_table_aout;
     symbol_table_t *symbol_table_stabs;
 } SymbolTables;
-
+#endif
 
 
 /// @brief Step types for the debugger. Maps to DAP

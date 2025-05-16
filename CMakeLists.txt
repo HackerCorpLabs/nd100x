@@ -93,14 +93,14 @@ if(DEBUGGER_ENABLED)
         add_subdirectory(external/libdap)
         message(STATUS "DAP library support enabled (only for Linux/Windows builds)")
     endif()
-    
-    # Add libsymbols if it exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
-        add_subdirectory(external/libsymbols)
-        message(STATUS "Symbol library support enabled")
-    endif()
 else()    
     message(STATUS "Debugger support disabled")
+endif()
+
+# Add libsymbols if it exists - always include this for a.out support
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
+    add_subdirectory(external/libsymbols)
+    message(STATUS "Symbol library support enabled")
 endif()
 
 # Output directories

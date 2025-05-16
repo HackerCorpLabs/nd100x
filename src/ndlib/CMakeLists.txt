@@ -7,7 +7,6 @@ file(GLOB HEADERS "*.h")
 
 # List specific source files instead of using wildcard
 set(NDLIB_SOURCE_FILES
-    load_aout.c
     load_bpun.c
     ndlib.c
     log.c

@@ -446,17 +446,19 @@ void private_cpu_tick()
 		}
 	}
 
+#ifdef WITH_DEBUGGER
 	if (gDebuggerEnabled)
 	{
 		// Debugger need to build the stack-trace to be used for single stepping (step-out)
 		debugger_build_stack_trace(gPC, operand);
 	}
+#endif
 
 	// Execute instruction
 	instr_counter++;
 	do_op(operand, false);
 
-
+#ifdef WITH_DEBUGGER
 	// After JPL instruction, we need to update the entry point of the JPL instruction to be able to find the symbol for the stack frame
 	if (gDebuggerEnabled)
 	{
@@ -467,6 +469,7 @@ void private_cpu_tick()
 			debugger_update_jpl_entrypoint(gPC);
 		}
 	}
+#endif
 }
 
 /// @brief Helper function for debugger to check if the next instruction is a jump, conditional jump or skp 
@@ -520,11 +523,12 @@ bool cpu_instruction_is_jump()
 /// @return Returns the number of ticks left to run.
 int cpu_run(int ticks)
 {
-
+#ifdef WITH_DEBUGGER
 	if (get_debugger_control_granted()) {		
 		usleep(100000); // Sleep 100ms
 		return ticks; // Debugger has control, return immediately
 	}
+#endif
 
 	// Set up longjmp target once at startup
 	if (setjmp(cpu_jmp_buf) != 0)
@@ -556,19 +560,6 @@ int cpu_run(int ticks)
             break;  // Exit loop if shutting down
         }
         
-		// If CPU is in RUN mode, check if debugger has requested a pause
-		if (gDebuggerEnabled)
-		{
-			//if ((current_run_mode == CPU_RUNNING)||(current_run_mode == CPU_BREAKPOINT))
-			{
-				if (get_debugger_request_pause())
-				{
-					set_debugger_control_granted(true);				
-					return ticks;
-				}
-			}			
-		}
-
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
 			private_cpu_tick();
@@ -581,6 +572,7 @@ int cpu_run(int ticks)
 				ticks--;
 			}
 
+#ifdef WITH_DEBUGGER
 			if (gDebuggerEnabled)
 			{
 				// Check if we hit a breakpoint
@@ -589,6 +581,7 @@ int cpu_run(int ticks)
 					return ticks;
 				}
 			}
+#endif
 		}
 
         if (current_run_mode == CPU_STOPPED)
