@@ -10,8 +10,8 @@ BUILD_DIR_WASM = build_wasm
 BUILD_DIR_RISCV = build_riscv
 
 # Commands with full paths
-CMAKE := $(shell command -v cmake 2>/dev/null)
-EMCMAKE := $(shell command -v emcmake 2>/dev/null)
+CMAKE = cmake
+EMCMAKE = emcmake
 
 # By default, enable debugger in Linux/Windows builds
 DEBUGGER_ENABLED ?= ON
