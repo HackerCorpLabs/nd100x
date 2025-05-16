@@ -45,7 +45,8 @@ target_include_directories(cpu
 
 # Link dependencies
 target_link_libraries(cpu
-    PUBLIC ndlib    
+    PUBLIC ndlib
+    PRIVATE m
 )
 
 # Add debugger support for Linux and Windows builds

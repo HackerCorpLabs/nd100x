@@ -52,24 +52,28 @@ mkptypes:
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
-	$(CMAKE) -B $(BUILD_DIR_DEBUG) -S . -DCMAKE_BUILD_TYPE=Debug -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	$(CMAKE) --build $(BUILD_DIR_DEBUG) -- -j$$(nproc 2>/dev/null || echo 4)
+	@mkdir -p $(BUILD_DIR_DEBUG)
+	cd $(BUILD_DIR_DEBUG) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_DEBUG) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 
 release: check-deps mkptypes
 	@echo "Building release version..."
-	$(CMAKE) -B $(BUILD_DIR_RELEASE) -S . -DCMAKE_BUILD_TYPE=Release -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	$(CMAKE) --build $(BUILD_DIR_RELEASE) -- -j$$(nproc 2>/dev/null || echo 4)
+	@mkdir -p $(BUILD_DIR_RELEASE)
+	cd $(BUILD_DIR_RELEASE) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Release -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_RELEASE) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 
 sanitize: check-deps mkptypes
 	@echo "Building with sanitizers..."
-	$(CMAKE) -B $(BUILD_DIR_SANITIZE) -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	$(CMAKE) --build $(BUILD_DIR_SANITIZE) -- -j$$(nproc 2>/dev/null || echo 4)
+	@mkdir -p $(BUILD_DIR_SANITIZE)
+	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 
 wasm: check-deps mkptypes
 	@echo "Building WebAssembly version..."
 	@command -v emcmake >/dev/null 2>&1 || { echo "Error: emcmake not found. Please install and activate Emscripten SDK."; exit 1; }
-	$(EMCMAKE) $(CMAKE) -B $(BUILD_DIR_WASM) -S . -DBUILD_WASM=ON -DDEBUGGER_ENABLED=OFF
-	$(CMAKE) --build $(BUILD_DIR_WASM) -- -j$$(nproc 2>/dev/null || echo 4)
+	@mkdir -p $(BUILD_DIR_WASM)
+	cd $(BUILD_DIR_WASM) && $(EMCMAKE) $(CMAKE) .. -DBUILD_WASM=ON -DDEBUGGER_ENABLED=OFF
+	cd $(BUILD_DIR_WASM) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 	@echo "Copying index.html template to WASM build directory..."
 	@mkdir -p $(BUILD_DIR_WASM)/bin
 	@cp template/index.html $(BUILD_DIR_WASM)/bin/
@@ -85,15 +89,15 @@ riscv: check-riscv-deps mkptypes
 	@mkdir -p $(BUILD_DIR_RISCV)
 	
 	@# Set PATH to include the RISC-V compiler and disable DAP client tools
-	PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
-	$(CMAKE) -B $(BUILD_DIR_RISCV) -S . -DCMAKE_BUILD_TYPE=Debug -DBUILD_RISCV=ON \
-		-DCMAKE_TOOLCHAIN_FILE=./riscv64-toolchain.cmake \
+	cd $(BUILD_DIR_RISCV) && PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
+	$(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_RISCV=ON \
+		-DCMAKE_TOOLCHAIN_FILE=../riscv64-toolchain.cmake \
 		-DBUILD_DAP_TOOLS=OFF -DENABLE_CJSON_TEST=OFF \
 		-DCMAKE_CXX_COMPILER_WORKS=TRUE -DCMAKE_C_COMPILER_WORKS=TRUE
 	
 	@# Build with PATH set to include the RISC-V compiler
-	PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
-	$(CMAKE) --build $(BUILD_DIR_RISCV) -- -j$$(nproc 2>/dev/null || echo 4)
+	cd $(BUILD_DIR_RISCV) && PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
+	$(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 	
 	@echo ""
 	@if [ -f $(BUILD_DIR_RISCV)/bin/nd100x ]; then \
@@ -111,8 +115,9 @@ riscv: check-riscv-deps mkptypes
 
 dap-tools: check-deps mkptypes
 	@echo "Building with DAP tools..."
-	$(CMAKE) -B $(BUILD_DIR) -S . -DBUILD_DAP_TOOLS=ON -DDEBUGGER_ENABLED=ON
-	$(CMAKE) --build $(BUILD_DIR) -- -j$$(nproc 2>/dev/null || echo 4)
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && $(CMAKE) .. -DBUILD_DAP_TOOLS=ON -DDEBUGGER_ENABLED=ON
+	cd $(BUILD_DIR) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 
 clean:
 	@echo "Cleaning build directories..."
