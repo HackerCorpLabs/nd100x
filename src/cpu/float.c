@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include <math.h>
 
 #include "cpu_types.h"
 #include "cpu_protos.h"
@@ -37,6 +36,7 @@ int NDFloat_Mul (unsigned short int* p_a,unsigned short int* p_b,unsigned short 
 int NDFloat_Add (unsigned short int* p_a,unsigned short int* p_b,unsigned short int* p_r);
 int NDFloat_Sub (unsigned short int* p_a,unsigned short int* p_b,unsigned short int* p_r);
 long double pow2l(int i);
+long double truncl(long double x);
 
 
 extern struct CpuRegs *gReg;
@@ -45,12 +45,13 @@ void DoDNZ (char scaling);
 extern void setbit(ushort regnum, ushort stsbit, char val);
 
 /* routine to sort out a missing powl in freebsd */
-long double pow2l(int i){
-	long double r;
-#if !(defined __FreeBSD__ || defined BSD )
-	r=powl(2,(long double)i);
-#else
-#endif
+long double pow2l(int i) {
+	long double r = 1.0L;
+	if (i > 0) {
+		while (i--) r *= 2.0L;
+	} else if (i < 0) {
+		while (i++) r /= 2.0L;
+	}
 	return r;
 }
 

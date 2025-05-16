@@ -14,7 +14,7 @@ target_include_directories(nd100x PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ndlib
     ${CMAKE_SOURCE_DIR}/src/devices
     ${CMAKE_SOURCE_DIR}/src/machine
-    ${CMAKE_SOURCE_DIR}/src/debugger
+    ${CMAKE_SOURCE_DIR}/src/debugger    
 )
 
 # Link with required libraries
@@ -23,8 +23,7 @@ target_link_libraries(nd100x PRIVATE
     devices
     cpu
     ndlib
-    debugger
-    m
+    debugger    
 )
 
 # Add debug flags as needed (matching Makefile)
