@@ -9,7 +9,6 @@
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
-
 #ifdef WITH_DEBUGGER
 
 #include "../../external/libdap/libdap/include/dap_server.h"
@@ -2097,6 +2096,17 @@ static int cmd_launch_callback(DAPServer *server)
     return 0; // Return success to ensure the response is properly set
 }
 
+
+static int cmd_configuration_done(DAPServer *server)
+{
+    printf("Configuration done command received\n");
+
+    // Send the response
+    server->debugger_state.configuration_done = true;
+
+    return 0;
+}
+
 /// @brief Handle the restart request from DAP
 /// @param server The DAP server instance
 /// @return 0 if successful, -1 if error
@@ -2392,6 +2402,9 @@ int ndx_server_init(int port)
     // Register launch callback
     dap_server_register_command_callback(server, DAP_CMD_LAUNCH, cmd_launch_callback);
 
+    // Register configuration done callback
+    dap_server_register_command_callback(server, DAP_CMD_CONFIGURATION_DONE, cmd_configuration_done);
+
     // Register restart callback
     dap_server_register_command_callback(server, DAP_CMD_RESTART, cmd_restart);
 
@@ -2441,6 +2454,8 @@ int ndx_server_init(int port)
 
     // Register disassemble callback
     dap_server_register_command_callback(server, DAP_CMD_DISASSEMBLE, cmd_disassemble);
+
+
 
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
