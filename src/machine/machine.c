@@ -81,8 +81,26 @@ void  machine_run (int ticks)
     {    
         ticks = cpu_run(ticks);  
 
+        // Check if DAP adapter has requested a pause
+        if (gDebuggerEnabled)
+        {
+            if (get_debugger_request_pause())
+            {                
+                if (!get_debugger_control_granted())
+                {
+                    set_debugger_control_granted(true);                    
+                }
+            }
+            
+            usleep(100000); // Sleep 100ms
+            if ((get_cpu_run_mode() == CPU_PAUSED) || (get_cpu_run_mode() == CPU_BREAKPOINT))
+            {
+                //if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
+                return; // exit back to main loop to handle keyboard input
+            }
+        }
+
         if (ticks == 0) return; // No more ticks to run
-        if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
     } 
 }
 

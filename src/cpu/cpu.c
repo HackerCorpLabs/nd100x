@@ -555,10 +555,7 @@ int cpu_run(int ticks)
 	{
 		CPURunMode current_run_mode = get_cpu_run_mode();
 
-		if (current_run_mode == CPU_SHUTDOWN)
-        {
-            break;  // Exit loop if shutting down
-        }
+
         
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
@@ -581,16 +578,29 @@ int cpu_run(int ticks)
 					return ticks;
 				}
 			}
+
 #endif
 		}
 
-        if (current_run_mode == CPU_STOPPED)
+        else if (current_run_mode == CPU_STOPPED)
         {
             // OPCOM MODE ?
             printf("CPU: WAS STOPPED, SHUTTING DOWN\r\n");
 			set_cpu_run_mode(CPU_SHUTDOWN);            
 			break;
         }
+		else
+		{
+ 			break;  // Exit loop if we are in any other state.
+		}
+
+#ifdef WITH_DEBUGGER
+
+		if (gDebuggerEnabled && get_debugger_request_pause()) {		
+			// return ASAP, let the caller handle the debugger request
+			return ticks;
+		}
+#endif
 	}	
 
 	return ticks;	

@@ -73,6 +73,7 @@ Device *CreateFloppyPIODevice(uint8_t thumbwheel);
 
 /* /home/ronny/repos/nd100x/src/devices/smd/deviceSMD.c */
 Device *CreateSMDDevice(uint8_t thumbwheel);
+void SMD_Destroy(Device *dev);
 
 /* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
 void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char *diskFileName);

@@ -106,15 +106,23 @@ void Device_Destroy(Device *dev)
 {
     if (!dev)
         return;
+    
+    // Call device-specific cleanup if it exists
+    if (dev->Destroy)
+    {
+        dev->Destroy(dev);
+    }
 
     if (dev->ioDelays)
     {
         free(dev->ioDelays);
+        dev->ioDelays = NULL;
     }
 
     if (dev->deviceData)
     {
         free(dev->deviceData);
+        dev->deviceData = NULL;
     }
 }
 
