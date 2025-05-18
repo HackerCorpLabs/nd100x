@@ -48,6 +48,7 @@ void breakpoint_manager_init()
         exit(EXIT_FAILURE);
     }
 
+    mgr->step_count = 0;
     memset(mgr->buckets, 0, sizeof(mgr->buckets));
 }
 

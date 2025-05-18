@@ -1103,6 +1103,7 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     dev->Reset = SMD_Reset;
     dev->Ident = SMD_Ident;
     dev->Boot = SMD_Boot;
+    dev->Destroy = SMD_Destroy;
     // Initialize device state
     SMD_Reset(dev);
 
@@ -1161,6 +1162,38 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     return dev;
 }
 
+
+/// @brief Device specific destroy function
+/// @param dev 
+void SMD_Destroy(Device *dev)
+{
+    if (!dev)
+        return;
+
+    SMDData *data = (SMDData *)dev->deviceData;
+    if (data)
+    {
+        
+        // Free disk array if it exists
+        if (data->regs.disks) {
+            // Free any disk-specific resources
+            for (int i = 0; i < data->regs.maxUnits; i++) {
+                if (data->regs.disks[i].file) {
+                    fclose(data->regs.disks[i].file);
+                    data->regs.disks[i].file = NULL;
+                }
+
+                if (data->regs.disks[i].diskFileName) {
+                    free(data->regs.disks[i].diskFileName);
+                    data->regs.disks[i].diskFileName = NULL;
+                }
+            }
+            free(data->regs.disks);
+            data->regs.disks = NULL;
+        }
+    }
+    
+}
 
 /*
 TPE>fun

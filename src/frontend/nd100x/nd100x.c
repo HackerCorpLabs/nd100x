@@ -31,8 +31,9 @@
 #include <fcntl.h>
 #include <unistd.h> // For read() system call
 #include <poll.h>   // For pollfd struct and POLLIN
+#include <signal.h> // For sigaction and signal handling
+#include <string.h> // For memset
 
-#include <signal.h>
 #include <unistd.h>
 
 #include <sys/resource.h>
@@ -72,20 +73,23 @@ double totaltime;
 Config_t config;
 
 
+
 void handle_sigint(int sig) {
     printf("\nCaught signal %d (Ctrl-C). Cleaning up...\n", sig);
-        
+
 #ifdef WITH_DEBUGGER    
     // Stop the debugger server gracefully
     stop_debugger_thread();
 #endif
-    
+
     // Stop the machine
-    machine_stop();
-    
+    machine_stop();    
+
     // Exit the program
     exit(0);
 }
+
+
 
 
 void register_signals()
@@ -97,6 +101,7 @@ void register_signals()
 #else
     // POSIX signal handling using sigaction
     struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));  // Initialize the structure
     sa.sa_handler = handle_sigint;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;  // Restart interrupted system calls
@@ -233,36 +238,9 @@ int main(int argc, char *argv[])
 
 	while (runMode != CPU_SHUTDOWN)
 	{
-
-
-
-        if(get_debugger_control_granted())
-        {
-            // DAP adapter has control, so we need to wait for it to release control
-            sleep_ms(100); // sleep 100ms
-        }
-        else
-        {
-            // Check if DAP adapter has requested a pause
-            if (get_debugger_request_pause())
-            {                
-                set_debugger_control_granted(true);
-                continue;
-            }
-
-
-            // ND100x has control, so we need to run the machine
-            runMode = get_cpu_run_mode();
-            if (runMode == CPU_RUNNING)
-            {
-                machine_run(5000);  
-            }
-            else
-            {
-                // CPU is paused, so we need to wait for the debugger to release control
-                sleep_ms(100); // sleep 100ms
-            }
-        }
+        
+        runMode = get_cpu_run_mode();
+        machine_run(5000);  
 
 		runMode = get_cpu_run_mode();
 
@@ -307,7 +285,10 @@ int main(int argc, char *argv[])
         }
     }
 
-
+#ifdef WITH_DEBUGGER    
+    // Stop the debugger server gracefully (if its still running)
+    stop_debugger_thread();
+#endif
 
 
 	if (DISASM)

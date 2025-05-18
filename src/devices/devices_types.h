@@ -133,6 +133,8 @@ typedef struct Device {
     uint16_t (*Read)(struct Device *self, uint32_t address);
     void (*Write)(struct Device *self, uint32_t address, uint16_t value);
     uint16_t (*Ident)(struct Device *self, uint16_t level);
+
+    void (*Destroy)(struct Device *self);
     
     // Device classification
     DeviceClass deviceClass;  // Type of device (standard, character, block, RTC)
