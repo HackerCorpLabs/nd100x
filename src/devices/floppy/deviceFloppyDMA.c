@@ -181,7 +181,9 @@ static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
                 }
                 else
                 {
+                    OpenFloppyFile(self,0);
                     ExecuteFloppyGo(self);
+                    CloseFloppyFile(self,0);
                 }
             }
         }
@@ -385,7 +387,7 @@ static void ExecuteFloppyGo(Device *self)
             }
 
             // DMA Write
-            Device_DMAWrite(data->commandBlock.fields.memoryAddressLo++, (uint16_t)readData);
+            Device_DMAWrite(memAddress, (uint16_t)readData);
 
             memAddress++;
             wordsToRead--;
@@ -402,7 +404,7 @@ static void ExecuteFloppyGo(Device *self)
 
         while (wordsToRead > 0)
         {
-            uint16_t word = Device_DMARead(data->commandBlock.fields.memoryAddressLo);
+            uint16_t word = Device_DMARead(memAddress);
 
             if (!Device_IO_WriteWord(self, data->diskFile, word))
             {
@@ -518,6 +520,7 @@ static void ExecuteFloppyGo(Device *self)
     /**************************/
 
     // Status 1 
+    data->commandBlock.fields.status1 = data->status1.raw;
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
 
     // Status 2
@@ -564,6 +567,49 @@ static bool AutoLoadEnd(Device *self, int drive)
     Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
     return false;
 }
+
+static bool OpenFloppyFile(Device *self, int drive)
+{
+    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
+    if (!data)
+        return false;
+
+    if (data->diskFile)
+    {
+        fclose(data->diskFile);
+        data->diskFile = NULL;
+    }
+
+    // Open floppy file
+    if ((data->diskFile = fopen(data->floppyName, "rb+")) == NULL) // open for read/write in binary mode
+    {
+        printf("Unable to open file %s\n", data->floppyName);
+        return false;
+    }
+    else
+    {
+        // Get file size
+        fseek(data->diskFile, 0, SEEK_END);
+        data->diskFileSize = ftell(data->diskFile);
+        fseek(data->diskFile, 0, SEEK_SET); // Reset file position back to start
+    }
+    return true;
+}
+
+static bool CloseFloppyFile(Device *self, int drive)
+{
+    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
+    if (!data)
+        return false;
+
+    if (data->diskFile)
+    {
+        fclose(data->diskFile);
+        data->diskFile = NULL;
+    }
+    return true;
+}
+
 
 Device *CreateFloppyDMADevice(uint8_t thumbwheel)
 {
@@ -617,22 +663,7 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     data->floppyName = "FLOPPY.IMG"; //TODO: Make this configurable
     data->diskFileSize = 0;
 
-    // Open floppy file
-    if ((data->diskFile = fopen(data->floppyName, "r")) == NULL)
-    {
-        printf("Unable to open file %s\n", data->floppyName);
-        // free(data);
-        // free(dev);
-        // return NULL;
-    }
-    else
-    {
-        // Get file size
-        fseek(data->diskFile, 0, SEEK_END);
-        data->diskFileSize = ftell(data->diskFile);
-        fseek(data->diskFile, 0, SEEK_SET); // Reset file position back to start
-    }
-
+  
     
     // Set up function pointers
     dev->Read = FloppyDMA_Read;

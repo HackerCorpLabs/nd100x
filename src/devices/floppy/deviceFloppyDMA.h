@@ -382,4 +382,7 @@ static void ExecuteAutoload(Device *self, int drive);
 static bool AutoLoadEnd(Device *self, int drive);
 static bool ReadEnd(Device *self, int drive);
 
+static bool OpenFloppyFile(Device *self, int drive);
+static bool CloseFloppyFile(Device *self, int drive);
+
 #endif /* DEVICE_FLOPPY_DMA_H */
