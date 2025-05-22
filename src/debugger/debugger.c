@@ -561,9 +561,6 @@ static int cmd_scopes(DAPServer *server)
     // Extract frame_id from the command context
     int frame_id = server->current_command.context.scopes.frame_id;
 
-    printf("Scopes request for frame ID: %d\n", frame_id);
-
-
     // Allocate memory for the scopes
     DAPScope *scopes = (DAPScope *)calloc(NUM_SCOPES, sizeof(DAPScope));
     if (!scopes)
