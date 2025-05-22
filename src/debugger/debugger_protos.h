@@ -10,6 +10,8 @@ int32_t find_stack_return_address(void);
 void debugger_update_jpl_entrypoint(uint16_t ea);
 void debugger_build_stack_trace(uint16_t pc, uint16_t operand);
 int step_cpu(DAPServer *server, StepType step_type);
+char *GetPageTableEntryInfo(uint32_t PTe);
+char *GetPageTableMemoryRange(uint32_t PTe);
 void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16_t memory_reference, uint16_t entry_point);
 void free_symbol_table(void);
 int init_symbol_support(const char *filename, SymbolType symbol_type);
