@@ -35,8 +35,10 @@
 #define SCOPE_ID_INTERNAL_REGISTERS_WRITE 1011
 
 #define SCOPE_ID_STATUS_FLAGS 1100
-#define SCOPE_ID_MEM_PT 1101
-#define SCOPE_ID_MEM_APT 1102
+
+#define SCOPE_ID_MEM_MMS 1200
+#define SCOPE_ID_MEM_PT 1201
+#define SCOPE_ID_MEM_APT 1202
 
 #define NUM_SCOPES 8 // Locals, Registers, Levels, Internal read, Internal write, status flags, memory PT, memory APT
 
@@ -118,7 +120,7 @@ void *debugger_thread(void *arg)
         }
         // Small sleep to prevent busy waiting
         usleep(10000); // 10ms
-    }    
+    }
 
     // Make sure CPU exits
     set_cpu_run_mode(CPU_SHUTDOWN);
@@ -160,7 +162,7 @@ void ndx_server_terminate(int sig)
 /// @brief Stop the DAP server thread
 void stop_debugger_thread()
 {
-    // Signal the thread to exit    
+    // Signal the thread to exit
     atomic_store(&debugger_thread_should_exit, true);
 
     // Wait for the thread to finish
@@ -170,9 +172,8 @@ void stop_debugger_thread()
         WaitForSingleObject(p_debugger_thread, INFINITE);
         CloseHandle(p_debugger_thread);
 #else
-        pthread_join(p_debugger_thread, NULL);        
+        pthread_join(p_debugger_thread, NULL);
 #endif
-
 
         p_debugger_thread = 0;
     }
@@ -318,13 +319,12 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         stack_trace.frame_count = 1;
         stack_trace.current_frame = 0;
 
-        // Add the root frame to our circular buffer        
+        // Add the root frame to our circular buffer
         stack_trace.frames[stack_trace.current_frame].operand = operand;
         stack_trace.frames[stack_trace.current_frame].return_address = pc;
         stack_trace.frames[stack_trace.current_frame].entry_point = pc;
         stack_trace.frames[stack_trace.current_frame].pc = pc;
     }
-    
 
     if (is_jpl)
     {
@@ -332,20 +332,18 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         // Calculate the return address (next instruction after JPL)
         uint16_t return_address = pc + 1;
 
-
         stack_trace.current_frame = (stack_trace.current_frame + 1) % MAX_STACK_FRAMES;
         if (stack_trace.frame_count < MAX_STACK_FRAMES)
         {
             stack_trace.frame_count++;
         }
 
-
         // Add the new frame to our circular buffer
         stack_trace.frames[stack_trace.current_frame].pc = pc;
         stack_trace.frames[stack_trace.current_frame].operand = operand;
         stack_trace.frames[stack_trace.current_frame].return_address = return_address;
-        stack_trace.frames[stack_trace.current_frame].entry_point = 0; // the address where JPL will jump to (will be updated when JPL is executed)      
-        
+        stack_trace.frames[stack_trace.current_frame].entry_point = 0; // the address where JPL will jump to (will be updated when JPL is executed)
+
         return;
     }
     else if (is_exit)
@@ -354,14 +352,14 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         if (stack_trace.frame_count > 1)
         {
             // Clear the current frame
-            stack_trace.frames[stack_trace.current_frame].pc =0;
+            stack_trace.frames[stack_trace.current_frame].pc = 0;
             stack_trace.frames[stack_trace.current_frame].operand = 0;
             stack_trace.frames[stack_trace.current_frame].return_address = 0;
             stack_trace.frames[stack_trace.current_frame].entry_point = 0;
 
             // Move back one frame
             stack_trace.current_frame = (stack_trace.current_frame - 1 + MAX_STACK_FRAMES) % MAX_STACK_FRAMES;
-            stack_trace.frame_count--;  
+            stack_trace.frame_count--;
         }
 
         return;
@@ -370,8 +368,6 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
     {
         stack_trace.frames[stack_trace.current_frame].pc = pc;
     }
-
-
 }
 
 /// @brief Step the CPU by the given step type
@@ -575,7 +571,7 @@ static int cmd_scopes(DAPServer *server)
 
     if (stack_trace.frames[stack_trace.current_frame].variables.number_of_variables > 0)
     {
-        scopes[scope_index].name = strdup("Locals");        
+        scopes[scope_index].name = strdup("Locals");
         scopes[scope_index].variables_reference = SCOPE_ID_LOCALS;
         scopes[scope_index].named_variables = stack_trace.frames[stack_trace.current_frame].variables.number_of_variables; // Number of local variables
         scopes[scope_index].indexed_variables = 0;
@@ -585,7 +581,7 @@ static int cmd_scopes(DAPServer *server)
         scopes[scope_index].line = 0;
         scopes[scope_index].column = 0;
         scopes[scope_index].end_line = 0;
-        scopes[scope_index].end_column = 0;     
+        scopes[scope_index].end_column = 0;
         scope_index++;
     }
 
@@ -601,7 +597,6 @@ static int cmd_scopes(DAPServer *server)
     scopes[scope_index].column = 0;
     scopes[scope_index].end_line = 0;
     scopes[scope_index].end_column = 0;
-
 
     // Set up Levels registers
     scope_index++;
@@ -643,11 +638,10 @@ static int cmd_scopes(DAPServer *server)
     scopes[scope_index].end_line = 0;
     scopes[scope_index].end_column = 0;
 
-
     // Set up Memory scope
     scope_index++;
-    scopes[scope_index].name = strdup("Memory");
-    scopes[scope_index].variables_reference = SCOPE_ID_MEM_PT;
+    scopes[scope_index].name = strdup("MMS");
+    scopes[scope_index].variables_reference = SCOPE_ID_MEM_MMS;
     scopes[scope_index].named_variables = 3; // Number of memory regions
     scopes[scope_index].indexed_variables = 0;
     scopes[scope_index].expensive = true; // Memory access is expensive
@@ -683,9 +677,9 @@ static DAPVariable *add_variable_to_array(
     const char *name,
     const char *value,
     const char *type,
-    const char *memory_reference,
+    uint32_t memory_reference,
 
-    int variables_reference,    
+    int variables_reference,
     DAPVariableKind kind,
     DAPVariableAttributes attributes)
 {
@@ -713,14 +707,13 @@ static DAPVariable *add_variable_to_array(
     var->name = name ? strdup(name) : NULL;
     var->value = value ? strdup(value) : NULL;
     var->type = type ? strdup(type) : NULL;
-    var->memory_reference = memory_reference ? strdup(memory_reference) : NULL;
+    var->memory_reference = memory_reference;
     var->variables_reference = variables_reference;
     var->named_variables = 0;
     var->indexed_variables = 0;
     var->evaluate_name = NULL;
-    
-    
-    var->presentation_hint.kind = kind;    
+
+    var->presentation_hint.kind = kind;
     var->presentation_hint.attributes = attributes;
     var->presentation_hint.visibility = DAP_VARIABLE_VISIBILITY_NONE;
 
@@ -736,7 +729,6 @@ static DAPVariable *add_variable_to_array(
  */
 static void add_local_variables(DAPServer *server, char *info_message, size_t info_message_size)
 {
-  
 
     // No local variables in this example, but in a real implementation
     // this would add variables from the current stack frame
@@ -748,69 +740,66 @@ static void add_local_variables(DAPServer *server, char *info_message, size_t in
     // Example dummy variable
     add_variable_to_array(
         server,
-        "dummy",       // name
-        "0",           // value
-        "integer",     // type
-        0,             // variablesReference
-        0,             // memoryReference (no memory reference for locals)
+        "dummy",                    // name
+        "0",                        // value
+        "integer",                  // type
+        0,                          // variablesReference
+        0,                          // memoryReference (no memory reference for locals)
         DAP_VARIABLE_KIND_PROPERTY, // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        DAP_VARIABLE_ATTR_NONE      // attributes
     );
 }
 
-
 static void add_level_variables(DAPServer *server, char *info_message, size_t info_message_size)
 {
-    
+
     char value_str[100];
 
-    
     // ADD PIL
     snprintf(value_str, sizeof(value_str), "%06o", gPIL);
     add_variable_to_array(
         server,
-        "PIL",       // name
-        value_str,           // value
-        "integer",     // type
-        0,             // variablesReference
-        0,             // memoryReference (no memory reference for locals)
+        "PIL",                      // name
+        value_str,                  // value
+        "integer",                  // type
+        0,                          // variablesReference
+        0,                          // memoryReference (no memory reference for locals)
         DAP_VARIABLE_KIND_PROPERTY, // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        DAP_VARIABLE_ATTR_NONE      // attributes
     );
 
     // ADD PVL
     snprintf(value_str, sizeof(value_str), "%06o", gPVL);
     add_variable_to_array(
         server,
-        "PVL",       // name
-        value_str,           // value
-        "integer",     // type
-        0,             // variablesReference
-        0,             // memoryReference (no memory reference for locals)
+        "PVL",                      // name
+        value_str,                  // value
+        "integer",                  // type
+        0,                          // variablesReference
+        0,                          // memoryReference (no memory reference for locals)
         DAP_VARIABLE_KIND_PROPERTY, // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        DAP_VARIABLE_ATTR_NONE      // attributes
     );
 
     for (int i = 0; i < 16; i++)
     {
         ushort rP = gReg->reg[i][_P];
         ushort rPCR = gReg->reg_PCR[i];
-        ushort pt=0, apt=0;
+        ushort pt = 0, apt = 0;
 
         // decode PCR
         ushort ring = rPCR & 0x03;
-        if (rPCR & (1<<2))
+        if (rPCR & (1 << 2))
         {
             // Sixteen page table mode
-            pt = (rPCR >>11) & 0x0F;
-            apt = (rPCR >>7) & 0x0F;
+            pt = (rPCR >> 11) & 0x0F;
+            apt = (rPCR >> 7) & 0x0F;
         }
-        else 
+        else
         {
             // Four page table mode
-            pt = (rPCR >>9) & 0x03;
-            apt = (rPCR >>7) & 0x03;
-
+            pt = (rPCR >> 9) & 0x03;
+            apt = (rPCR >> 7) & 0x03;
         }
         ushort priority = (rPCR >> 2) & 0x07;
         char value_str[100];
@@ -824,16 +813,15 @@ static void add_level_variables(DAPServer *server, char *info_message, size_t in
 
         add_variable_to_array(
             server,
-            name,                        // name
-            value_str,                   // value
-            "integer",                   // type
-            memory_reference,            // memoryReference 
-            0,                           // variablesReference        
-            DAP_VARIABLE_KIND_DATA,      // kind
-            DAP_VARIABLE_ATTR_NONE   // attributes
+            name,                   // name
+            value_str,              // value
+            "integer",              // type
+            rP,                     // memoryReference
+            0,                      // variablesReference
+            DAP_VARIABLE_KIND_DATA, // kind
+            DAP_VARIABLE_ATTR_NONE  // attributes
         );
     }
-  
 }
 
 /**
@@ -852,141 +840,127 @@ static void add_register_variables(DAPServer *server, char *info_message, size_t
     const char *property_kind = "property";
 
     server->current_command.context.variables.variable_count = 0;
-    
 
     // Register formatting
     char value_str[32];
-    char value_str_hex[32];
 
     // Add the ST register (Status register)
     snprintf(value_str, sizeof(value_str), "%06o", gSTSr);
     DAPVariable *var = add_variable_to_array(
         server,
-        "STS",                       // name
-        value_str,                   // value
-        //"bitmap",                    // type
+        "STS",     // name
+        value_str, // value
+        //"bitmap",                  // type
         "integer",
-        NULL,                        // memoryReference 
-        SCOPE_ID_STATUS_FLAGS,       // variablesReference        
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE   // attributes
+        -1,                     // memoryReference  (-1 = not present)
+        SCOPE_ID_STATUS_FLAGS,  // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
-
 
     // Add the D register (Data register)
     snprintf(value_str, sizeof(value_str), "%06o", gD);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gD);
     add_variable_to_array(
         server,
-        "D",                         // name
-        value_str,                   // value
-        "integer",                   // type        
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "D",                    // name
+        value_str,              // value
+        "integer",              // type
+        gD,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
 
     // Add the P register (Program Counter)
     snprintf(value_str, sizeof(value_str), "%06o", gPC);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gPC);
     add_variable_to_array(
         server,
-        "P",                          // name
-        value_str,                    // value
-        "integer",                    // type
-        value_str,                // memoryReference 
-        0,                            // variablesReference
-        DAP_VARIABLE_KIND_DATA,       // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "P",                    // name
+        value_str,              // value
+        "integer",              // type
+        gPC,                    // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
- 
+
     // Add the B register (B register)
     snprintf(value_str, sizeof(value_str), "%06o", gB);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gB);
     add_variable_to_array(
         server,
-        "B",                         // name
-        value_str,                   // value
-        "integer",                   // type
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "B",                    // name
+        value_str,              // value
+        "integer",              // type
+        gB,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
 
     // Add the L register (Link register)
     snprintf(value_str, sizeof(value_str), "%06o", gL);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gL);
     add_variable_to_array(
         server,
-        "L",                         // name
-        value_str,                   // value
-        "integer",                   // type
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "L",                    // name
+        value_str,              // value
+        "integer",              // type
+        gL,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
 
     // Add the A register (Accumulator)
     snprintf(value_str, sizeof(value_str), "%06o", gA);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gA);
     add_variable_to_array(
         server,
-        "A",                         // name
-        value_str,                   // value
-        "integer",                   // type
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "A",                    // name
+        value_str,              // value
+        "integer",              // type
+        gA,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
 
     // Add the T register (T register)
     snprintf(value_str, sizeof(value_str), "%06o", gT);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gT);
     add_variable_to_array(
         server,
-        "T",                         // name
-        value_str,                   // value
-        "integer",                   // type
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "T",                    // name
+        value_str,              // value
+        "integer",              // type
+        gT,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
 
     // Add the X register (Index register)
     snprintf(value_str, sizeof(value_str), "%06o", gX);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gX);
     add_variable_to_array(
         server,
-        "X",                         // name
-        value_str,                   // value
-        "integer",                   // type        
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "X",                    // name
+        value_str,              // value
+        "integer",              // type
+        gX,                     // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
-
 
     // Add the Effective address register
     snprintf(value_str, sizeof(value_str), "%06o", gEA);
-    snprintf(value_str_hex, sizeof(value_str_hex), "0x%04x", gEA);
     add_variable_to_array(
         server,
-        "EA",                         // name
-        value_str,                   // value
-        "integer",                   // type        
-        value_str_hex,               // memoryReference 
-        0,                           // variablesReference
-        DAP_VARIABLE_KIND_DATA,      // kind
-        DAP_VARIABLE_ATTR_NONE       // attributes
+        "EA",                   // name
+        value_str,              // value
+        "integer",              // type
+        gEA,                    // memoryReference
+        0,                      // variablesReference
+        DAP_VARIABLE_KIND_DATA, // kind
+        DAP_VARIABLE_ATTR_NONE  // attributes
     );
-
-
 }
 
 /**
@@ -1016,20 +990,20 @@ static void add_internal_registers_read_variables(DAPServer *server, char *info_
         const char *name;
         uint16_t *reg_ptr;
         const char *type;
-    } internal_regs[] = {        
+    } internal_regs[] = {
         {"PANS", &gReg->reg_PANS, "octal"}, // Panel status
-        {"OPR", &gReg->reg_OPR, "octal"},   // Operator register        
+        {"OPR", &gReg->reg_OPR, "octal"},   // Operator register
         {"PGS", &gReg->reg_PGS, "octal"},   // Paging status register
         {"PVL", &gReg->reg_PVL, "octal"},   // Page violation limit register
         {"IIC", &gReg->reg_IIC, "octal"},   // Internal interrupt code register
         {"IID", &gReg->reg_IID, "octal"},   // Internal interrupt detect register
         {"PID", &gReg->reg_PID, "octal"},   // Priority interrupt detect register
         {"PIE", &gReg->reg_PIE, "octal"},   // Priority interrupt enable register
-        {"CSR", &gReg->reg_CSR, "octal"},   // Control store register                
-        {"ALD", &gReg->reg_ALD, "octal"},   // Auto-load descriptor register        
+        {"CSR", &gReg->reg_CSR, "octal"},   // Control store register
+        {"ALD", &gReg->reg_ALD, "octal"},   // Auto-load descriptor register
         {"PES", &gReg->reg_PES, "octal"},   // Page error status register
         {"PGC", &gReg->reg_PGC, "octal"},   // Paging Control Register
-        {"PEA", &gReg->reg_PEA, "octal"},   // Page error address register        
+        {"PEA", &gReg->reg_PEA, "octal"},   // Page error address register
     };
 
     const int num_regs = sizeof(internal_regs) / sizeof(internal_regs[0]);
@@ -1043,18 +1017,16 @@ static void add_internal_registers_read_variables(DAPServer *server, char *info_
         // Add the register to the variable array
         add_variable_to_array(
             server,
-            internal_regs[i].name,                              // name
-            value_str,                                          // value
-            internal_regs[i].type,                              // type
-            NULL,                                                // memoryReference - safely truncate to 32-bit if needed
-            0,                                                  // variablesReference (no children)                        
-            DAP_VARIABLE_KIND_DATA,                             // kind
-            DAP_VARIABLE_ATTR_NONE                             // attributes
+            internal_regs[i].name,  // name
+            value_str,              // value
+            internal_regs[i].type,  // type
+            -1,                     // memoryReference - safely truncate to 32-bit if needed
+            0,                      // variablesReference (no children)
+            DAP_VARIABLE_KIND_DATA, // kind
+            DAP_VARIABLE_ATTR_NONE  // attributes
         );
     }
 }
-
-
 
 /**
  * @brief Add internal CPU register variables to the variables array
@@ -1069,7 +1041,7 @@ static void add_internal_registers_write_variables(DAPServer *server, char *info
              "Loading internal CPU registers\n");
 
     // Property kind with readonly attribute
-    const char *property_kind = "property";    
+    const char *property_kind = "property";
 
     server->current_command.context.variables.variable_count = 0;
 
@@ -1083,16 +1055,16 @@ static void add_internal_registers_write_variables(DAPServer *server, char *info
         uint16_t *reg_ptr;
         const char *type;
     } internal_regs[] = {
-        {"PANC", &gReg->reg_PANC, "octal"}, // Panel control        
-        {"LMP", &gReg->reg_LMP, "octal"},   // Panel data display buffer register
-        {"PCR", &gReg->reg_PCR[gPIL], "octal"},   // Paging Control Register 
-        {"IIE", &gReg->reg_IIE, "octal"},   // Internal interrupt enable register
-        {"PID", &gReg->reg_PID, "octal"},   // Priority interrupt detect register
-        {"PIE", &gReg->reg_PIE, "octal"},   // Priority interrupt enable register
-        {"CCL", &gReg->reg_CCL, "octal"},   // Cache clear register
-        {"LCIL", &gReg->reg_LCIL, "octal"}, // Lower cache inhibit limit register
-        {"UCIL", &gReg->reg_UCIL, "octal"}, // Upper cache inhibit limit register
-        {"ECCR", &gReg->reg_ECCR, "octal"}, // Error correction control register
+        {"PANC", &gReg->reg_PANC, "octal"},     // Panel control
+        {"LMP", &gReg->reg_LMP, "octal"},       // Panel data display buffer register
+        {"PCR", &gReg->reg_PCR[gPIL], "octal"}, // Paging Control Register
+        {"IIE", &gReg->reg_IIE, "octal"},       // Internal interrupt enable register
+        {"PID", &gReg->reg_PID, "octal"},       // Priority interrupt detect register
+        {"PIE", &gReg->reg_PIE, "octal"},       // Priority interrupt enable register
+        {"CCL", &gReg->reg_CCL, "octal"},       // Cache clear register
+        {"LCIL", &gReg->reg_LCIL, "octal"},     // Lower cache inhibit limit register
+        {"UCIL", &gReg->reg_UCIL, "octal"},     // Upper cache inhibit limit register
+        {"ECCR", &gReg->reg_ECCR, "octal"},     // Error correction control register
     };
 
     const int num_regs = sizeof(internal_regs) / sizeof(internal_regs[0]);
@@ -1106,13 +1078,13 @@ static void add_internal_registers_write_variables(DAPServer *server, char *info
         // Add the register to the variable array
         add_variable_to_array(
             server,
-            internal_regs[i].name,                              // name
-            value_str,                                          // value
-            internal_regs[i].type,                              // type
-            NULL,                                               // memoryReference - safely truncate to 32-bit if needed
-            0,                                                  // variablesReference (no children)
-            DAP_VARIABLE_KIND_DATA,                             // kind
-            DAP_VARIABLE_ATTR_NONE                             // attributes
+            internal_regs[i].name,  // name
+            value_str,              // value
+            internal_regs[i].type,  // type
+            -1,                     // memoryReference (-1 = not present)
+            0,                      // variablesReference (no children)
+            DAP_VARIABLE_KIND_DATA, // kind
+            DAP_VARIABLE_ATTR_NONE  // attributes
         );
     }
 }
@@ -1131,27 +1103,27 @@ static void add_status_flag_variables(DAPServer *server, char *info_message, siz
     // Property kind with readonly attribute
     const char *property_kind = "property";
     const char *readonly_attrs[] = {"readOnly"};
-    
+
     server->current_command.context.variables.variable_count = 0;
 
     // Status flag definitions with bit positions
     struct
     {
         const char *name;
-        int bit_pos;        
+        int bit_pos;
     } status_flags[] = {
-        {"P", 0}, // Page Table Mode
-        {"T", 1}, // Rounging flag for floating point operations
-        {"K", 2}, // One bit accumulato
-        {"Z", 3}, // Error flag
-        {"Q", 4}, // Dynamic overflow flag
-        {"O", 5}, // Overflow flag
-        {"C", 6}, // Carry flag
-        {"M", 7}, // Multishift flag
-        {"PIL", 8}, // Program level
-        {"N100", 12}, // N100 flag (always 1)
-        {"SEXI", 13}, // Extended flag
-        {"PONI", 14}, // Memory management on flag
+        {"P", 0},      // Page Table Mode
+        {"T", 1},      // Rounging flag for floating point operations
+        {"K", 2},      // One bit accumulato
+        {"Z", 3},      // Error flag
+        {"Q", 4},      // Dynamic overflow flag
+        {"O", 5},      // Overflow flag
+        {"C", 6},      // Carry flag
+        {"M", 7},      // Multishift flag
+        {"PIL", 8},    // Program level
+        {"N100", 12},  // N100 flag (always 1)
+        {"SEXI", 13},  // Extended flag
+        {"PONI", 14},  // Memory management on flag
         {"IONI", 15}}; // Interrupt system on flag
 
     const int num_flags = sizeof(status_flags) / sizeof(status_flags[0]);
@@ -1187,59 +1159,220 @@ static void add_status_flag_variables(DAPServer *server, char *info_message, siz
         // Add the flag to the variable array
         add_variable_to_array(
             server,
-            display_name,                                                    // name with description
-            value_str,                                                       // value (true/false or numeric for PL)
-            strcmp(status_flags[i].name, "PIL") == 0 ? "integer" : "boolean", // type            
-            NULL,                                                             // memoryReference
-            0,                                                               // variablesReference (no children)
-            DAP_VARIABLE_KIND_PROPERTY,                                      // kind
-            DAP_VARIABLE_ATTR_NONE                                          // attributes
+            display_name,                                                     // name with description
+            value_str,                                                        // value (true/false or numeric for PL)
+            strcmp(status_flags[i].name, "PIL") == 0 ? "integer" : "boolean", // type
+            -1,                                                               // memoryReference (-1 = not present)
+            0,                                                                // variablesReference (no children)
+            DAP_VARIABLE_KIND_PROPERTY,                                       // kind
+            DAP_VARIABLE_ATTR_NONE                                            // attributes
         );
     }
 }
 
-/**
- * @brief Add memory regions to the variables array
- *
- * @param server The DAP server instance
- * @param info_message Buffer to write info message
- * @param info_message_size Size of info message buffer
- */
-static void add_memory_region_variables(DAPServer *server, char *info_message, size_t info_message_size)
+/// @brief Get informaiton about a page table entry
+/// @param PTe
+/// @return
+char *GetPageTableEntryInfo(uint32_t PTe)
 {
-    snprintf(info_message, info_message_size,
-             "Loading memory regions (Code section, Data section, etc.)\n");
+
+    static char debugInfo[256];
+    debugInfo[0] = '\0';
+
+    char memoryRange[50];
+
+    // Map to physical page
+    ushort PPN = 0;
+    if (STS_SEXI)
+    {
+        // Use lower 14-bit
+        PPN = (ushort)(PTe & 0x3FFF);
+    }
+    else
+    {
+        // "normal" mode, use only the lower 9-bits
+        PPN = (ushort)(PTe & 0x1FF);
+    }
+
+    PTe = PTe >> 16;
+
+    if ((PTe & 1 << 15) != 0)
+        strcat(debugInfo, "[WPM]");
+    if ((PTe & 1 << 14) != 0)
+        strcat(debugInfo, "[RPM]");
+    if ((PTe & 1 << 13) != 0)
+        strcat(debugInfo, "[FPM]");
+    if ((PTe & 1 << 12) != 0)
+        strcat(debugInfo, "[WIP]");
+    if ((PTe & 1 << 11) != 0)
+        strcat(debugInfo, "[PGU]");
+
+    int ring = (int)((PTe >> 9) & 0x03);
+    snprintf(debugInfo, sizeof(debugInfo), "[R:%d]", ring);
+
+    char ppnStr[16];
+    snprintf(ppnStr, sizeof(ppnStr), "[PPN:0x%04X]", PPN);
+    strcat(debugInfo, ppnStr);
+
+    uint32_t start = PPN << 10;
+    uint32_t end = start | 0x3FFF;
+
+    sprintf(memoryRange, " MEM[0x%06X:0x%06X]", start, end);
+    strcat(debugInfo, memoryRange);
+
+    return debugInfo;
+}
+
+char *GetPageTableMemoryRange(uint32_t PTe)
+{
+    static char debugInfo[256];
+    debugInfo[0] = '\0';
+    uint32_t PPN = 0;
+
+    if (STS_SEXI)
+    {
+        // Use lower 14-bit
+        PPN = (uint16_t)(PTe & 0x3FFF);
+    }
+    else
+    {
+        // "normal" mode, use only the lower 9-bits
+        PPN = (uint16_t)(PTe & 0x1FF);
+    }
+
+    return debugInfo;
+}
+
+static void add_page_mms_entries(DAPServer *server, char *info_message, size_t info_message_size)
+{
 
     // Property kind with readonly attribute
     const char *property_kind = "property";
     const char *no_attributes[] = {NULL};
 
-    // Add memory regions - these are examples and should be adjusted based on
-    // the actual memory layout of the ND-100 system
+    // Get PCR for current runlevel
+    ushort rPCR = gReg->reg_PCR[gPIL];
+    ushort pt = 0, apt = 0;
+    PageTableMode ptm = Four; // Default to four page tables
 
-    // Code section - an example region where program code resides
+    // decode PT and APT PCR
+    ushort ring = rPCR & 0x03;
+    if (rPCR & (1 << 2))
+    {
+        // Sixteen page table mode
+        pt = (rPCR >> 11) & 0x0F;
+        apt = (rPCR >> 7) & 0x0F;
+        ptm = Sixteen;
+    }
+    else
+    {
+        // Four page table mode
+        pt = (rPCR >> 9) & 0x03;
+        apt = (rPCR >> 7) & 0x03;
+        ptm = Four;
+    }
+
+    char display_name[64];
+    if (pt == apt)
+    {
+        snprintf(display_name, sizeof(display_name), "PT %d APT %d", pt, apt);
+    }
+    else
+    {
+        snprintf(display_name, sizeof(display_name), "PT %d", pt);
+    }
+
+    char pt_str[32];
+    snprintf(pt_str, sizeof(pt_str), "%d", pt);
+
     add_variable_to_array(
         server,
-        "Memory (Code - PT)", // name
-        "000000-077777",      // value
-        "memory",             // type
-        "000000-077777",      // memoryReference
-        SCOPE_ID_MEM_PT,      // variablesReference        
-        DAP_VARIABLE_KIND_PROPERTY,        // kind
-        DAP_VARIABLE_ATTR_NONE            // attributes
+        display_name,               // name with description
+        pt_str,                     // value
+        "memory",                   // type
+        -1,                         // memoryReference (-1 = not present)
+        SCOPE_ID_MEM_PT,            // variablesReference (no children)
+        DAP_VARIABLE_KIND_PROPERTY, // kind
+        DAP_VARIABLE_ATTR_NONE      // attributes
     );
 
-    // Data section - an example region where data resides
-    add_variable_to_array(
-        server,
-        "Memory (DATA - APT)", // name
-        "000000-077777",       // value
-        "memory",              // type
-        "000000-077777",       // memoryReference
-        SCOPE_ID_MEM_APT,      // variablesReference        
-        DAP_VARIABLE_KIND_PROPERTY,        // kind
-        DAP_VARIABLE_ATTR_NONE            // attributes
-    );
+    if (apt != pt)
+    {
+        snprintf(display_name, sizeof(display_name), "APT %d", apt);
+        snprintf(pt_str, sizeof(pt_str), "%d", pt);
+
+        add_variable_to_array(
+            server,
+            display_name,               // name with description
+            pt_str,                     // value
+            "memory",                   // type
+            -1,                         // memoryReference (-1 = not present)
+            SCOPE_ID_MEM_APT,           // variablesReference (no children)
+            DAP_VARIABLE_KIND_PROPERTY, // kind
+            DAP_VARIABLE_ATTR_NONE      // attributes
+        );
+    }
+}
+
+/**
+ * @brief Add page table entries to the variables array
+ *
+ * @param server The DAP server instance
+ * @param info_message Buffer to write info message
+ * @param info_message_size Size of info message buffer
+ */
+static void add_page_table_entries(DAPServer *server, char *info_message, size_t info_message_size, bool useAPT)
+{
+
+    // Property kind with readonly attribute
+    const char *property_kind = "property";
+    const char *no_attributes[] = {NULL};
+
+    // Get PCR for current runlevel
+    ushort rPCR = gReg->reg_PCR[gPIL];
+    ushort pt = 0, apt = 0;
+    PageTableMode ptm = Four; // Default to four page tables
+
+    // decode PT and APT PCR
+    ushort ring = rPCR & 0x03;
+    if (rPCR & (1 << 2))
+    {
+        // Sixteen page table mode
+        pt = (rPCR >> 11) & 0x0F;
+        apt = (rPCR >> 7) & 0x0F;
+        ptm = Sixteen;
+    }
+    else
+    {
+        // Four page table mode
+        pt = (rPCR >> 9) & 0x03;
+        apt = (rPCR >> 7) & 0x03;
+        ptm = Four;
+    }
+
+    if (useAPT)
+    {
+        pt = apt;
+    }
+
+    for (int vpn = 0; vpn < 64; vpn++)
+    {
+        uint32_t pageTableEntry = GetPageTableEntry(pt, vpn, ptm);
+
+        char vpn_str[32];
+        snprintf(vpn_str, sizeof(vpn_str), "%d", vpn);
+
+        add_variable_to_array(
+            server,
+            vpn_str,                                    // name
+            GetPageTableEntryInfo(pageTableEntry), // value
+            "memory",                                   // type
+            -1,                                         // memoryReference (-1 = not present)
+            0,                                          // variablesReference
+            DAP_VARIABLE_KIND_PROPERTY,                 // kind
+            DAP_VARIABLE_ATTR_NONE                      // attributes
+        );
+    }
 }
 
 /**
@@ -1261,7 +1394,7 @@ static int cmd_variables(DAPServer *server)
     // Extract variables reference from the command context
     int variables_reference = server->current_command.context.variables.variables_reference;
 
-    //printf("Variables request for reference: %d\n", variables_reference);
+    // printf("Variables request for reference: %d\n", variables_reference);
 
     // Buffer for informational messages
     char info_message[256] = {0};
@@ -1309,7 +1442,6 @@ static int cmd_variables(DAPServer *server)
         break;
     }
 
-
     case SCOPE_ID_STATUS_FLAGS:
     {
         // Use our helper function for status flag variables
@@ -1317,17 +1449,24 @@ static int cmd_variables(DAPServer *server)
         break;
     }
 
+    case SCOPE_ID_MEM_MMS:
+    {
+        // Fetch page table entries for PT
+        add_page_mms_entries(server, info_message, sizeof(info_message));
+        break;
+    }
+
     case SCOPE_ID_MEM_PT:
-    { // TODO: Make sure we read through PT
-        // Use our helper function for memory region variables
-        add_memory_region_variables(server, info_message, sizeof(info_message));
+    {
+        // Fetch page table entries for PT
+        add_page_table_entries(server, info_message, sizeof(info_message), false);
         break;
     }
 
     case SCOPE_ID_MEM_APT:
-    { // TODO: Force PT to be APT
-        // Use our helper function for memory region variables
-        add_memory_region_variables(server, info_message, sizeof(info_message));
+    {
+        // Fetch page table entries for APT
+        add_page_table_entries(server, info_message, sizeof(info_message), true);
         break;
     }
 
@@ -1369,7 +1508,7 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
     frame->end_line = 0;
     frame->end_column = 0;
     frame->can_restart = false;
-    frame-> instruction_pointer_reference= -1; // -1 means no instruction pointer reference
+    frame->instruction_pointer_reference = -1; // -1 means no instruction pointer reference
     frame->module_id = NULL;
     frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
 
@@ -1415,9 +1554,9 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
             else
             {
                 snprintf(frame_name, sizeof(frame_name), "frame at %06o", memory_reference);
-            }            
+            }
         }
-        
+
         frame->name = strdup(frame_name);
 
         // Log the source mapping
@@ -1435,7 +1574,7 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
     }
 
     // Set instruction pointer reference (Enables disassembly of the current instruction)
-    frame->instruction_pointer_reference = memory_reference; 
+    frame->instruction_pointer_reference = memory_reference;
 }
 
 /**
@@ -1453,7 +1592,7 @@ static int cmd_stack_trace(DAPServer *server)
     if (!server)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                      "Error: Invalid server instance\n");
+                                        "Error: Invalid server instance\n");
         return -1;
     }
 
@@ -1461,7 +1600,7 @@ static int cmd_stack_trace(DAPServer *server)
     if (stack_trace.frame_count == 0)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
-                                      "No stack trace available\n");
+                                        "No stack trace available\n");
         return -1;
     }
 
@@ -1474,14 +1613,14 @@ static int cmd_stack_trace(DAPServer *server)
     if (stack_levels <= 0)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                      "Error: Invalid stack levels requested\n");
+                                        "Error: Invalid stack levels requested\n");
         return -1;
     }
 
     if (stack_start_frame < 0)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                      "Error: Invalid start frame requested\n");
+                                        "Error: Invalid start frame requested\n");
         return -1;
     }
 
@@ -1510,7 +1649,7 @@ static int cmd_stack_trace(DAPServer *server)
     if (!server->current_command.context.stack_trace.frames)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                      "Error: Failed to allocate memory for stack frames\n");
+                                        "Error: Failed to allocate memory for stack frames\n");
         return -1;
     }
 
@@ -1545,8 +1684,7 @@ static int cmd_stack_trace(DAPServer *server)
         frame->module_id = NULL;
         frame->presentation_hint = DAP_FRAME_PRESENTATION_NORMAL;
 
-
-        //symbols_dump_all(symbol_tables.symbol_table_aout);
+        // symbols_dump_all(symbol_tables.symbol_table_aout);
 
         // Try to get symbol information
         const symbol_entry_t *symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
@@ -1554,14 +1692,13 @@ static int cmd_stack_trace(DAPServer *server)
         {
             frame->name = strdup(symbol->name);
             frame->valid_symbol = true;
-            frame->symbol_entry_point = entry_point;                                
+            frame->symbol_entry_point = entry_point;
         }
         else
         {
             frame->name = strdup("<unknown>");
             frame->valid_symbol = false;
         }
-
 
         /*
         for (int i = 0; i < symbol_tables.symbol_table_aout->count; i++)
@@ -1594,11 +1731,7 @@ static int cmd_stack_trace(DAPServer *server)
             {
                 frame->source_name = strdup(file);
             }
-
-            
-
         }
-      
 
         // Set presentation hint based on frame type
         if (symbol && symbol->type == SYMBOL_TYPE_FUNCTION)
@@ -1691,7 +1824,7 @@ static int cmd_set_breakpoints(DAPServer *server)
         if (symbol_tables.symbol_table_map)
         {
             // Get the address for this line in the source file
-            validSymbol = symbols_find_address(symbol_tables.symbol_table_map, source_path, &address,&diff, bp->line);
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_map, source_path, &address, &diff, bp->line);
         }
 
         if ((!validSymbol) || (diff != 0))
@@ -2062,10 +2195,9 @@ static int cmd_launch_callback(DAPServer *server)
         // Show initial source mapping
         char message[256];
         snprintf(message, sizeof(message), "Initial PC %06o mapped to %s:%d\n",
-                    gPC, file, line);
+                 gPC, file, line);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, message);
     }
-
 
     // Send process event to indicate execution started
     dap_server_send_process_event(server, program_path, 1, true, "launch");
@@ -2092,7 +2224,6 @@ static int cmd_launch_callback(DAPServer *server)
 
     return 0; // Return success to ensure the response is properly set
 }
-
 
 static int cmd_configuration_done(DAPServer *server)
 {
@@ -2207,60 +2338,57 @@ static int cmd_terminate(DAPServer *server)
 }
 
 /// @brief DAP command to set a variable
-/// @param server 
-/// @return 
+/// @param server
+/// @return
 static int cmd_set_variable(DAPServer *server)
 {
     return 0;
 }
 
-
 /// @brief DAP command to read memory
-/// @param server 
-/// @return 
+/// @param server
+/// @return
 static int cmd_read_memory(DAPServer *server)
-{   
+{
     // Extract parameters from the command context
     uint32_t memory_reference = server->current_command.context.read_memory.memory_reference;
     uint32_t offset = server->current_command.context.read_memory.offset;
     size_t byteCount = server->current_command.context.read_memory.count;
 
     uint32_t virtualAddress = memory_reference + offset;
-    
-    
+
     server->current_command.context.read_memory.base64_data = NULL;
     server->current_command.context.read_memory.unreadable_bytes = byteCount;
 
-    if (byteCount ==0)
+    if (byteCount == 0)
     {
         server->current_command.context.read_memory.base64_data = strdup("");
-        server->current_command.context.read_memory.unreadable_bytes=0;
+        server->current_command.context.read_memory.unreadable_bytes = 0;
         return 0;
     }
 
     // read memory from memory_reference + offset, count bytes
     uint8_t *data = (uint8_t *)malloc(byteCount);
     if (!data)
-    {    
+    {
         return 0;
     }
 
     memset(data, 0, byteCount);
 
-
     // Loop through the data and read each word, split the word in two so we add bytes to the data. Use ReadVirtualMemory to read the data.
 
-    for (size_t i = 0; i < byteCount/2; i++)
+    for (size_t i = 0; i < byteCount / 2; i++)
     {
         int word = ReadVirtualMemory(virtualAddress, false);
         if (word == -1)
         {
-            server->current_command.context.read_memory.unreadable_bytes = byteCount - i*2;
+            server->current_command.context.read_memory.unreadable_bytes = byteCount - i * 2;
             break;
         }
 
-        data[i*2] = (uint8_t)(word >> 8);
-        data[i*2+1] = (uint8_t)(word & 0xFF);
+        data[i * 2] = (uint8_t)(word >> 8);
+        data[i * 2 + 1] = (uint8_t)(word & 0xFF);
         server->current_command.context.read_memory.unreadable_bytes -= 2;
         virtualAddress++;
     }
@@ -2273,32 +2401,29 @@ static int cmd_read_memory(DAPServer *server)
 
     // return success
     return 0;
-
 }
 
 /// @brief DAP command to write memory
-/// @param server 
-/// @return 
+/// @param server
+/// @return
 static int cmd_write_memory(DAPServer *server)
 {
     return 0;
 }
 
-
-
 // cpu/cpu_disasm.c
-void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
+void OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
 
 /// @brief DAP command to disassemble
-/// @param server 
-/// @return 
+/// @param server
+/// @return
 static int cmd_disassemble(DAPServer *server)
 {
     uint16_t memory_reference = server->current_command.context.disassemble.memory_reference;
-    int offset = server->current_command.context.disassemble.offset; // Offset in bytes
+    int offset = server->current_command.context.disassemble.offset;                         // Offset in bytes
     int instruction_offset = server->current_command.context.disassemble.instruction_offset; // Offset in instructions (relative to the memory reference)
-    int instruction_count = server->current_command.context.disassemble.instruction_count; // Number of instructions to disassemble
-    bool resolve_symbols = server->current_command.context.disassemble.resolve_symbols; // Whether to resolve symbols
+    int instruction_count = server->current_command.context.disassemble.instruction_count;   // Number of instructions to disassemble
+    bool resolve_symbols = server->current_command.context.disassemble.resolve_symbols;      // Whether to resolve symbols
 
     int virtualAddress = memory_reference + offset + instruction_offset;
 
@@ -2314,7 +2439,6 @@ static int cmd_disassemble(DAPServer *server)
 
     // Set the actual instruction count to 0
     server->current_command.context.disassemble.actual_instruction_count = 0;
-
 
     // Loop through the instructions and disassemble each one
     for (int i = 0; i < instruction_count; i++)
@@ -2336,9 +2460,8 @@ static int cmd_disassemble(DAPServer *server)
             snprintf(address_str, sizeof(address_str), "0x%04x", virtualAddress);
             instruction->address = strdup(address_str);
 
-    
             // Get the instruction
-    
+
             // Disassemble the instruction
             char operand_str[50];
             OpToStr(operand_str, sizeof(operand_str), operand);
@@ -2359,16 +2482,11 @@ static int cmd_disassemble(DAPServer *server)
             }
         }
 
-        // Add the instruction to the instructions array    
+        // Add the instruction to the instructions array
         server->current_command.context.disassemble.actual_instruction_count++;
         virtualAddress++;
     }
-
-
 }
-
-
-
 
 /// @brief Initialize the DAP server
 /// @param port The port to listen on
@@ -2452,8 +2570,6 @@ int ndx_server_init(int port)
     // Register disassemble callback
     dap_server_register_command_callback(server, DAP_CMD_DISASSEMBLE, cmd_disassemble);
 
-
-
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
 
@@ -2483,7 +2599,7 @@ int ndx_server_stop()
 void debugger_kbd_input(char c)
 {
 
-    if (c=='q')
+    if (c == 'q')
     {
         set_cpu_run_mode(CPU_SHUTDOWN);
     }
@@ -2517,11 +2633,9 @@ void debugger_kbd_input(char c)
 
             // Get the address of the instruction (DAP SPEC says it must be hex)
             printf("[%06o] ", virtualAddress);
-            
 
-    
             // Get the instruction
-    
+
             // Disassemble the instruction
             char operand_str[50];
             OpToStr(operand_str, sizeof(operand_str), operand);
@@ -2534,12 +2648,11 @@ void debugger_kbd_input(char c)
             {
                 printf("    (%s)", sym);
             }
-            
+
             printf("\n");
 
             virtualAddress++;
         }
-            
     }
 }
 
@@ -2614,16 +2727,16 @@ int set_default_dap_capabilities(DAPServer *server)
     }
 
     return dap_server_set_capabilities(server,
-        DAP_CAP_CONFIG_DONE_REQUEST, true,
-        DAP_CAP_EVALUATE_FOR_HOVERS, true,
-        DAP_CAP_RESTART_REQUEST, true,
-        DAP_CAP_TERMINATE_REQUEST, true,
-        DAP_CAP_SET_VARIABLE, true,
-        DAP_CAP_READ_MEMORY_REQUEST, true,
-        DAP_CAP_WRITE_MEMORY_REQUEST, true,
-        DAP_CAP_DISASSEMBLE_REQUEST, true,
+                                       DAP_CAP_CONFIG_DONE_REQUEST, true,
+                                       DAP_CAP_EVALUATE_FOR_HOVERS, true,
+                                       DAP_CAP_RESTART_REQUEST, true,
+                                       DAP_CAP_TERMINATE_REQUEST, true,
+                                       DAP_CAP_SET_VARIABLE, true,
+                                       DAP_CAP_READ_MEMORY_REQUEST, true,
+                                       DAP_CAP_WRITE_MEMORY_REQUEST, true,
+                                       DAP_CAP_DISASSEMBLE_REQUEST, true,
 
-        DAP_CAP_COUNT // End of list
+                                       DAP_CAP_COUNT // End of list
     );
 }
 #endif // WITH_DEBUGGER
