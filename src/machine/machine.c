@@ -230,6 +230,59 @@ void write_memory(uint16_t address, uint16_t value)
     if (DISASM) disasm_addword(address, value);
 }
 
+
+void mount_floppy(const char *imageFile, int unit)
+{
+    const char *floppy_img = imageFile ? imageFile : "FLOPPY.IMG";
+    
+    // if file exists  mount it
+    if (access(floppy_img, F_OK) != -1) {
+        mount_drive(DRIVE_FLOPPY, unit, "md5-unknown", "Boot Floppy", "Boot floppy image", floppy_img);
+    }
+}
+
+
+void mount_smd(const char *imageFile, int unit)
+{
+    char path[256];
+    sprintf(path,"SMD%d.IMG",unit);
+
+    const char *smd_img = imageFile ? imageFile : path;
+    
+    // if file exists  mount it
+    if (access(smd_img, F_OK) != -1) {
+        if (unit ==0)
+        {
+            mount_drive(DRIVE_SMD, unit, "md5-unknown", "Boot SMD", "Boot SMD image", smd_img);
+        }
+        else
+        {
+            mount_drive(DRIVE_SMD, unit, "md5-unknown", "DATA SMD", "DATA SMD image", smd_img);
+        }
+    }
+}
+
+
+// As a default, mount floppy and SMD drives (IF they exists)
+void autoMountDrives()
+{
+    // Automount floppy if file "FLOPPY.IMG" exists
+    if (!isMounted(DRIVE_FLOPPY,0))
+    {
+        mount_floppy(NULL,0);
+    }
+
+    // Automount SMD files
+    for (int i=0; i<4;i++)
+    {
+        if (!isMounted(DRIVE_SMD,i))
+        {
+            mount_smd(NULL,i);
+        }
+    }
+
+}
+
  void program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
  {
      int bootAddress;
@@ -266,11 +319,9 @@ void write_memory(uint16_t address, uint16_t value)
         }
         STARTADDR = bootAddress;
         break;
-     case BOOT_FLOPPY:
-        const char *floppy_img = imageFile ? imageFile : "FLOPPY.IMG";
+     case BOOT_FLOPPY:        
         // Record mount state for UI/menus; device still boots via BPUN for now
-        mount_drive(DRIVE_FLOPPY, 0, "md5-unknown", "Boot Floppy", "Boot floppy image", floppy_img);
- 
+         mount_floppy(imageFile,0);
 
          bootAddress = LoadBPUN(imageFile, verbose);
          if (bootAddress < 0)
@@ -294,9 +345,8 @@ void write_memory(uint16_t address, uint16_t value)
          break;
      case BOOT_SMD:
 
-        const char *smd_img = imageFile ? imageFile : "SMD0.IMG";
         // Ensure unit 0 is mounted before we ask the SMD device to memory-boot
-        mount_drive(DRIVE_SMD, 0, "md5-unknown", "Boot Disk", "Boot SMD image", smd_img);
+        mount_smd(imageFile, 0);        
 
          bootAddress = DeviceManager_Boot(01540);
          if (bootAddress < 0)
@@ -306,9 +356,38 @@ void write_memory(uint16_t address, uint16_t value)
          STARTADDR = bootAddress;
          break;
      }
+
+     autoMountDrives();
  }
  
  /** DEVICE MOUNTING */
+
+ // Return true if the drive is already mounted
+ bool isMounted(DRIVE_TYPE drive_type, int unit)
+ {
+    MountedDriveInfo_t* drives = NULL;
+    int max_units = 0;
+
+    // Determine which array to use and max units
+    if (drive_type == DRIVE_SMD) {
+        drives = smd_drives;
+        max_units = 4;  // SMD has units 0-3
+    } else if (drive_type == DRIVE_FLOPPY) {
+        drives = floppy_drives;
+        max_units = 3;  // Floppy has units 0-2
+    } else {
+        //printf("Error: Invalid drive type\n");
+        return;
+    }
+    
+    // Check if unit is valid
+    if (unit < 0 || unit >= max_units) {
+        //printf("Error: Invalid unit %d for drive type %d\n", unit, drive_type);
+        return false;
+    }
+
+    return drives[unit].is_mounted;
+ }
 
  // Mount a drive to the specified unit
 void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *name, const char *description, const char *image_path) {
