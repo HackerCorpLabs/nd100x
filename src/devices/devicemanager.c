@@ -32,6 +32,10 @@
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
 
+// For DRIVE_TYPE and machine-level block IO callbacks
+#include "../machine/machine_types.h"
+#include "../machine/machine_protos.h"
+
 #define INITIAL_DEVICE_CAPACITY 16
 
 //#define LOG_DEVICE_NOT_FOUND
@@ -177,6 +181,8 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
     // Reset the device
     if (dev)
     {
+        // Record the concrete type for downstream logic (read-only property)
+        dev->type = type;
         Device_Reset(dev);
     }
 
@@ -209,6 +215,12 @@ bool DeviceManager_AddDevice(DeviceType type, uint8_t thumbwheel)
     if (dev)
     {
         deviceManager.devices[deviceManager.deviceCount].device = dev;
+        // If this is a block device, hook up machine-level block IO callbacks
+        if (dev->deviceClass == DEVICE_CLASS_BLOCK) {            
+            Device_SetBlockRead(dev, (BlockDeviceReadFunc)machine_block_read, NULL);
+            Device_SetBlockWrite(dev, (BlockDeviceWriteFunc)machine_block_write, NULL);
+            Device_SetBlockDiskInfo(dev, (BlockDeviceDiskInfoFunc)machine_block_disk_info, NULL);
+        }
         deviceManager.deviceCount++;
         return true;
     }

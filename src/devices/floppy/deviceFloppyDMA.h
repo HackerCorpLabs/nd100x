@@ -347,6 +347,7 @@ typedef union {
 } StatusRegister2;
 
 // Floppy DMA device data
+// TODO: Refactor to support multiple units
 typedef struct
 {
     StatusRegister1 status1;       // Status register 1
@@ -366,15 +367,20 @@ typedef struct
     uint32_t pointerHI;     // High pointer bits
     uint32_t pointerLO;     // Low pointer bits
     uint16_t readFormat;    // Format read from disk
+    long diskFileSize;      // Size of floppy disk file
+    bool readOnly;          // Read-only flag
+
+    // When not using callback,open file local
     FILE *diskFile;         // Disk file handle
     const char *floppyName; // Floppy file name
-    long diskFileSize;      // Size of floppy disk file
+
 } FloppyDMAData;
 
 
 
 // Function declarations
 Device *CreateFloppyDMADevice(uint8_t thumbwheel);
+static void ExecuteFloppyGoCallback(Device *self);
 static void ExecuteFloppyGo(Device *self);
 static void ExecuteTest(Device *self, int testData);
 static void ExecuteAutoload(Device *self, int drive);

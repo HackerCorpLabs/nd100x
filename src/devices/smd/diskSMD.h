@@ -27,6 +27,7 @@
 
 // Disk types
 typedef enum {
+    DISK_TYPE_UNKNOWN = 0,
     // ***************
     // 10MHZ drives
     // See also page 520 in "SINTRAN III J VSX programlistning Vol2-Gandalf-OCR.PDF"

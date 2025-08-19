@@ -84,22 +84,21 @@ static void FloppyDMA_Reset(Device *self)
     data->track = 0;
     data->drive = 0;
 
-
     data->command = 0;
     data->pointerHI = 0;
     data->pointerLO = 0;
     data->readFormat = 0;
-    //data->diskFile = NULL;
+    // data->diskFile = NULL;
 
-    //data->status1.bits.errorCode = FLOPPY_ERR_OK;
-    //data->status1.bits.readyForTransfer = true;
+    // data->status1.bits.errorCode = FLOPPY_ERR_OK;
+    // data->status1.bits.readyForTransfer = true;
 }
-
 
 static uint16_t CalculateStatusRegister1(Device *self)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return 0;
+    if (!data)
+        return 0;
 
     data->status1.bits.dualDensity = 1; // 1=HIGH=DUAL DENSITY CONTROLLER (tells ND that we are using DMA and not PIO controller) = NEW CONTROLLER
     data->status1.bits.inclusiveOrBits = (data->status1.bits.hardError | data->status1.bits.deletedRecord | data->status1.bits.retryOnController);
@@ -109,22 +108,23 @@ static uint16_t CalculateStatusRegister1(Device *self)
 static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return 0;
+    if (!data)
+        return 0;
 
     uint32_t reg = Device_RegisterAddress(self, address);
     uint16_t value = 0;
 
     switch (reg)
     {
-    case FLOPPY_DMA_READ_DATA:        
+    case FLOPPY_DMA_READ_DATA:
         value = 0x1; // TODO: What is the correct value?
         break;
 
-    case FLOPPY_DMA_READ_STATUS1:        
+    case FLOPPY_DMA_READ_STATUS1:
         value = CalculateStatusRegister1(self);
         break;
 
-    case FLOPPY_DMA_READ_STATUS2:        
+    case FLOPPY_DMA_READ_STATUS2:
         value = data->status2.raw;
         break;
     }
@@ -139,7 +139,8 @@ static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
 static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return;
+    if (!data)
+        return;
 
     uint32_t reg = Device_RegisterAddress(self, address);
 
@@ -164,9 +165,9 @@ static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
         Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
 
         if (data->controlWord.bits.activateAutoload)
-        {            
-            ExecuteAutoload(self,data->drive );
-        }        
+        {
+            ExecuteAutoload(self, data->drive);
+        }
         else if (data->controlWord.bits.executeCommand)
         {
             if (data->controlWord.bits.testMode)
@@ -181,9 +182,9 @@ static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
                 }
                 else
                 {
-                    OpenFloppyFile(self,0);
+                    OpenFloppyFile(self, 0);
                     ExecuteFloppyGo(self);
-                    CloseFloppyFile(self,0);
+                    CloseFloppyFile(self, 0);
                 }
             }
         }
@@ -248,14 +249,368 @@ static void ExecuteTest(Device *self, int testData)
 #endif
 }
 
+static void ExecuteFloppyGoCallback(Device *self)
+{
+#ifdef DEBUG_FLOPPY_DMA
+    printf("FloppyDMA: Executing Floppy GO Callback!\n");
+#endif
+
+    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
+    if (!data) return;
+
+    uint32_t sector = 1;
+    uint32_t track = 0;
+    uint32_t bytes_pr_sector = 512;
+    uint32_t sectors_pr_track = 18; // Double Density has 8 sectors per track
+
+    // Find ND100 memory address
+    data->commandBlockAddress = data->pointerLO | (data->pointerHI << 16);
+
+    // Read command block
+    data->commandBlock.fields.commandWord = Device_DMARead(data->commandBlockAddress);
+    data->commandBlock.fields.diskAddress = Device_DMARead(data->commandBlockAddress + 1);
+    data->commandBlock.fields.memoryAddressHi = Device_DMARead(data->commandBlockAddress + 2) & 0xFF; // Bits 23-16
+    data->commandBlock.fields.memoryAddressLo = Device_DMARead(data->commandBlockAddress + 3);        // Bits 15-0
+
+    uint32_t memAddress = data->commandBlock.fields.memoryAddressLo | (data->commandBlock.fields.memoryAddressHi << 16); // Calculate memory address for read/write IO
+
+    data->commandBlock.fields.optionsWordCountHi = Device_DMARead(data->commandBlockAddress + 4); // Bit 15 = 1 => WordCount, 0=SectorCount. Bit 7-0 WordCountHi
+    bool isWC = (data->commandBlock.fields.optionsWordCountHi & (1 << 15)) != 0;
+
+    data->commandBlock.fields.wordSectorCount = Device_DMARead(data->commandBlockAddress + 5); // Word count / Sector count
+
+    data->commandBlock.fields.status1 = Device_DMARead(data->commandBlockAddress + 6);
+    uint32_t wordCount = data->commandBlock.fields.wordSectorCount | (data->commandBlock.fields.optionsWordCountHi & 0xFF) << 16;
+
+    data->command = (FloppyFunction)(data->commandBlock.fields.commandWord & 0b111111);
+    data->drive = (data->commandBlock.fields.commandWord >> 6) & 0b11;
+    uint32_t floppyFormat = (data->commandBlock.fields.commandWord >> 8) & 0b11;
+    uint32_t doubleSided = (data->commandBlock.fields.commandWord >> 10) & 0b1;
+    uint32_t doubleDensity = (data->commandBlock.fields.commandWord >> 11) & 0b1;
+    uint32_t copyDestination = (data->commandBlock.fields.commandWord >> 14) & 0b1; // When copying from one device to another ?
+
+
+    
+    // Get information on file size and readonly
+    if (self->blockCallbacks.diskInfoFunc)
+    {
+        bool isWriteProtected = false;
+        size_t imageSize = 0;
+
+        self->blockCallbacks.diskInfoFunc(self, &imageSize, &isWriteProtected,  data->drive );
+        data->diskFileSize = imageSize;
+        data->readOnly = isWriteProtected;        
+    }
+
+    // TODO:
+    // Read out information from floppy - is it write protceted
+
+    // bool floppyIsWriteProtected = device.read_only;
+    // long floppySize = device.FileLength;
+
+    // Calculate sector size based on format
+    switch (floppyFormat)
+    {
+    case 0:
+        bytes_pr_sector = 512;
+        break;
+    case 1:
+        bytes_pr_sector = 256;
+        break;
+    case 2:
+        bytes_pr_sector = 123;
+        break;
+    case 3:
+        bytes_pr_sector = 1024;
+        break;
+    }
+
+    // Reflect current sector size on the device so block callbacks know bytes per block
+    self->blockSizeBytes = bytes_pr_sector;
+
+    sector = (data->commandBlock.fields.diskAddress % (sectors_pr_track - 1)) + 1;
+    track = data->commandBlock.fields.diskAddress / sectors_pr_track;
+
+    uint32_t position = data->commandBlock.fields.diskAddress * bytes_pr_sector;
+    uint32_t wordsToRead = wordCount;
+    if (!isWC) wordsToRead *= (bytes_pr_sector >> 1);
+
+    data->status1.bits.errorCode = FLOPPY_ERR_OK;
+    data->status1.bits.readyForTransfer = false;
+    Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+
+    data->status1.bits.readyForTransfer = false;
+    Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+
+
+#ifdef DEBUG_FLOPPY_DMA    
+    printf("Command block received from memory at 0x%08X\n", data->commandBlockAddress);
+    printf("------------------------------------------------\n");
+    for (int i = 0; i < 12; i++)
+    {
+        printf("Command block %d: 0x%4X\n", i,data->commandBlock.raw[i]);
+    }
+    printf("------------------------------------------------\n");
+
+#endif
+
+    data->commandBlock.fields.status1 = 0;
+    data->commandBlock.fields.status2 = (data->drive << 8); // Selected unit is reported back in bits 8-9
+    int wordsTransfered = 0;
+
+    // Number of blocks to transfer where each block is blockSizeBytes bytes (typically 512/1024)
+    uint32_t blockCounter = (wordsToRead * 2) / self->blockSizeBytes;
+    uint32_t buffer_ptr = 0;
+
+    uint8_t *buffer;
+    int blocksRead = -1;
+
+
+
+#ifdef DEBUG_FLOPPY_DMA
+    printf("FloppyDMA_cb: Command: %d\n", data->command);
+#endif
+    switch (data->command)
+    {
+    case FLOPPY_FUNC_READ_DATA:
+        // Data is read from the floppy disk to the ND-100 memory.The start address is given as the logical sector address,
+        // and a choice can be made between the word count and the number of sectors to indicate the length of the transfer.
+        // The parameters for the transfer are given in the command field in the ND - 100 memory.
+        //  The transfer will always start at the beginning of a sector, but the number of words to be read may be preset to any number of words.
+
+#ifdef DEBUG_DETAIL
+        printf("Starting ReadData_cb on drive position %d, wordsToRead: %d\r\n", position, wordsToRead);
+#endif
+
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);                        
+            return;
+        }
+
+        // Read all blocks from floppy  disk file into buffer
+        blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, data->commandBlock.fields.diskAddress, data->drive);
+        if ((blocksRead < 0) || (blocksRead != blockCounter))
+        {
+            data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);                        
+
+            free(buffer);
+            return;
+        }
+
+        while (wordsToRead > 0)
+        {
+            // Read word from disk
+            uint32_t readData = Device_IO_BufferReadWord(self, buffer, buffer_ptr++);
+
+            // DMA Write to RAM memory
+            Device_DMAWrite(memAddress, (uint16_t)readData);
+
+            memAddress++;
+            wordsToRead--;
+            wordsTransfered++;
+        }
+        free(buffer);
+
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_WRITE_DATA:
+// Same procedure as READ DATA, except that transfer is now from the ND - 100 to the diskette.
+#ifdef DEBUG_DETAIL
+        printf("Starting WriteData_cb on drive position %d\r\n", position);
+#endif
+
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);                        
+            
+            return;
+        }
+
+        while (wordsToRead > 0)
+        {
+            uint16_t word = Device_DMARead(memAddress);
+
+            // Write word to disk buffer
+            if (Device_IO_BufferWriteWord(self, buffer, buffer_ptr++, (uint16_t)word) < 0)
+            {
+                data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+                data->status1.bits.deviceActive = false;
+                data->status1.bits.readyForTransfer = true;
+                Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);                        
+    
+                free(buffer);
+                return;
+            }
+
+            memAddress++;
+            wordsToRead--;
+            wordsTransfered++;
+        }
+
+        // Write all blocks to floppy disk file from buffer
+        int blocksWrite = self->blockCallbacks.writeFunc(self, buffer, blockCounter, data->commandBlock.fields.diskAddress, data->drive);
+        if ((blocksWrite < 0) || (blocksWrite != blockCounter))
+        {
+            data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);                        
+
+            free(buffer);
+            return;
+        }
+
+        free(buffer);
+
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_FIND_EOF:
+        printf("Starting FindEOF on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_WRITE_EOF:
+        printf("Starting WriteEOF on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_FORMAT_FLOPPY:
+        printf("Starting FormatFloppy on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_READ_FORMAT:
+#ifdef DEBUG_DETAIL
+        printf("Starting ReadFormat on drive position %d\r\n", position);
+#endif
+        //*"Read format" returns format in Status word 2
+        // Format read from diskette, valid for read format command or when eror 12
+        // Bit 0-1 Bytes pr sector
+        //	00 = 512 bytes /sector
+        //	01 = 256 Bytes /sector
+        //	10 = 123 bytes /sector
+        //	11 = 1024 bytes/sector
+
+        // Calculate format based on file size
+        if (data->diskFileSize == 315392)
+        {
+            // 8" disk
+            data->commandBlock.fields.status2 |= 0; // 512 bytes/sector
+        }
+        else if (data->diskFileSize >= 1261568)
+        {
+            // 5.25" 1.2MB disk
+            data->commandBlock.fields.status2 |= 0x3;      // 1024 bytes/sector
+            data->commandBlock.fields.status2 |= (1 << 2); // Double sided
+            data->commandBlock.fields.status2 |= (1 << 3); // Double density
+        }
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_READ_DELETED:
+        printf("Starting ReadDeletedRecord on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_WRITE_DELETED:
+        printf("Starting WriteDeletedRecord on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_COPY_FLOPPY:
+        printf("Starting CopyFloppy on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_FORMAT_TRACK:
+        printf("Starting FormatTrack on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_CHECK_FLOPPY:
+        /*
+            Data is read to the controller's local memory to test for CRC-errors.
+            The test halts with the first error discovered. The address of the erroneous sector is held in LAST MEMADDR in the status field.
+
+            The failing sector is in the least significant part of LAST MEMADDR.
+
+            Status field
+            +------+-----------------+--------------------+
+            | 15   | 14     -      8 | 7                0 |
+            +------+-----------------+--------------------+
+            | Side |   Track Number  |   Sector number    |
+            +------+-----------------+--------------------+
+
+         */
+        printf("Starting CheckFloppy on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    case FLOPPY_FUNC_IDENTIFY:
+        printf("Starting Identify on drive position %d\r\n", position);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+
+    default:
+        printf("FloppyDMA: Unknown command: %d\n", data->command);
+        Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+        break;
+    }
+
+    /**************************/
+    /* Update command block   */
+    /**************************/
+
+    // Status 1
+    data->commandBlock.fields.status1 = data->status1.raw;
+    Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
+
+    // Status 2
+    Device_DMAWrite(data->commandBlockAddress + 7, data->commandBlock.fields.status2);
+
+    // Send back last mem address
+    Device_DMAWrite(data->commandBlockAddress + 8, (uint16_t)((memAddress >> 16) & 0xFF)); // HI
+    Device_DMAWrite(data->commandBlockAddress + 9, (uint16_t)(memAddress & 0xFFFF));       // LO
+
+    // Update words to read
+    Device_DMAWrite(data->commandBlockAddress + 10, (uint16_t)((wordsTransfered >> 16) & 0xFF)); // HI
+    Device_DMAWrite(data->commandBlockAddress + 11, (uint16_t)(wordsTransfered & 0xFFFF));       // LO
+
+    // For now, just simulate completion
+    Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+}
+
 static void ExecuteFloppyGo(Device *self)
 {
 
+    if (!self)
+        return;
+
+    if ((self->blockCallbacks.readFunc) && (self->blockCallbacks.writeFunc))
+    {
+        return ExecuteFloppyGoCallback(self);
+    }
+
 #ifdef DEBUG_FLOPPY_DMA
     printf("FloppyDMA: Executing Floppy GO!\n");
-#endif    
+#endif
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return;
+    if (!data)
+        return;
 
     uint32_t sector = 1;
     uint32_t track = 0;
@@ -311,12 +666,16 @@ static void ExecuteFloppyGo(Device *self)
         break;
     }
 
+    // Reflect current sector size on the device so block callbacks know bytes per block
+    self->blockSizeBytes = bytes_pr_sector;
+
     sector = (data->commandBlock.fields.diskAddress % (sectors_pr_track - 1)) + 1;
     track = data->commandBlock.fields.diskAddress / sectors_pr_track;
 
     uint32_t position = data->commandBlock.fields.diskAddress * bytes_pr_sector;
     uint32_t wordsToRead = wordCount;
-    if (!isWC) wordsToRead *= (bytes_pr_sector >> 1);
+    if (!isWC)
+        wordsToRead *= (bytes_pr_sector >> 1);
 
     data->status1.bits.errorCode = FLOPPY_ERR_OK;
     data->status1.bits.readyForTransfer = false;
@@ -325,13 +684,12 @@ static void ExecuteFloppyGo(Device *self)
     data->status1.bits.readyForTransfer = false;
     Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
 
-
-#ifdef DEBUG_FLOPPY_DMA    
+#ifdef DEBUG_FLOPPY_DMA
     printf("Command block received from memory at 0x%08X\n", data->commandBlockAddress);
     printf("------------------------------------------------\n");
     for (int i = 0; i < 12; i++)
     {
-        printf("Command block %d: 0x%4X\n", i,data->commandBlock.raw[i]);
+        printf("Command block %d: 0x%4X\n", i, data->commandBlock.raw[i]);
     }
     printf("------------------------------------------------\n");
 
@@ -339,7 +697,6 @@ static void ExecuteFloppyGo(Device *self)
     if (!data->diskFile)
     {
         printf("Error: FloppyDMA: No disk file opened for floppy!\n");
-
     }
     int seekRes = Device_IO_Seek(self, data->diskFile, position);
     if (seekRes < 0)
@@ -353,7 +710,6 @@ static void ExecuteFloppyGo(Device *self)
         Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
         return;
     }
-    
 
     data->commandBlock.fields.status1 = 0;
     data->commandBlock.fields.status2 = (data->drive << 8); // Selected unit is reported back in bits 8-9
@@ -392,7 +748,7 @@ static void ExecuteFloppyGo(Device *self)
             memAddress++;
             wordsToRead--;
             wordsTransfered++;
-        }        
+        }
         Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
         break;
 
@@ -519,7 +875,7 @@ static void ExecuteFloppyGo(Device *self)
     /* Update command block   */
     /**************************/
 
-    // Status 1 
+    // Status 1
     data->commandBlock.fields.status1 = data->status1.raw;
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
 
@@ -528,12 +884,11 @@ static void ExecuteFloppyGo(Device *self)
 
     // Send back last mem address
     Device_DMAWrite(data->commandBlockAddress + 8, (uint16_t)((memAddress >> 16) & 0xFF)); // HI
-    Device_DMAWrite(data->commandBlockAddress + 9, (uint16_t)(memAddress & 0xFFFF)); // LO
+    Device_DMAWrite(data->commandBlockAddress + 9, (uint16_t)(memAddress & 0xFFFF));       // LO
 
     // Update words to read
     Device_DMAWrite(data->commandBlockAddress + 10, (uint16_t)((wordsTransfered >> 16) & 0xFF)); // HI
-    Device_DMAWrite(data->commandBlockAddress + 11, (uint16_t)(wordsTransfered & 0xFFFF)); // LO
-
+    Device_DMAWrite(data->commandBlockAddress + 11, (uint16_t)(wordsTransfered & 0xFFFF));       // LO
 
     // For now, just simulate completion
     Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
@@ -547,7 +902,6 @@ static bool ReadEnd(Device *self, int drive)
 
     data->status1.bits.deviceActive = false;
     data->status1.bits.readyForTransfer = true;
-
 
     data->commandBlock.fields.status1 = CalculateStatusRegister1(self);
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
@@ -570,6 +924,10 @@ static bool AutoLoadEnd(Device *self, int drive)
 
 static bool OpenFloppyFile(Device *self, int drive)
 {
+
+    // If we have hooked up callbacks, we don't need to open a file
+    if ((self->blockCallbacks.readFunc) && (self->blockCallbacks.writeFunc)) return true;
+
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
     if (!data)
         return false;
@@ -598,6 +956,10 @@ static bool OpenFloppyFile(Device *self, int drive)
 
 static bool CloseFloppyFile(Device *self, int drive)
 {
+
+    // If we have hooked up callbacks, we don't need to close a file
+    if ((self->blockCallbacks.readFunc) && (self->blockCallbacks.writeFunc)) return true;
+
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
     if (!data)
         return false;
@@ -610,11 +972,11 @@ static bool CloseFloppyFile(Device *self, int drive)
     return true;
 }
 
-
 Device *CreateFloppyDMADevice(uint8_t thumbwheel)
 {
     Device *dev = (Device *)malloc(sizeof(Device));
-    if (!dev) return NULL;
+    if (!dev)
+        return NULL;
 
     FloppyDMAData *data = (FloppyDMAData *)malloc(sizeof(FloppyDMAData));
     if (!data)
@@ -626,12 +988,8 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     memset(dev, 0, sizeof(Device));
     memset(data, 0, sizeof(FloppyDMAData));
 
-    
-
     // Initialize device base structure
     Device_Init(dev, thumbwheel, DEVICE_CLASS_BLOCK, 1024);
-
-
 
     // Initialize device state
     FloppyDMA_Reset(dev);
@@ -659,12 +1017,10 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     }
 
     dev->interruptLevel = 11; // floppy
-    
-    data->floppyName = "FLOPPY.IMG"; //TODO: Make this configurable
+
+    data->floppyName = "FLOPPY.IMG"; // TODO: Make this configurable
     data->diskFileSize = 0;
 
-  
-    
     // Set up function pointers
     dev->Read = FloppyDMA_Read;
     dev->Write = FloppyDMA_Write;

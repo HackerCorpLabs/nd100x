@@ -36,6 +36,10 @@ void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char* diskFileName)
 {
     disk->unit = unit;
 
+    // TODO: Detect disk type (maybe automatically detected from file size?)    
+    DiskSMD_SetDiskType(disk, DISK_75_MB);
+
+
     // Generat disk filename
     if (diskFileName == NULL) {
         disk->diskFileName = malloc(32);
@@ -51,8 +55,6 @@ void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char* diskFileName)
         return;
     }
 
-    // TODO: Detect disk type (maybe automatically detected from file size?)    
-    DiskSMD_SetDiskType(disk, DISK_75_MB);
 }
 
 void DiskSMD_SetDiskType(DiskInfo *disk,DiskType dt)
