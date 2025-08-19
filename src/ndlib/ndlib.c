@@ -29,7 +29,7 @@
 #include "ndlib_protos.h"
 
 
-struct termios savetty; 
+struct termios saved_tty; 
 struct config_t *pCFG = NULL;
 
 /* 
@@ -42,13 +42,13 @@ struct config_t *pCFG = NULL;
 
 void unsetcbreak(void)
 { /* prepare to exit this program. */
-	tcsetattr(0, TCSADRAIN, &savetty);
+	tcsetattr(0, TCSADRAIN, &saved_tty);
 }
 
 void setcbreak(void)
 { /* set console input to raw mode. */
 	struct termios tty;
-	tcgetattr(0, &savetty);
+	tcgetattr(0, &saved_tty);
 	tcgetattr(0, &tty);
 	tty.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
 	tty.c_cc[VTIME] = (cc_t)0; /* inter-character timer unused */

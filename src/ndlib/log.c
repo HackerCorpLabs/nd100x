@@ -23,7 +23,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#include "ndlib_types.h"    
+#include "ndlib_types.h"
 #include "ndlib_protos.h"
 
 

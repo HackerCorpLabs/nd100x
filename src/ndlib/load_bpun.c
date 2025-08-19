@@ -21,11 +21,12 @@
  */
 
 
-#include "ndlib_types.h"
-#include "ndlib_protos.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include "ndlib_types.h"
+#include "ndlib_protos.h"
 
 extern void disasm_addword(uint16_t addr, uint16_t myword);
 extern int DISASM;
@@ -45,7 +46,8 @@ int LoadBPUN(const char* filename, bool verbose) {
 
     bool loadOK = LoadBPUNStream(bpunStream,&bpun );        
 	fclose(bpunStream);
-
+    bpunStream = NULL;
+     
 	if (!loadOK) {
 		printf("BPUN load failed: Error while parsing BPUN format (file may be corrupted or in wrong format)\n");
         return -1;
@@ -196,7 +198,7 @@ bool LoadBPUNStream(FILE* bpunStream, BPUN_Header* header)
                     data_word |= (b & 0xFF);
                 }
 
-				printf("Writing %06o to %06o\n", data_word, dataLoadAddress);
+				//printf("BPUN:Writing %06o to %06o\n", data_word, dataLoadAddress);
                 if (DISASM)
                     disasm_addword(dataLoadAddress, data_word);
 
