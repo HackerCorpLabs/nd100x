@@ -125,16 +125,21 @@ typedef enum
     FLOPPY_ERR_CRC = 5,
     FLOPPY_ERR_SECTOR_NOT_FOUND = 6,
     FLOPPY_ERR_TRACK_NOT_FOUND = 7,
+    FORMAT_NOT_FOUND = 8, // oct 10
     /*
-        FORMAT NOT FOUND = oct 10
+        
         DISKETTE DEFECT (IMPOSSIBLE TO FORMAT) = oct 11
         FORMAT MISMATCH = oct 12
         ILLEGAL FORMAT SPECIFIED oct 13
         SINGLE SIDED DISKETTE INSERTED oct 14
         DOUBLE SIDED DISKETTE INSERTED oct 15
-        wRITE PROTECTED DISKETTE/CARTRIGE oct 16
+    */
+    WRITE_PROTECTED = 14, // WRITE PROTECTED DISKETTE/CARTRIGE oct 16
+    /*
         DELETED RECORD = oct 17
-        DRIVE NOT READV = oct 20
+        */
+    DRIVE_NOT_READY = 16, // oct 20
+    /*
         CONTROLLER Busv ON START = oct 21
         LOST DATA(OVER 0R UNDERRUN) = oct 22
         TRACK ZERO NOT DETECTED = oct 23
@@ -167,7 +172,9 @@ typedef enum
         UNIDENTIFIED EXCEPTION = 66
         ILLEGAL COMMAND TO STREAMER = 67
         PROM CHECKSUM ERROR = oct 70
-        RAM ERROR = oct 71
+    */
+        RAM_ERROR = 57, // oct 71
+    /*
         CTC ERROR = oct 72
         DMACTRL ERROR = oct 73 (selftest error)
         VCO ERROR = oct 74
@@ -369,26 +376,17 @@ typedef struct
     uint16_t readFormat;    // Format read from disk
     long diskFileSize;      // Size of floppy disk file
     bool readOnly;          // Read-only flag
-
-    // When not using callback,open file local
-    FILE *diskFile;         // Disk file handle
-    const char *floppyName; // Floppy file name
-
 } FloppyDMAData;
 
 
 
 // Function declarations
 Device *CreateFloppyDMADevice(uint8_t thumbwheel);
-static void ExecuteFloppyGoCallback(Device *self);
 static void ExecuteFloppyGo(Device *self);
 static void ExecuteTest(Device *self, int testData);
 static void ExecuteAutoload(Device *self, int drive);
 
 static bool AutoLoadEnd(Device *self, int drive);
 static bool ReadEnd(Device *self, int drive);
-
-static bool OpenFloppyFile(Device *self, int drive);
-static bool CloseFloppyFile(Device *self, int drive);
 
 #endif /* DEVICE_FLOPPY_DMA_H */
