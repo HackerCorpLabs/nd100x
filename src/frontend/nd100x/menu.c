@@ -836,7 +836,7 @@ static void unmount_floppy(int unit) {
 // Initialize mount popup window
 static void init_mount_popup() {
     // Calculate popup window size and position
-    int popup_height = 12;
+    int popup_height = 13;
     int popup_width = 60;
     int popup_y = (menu_state.max_y - popup_height) / 2;
     int popup_x = (menu_state.max_x - popup_width) / 2;
@@ -899,7 +899,7 @@ static void draw_mount_popup() {
     if (floppy->drive_type == DRIVE_SMD) {
         // SMD units 0-3
         for (int i = 0; i < 4; i++) {
-            if (current_drives[i].name[0] != '\0') {
+            if (current_drives[i].is_mounted) {
                 // Unit is mounted - show current disk
                 mvwprintw(popup, 7 + i, 4, "%s smd-disc-1 unit %d (mounted: %s)", 
                           menu_state.mount_popup.selected_unit == i ? ">" : " ",
@@ -912,9 +912,9 @@ static void draw_mount_popup() {
             }
         }
     } else {
-        // Floppy units 0-1
-        for (int i = 0; i < 2; i++) {
-            if (current_drives[i].name[0] != '\0') {
+        // Floppy units 0-2
+        for (int i = 0; i < 3; i++) {
+            if (current_drives[i].is_mounted) {
                 // Unit is mounted - show current disk
                 mvwprintw(popup, 7 + i, 4, "%s floppy-disc-1 unit %d (mounted: %s)", 
                           menu_state.mount_popup.selected_unit == i ? ">" : " ",
@@ -929,7 +929,7 @@ static void draw_mount_popup() {
     }
     
     // Draw instructions
-    int instruction_line = (floppy->drive_type == DRIVE_SMD) ? 12 : 10;
+    int instruction_line = (floppy->drive_type == DRIVE_SMD) ? 12 : 11;
     mvwprintw(popup, instruction_line, 2, "ESC=Exit  ENTER=Mount  UP/DOWN=Select Unit");
     
     wrefresh(popup);
@@ -945,7 +945,7 @@ static void handle_mount_popup_input(int ch) {
             break;
         case KEY_DOWN:
             {
-                int max_unit = (menu_state.mount_popup.floppy && menu_state.mount_popup.floppy->drive_type == DRIVE_SMD) ? 3 : 1;
+                int max_unit = (menu_state.mount_popup.floppy && menu_state.mount_popup.floppy->drive_type == DRIVE_SMD) ? 3 : 2;
                 if (menu_state.mount_popup.selected_unit < max_unit) {
                     menu_state.mount_popup.selected_unit++;
                 }
@@ -1051,47 +1051,53 @@ static void draw_unmount_popup() {
         wrefresh(popup);
         return;
     }
+
+    int y_pos = 2;
     
     // Draw floppy drives section
-    mvwprintw(popup, 2, 2, "Floppy Drives (Units 0-1):");
-    for (int i = 0; i < 2; i++) {
-        if (floppy_drives[i].name[0] != '\0') {
+    mvwprintw(popup, y_pos++, 2, "Floppy Drives (Units 0-2):");
+    for (int i = 0; i < 3; i++) {
+        if (floppy_drives[i].is_mounted) {
             // Drive is mounted - show name, description, source type, and file size
             const char* source_type = floppy_drives[i].is_remote ? "REMOTE" : "LOCAL";
             char size_str[32];
             format_file_size(floppy_drives[i].data_size, size_str, sizeof(size_str));
-            mvwprintw(popup, 3 + i, 4, "%s Unit %d: %s (%s, %s) [%s]", 
+            mvwprintw(popup, y_pos++, 4, "%s Unit %d: %s (%s, %s) [%s]", 
                       menu_state.unmount_popup.selected_unit == i ? ">" : " ",
                       i, floppy_drives[i].name, floppy_drives[i].description, size_str, source_type);
         } else {
             // Drive is not mounted
-            mvwprintw(popup, 3 + i, 4, "%s Unit %d: (not mounted)", 
+            mvwprintw(popup, y_pos++, 4, "%s Unit %d: (not mounted)", 
                       menu_state.unmount_popup.selected_unit == i ? ">" : " ",
                       i);
         }
     }
     
+    y_pos++;
+
     // Draw SMD drives section
-    mvwprintw(popup, 6, 2, "SMD Drives (Units 0-3):");
+    mvwprintw(popup, y_pos++, 2, "SMD Drives (Units 0-3):");
     for (int i = 0; i < 4; i++) {
-        if (smd_drives[i].name[0] != '\0') {
+        if (smd_drives[i].is_mounted) {
             // Drive is mounted - show name, description, source type, and file size
             const char* source_type = smd_drives[i].is_remote ? "REMOTE" : "LOCAL";
             char size_str[32];
             format_file_size(smd_drives[i].data_size, size_str, sizeof(size_str));
-            mvwprintw(popup, 7 + i, 4, "%s Unit %d: %s (%s, %s) [%s]", 
-                      menu_state.unmount_popup.selected_unit == (i + 2) ? ">" : " ",
+            mvwprintw(popup, y_pos++, 4, "%s Unit %d: %s (%s, %s) [%s]", 
+                      menu_state.unmount_popup.selected_unit == (i + 3) ? ">" : " ",
                       i, smd_drives[i].name, smd_drives[i].description, size_str, source_type);
         } else {
             // Drive is not mounted
-            mvwprintw(popup, 7 + i, 4, "%s Unit %d: (not mounted)", 
-                      menu_state.unmount_popup.selected_unit == (i + 2) ? ">" : " ",
+            mvwprintw(popup, y_pos++, 4, "%s Unit %d: (not mounted)", 
+                      menu_state.unmount_popup.selected_unit == (i + 3) ? ">" : " ",
                       i);
         }
     }
     
+    y_pos++;
+
     // Draw instructions
-    mvwprintw(popup, 12, 2, "ESC=Exit  ENTER=Unmount  UP/DOWN=Select");
+    mvwprintw(popup, y_pos++, 2, "ESC=Exit  ENTER=Unmount  UP/DOWN=Select");
     
     wrefresh(popup);
 }
@@ -1105,7 +1111,7 @@ static void handle_unmount_popup_input(int ch) {
             }
             break;
         case KEY_DOWN:
-            if (menu_state.unmount_popup.selected_unit < 5) {  // 0-1 for floppy, 2-5 for SMD
+            if (menu_state.unmount_popup.selected_unit < 6) {  // 0-2 for floppy, 3-6 for SMD
                 menu_state.unmount_popup.selected_unit++;
             }
             break;
@@ -1116,14 +1122,14 @@ static void handle_unmount_popup_input(int ch) {
                 DRIVE_TYPE drive_type;
                 int unit;
                 
-                if (menu_state.unmount_popup.selected_unit < 2) {
+                if (menu_state.unmount_popup.selected_unit < 3) {
                     // Floppy drive
                     drive_type = DRIVE_FLOPPY;
                     unit = menu_state.unmount_popup.selected_unit;
                 } else {
                     // SMD drive
                     drive_type = DRIVE_SMD;
-                    unit = menu_state.unmount_popup.selected_unit - 2;
+                    unit = menu_state.unmount_popup.selected_unit - 3;
                 }
                 
                 // Call unmount function
