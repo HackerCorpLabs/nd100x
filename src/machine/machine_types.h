@@ -57,6 +57,7 @@ typedef struct {
     char name[256];
     char description[1024];
     char image_path[1024];  // Path or URL of the image
+    bool is_mounted;        // Is the drive mounted
     bool is_remote;         // true if downloaded from HTTP, false if local file
     bool is_writeprotected; // true if the drive is write-protected
     
