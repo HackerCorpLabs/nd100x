@@ -79,5 +79,4 @@ Device *CreateSMDDevice(uint8_t thumbwheel);
 void SMD_Destroy(Device *dev);
 
 /* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
-void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char *diskFileName);
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
