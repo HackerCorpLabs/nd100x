@@ -2,6 +2,7 @@
 set(SOURCES 
     config.c 
     nd100x.c
+    menu.c
 )
 
 # Create the executable
@@ -14,7 +15,9 @@ target_include_directories(nd100x PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ndlib
     ${CMAKE_SOURCE_DIR}/src/devices
     ${CMAKE_SOURCE_DIR}/src/machine
-    ${CMAKE_SOURCE_DIR}/src/debugger    
+    ${CMAKE_SOURCE_DIR}/src/debugger
+    ${CURL_INCLUDE_DIRS}
+    ${CURSES_INCLUDE_DIRS}
 )
 
 # Link with required libraries
@@ -23,7 +26,10 @@ target_link_libraries(nd100x PRIVATE
     devices
     cpu
     ndlib
-    debugger    
+    debugger
+    ${CURL_LIBRARIES}
+    cjson_objects
+    ${CURSES_LIBRARIES}
 )
 
 # Add debug flags as needed (matching Makefile)
@@ -62,9 +68,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
 # Create the prototypes header using mkptypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND echo "#include \"../../machine/machine_types.h\"" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.c ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/menu.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.c ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c ${CMAKE_CURRENT_SOURCE_DIR}/menu.c ${CMAKE_SOURCE_DIR}/src/machine/machine_types.h
     COMMENT "Generating nd100x_protos.h"
 )
 
