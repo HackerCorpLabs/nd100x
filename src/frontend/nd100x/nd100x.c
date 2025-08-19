@@ -59,6 +59,10 @@ void stop_debugger_thread();
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
+#include "keyboard.h"
+
+// Function declaration for the menu
+int show_floppy_menu(void);
 
 
 // dont include debugger.h here, it will cause other problems, but we define the function here
@@ -140,18 +144,14 @@ void initialize()
 {
    srand ( time(NULL) ); /* Generate PRNG Seed */
    used=calloc(1,sizeof(struct rusage)); /* Perf counter stuff */
-	
+
 
 	//blocksignals();
 	register_signals();
 	
-
-	
 	if (DISASM) disasm_init();
 
 	machine_init(config.debuggerEnabled);
-
-
 
     //     {0340, 044, 044, "TERMINAL 5/ TET12"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
@@ -178,8 +178,9 @@ void initialize()
 void cleanup()
 {
 	cleanup_machine();
-	unsetcbreak ();
+	unsetcbreak ();	
 }
+
 
 
 // Character device output handler for terminals
@@ -247,39 +248,34 @@ int main(int argc, char *argv[])
         // Handle keyboard input to console
 		if (runMode != CPU_SHUTDOWN)
 		{
-			// Check for keyboard input
-	
-            char recv_data[20];
-            int numbytes = 10;
-            int numread;
-
-            // Try to read from stdin
-            struct pollfd fds;
-            fds.fd = 0; // stdin
-            fds.events = POLLIN;
-            if (poll(&fds, 1, 0) > 0 && (fds.revents & POLLIN)) {
-                numread = read(0, recv_data, numbytes);                
-            } else {
-                numread = 0;
-            }
+			// Use common keyboard input handling
+            char keybuf[16];
+            int keylen = read_key_sequence(keybuf, sizeof(keybuf));
             
+            if (keylen > 0) {
+                // Check for F12 key sequence
+                if (is_f12_key(keybuf)) {
+                    // F12 detected - show floppy menu
+                    int ret = show_floppy_menu();
+                    if (ret == -1) {
+                        printf("Failed to show floppy menu\n");
+                    }
+                } else {
+                    // Process regular characters
+                    for (int i = 0; i < keylen; i++) {
+                        char ch = keybuf[i];
                         
-            for (int i = 0; i < numread; i++)
-            {
-                char ch = (char)recv_data[i];
+                        // ND doesnt like \n
+                        if (ch == '\n') {
+                            ch = '\r';
+                        }
 
-                // ND doesnt like \n
-                if (ch == '\n')
-                {
-                    ch = '\r';
-                }
-
-                if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
-                    debugger_kbd_input(ch);
-                }
-                else
-                {
-                    Terminal_QueueKeyCode(terminal, ch);
+                        if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
+                            debugger_kbd_input(ch);
+                        } else {
+                            Terminal_QueueKeyCode(terminal, ch);
+                        }
+                    }
                 }
             }
         }
