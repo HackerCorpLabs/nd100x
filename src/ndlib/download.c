@@ -125,7 +125,7 @@ char* download_file(const char* url) {
     }
     
     if (download_data.data && download_data.size > 0) {
-        printf("Successfully downloaded %zu bytes from %s\n", download_data.size, url);
+        //printf("Successfully downloaded %zu bytes from %s\n", download_data.size, url);
         
         // Store the actual size globally
         g_downloaded_size = download_data.size;
