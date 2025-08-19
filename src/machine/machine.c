@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "machine_types.h"
 #include "machine_protos.h"
@@ -53,10 +54,10 @@ const char* boot_type_str[] = {
 
 // Initialize drive arrays
 void init_drive_arrays() {
-    // Allocate and initialize floppy drives array (2 units)
-    floppy_drives = malloc(2 * sizeof(MountedDriveInfo_t));
+    // Allocate and initialize floppy drives array (3 units)
+    floppy_drives = malloc(3 * sizeof(MountedDriveInfo_t));
     if (floppy_drives) {
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 3; i++) {
             floppy_drives[i].md5[0] = '\0';
             floppy_drives[i].name[0] = '\0';
             floppy_drives[i].description[0] = '\0';
@@ -127,7 +128,7 @@ cleanup_machine (void)
 	
 	// Unmount all floppy drives
 	if (floppy_drives) {
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < 3; i++) {
 			if (floppy_drives[i].name[0] != '\0') {
 				unmount_drive(DRIVE_FLOPPY, i);
 			}
@@ -307,7 +308,6 @@ void write_memory(uint16_t address, uint16_t value)
      }
  }
  
-
  /** DEVICE MOUNTING */
 
  // Mount a drive to the specified unit
@@ -321,21 +321,21 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
         max_units = 4;  // SMD has units 0-3
     } else if (drive_type == DRIVE_FLOPPY) {
         drives = floppy_drives;
-        max_units = 2;  // Floppy has units 0-1
+        max_units = 3;  // Floppy has units 0-2
     } else {
-        printf("Error: Invalid drive type\n");
+        //printf("Error: Invalid drive type\n");
         return;
     }
     
     // Check if unit is valid
     if (unit < 0 || unit >= max_units) {
-        printf("Error: Invalid unit %d for drive type %d\n", unit, drive_type);
+        //printf("Error: Invalid unit %d for drive type %d\n", unit, drive_type);
         return;
     }
     
     // Check if array is initialized
     if (!drives) {
-        printf("Error: Drive arrays not initialized\n");
+        //printf("Error: Drive arrays not initialized\n");
         return;
     }
     
@@ -361,37 +361,49 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
                 drives[unit].is_remote = true;
                 drives[unit].data.remote_data = image_data;
                 drives[unit].data_size = get_downloaded_size();  // Use actual size instead of strlen()
-                printf("Downloaded %zu bytes of image data\n", drives[unit].data_size);
+                //printf("Downloaded %zu bytes of image data\n", drives[unit].data_size);
             } else {
-                printf("Error: Failed to download image from %s\n", image_path);
+                //printf("Error: Failed to download image from %s\n", image_path);
                 return;
             }
         } else {
 
             // TODO: Check if we have write access to the file "image_path"
             
+            
+            drives[unit].is_writeprotected = false;
+
             // Local file - open for read-write binary
             FILE* file = fopen(image_path, "rb+");
+            if (!file) {
+                // If we dont have write access, try to open the file for read-only
+                if (errno == EACCES || errno == EROFS || errno == EPERM) {
+                    file = fopen(image_path, "rb");  // fallback
+                    if (file) drives[unit].is_writeprotected = true;
+                }
+            }
             if (file) {
                 // Get file size
                 fseek(file, 0, SEEK_END);
                 long file_size = ftell(file);
                 fseek(file, 0, SEEK_SET);
                 
-                drives[unit].is_remote = false;
-                drives[unit].is_writeprotected = false;
+                drives[unit].is_remote = false;                
                 drives[unit].data.local_file = file;
                 drives[unit].data_size = (size_t)file_size;
                 
-                printf("Opened local file: %s (size: %ld bytes)\n", image_path, file_size);
+                //printf("Opened local file: %s (size: %ld bytes)\n", image_path, file_size);
             } else {
-                printf("Error: Failed to open local file %s\n", image_path);
+                //printf("Error: Failed to open local file %s\n", image_path);
+                drives[unit].is_mounted = false;
                 return;
             }
         }
     }
     
     // Mount the drive
+    drives[unit].is_mounted = true;
+
     strncpy(drives[unit].md5, md5, sizeof(drives[unit].md5) - 1);
     drives[unit].md5[sizeof(drives[unit].md5) - 1] = '\0';
     
@@ -423,7 +435,7 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
         max_units = 4;  // SMD has units 0-3
     } else if (drive_type == DRIVE_FLOPPY) {
         drives = floppy_drives;
-        max_units = 2;  // Floppy has units 0-1
+        max_units = 3;  // Floppy has units 0-2
     } else {
         printf("Error: Invalid drive type\n");
         return;
@@ -470,6 +482,7 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
     }
     
     // Clear the drive entry
+    drives[unit].is_mounted = false;
     drives[unit].md5[0] = '\0';
     drives[unit].name[0] = '\0';
     drives[unit].description[0] = '\0';
@@ -477,105 +490,6 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
     drives[unit].is_remote = false;
     drives[unit].data_size = 0;
     drives[unit].block_size = 0;
-    
-    // TODO: Implement actual unmounting logic with the machine's drive system
-}
-
-// Read a block from the specified drive
-int read_block(DRIVE_TYPE drive_type, int unit, void *buffer, int block_size) {
-    if (!buffer || block_size <= 0) {
-        return -1;  // Invalid parameters
-    }
-    
-    // Check if drive is mounted
-    MountedDriveInfo_t* drives = NULL;
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-    } else {
-        return -1;  // Invalid drive type
-    }
-    
-    if (!drives || drives[unit].name[0] == '\0') {
-        return -1;  // Drive not mounted
-    }
-    
-    // Check if block size matches drive's block size
-    if (block_size != drives[unit].block_size) {
-        printf("Warning: Requested block size %d doesn't match drive block size %d\n", 
-               block_size, drives[unit].block_size);
-    }
-    
-    // Read data based on type (local file or remote data)
-    if (drives[unit].is_remote) {
-        // Read from downloaded remote data
-        if (drives[unit].data.remote_data) {
-            // For now, just copy the first block_size bytes (or less if data is smaller)
-            size_t copy_size = (drives[unit].data_size < block_size) ? drives[unit].data_size : block_size;
-            memcpy(buffer, drives[unit].data.remote_data, copy_size);
-            printf("Read %zu bytes from remote data on %s unit %d\n", copy_size,
-                   drive_type == DRIVE_SMD ? "SMD" : "floppy", unit);
-            return (int)copy_size;
-        }
-    } else {
-        // Read from local file
-        if (drives[unit].data.local_file) {
-            size_t bytes_read = fread(buffer, 1, block_size, drives[unit].data.local_file);
-            printf("Read %zu bytes from local file on %s unit %d\n", bytes_read,
-                   drive_type == DRIVE_SMD ? "SMD" : "floppy", unit);
-            return (int)bytes_read;
-        }
-    }
-    
-    return -1;  // Error reading data
-}
-
-// Write a block to the specified drive
-int write_block(DRIVE_TYPE drive_type, int unit, const void *buffer, int block_size) {
-    if (!buffer || block_size <= 0) {
-        return -1;  // Invalid parameters
-    }
-    
-    // Check if drive is mounted
-    MountedDriveInfo_t* drives = NULL;
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-    } else {
-        return -1;  // Invalid drive type
-    }
-    
-    if (!drives || drives[unit].name[0] == '\0') {
-        return -1;  // Drive not mounted
-    }
-    
-    // Check if block size matches drive's block size
-    if (block_size != drives[unit].block_size) {
-        printf("Warning: Requested block size %d doesn't match drive block size %d\n", 
-               block_size, drives[unit].block_size);
-    }
-    
-    // Write data based on type (local file or remote data)
-    if (drives[unit].is_remote) {
-        // For remote data, we would need to implement a more sophisticated approach
-        // For now, just log that we can't write to remote data
-        printf("Warning: Cannot write to remote data on %s unit %d\n", 
-               drive_type == DRIVE_SMD ? "SMD" : "floppy", unit);
-        return -1;  // Cannot write to remote data
-    } else {
-        // Write to local file
-        if (drives[unit].data.local_file) {
-            size_t bytes_written = fwrite(buffer, 1, block_size, drives[unit].data.local_file);
-            fflush(drives[unit].data.local_file);  // Ensure data is written to disk
-            printf("Wrote %zu bytes to local file on %s unit %d\n", bytes_written,
-                   drive_type == DRIVE_SMD ? "SMD" : "floppy", unit);
-            return (int)bytes_written;
-        }
-    }
-    
-    return -1;  // Error writing data
 }
 
 // List mounted drives for the specified drive type
@@ -589,7 +503,7 @@ MountedDriveInfo_t* list_mount(DRIVE_TYPE drive_type) {
     }
 }
 
-// Callback-based block IO for block devices
+// Callback-based block READ for block devices
 int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
 
@@ -602,7 +516,7 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
     size_t offset = (size_t)blockAddress * device->blockSizeBytes;
 
     MountedDriveInfo_t *entry = &drives[unit];
-    if (entry->name[0] == '\0') return -1; // not mounted
+    if (!entry->is_mounted) return -1; // not mounted    
 
     if (entry->is_remote) {
         if (!entry->data.remote_data) return -1;
@@ -626,6 +540,7 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
     return (int)size; // number of blocks
 }
 
+// Callback-based block WRITE for block devices
 int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
 
@@ -638,7 +553,7 @@ int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint
     size_t offset = (size_t)blockAddress * device->blockSizeBytes;
 
     MountedDriveInfo_t *entry = &drives[unit];
-    if (entry->name[0] == '\0') return -1; // not mounted
+    if (!entry->is_mounted) return -1; // not mounted        
 
     if (entry->is_remote) {
         // For remote images in-memory, allow write if buffer exists and fits
@@ -654,6 +569,8 @@ int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint
     return (int)size;
 }
 
+// Callback-based DISK INFO for block devices
+// Needed to retrive info about image size and if its write protected
 int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_protected, int unit) {
     if (!device) return -1;
 
@@ -666,7 +583,7 @@ int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_p
     if (!drives) return -1;
 
     MountedDriveInfo_t *entry = &drives[unit];
-    if (entry->name[0] == '\0') return -1;
+    if (!entry->is_mounted) return -1; // not mounted        
 
     *image_size = entry->data_size;
 
@@ -676,9 +593,7 @@ int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_p
         *is_write_protected = false;
     }
     else {
-        // TODO: Check if we have write access to the file
-        // For now, we assume that we have write access to the file
-        *is_write_protected = false;
+        *is_write_protected = entry->is_writeprotected;
     }
 
     return 0;
