@@ -23,6 +23,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(PLATFORM_WASM) || defined(__EMSCRIPTEN__) || defined(PLATFORM_RISCV)
+
+// WASM/RISCV build: CURL is not available. Provide stubs.
+
+// Get the actual size of downloaded data (not supported in WASM)
+size_t get_downloaded_size(void) {
+	return 0;
+}
+
+// Unified download function stub for WASM build
+char* download_file(const char* url) {
+	(void)url;
+	fprintf(stderr, "Download not supported in WASM build (CURL disabled)\n");
+	return NULL;
+}
+
+#else
+
 #include <curl/curl.h>
 
 // Global variable to track the actual downloaded size
@@ -150,3 +169,5 @@ char* download_file(const char* url) {
         return NULL;
     }
 } 
+
+#endif // PLATFORM_WASM || __EMSCRIPTEN__
