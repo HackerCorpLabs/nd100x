@@ -10,6 +10,8 @@ set(NDLIB_SOURCE_FILES
     load_bpun.c
     ndlib.c
     log.c
+    download.c
+    keyboard.c
 )
 
 # Generate prototypes with mktypes
@@ -19,6 +21,8 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/load_bpun.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/ndlib.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/log.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/download.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/keyboard.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for NDLIB"
     VERBATIM
@@ -44,6 +48,8 @@ elseif(PLATFORM_WINDOWS)
     target_compile_definitions(ndlib PUBLIC PLATFORM_WINDOWS)
 elseif(PLATFORM_WASM)
     target_compile_definitions(ndlib PUBLIC PLATFORM_WASM)
+elseif(PLATFORM_RISCV)
+    target_compile_definitions(ndlib PUBLIC PLATFORM_RISCV)
 endif()
 
 # Install targets

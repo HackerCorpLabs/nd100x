@@ -20,8 +20,6 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,7 +33,18 @@
 #include "deviceSMD.h"
 
 // #define DEBUG_DETAIL
-//#define DEBUG_HIGH_LEVEL
+// #define DEBUG_HIGH_LEVEL
+
+// Local forward declarations for internal helpers
+static void ClearFlipFlops(ControllerRegs *regs);
+static void SetSelectedUnit(ControllerRegs *regs, uint8_t unit);
+static void HandleError(Device *self, DiskError error);
+static void ClearErrors(Device *self);
+static void ExecuteGO(Device *self);
+static long ConvertCHStoLBA(ControllerRegs *regs, int cylinder, int head, int sector);
+static uint32_t IncrementCoreAddress(ControllerRegs *regs);
+static uint32_t DecrementWordCounter(ControllerRegs *regs);
+static bool SMDReadEnd(Device *self, int drive);
 
 static void SMD_Reset(Device *self)
 {
@@ -53,6 +62,7 @@ static void SMD_Reset(Device *self)
     data->track = 0;
     data->selectedDrive = -1;
     data->sectorAutoIncrement = false;
+    self->blockSizeBytes = 1024; // Default block size in bytes
 }
 
 static uint16_t SMD_Read(Device *self, uint32_t address)
@@ -441,6 +451,9 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
             }
             data->regs.selectedDisk->onCylinder = 1;
             data->regs.selectedDisk->diskUnitNotReady = 0;
+
+
+
             ExecuteGO(self);
             // printf("SMD::ExecuteGo returned\n");
         }
@@ -612,51 +625,46 @@ static int SMD_Boot(Device *self, uint16_t device_id)
     SMDData *data = (SMDData *)self->deviceData;
     ControllerRegs *regs = &data->regs;
 
+    if ((!self->blockCallbacks.readFunc) || (!self->blockCallbacks.writeFunc)) return -1; // Need callbacks hooked up
+
     regs->selectedUnit = 0;
     regs->selectedDisk = &regs->disks[regs->selectedUnit];
 
-    // Open the disk file if neccesary
-    if (!data->regs.selectedDisk->file)
-    {
-        char cwd[PATH_MAX];
-        if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            printf("Failed to open file %s/%s: %s\n", cwd, data->regs.selectedDisk->diskFileName, strerror(errno));
-        } else {
-            printf("Failed to open file %s: %s (getcwd failed: %s)\n", data->regs.selectedDisk->diskFileName, strerror(errno), strerror(errno));
-        }
-        HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
-        return -1;
-    }
+    uint32_t blockCounter = 4;   // 4 blocks of 1024 bytes each (total 4096 bytes or 2048 KWords)
+    uint8_t *buffer= (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
 
-    // Seek to the beginning of the disk
-    int seekRes = Device_IO_Seek(self, data->regs.selectedDisk->file, 0);
-    if (seekRes < 0)
-    {
-        printf("Failed to seek to the beginning of the disk\n");
-        HandleError(self, DISK_ERR_SEEK_ERROR); // SEEK_ERROR
+    if (!buffer) return -1;
+
+    int wordCounter = 2048; // Load 2 KW of data from the disk (4096 bytes) to memory starting at address 0
+    uint32_t coreAddress = 0;
+
+    // Read all blocks from SMD disk file into buffer
+    int blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, 0, regs->selectedUnit);
+    if ((blocksRead < 0) || (blocksRead != blockCounter))
+    {     
+        free(buffer);
         return -1;
     }
-    int wordCounter = 2048; // Load 2 KW of data from the disk (4096 bytes) to memory starting at address 0
 
     for (int i = 0; i < wordCounter; i++)
     {
-        // Read word from disk
-        uint32_t readData;
-        readData = Device_IO_ReadWord(self, data->regs.selectedDisk->file);
-        if (readData < 0)
-        {
-            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
-            return -1;
-        }
+        // Read word from disk buffer
+        uint32_t readData = Device_IO_BufferReadWord(self, buffer, i);
 
         // Write to memory (DMA)
         Device_DMAWrite(i, (uint16_t)readData);
     }
 
+    free(buffer);
+
     // Return boot addrees. For BPUN this might be different!
-    return 0;
+    return 0;    
 }
 
+///
+
+/// And callbacks for read and write are set
+///
 static void ExecuteGO(Device *self)
 {
 
@@ -667,13 +675,65 @@ static void ExecuteGO(Device *self)
     if (!self)
         return;
 
+    if ((!self->blockCallbacks.readFunc) || (!self->blockCallbacks.writeFunc)) return; // Need callbacks hooked up
+
+
     SMDData *data = (SMDData *)self->deviceData;
     if (!data->regs.selectedDisk)
         return;
     ControllerRegs *regs = &data->regs;
 
-    // Read out information from floppy - is it write protceted ?
-    // TODO: ?? regs.selectedDisk.diskIsWriteProtected = device.read_only;
+    // Get information on file size and readonly
+    if (self->blockCallbacks.diskInfoFunc)
+    {
+        bool isWriteProtected = false;
+        size_t imageSize = 0;
+
+        self->blockCallbacks.diskInfoFunc(self, &imageSize, &isWriteProtected, data->regs.selectedUnit);
+        data->regs.selectedDisk->diskFileSize = imageSize;
+        data->regs.selectedDisk->diskIsWriteProtected = isWriteProtected;
+    }
+    else
+    {
+        data->regs.selectedDisk->diskFileSize = 0;
+        data->regs.selectedDisk->diskIsWriteProtected = true;
+    }
+
+    if (data->regs.selectedDisk->diskType == DISK_TYPE_UNKNOWN)
+    {
+        // TODO: Set disk type based on size of SMD image file (TODO: Add more disk sizes)
+
+        DiskType dt = DISK_75_MB; // Default to 75MB
+
+        if (data->regs.selectedDisk->diskFileSize > 0x1000000 && data->regs.selectedDisk->diskFileSize <= 0x2000000)
+        {
+            // Assume 150 MB disk
+            dt = DISK_150_MB;
+        
+        }        
+        else if (data->regs.selectedDisk->diskFileSize >= 0x9600000 && data->regs.selectedDisk->diskFileSize <= 0x9601000)
+        {
+            // Assume 150 MB disk
+            dt = DISK_150_MB;
+        
+        }
+        else if (data->regs.selectedDisk->diskFileSize >= 0x12000000 && data->regs.selectedDisk->diskFileSize <= 0x12001000)
+        {
+            // Assume 288 MB disk
+            dt = DISK_288_MB;
+        
+        }
+        else if (data->regs.selectedDisk->diskFileSize >= 0x33900000 )
+        {
+            // Assume 825 MB disk
+            dt = DISK_825_MB;
+        }
+        DiskSMD_SetDiskType(data->regs.selectedDisk, dt);
+    }
+
+
+    // Ensure device block size reflects currently selected disk geometry
+    self->blockSizeBytes = regs->selectedDisk->bytesPrSector;
 
     // Extract CHS values from block addresses
     int sector = data->regs.blockAddressI & 0xFF;
@@ -713,45 +773,15 @@ static void ExecuteGO(Device *self)
         return;
     }
 
-    if (!data->regs.selectedDisk->file)
-    {
-        data->regs.selectedDisk->file = fopen(data->regs.selectedDisk->diskFileName, "rb+");
-        if (!data->regs.selectedDisk->file)
-        {
-            char cwd[PATH_MAX];
-            if (getcwd(cwd, sizeof(cwd)) != NULL) {
-                printf("Failed to open file %s/%s: %s\n", cwd, data->regs.selectedDisk->diskFileName, strerror(errno));
-            } else {
-                printf("Failed to open file %s: %s (getcwd failed: %s)\n", data->regs.selectedDisk->diskFileName, strerror(errno), strerror(errno));
-            }
-            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
-            return;
-        }
-    }
-
-#ifdef DEBUG_DETAIL
-    printf("SMD::ExecuteGO Seek to %ld\n", position);
-#endif
-
-
-    int seekRes = Device_IO_Seek(self, data->regs.selectedDisk->file, position);
-    if (seekRes < 0)
-    {
-
-#ifdef DEBUG_DETAIL
-        printf("SMD::ExecuteGO Seek failed\n");
-#endif
-        HandleError(self, DISK_ERR_SEEK_ERROR); // SEEK_ERROR
-        return;
-    }
-
     uint32_t wordCounter = (uint32_t)(data->regs.wordCounterHI << 16 | data->regs.wordCounter);
     uint32_t coreAddress = (uint32_t)(data->regs.coreAddressHiBits << 16 | data->regs.coreAddress);
 
-    if ((position == 387072) && (wordCounter == 9216))
-    {
-        printf("SMD::ExecuteGO WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
-    }
+    // Number of blocks to transfer where each block is blockSizeBytes bytes  (typically 1024)
+    uint32_t blockCounter = (wordCounter * 2) / self->blockSizeBytes;
+    uint32_t buffer_ptr = 0;
+
+    uint8_t *buffer;
+    int blocksRead = -1;
 
     // Handle different device operations
     switch (data->controlRegister.bits.deviceOperation)
@@ -761,16 +791,28 @@ static void ExecuteGO(Device *self)
 #ifdef DEBUG_HIGH_LEVEL
         printf("SMD::DEVICE_OP_READ_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
 #endif
+
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            return;
+        }
+
+        // Read all blocks from SMD disk file into buffer
+        blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, lba, data->regs.selectedDisk->unit);
+        if ((blocksRead < 0) || (blocksRead != blockCounter))
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            free(buffer);
+            return;
+        }
+
+        // DMA transfer to memory
         while (wordCounter > 0)
         {
             // Read word from disk
-            uint32_t readData;
-            readData = Device_IO_ReadWord(self, data->regs.selectedDisk->file);
-            if (readData < 0)
-            {
-                HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
-                return;
-            }
+            uint32_t readData = Device_IO_BufferReadWord(self, buffer, buffer_ptr++);
 
             // Write to memory (DMA)
             Device_DMAWrite(coreAddress, (uint16_t)readData);
@@ -779,35 +821,57 @@ static void ExecuteGO(Device *self)
             wordCounter = DecrementWordCounter(regs);
         }
 
+        free(buffer);
         Device_QueueIODelay(self, IODELAY_HDD_SMD, (IODelayedCallback)SMDReadEnd, data->regs.selectedDisk->unit, self->interruptLevel);
         break;
 
     case DEVICE_OP_WRITE_TRANSFER:
 
 #ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_WRITE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
+        printf("SMD_cb::DEVICE_OP_WRITE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
 #endif
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            return;
+        }
+
+        // DMA transfer from RAM to buffer
         while (wordCounter > 0)
         {
             // Read from memory (DMA)
-            uint32_t writeData;
-            writeData = Device_DMARead(coreAddress);
+            uint32_t readData = Device_DMARead(coreAddress);
 
-            if (writeData < 0)
+            if (readData < 0)
             {
                 HandleError(self, DISK_ERR_READ_ERROR); // DMA READ ERROR??
+                free(buffer);
                 return;
             }
-            // Write word to disk
-            if (Device_IO_WriteWord(self, data->regs.selectedDisk->file, (uint16_t)writeData) < 0)
+            // Write word to disk buffer
+            if (Device_IO_BufferWriteWord(self, buffer, buffer_ptr++, (uint16_t)readData) < 0)
             {
                 HandleError(self, DISK_ERR_READ_ERROR); // WRITE_ERROR
+                free(buffer);
                 return;
             }
 
             coreAddress = IncrementCoreAddress(regs);
             wordCounter = DecrementWordCounter(regs);
         }
+
+        // Write all blocks to SMD disk file from buffer
+        int blocksWrite = self->blockCallbacks.writeFunc(self, buffer, blockCounter, lba, data->regs.selectedDisk->unit);
+        if ((blocksWrite < 0) || (blocksWrite != blockCounter))
+        {
+            HandleError(self, DISK_ERR_WRITE_ERROR); // READ_ERROR
+            free(buffer);
+            return;
+        }
+
+        free(buffer);
+
         Device_QueueIODelay(self, IODELAY_HDD_SMD, (IODelayedCallback)SMDReadEnd, data->regs.selectedDisk->unit, self->interruptLevel);
         break;
 
@@ -816,21 +880,35 @@ static void ExecuteGO(Device *self)
 #ifdef DEBUG_HIGH_LEVEL
         printf("SMD::DEVICE_OP_READ_PARITY WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
 #endif
-        // Read and check parity without transferring data
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            return;
+        }
+
+        // Read all blocks from SMD disk file into buffer
+        blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, lba, data->regs.selectedDisk->unit);
+        if ((blocksRead < 0) || (blocksRead != blockCounter))
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            free(buffer);
+            return;
+        }
+
+        // Read and check parity without transferring data (meaning what??)
         while (wordCounter > 0)
         {
             // Read word from disk
-            uint32_t readData;
-            readData = Device_IO_ReadWord(self, data->regs.selectedDisk->file);
-            if (readData < 0)
-            {
-                HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
-                return;
-            }
+            uint32_t readData = Device_IO_BufferReadWord(self, buffer, buffer_ptr++);
+
+            //if (readData != WHAT??) then ERROR ?
 
             coreAddress = IncrementCoreAddress(regs);
             wordCounter = DecrementWordCounter(regs);
         }
+
+        free(buffer);
 
         Device_QueueIODelay(self, IODELAY_HDD_SMD, (IODelayedCallback)SMDReadEnd, data->regs.selectedDisk->unit, self->interruptLevel);
         break;
@@ -838,15 +916,29 @@ static void ExecuteGO(Device *self)
     case DEVICE_OP_COMPARE_TRANSFER:
 
 #ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_COMPARE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
+        printf("SMD_cb::DEVICE_OP_COMPARE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
 #endif
+
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            return;
+        }
+
+        // Read all blocks from SMD disk file into buffer
+        blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, lba, data->regs.selectedDisk->unit);
+        if ((blocksRead < 0) || (blocksRead != blockCounter))
+        {
+            HandleError(self, DISK_ERR_READ_ERROR); // READ_ERROR
+            free(buffer);
+            return;
+        }
 
         while (wordCounter > 0)
         {
             // Read from disk
-            uint16_t diskData;
-            
-            diskData = Device_IO_ReadWord(self, data->regs.selectedDisk->file);
+            uint32_t diskData = Device_IO_BufferReadWord(self, buffer, buffer_ptr++);
 
             // Read from memory (DMA)
             int32_t memData;
@@ -856,19 +948,21 @@ static void ExecuteGO(Device *self)
             if (diskData != memData)
             {
                 HandleError(self, DISK_ERR_COMPARER_ERROR); // COMPARER_ERROR
+                free(buffer);
                 return;
             }
 
             coreAddress = IncrementCoreAddress(regs);
             wordCounter = DecrementWordCounter(regs);
         }
+        free(buffer);
 
         Device_QueueIODelay(self, IODELAY_HDD_SMD, (IODelayedCallback)SMDReadEnd, data->regs.selectedDisk->unit, self->interruptLevel);
         break;
 
     case DEVICE_OP_INITIATE_SEEK:
 #ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_INITIATE_SEEK: %d\n", position);
+        printf("SMD::DEVICE_OP_INITIATE_SEEK: %ld\n", position);
 #endif
         // Seek operation initiated
         data->seekCondition.bits.seekError = 0;
@@ -1020,6 +1114,14 @@ static void HandleError(Device *self, DiskError error)
         data->statusRegister.bits.diskUnitNotReady = 1;
         break;
 
+    case DISK_ERR_WRITE_ERROR:
+        data->statusRegister.bits.diskUnitNotReady = 1;
+        break;
+
+    case DISK_ERR_WRITE_PROTECT_ERROR:
+        data->statusRegister.bits.diskUnitNotReady = 1;
+        break;
+
     case DISK_ERR_COMPARER_ERROR:
         data->statusRegister.bits.comparerError = 1;
         break;
@@ -1030,11 +1132,6 @@ static void HandleError(Device *self, DiskError error)
 
     case DISK_ERR_ILLEGAL_WHILE_ACTIVE: // ILLEGAL_WHILE_DRIVE_IS_ACTIVE
         data->statusRegister.bits.illegalLoad = 1;
-        break;
-
-    case DISK_ERR_WRITE_PROTECT_ERROR: // WRITE_PROTECT_ERROR
-        // regs->writeProtectError = true;
-        data->statusRegister.bits.diskUnitNotReady = 1;
         break;
     }
 }
@@ -1093,8 +1190,8 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     }
 
     // Initialize device properties
-    data->bytes_pr_sector = 256; // Standard SMD sector size
-    data->sectors_pr_track = 32; // Standard SMD sectors per track
+    data->bytes_pr_sector = 1024; // Standard SMD sector size
+    data->sectors_pr_track = 32;  // Standard SMD sectors per track
 
     // Set up function pointers
     dev->Read = SMD_Read;
@@ -1118,11 +1215,10 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     }
     memset(data->regs.disks, 0, sizeof(DiskInfo) * data->regs.maxUnits);
 
-    // Initialize disk info with default values
-    for (int i = 0; i < data->regs.maxUnits; i++)
-    {
-        DiskSMD_Init(&data->regs.disks[i], i, NULL);
-    }
+
+
+    // Default block size from selected disk (updated on selection)
+    dev->blockSizeBytes = data->regs.disks[0].bytesPrSector;
 
     // Set up device address and interrupt settings based on thumbwheel
     switch (thumbwheel)
@@ -1162,9 +1258,8 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     return dev;
 }
 
-
 /// @brief Device specific destroy function
-/// @param dev 
+/// @param dev
 void SMD_Destroy(Device *dev)
 {
     if (!dev)
@@ -1173,26 +1268,13 @@ void SMD_Destroy(Device *dev)
     SMDData *data = (SMDData *)dev->deviceData;
     if (data)
     {
-        
         // Free disk array if it exists
-        if (data->regs.disks) {
-            // Free any disk-specific resources
-            for (int i = 0; i < data->regs.maxUnits; i++) {
-                if (data->regs.disks[i].file) {
-                    fclose(data->regs.disks[i].file);
-                    data->regs.disks[i].file = NULL;
-                }
-
-                if (data->regs.disks[i].diskFileName) {
-                    free(data->regs.disks[i].diskFileName);
-                    data->regs.disks[i].diskFileName = NULL;
-                }
-            }
+        if (data->regs.disks)
+        {
             free(data->regs.disks);
             data->regs.disks = NULL;
         }
     }
-    
 }
 
 /*

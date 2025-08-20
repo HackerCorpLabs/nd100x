@@ -85,6 +85,22 @@ The project is organized into several key components:
 - Make build system
 - mkptypes tool (automatically built during compilation)
 
+### Additional Dependencies for Floppy Menu
+
+The floppy menu functionality requires additional libraries:
+- **libcurl4-openssl-dev**: For downloading floppy database from the internet
+- **libncurses5-dev**: For the terminal-based user interface
+
+Install these dependencies on Ubuntu/Debian:
+```bash
+sudo apt update
+sudo apt install libcurl4-openssl-dev libncurses5-dev
+```
+
+**Note**: The floppy menu requires an internet connection to function properly.
+
+**Note 2**: The floppy menu is disabled on RISC-V and WASM builds.
+
 ## Building the Project
 
 1. Clone the repository:
@@ -159,13 +175,16 @@ Boot Types:
 - `aout`: BSD 2.11 a.out format
 - `floppy`: Floppy disk boot
 
-## Block devices (Floppy and SMD)
+### Block devices (Floppy and SMD)
 
 Currently the file names used for floppy and SMD are hard coded.
 And the files are expected to be in the current folder.
 
 * Floppy drives uses FLOPPY.IMG 
-* SMD  drives uses SMD0.IMG, SMD1.IMG, SMD2.IMG and SMD3.IMG. 
+* SMD  drives uses SMD0.IMG, SMD1.IMG, SMD2.IMG and SMD3.IMG.
+
+Other floppy images can be mounted via the Floppy Menu
+
 
 ## Running SINTRAN in the Emulator
 
@@ -193,10 +212,33 @@ cp images/Nd-210523I01-XX-01D.img FLOPPY.IMG
 build/bin/nd100x --boot=floppy
 ```
 
-Now you have access to CONFIG, PAGING, INSTRUCTION and more.
+Now you have access to test programs like CONFIG, PAGING, INSTRUCTION and more.
 
 
+## Floppy Menu
 
+The emulator includes a built-in floppy disk browser that allows you to browse and mount floppy disk images from the ND100 floppy database.
+
+### Accessing the Menu
+
+While the emulator is running, press **F12** to open the floppy menu.
+
+![Menu Animation](images/menu.gif)
+
+### Menu Features
+
+- **Browse Database**: View all available floppy disk images from the online database
+- **Search Functionality**: Search for floppies by name, reference, or directory content
+- **Detailed Information**: View detailed information about each floppy including description, reference and directory content
+- **Mount Capability**: Mount selected floppy disks to floppy drive units 0, 1 or 2
+
+### Requirements
+
+- Internet connection (required to download floppy database).
+- Terminal that supports F12 key
+
+
+Floppy database is available directly at https://ndlib.hackercorp.no/
 
 ## Assembling your own programs
 

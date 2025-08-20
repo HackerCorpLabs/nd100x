@@ -56,6 +56,15 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON")
     message(STATUS "cJSON library support enabled")
 endif()
 
+# Find required packages for menu functionality (skip for WASM and RISC-V)
+if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
+	find_package(CURL REQUIRED)
+	find_package(Curses REQUIRED)
+
+	message(STATUS "CURL library found: ${CURL_FOUND}")
+	message(STATUS "Curses library found: ${CURSES_FOUND}")
+endif()
+
 # Handle RISC-V specific configuration
 if(PLATFORM_RISCV)
     message(STATUS "Using RISC-V cross-compiler: ${CMAKE_C_COMPILER}")

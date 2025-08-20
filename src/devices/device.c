@@ -88,10 +88,9 @@ void Device_Init(Device *dev, uint8_t thumbwheel, DeviceClass deviceClass, size_
             break;
             
         case DEVICE_CLASS_BLOCK:
-            // Initialize block device callbacks with specified block size
+            // Initialize block device callbacks
             memset(&dev->blockCallbacks, 0, sizeof(BlockDeviceCallbacks));
-            dev->blockCallbacks.blockSize = (blockSize > 0 && blockSize <= MAX_BLOCK_SIZE) ? 
-                                          blockSize : MAX_BLOCK_SIZE;
+            dev->blockSizeBytes = (blockSize > 0 && blockSize <= MAX_BLOCK_SIZE) ? blockSize : 1024;
             break;
             
         case DEVICE_CLASS_RTC:
@@ -307,6 +306,28 @@ int32_t Device_IO_ReadWord(Device *dev, FILE *f)
     return (hi << 8) | lo;
 }
 
+int32_t Device_IO_BufferReadWord(Device *dev, uint8_t *buf, int32_t word_offset)
+{
+    if (!buf)
+        return -1;
+
+    int32_t offset = word_offset * 2;
+
+    int16_t hi = buf[offset];
+    if (hi < 0)
+        return -1;
+    hi = hi & 0xFF;
+
+    int16_t lo = buf[offset + 1];
+    if (lo < 0)
+        return -1;
+    lo = lo & 0xFF;
+
+    return (hi << 8) | lo;
+}
+
+
+
 int32_t Device_IO_WriteWord(Device *dev, FILE *f, uint16_t data)
 {
     if (!f)
@@ -321,6 +342,22 @@ int32_t Device_IO_WriteWord(Device *dev, FILE *f, uint16_t data)
         }
         return -1;
     }
+
+    return 0;
+}
+
+int32_t Device_IO_BufferWriteWord(Device *dev,uint8_t *buf, int32_t word_offset, uint16_t data)
+{
+    if (!buf)
+        return -1;
+
+    uint8_t hi = (data >> 8) & 0xFF;
+    uint8_t lo = data & 0xFF;
+
+    int32_t offset = word_offset * 2;
+
+    buf[offset] = hi;
+    buf[offset + 1] = lo;
 
     return 0;
 }
@@ -396,26 +433,33 @@ void Device_SetBlockWrite(Device *dev, BlockDeviceWriteFunc writeFunc, void *use
     }
 }
 
-// Read a block from the device
-void Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress)
+// Set block device disk info handler
+void Device_SetBlockDiskInfo(Device *dev, BlockDeviceDiskInfoFunc infoFunc, void *userData)
 {
-    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK || !dev->blockCallbacks.readFunc || !buffer)
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK)
         return;
-        
-    // Limit size to the device's block size
-    size_t readSize = (size <= dev->blockCallbacks.blockSize) ? size : dev->blockCallbacks.blockSize;
-    
-    dev->blockCallbacks.readFunc(dev, buffer, readSize, blockAddress);
+    dev->blockCallbacks.diskInfoFunc = infoFunc;
+    if (userData != NULL) {
+        dev->blockCallbacks.userData = userData;
+    }
 }
 
-// Write a block to the device
-void Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress)
+// Read blocks from the device; returns number of blocks read, or -1 on error
+int Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit)
+{
+    if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK || !dev->blockCallbacks.readFunc || !buffer)
+        return -1;
+        
+    // The controller must pass the correct size for the current transfer
+    return dev->blockCallbacks.readFunc(dev, buffer, size, blockAddress, unit);
+}
+
+// Write blocks to the device; returns number of blocks written, or -1 on error
+int Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit)
 {
     if (!dev || dev->deviceClass != DEVICE_CLASS_BLOCK || !dev->blockCallbacks.writeFunc || !buffer)
-        return;
+        return -1;
         
-    // Limit size to the device's block size
-    size_t writeSize = (size <= dev->blockCallbacks.blockSize) ? size : dev->blockCallbacks.blockSize;
-    
-    dev->blockCallbacks.writeFunc(dev, buffer, writeSize, blockAddress);
+    // The controller must pass the correct size for the current transfer
+    return dev->blockCallbacks.writeFunc(dev, buffer, size, blockAddress, unit);
 }

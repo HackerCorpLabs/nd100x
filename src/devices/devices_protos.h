@@ -19,7 +19,9 @@ void Device_GenerateInterrupt(Device *dev, uint16_t level);
 void Device_SetInterruptStatus(Device *dev, bool active, uint16_t level);
 int32_t Device_IO_Seek(Device *dev, FILE *f, long offset);
 int32_t Device_IO_ReadWord(Device *dev, FILE *f);
+int32_t Device_IO_BufferReadWord(Device *dev, uint8_t *buf, int32_t word_offset);
 int32_t Device_IO_WriteWord(Device *dev, FILE *f, uint16_t data);
+int32_t Device_IO_BufferWriteWord(Device *dev, uint8_t *buf, int32_t word_offset, uint16_t data);
 void Device_DMAWrite(uint32_t coreAddress, uint16_t data);
 int32_t Device_DMARead(uint32_t coreAddress);
 void Device_SetCharacterOutput(Device *dev, CharacterDeviceOutputFunc outputFunc);
@@ -28,8 +30,9 @@ void Device_OutputCharacter(Device *dev, char c);
 void Device_InputCharacter(Device *dev, char c);
 void Device_SetBlockRead(Device *dev, BlockDeviceReadFunc readFunc, void *userData);
 void Device_SetBlockWrite(Device *dev, BlockDeviceWriteFunc writeFunc, void *userData);
-void Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress);
-void Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress);
+void Device_SetBlockDiskInfo(Device *dev, BlockDeviceDiskInfoFunc infoFunc, void *userData);
+int Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
+int Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 
 /* /home/ronny/repos/nd100x/src/devices/devicemanager.c */
 void DeviceManager_Init(LogLevel level);
@@ -76,5 +79,4 @@ Device *CreateSMDDevice(uint8_t thumbwheel);
 void SMD_Destroy(Device *dev);
 
 /* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
-void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char *diskFileName);
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
