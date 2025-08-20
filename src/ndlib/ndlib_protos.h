@@ -16,6 +16,8 @@ void Log(LogLevel level, const char *format, ...);
 /* /home/ronny/repos/nd100x/src/ndlib/download.c */
 size_t get_downloaded_size(void);
 char *download_file(const char *url);
+size_t get_downloaded_size(void);
+char *download_file(const char *url);
 
 /* /home/ronny/repos/nd100x/src/ndlib/keyboard.c */
 int read_key_sequence(char *buf, size_t bufsize);
