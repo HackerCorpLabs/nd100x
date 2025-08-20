@@ -434,7 +434,7 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
         
         // Check if it's an HTTP URL (case insensitive)
         if (strncasecmp(image_path, "http", 4) == 0) {
-            printf("Downloading image from: %s\n", image_path);
+            //printf("Downloading image from: %s\n", image_path);
             char* image_data = download_file(image_path);
             if (image_data) {
                 drives[unit].is_remote = true;
@@ -447,8 +447,6 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
             }
         } else {
 
-            // TODO: Check if we have write access to the file "image_path"
-            
             
             drives[unit].is_writeprotected = false;
 
@@ -492,6 +490,7 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
     strncpy(drives[unit].description, description, sizeof(drives[unit].description) - 1);
     drives[unit].description[sizeof(drives[unit].description) - 1] = '\0';
     
+#if _debug_    
     printf("Mounted %s to %s unit %d:\n", 
            drive_type == DRIVE_SMD ? "SMD" : "floppy",
            drive_type == DRIVE_SMD ? "SMD" : "floppy",
@@ -500,7 +499,8 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
     printf("  Description: %s\n", description);
     printf("  MD5: %s\n", md5);
     printf("  Image Path: %s\n", image_path ? image_path : "None");
-    // TODO: Implement actual mounting logic with the machine's floppy drive system
+#endif
+
 }
 
 // Unmount a drive from the specified unit
