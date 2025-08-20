@@ -2,8 +2,15 @@
 set(SOURCES 
     config.c 
     nd100x.c
-    menu.c
 )
+
+# Include menu.c only when not building for WASM or RISC-V
+if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
+    list(APPEND SOURCES menu.c)
+    set(NEED_MENU TRUE)
+else()
+    set(NEED_MENU FALSE)
+endif()
 
 # Create the executable
 add_executable(nd100x ${SOURCES})
@@ -16,9 +23,14 @@ target_include_directories(nd100x PRIVATE
     ${CMAKE_SOURCE_DIR}/src/devices
     ${CMAKE_SOURCE_DIR}/src/machine
     ${CMAKE_SOURCE_DIR}/src/debugger
-    ${CURL_INCLUDE_DIRS}
-    ${CURSES_INCLUDE_DIRS}
 )
+
+if(NEED_MENU)
+    target_include_directories(nd100x PRIVATE
+        ${CURL_INCLUDE_DIRS}
+        ${CURSES_INCLUDE_DIRS}
+    )
+endif()
 
 # Link with required libraries
 target_link_libraries(nd100x PRIVATE
@@ -27,10 +39,15 @@ target_link_libraries(nd100x PRIVATE
     cpu
     ndlib
     debugger
-    ${CURL_LIBRARIES}
     cjson_objects
-    ${CURSES_LIBRARIES}
 )
+
+if(NEED_MENU)
+    target_link_libraries(nd100x PRIVATE
+        ${CURL_LIBRARIES}
+        ${CURSES_LIBRARIES}
+    )
+endif()
 
 # Add debug flags as needed (matching Makefile)
 target_compile_definitions(nd100x PRIVATE

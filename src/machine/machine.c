@@ -377,7 +377,7 @@ void autoMountDrives()
         max_units = 3;  // Floppy has units 0-2
     } else {
         //printf("Error: Invalid drive type\n");
-        return;
+        return false;
     }
     
     // Check if unit is valid

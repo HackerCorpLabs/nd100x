@@ -256,10 +256,14 @@ int main(int argc, char *argv[])
                 // Check for F12 key sequence
                 if (is_f12_key(keybuf)) {
                     // F12 detected - show floppy menu
-                    int ret = show_floppy_menu();
-                    if (ret == -1) {
-                        printf("Failed to show floppy menu\n");
-                    }
+                    #if defined(PLATFORM_RISCV)
+                        printf("Floppy menu not available on RISC-V build\n");
+                    #else
+                        int ret = show_floppy_menu();
+                        if (ret == -1) {
+                            printf("Failed to show floppy menu\n");
+                        }
+                    #endif
                 } else {
                     // Process regular characters
                     for (int i = 0; i < keylen; i++) {
