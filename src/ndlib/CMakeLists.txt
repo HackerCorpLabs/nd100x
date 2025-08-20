@@ -48,6 +48,8 @@ elseif(PLATFORM_WINDOWS)
     target_compile_definitions(ndlib PUBLIC PLATFORM_WINDOWS)
 elseif(PLATFORM_WASM)
     target_compile_definitions(ndlib PUBLIC PLATFORM_WASM)
+elseif(PLATFORM_RISCV)
+    target_compile_definitions(ndlib PUBLIC PLATFORM_RISCV)
 endif()
 
 # Install targets
