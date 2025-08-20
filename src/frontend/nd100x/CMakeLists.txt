@@ -4,6 +4,14 @@ set(SOURCES
     nd100x.c
 )
 
+# Include menu.c only when not building for WASM or RISC-V
+if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
+    list(APPEND SOURCES menu.c)
+    set(NEED_MENU TRUE)
+else()
+    set(NEED_MENU FALSE)
+endif()
+
 # Create the executable
 add_executable(nd100x ${SOURCES})
 
@@ -14,8 +22,15 @@ target_include_directories(nd100x PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ndlib
     ${CMAKE_SOURCE_DIR}/src/devices
     ${CMAKE_SOURCE_DIR}/src/machine
-    ${CMAKE_SOURCE_DIR}/src/debugger    
+    ${CMAKE_SOURCE_DIR}/src/debugger
 )
+
+if(NEED_MENU)
+    target_include_directories(nd100x PRIVATE
+        ${CURL_INCLUDE_DIRS}
+        ${CURSES_INCLUDE_DIRS}
+    )
+endif()
 
 # Link with required libraries
 target_link_libraries(nd100x PRIVATE
@@ -23,8 +38,16 @@ target_link_libraries(nd100x PRIVATE
     devices
     cpu
     ndlib
-    debugger    
+    debugger
+    cjson_objects
 )
+
+if(NEED_MENU)
+    target_link_libraries(nd100x PRIVATE
+        ${CURL_LIBRARIES}
+        ${CURSES_LIBRARIES}
+    )
+endif()
 
 # Add debug flags as needed (matching Makefile)
 target_compile_definitions(nd100x PRIVATE
@@ -62,9 +85,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
 # Create the prototypes header using mkptypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND echo "#include \"../../machine/machine_types.h\"" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.c ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/menu.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.c ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c ${CMAKE_CURRENT_SOURCE_DIR}/menu.c ${CMAKE_SOURCE_DIR}/src/machine/machine_types.h
     COMMENT "Generating nd100x_protos.h"
 )
 

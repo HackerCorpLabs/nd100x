@@ -84,22 +84,21 @@ static void FloppyDMA_Reset(Device *self)
     data->track = 0;
     data->drive = 0;
 
-
     data->command = 0;
     data->pointerHI = 0;
     data->pointerLO = 0;
     data->readFormat = 0;
-    //data->diskFile = NULL;
+    // data->diskFile = NULL;
 
-    //data->status1.bits.errorCode = FLOPPY_ERR_OK;
-    //data->status1.bits.readyForTransfer = true;
+    // data->status1.bits.errorCode = FLOPPY_ERR_OK;
+    // data->status1.bits.readyForTransfer = true;
 }
-
 
 static uint16_t CalculateStatusRegister1(Device *self)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return 0;
+    if (!data)
+        return 0;
 
     data->status1.bits.dualDensity = 1; // 1=HIGH=DUAL DENSITY CONTROLLER (tells ND that we are using DMA and not PIO controller) = NEW CONTROLLER
     data->status1.bits.inclusiveOrBits = (data->status1.bits.hardError | data->status1.bits.deletedRecord | data->status1.bits.retryOnController);
@@ -109,22 +108,23 @@ static uint16_t CalculateStatusRegister1(Device *self)
 static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return 0;
+    if (!data)
+        return 0;
 
     uint32_t reg = Device_RegisterAddress(self, address);
     uint16_t value = 0;
 
     switch (reg)
     {
-    case FLOPPY_DMA_READ_DATA:        
+    case FLOPPY_DMA_READ_DATA:
         value = 0x1; // TODO: What is the correct value?
         break;
 
-    case FLOPPY_DMA_READ_STATUS1:        
+    case FLOPPY_DMA_READ_STATUS1:
         value = CalculateStatusRegister1(self);
         break;
 
-    case FLOPPY_DMA_READ_STATUS2:        
+    case FLOPPY_DMA_READ_STATUS2:
         value = data->status2.raw;
         break;
     }
@@ -139,7 +139,8 @@ static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
 static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return;
+    if (!data)
+        return;
 
     uint32_t reg = Device_RegisterAddress(self, address);
 
@@ -164,9 +165,9 @@ static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
         Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
 
         if (data->controlWord.bits.activateAutoload)
-        {            
-            ExecuteAutoload(self,data->drive );
-        }        
+        {
+            ExecuteAutoload(self, data->drive);
+        }
         else if (data->controlWord.bits.executeCommand)
         {
             if (data->controlWord.bits.testMode)
@@ -181,9 +182,7 @@ static void FloppyDMA_Write(Device *self, uint32_t address, uint16_t value)
                 }
                 else
                 {
-                    OpenFloppyFile(self,0);
                     ExecuteFloppyGo(self);
-                    CloseFloppyFile(self,0);
                 }
             }
         }
@@ -227,6 +226,9 @@ static uint16_t FloppyDMA_Ident(Device *self, uint16_t level)
 // Load floppy monitor (FLO-LOAD, almost like BPUN from the first sector)
 static void ExecuteAutoload(Device *self, int drive)
 {
+
+    // TODO: Implement
+
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
     if (!data)
         return;
@@ -243,6 +245,8 @@ static void ExecuteAutoload(Device *self, int drive)
 // Se page 16 of 3027 manual
 static void ExecuteTest(Device *self, int testData)
 {
+    // TODO: Implement
+
 #ifdef DEBUG_FLOPPY_DMA
     printf("FloppyDMA: Executing test %d\n", testData);
 #endif
@@ -250,13 +254,23 @@ static void ExecuteTest(Device *self, int testData)
 
 static void ExecuteFloppyGo(Device *self)
 {
-
 #ifdef DEBUG_FLOPPY_DMA
-    printf("FloppyDMA: Executing Floppy GO!\n");
-#endif    
-    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data) return;
+    printf("FloppyDMA: Executing Floppy GO Callback!\n");
+#endif
 
+    if (!self)
+        return;
+
+    if ((!self->blockCallbacks.readFunc) || (!self->blockCallbacks.writeFunc))
+    {
+        return;
+    }
+
+    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
+    if (!data)
+        return;
+
+    // Set Default floppy values
     uint32_t sector = 1;
     uint32_t track = 0;
     uint32_t bytes_pr_sector = 512;
@@ -288,17 +302,22 @@ static void ExecuteFloppyGo(Device *self)
     uint32_t doubleDensity = (data->commandBlock.fields.commandWord >> 11) & 0b1;
     uint32_t copyDestination = (data->commandBlock.fields.commandWord >> 14) & 0b1; // When copying from one device to another ?
 
-    // TODO:
-    // Read out information from floppy - is it write protceted
+    // Get information on file size and readonly
+    if (self->blockCallbacks.diskInfoFunc)
+    {
+        bool isWriteProtected = false;
+        size_t imageSize = 0;
 
-    // bool floppyIsWriteProtected = device.read_only;
-    // long floppySize = device.FileLength;
+        self->blockCallbacks.diskInfoFunc(self, &imageSize, &isWriteProtected, data->drive);
+        data->diskFileSize = imageSize;
+        data->readOnly = isWriteProtected;
+    }
 
     // Calculate sector size based on format
     switch (floppyFormat)
     {
     case 0:
-        bytes_pr_sector = 512;
+        bytes_pr_sector = 512; // 8" disk
         break;
     case 1:
         bytes_pr_sector = 256;
@@ -307,16 +326,19 @@ static void ExecuteFloppyGo(Device *self)
         bytes_pr_sector = 123;
         break;
     case 3:
-        bytes_pr_sector = 1024;
-        break;
+        bytes_pr_sector = 1024; // 5.25" 1.2MB disk
     }
+
+    // Reflect current sector size on the device so block callbacks know bytes per block
+    self->blockSizeBytes = bytes_pr_sector;
 
     sector = (data->commandBlock.fields.diskAddress % (sectors_pr_track - 1)) + 1;
     track = data->commandBlock.fields.diskAddress / sectors_pr_track;
 
     uint32_t position = data->commandBlock.fields.diskAddress * bytes_pr_sector;
     uint32_t wordsToRead = wordCount;
-    if (!isWC) wordsToRead *= (bytes_pr_sector >> 1);
+    if (!isWC)
+        wordsToRead *= (bytes_pr_sector >> 1);
 
     data->status1.bits.errorCode = FLOPPY_ERR_OK;
     data->status1.bits.readyForTransfer = false;
@@ -325,43 +347,45 @@ static void ExecuteFloppyGo(Device *self)
     data->status1.bits.readyForTransfer = false;
     Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
 
-
-#ifdef DEBUG_FLOPPY_DMA    
+#ifdef DEBUG_FLOPPY_DMA
     printf("Command block received from memory at 0x%08X\n", data->commandBlockAddress);
     printf("------------------------------------------------\n");
     for (int i = 0; i < 12; i++)
     {
-        printf("Command block %d: 0x%4X\n", i,data->commandBlock.raw[i]);
+        printf("Command block %d: 0x%4X\n", i, data->commandBlock.raw[i]);
     }
     printf("------------------------------------------------\n");
 
 #endif
-    if (!data->diskFile)
-    {
-        printf("Error: FloppyDMA: No disk file opened for floppy!\n");
-
-    }
-    int seekRes = Device_IO_Seek(self, data->diskFile, position);
-    if (seekRes < 0)
-    {
-        printf("FloppyDMA: Seek error: %d\n", seekRes);
-        // Report error
-        data->status1.bits.errorCode = FLOPPY_ERR_TRACK_OUT_OF_RANGE;
-        data->status1.bits.deviceActive = false;
-        data->status1.bits.readyForTransfer = true;
-
-        Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
-        return;
-    }
-    
 
     data->commandBlock.fields.status1 = 0;
     data->commandBlock.fields.status2 = (data->drive << 8); // Selected unit is reported back in bits 8-9
     int wordsTransfered = 0;
 
+    // Number of blocks to transfer where each block is blockSizeBytes bytes (typically 512/1024)
+    uint32_t blockCounter = (wordsToRead * 2) / self->blockSizeBytes;
+    uint32_t buffer_ptr = 0;
+
+    uint8_t *buffer = NULL;
+    int blocksRead = -1;
+
+    // Allocate memory buffer if we need to read or write blocks of data
+    if (blockCounter > 0)
+    {
+        buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
+        if (!buffer)
+        {
+            data->status1.bits.errorCode = RAM_ERROR;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+        }
+    }
+
 #ifdef DEBUG_FLOPPY_DMA
     printf("FloppyDMA: Command: %d\n", data->command);
 #endif
+
     switch (data->command)
     {
     case FLOPPY_FUNC_READ_DATA:
@@ -371,28 +395,36 @@ static void ExecuteFloppyGo(Device *self)
         //  The transfer will always start at the beginning of a sector, but the number of words to be read may be preset to any number of words.
 
 #ifdef DEBUG_DETAIL
-        printf("Starting read data on drive position %d, wordsToRead: %d\r\n", position, wordsToRead);
+        printf("Starting ReadData on drive position %d, wordsToRead: %d\r\n", position, wordsToRead);
 #endif
 
-        while (wordsToRead > 0)
+        if (buffer)
         {
-            int readData = Device_IO_ReadWord(self, data->diskFile);
-            if (readData == -1)
+            // Read all blocks from floppy  disk file into buffer
+            blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, data->commandBlock.fields.diskAddress, data->drive);
+            if ((blocksRead < 0) || (blocksRead != blockCounter))
             {
-                data->status1.bits.errorCode = FLOPPY_ERR_CRC;
+                data->status1.bits.errorCode = DRIVE_NOT_READY;
                 data->status1.bits.deviceActive = false;
                 data->status1.bits.readyForTransfer = true;
-                Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
-                return;
+                // Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
             }
 
-            // DMA Write
-            Device_DMAWrite(memAddress, (uint16_t)readData);
+            while (wordsToRead > 0)
+            {
+                // Read word from disk buffer (or 0 if no blocks was read to buffer)
+                uint32_t readData = 0;
+                if (blocksRead > 0)
+                    readData = Device_IO_BufferReadWord(self, buffer, buffer_ptr++);
 
-            memAddress++;
-            wordsToRead--;
-            wordsTransfered++;
-        }        
+                // DMA Write to RAM memory
+                Device_DMAWrite(memAddress, (uint16_t)readData);
+
+                memAddress++;
+                wordsToRead--;
+                wordsTransfered++;
+            }
+        }
         Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
         break;
 
@@ -402,22 +434,47 @@ static void ExecuteFloppyGo(Device *self)
         printf("Starting WriteData on drive position %d\r\n", position);
 #endif
 
-        while (wordsToRead > 0)
+        if (data->readOnly)
         {
-            uint16_t word = Device_DMARead(memAddress);
-
-            if (!Device_IO_WriteWord(self, data->diskFile, word))
+            // Disk is write protected
+            data->status1.bits.errorCode = WRITE_PROTECTED;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+        }
+        else
+        {
+            if (buffer)
             {
-                data->status1.bits.errorCode = FLOPPY_ERR_CRC;
-                data->status1.bits.deviceActive = false;
-                data->status1.bits.readyForTransfer = true;
-                Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
-                return;
-            }
+                while (wordsToRead > 0)
+                {
+                    uint16_t word = Device_DMARead(memAddress);
 
-            memAddress++;
-            wordsToRead--;
-            wordsTransfered++;
+                    // Write word to disk buffer
+                    if (Device_IO_BufferWriteWord(self, buffer, buffer_ptr++, (uint16_t)word) < 0)
+                    {
+                        data->status1.bits.errorCode = DRIVE_NOT_READY;
+                        data->status1.bits.deviceActive = false;
+                        data->status1.bits.readyForTransfer = true;
+                        Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+                        break;
+                    }
+
+                    memAddress++;
+                    wordsToRead--;
+                    wordsTransfered++;
+                }
+
+                // Write all blocks to floppy disk file from buffer
+                int blocksWrite = self->blockCallbacks.writeFunc(self, buffer, blockCounter, data->commandBlock.fields.diskAddress, data->drive);
+                if ((blocksWrite < 0) || (blocksWrite != blockCounter))
+                {
+                    data->status1.bits.errorCode = DRIVE_NOT_READY;
+                    data->status1.bits.deviceActive = false;
+                    data->status1.bits.readyForTransfer = true;
+                    Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+                }
+            }
         }
         Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
         break;
@@ -449,11 +506,21 @@ static void ExecuteFloppyGo(Device *self)
         //	10 = 123 bytes /sector
         //	11 = 1024 bytes/sector
 
+        if (data->diskFileSize == 0) // No floppy mounted
+        {
+            // No disk file loaded, return error
+            data->status1.bits.errorCode = DRIVE_NOT_READY;
+            data->status1.bits.deviceActive = false;
+            data->status1.bits.readyForTransfer = true;
+            Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);
+            break;
+        }
+
         // Calculate format based on file size
         if (data->diskFileSize == 315392)
         {
             // 8" disk
-            data->commandBlock.fields.status2 |= 0; // 512 bytes/sector
+            data->commandBlock.fields.status2 = 0; // 512 bytes/sector
         }
         else if (data->diskFileSize >= 1261568)
         {
@@ -515,11 +582,17 @@ static void ExecuteFloppyGo(Device *self)
         break;
     }
 
+    // Clean up allocated buffer
+    if (buffer)
+    {
+        free(buffer);
+        buffer = NULL;
+    }
     /**************************/
     /* Update command block   */
     /**************************/
 
-    // Status 1 
+    // Status 1
     data->commandBlock.fields.status1 = data->status1.raw;
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
 
@@ -528,15 +601,14 @@ static void ExecuteFloppyGo(Device *self)
 
     // Send back last mem address
     Device_DMAWrite(data->commandBlockAddress + 8, (uint16_t)((memAddress >> 16) & 0xFF)); // HI
-    Device_DMAWrite(data->commandBlockAddress + 9, (uint16_t)(memAddress & 0xFFFF)); // LO
+    Device_DMAWrite(data->commandBlockAddress + 9, (uint16_t)(memAddress & 0xFFFF));       // LO
 
     // Update words to read
     Device_DMAWrite(data->commandBlockAddress + 10, (uint16_t)((wordsTransfered >> 16) & 0xFF)); // HI
-    Device_DMAWrite(data->commandBlockAddress + 11, (uint16_t)(wordsTransfered & 0xFFFF)); // LO
-
+    Device_DMAWrite(data->commandBlockAddress + 11, (uint16_t)(wordsTransfered & 0xFFFF));       // LO
 
     // For now, just simulate completion
-    Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
+    // Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)ReadEnd, data->drive, self->interruptLevel);
 }
 
 static bool ReadEnd(Device *self, int drive)
@@ -547,7 +619,6 @@ static bool ReadEnd(Device *self, int drive)
 
     data->status1.bits.deviceActive = false;
     data->status1.bits.readyForTransfer = true;
-
 
     data->commandBlock.fields.status1 = CalculateStatusRegister1(self);
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
@@ -568,53 +639,11 @@ static bool AutoLoadEnd(Device *self, int drive)
     return false;
 }
 
-static bool OpenFloppyFile(Device *self, int drive)
-{
-    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data)
-        return false;
-
-    if (data->diskFile)
-    {
-        fclose(data->diskFile);
-        data->diskFile = NULL;
-    }
-
-    // Open floppy file
-    if ((data->diskFile = fopen(data->floppyName, "rb+")) == NULL) // open for read/write in binary mode
-    {
-        printf("Unable to open file %s\n", data->floppyName);
-        return false;
-    }
-    else
-    {
-        // Get file size
-        fseek(data->diskFile, 0, SEEK_END);
-        data->diskFileSize = ftell(data->diskFile);
-        fseek(data->diskFile, 0, SEEK_SET); // Reset file position back to start
-    }
-    return true;
-}
-
-static bool CloseFloppyFile(Device *self, int drive)
-{
-    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
-    if (!data)
-        return false;
-
-    if (data->diskFile)
-    {
-        fclose(data->diskFile);
-        data->diskFile = NULL;
-    }
-    return true;
-}
-
-
 Device *CreateFloppyDMADevice(uint8_t thumbwheel)
 {
     Device *dev = (Device *)malloc(sizeof(Device));
-    if (!dev) return NULL;
+    if (!dev)
+        return NULL;
 
     FloppyDMAData *data = (FloppyDMAData *)malloc(sizeof(FloppyDMAData));
     if (!data)
@@ -626,12 +655,8 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     memset(dev, 0, sizeof(Device));
     memset(data, 0, sizeof(FloppyDMAData));
 
-    
-
     // Initialize device base structure
     Device_Init(dev, thumbwheel, DEVICE_CLASS_BLOCK, 1024);
-
-
 
     // Initialize device state
     FloppyDMA_Reset(dev);
@@ -659,12 +684,8 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
     }
 
     dev->interruptLevel = 11; // floppy
-    
-    data->floppyName = "FLOPPY.IMG"; //TODO: Make this configurable
-    data->diskFileSize = 0;
+    data->diskFileSize = 0;   // unknown size
 
-  
-    
     // Set up function pointers
     dev->Read = FloppyDMA_Read;
     dev->Write = FloppyDMA_Write;
@@ -677,3 +698,25 @@ Device *CreateFloppyDMADevice(uint8_t thumbwheel)
 
     return dev;
 }
+
+
+/* 
+
+ TEST PROGRAM FAILS!!
+
+    FLOPPY-STREAM - Version: C03 - 1988-11-08
+ 
+
+==TPE42=> UNEXPECTED INTERNAL INTERRUPT
+========> Interruped level.......: 0D
+========> Internal interrupt code: 9D (Memory out of range)
+========> Address................: 125012B
+========> Instruction............: 150417B
+========> Memory address(PEA)....: 000001B
+========> Bank(PES 0-7)..........: 40B
+========> Error type(PES 13-15)..: 
+========> Error code(PES 8-12)...: 0B
+
+WAIT when IONI is off PIL[14] PC[ 54555] PID[0x6000] PIE[0x6001] IONI[0] PONI[0] STS_HI[1E00] STS_LO[  20]
+
+*/

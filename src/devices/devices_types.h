@@ -83,15 +83,16 @@ typedef struct {
 #define MAX_BLOCK_SIZE 2048
 
 
-typedef void (*BlockDeviceReadFunc)(struct Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress);
-typedef void (*BlockDeviceWriteFunc)(struct Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress);
+typedef int (*BlockDeviceReadFunc)(struct Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
+typedef int (*BlockDeviceWriteFunc)(struct Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
+typedef int (*BlockDeviceDiskInfoFunc)(struct Device *device, size_t *image_size, bool *is_write_protected, int unit);
 
 // Block Device callback structure
 typedef struct {
     BlockDeviceReadFunc readFunc;        // Called when device reads a block
     BlockDeviceWriteFunc writeFunc;      // Called when device writes a block
-    size_t blockSize;                    // Block size in bytes
-    void *userData;                      // User-defined data passed to callbacks
+    BlockDeviceDiskInfoFunc diskInfoFunc; // Called to read disk info (size, write-protect)
+    void *userData;                      // User-defined data passed to callbacks (optional)
 } BlockDeviceCallbacks;
 
 // IO Delay callback function type
@@ -106,6 +107,18 @@ typedef struct {
     uint8_t level;
 } DelayedIoInfo;
 
+// Device types
+typedef enum {
+    DEVICE_TYPE_NONE = 0,
+    DEVICE_TYPE_RTC,
+    DEVICE_TYPE_TERMINAL,
+    DEVICE_TYPE_PAPER_TAPE,
+    DEVICE_TYPE_FLOPPY_PIO,
+    DEVICE_TYPE_FLOPPY_DMA,    
+    DEVICE_TYPE_DISC_SMD,
+    DEVICE_TYPE_MAX
+} DeviceType;
+
 // Device structure
 typedef struct Device {
     // Device memory range
@@ -117,6 +130,7 @@ typedef struct Device {
     uint16_t interruptLevel;  // Default interrupt level
     uint16_t identCode;      // Identcode for this device
     uint16_t logicalDevice;  // Logical device ID for this device
+    DeviceType type;         // Read-only: concrete device type (set at creation)
     
     // Device name
     char memoryName[MAX_DEVICE_NAME];
@@ -139,6 +153,9 @@ typedef struct Device {
     // Device classification
     DeviceClass deviceClass;  // Type of device (standard, character, block, RTC)
     
+    // Block device properties (valid when deviceClass == DEVICE_CLASS_BLOCK)
+    size_t blockSizeBytes;    // Sector/block size in bytes; set by the concrete device
+    
     // Device callbacks
     CharacterDeviceCallbacks charCallbacks;  // Character device callbacks (if deviceClass == DEVICE_CLASS_CHARACTER)
     BlockDeviceCallbacks blockCallbacks;     // Block device callbacks (if deviceClass == DEVICE_CLASS_BLOCK)
@@ -156,18 +173,6 @@ typedef struct {
 
 
 // ** Device Manager **
-
-// Device types
-typedef enum {
-    DEVICE_TYPE_NONE = 0,
-    DEVICE_TYPE_RTC,
-    DEVICE_TYPE_TERMINAL,
-    DEVICE_TYPE_PAPER_TAPE,
-    DEVICE_TYPE_FLOPPY_PIO,
-    DEVICE_TYPE_FLOPPY_DMA,    
-    DEVICE_TYPE_DISC_SMD,
-    DEVICE_TYPE_MAX
-} DeviceType;
 
 // Device info structure
 typedef struct {

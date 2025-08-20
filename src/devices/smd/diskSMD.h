@@ -27,6 +27,7 @@
 
 // Disk types
 typedef enum {
+    DISK_TYPE_UNKNOWN = 0,
     // ***************
     // 10MHZ drives
     // See also page 520 in "SINTRAN III J VSX programlistning Vol2-Gandalf-OCR.PDF"
@@ -98,16 +99,13 @@ typedef struct {
     uint8_t unit; // disk unit number (0-3)
     DiskType diskType;
 
-    char *diskFileName;
-    FILE* file;
+    long diskFileSize;      // Size of SMD disk file
+    bool readOnly;          // Read-only flag
+    
 } DiskInfo;
 
 
 void DiskSMD_SetDiskType(DiskInfo *disk,DiskType dt);
-void DiskSMD_Init(DiskInfo *disk, uint8_t unit, char* diskFileName);
-
-
-
 
 
 #endif /* DISK_SMD_H */

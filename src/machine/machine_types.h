@@ -44,4 +44,29 @@ typedef enum {
 
 extern const char* boot_type_str[];
 
+
+// Drive types
+typedef enum {
+    DRIVE_SMD,
+    DRIVE_FLOPPY
+} DRIVE_TYPE;
+
+// Mounted drive information structure
+typedef struct {
+    char md5[33];
+    char name[256];
+    char description[1024];
+    char image_path[1024];  // Path or URL of the image
+    bool is_mounted;        // Is the drive mounted
+    bool is_remote;         // true if downloaded from HTTP, false if local file
+    bool is_writeprotected; // true if the drive is write-protected
+    
+    union {
+        FILE* local_file;   // File handle for local files
+        char* remote_data;  // Downloaded data for remote files
+    } data;
+    size_t data_size;       // Size of the data in bytes
+    int block_size;         // Block size for this drive (256, 512, 1024 bytes)
+} MountedDriveInfo_t;
+
 #endif

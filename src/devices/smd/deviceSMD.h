@@ -40,6 +40,7 @@ typedef enum {
     DISK_ERR_ADDRESS_MISMATCH,
     DISK_ERR_SEEK_ERROR,
     DISK_ERR_READ_ERROR,
+    DISK_ERR_WRITE_ERROR,
     DISK_ERR_COMPARER_ERROR,
     DISK_ERR_DRIVE_NOT_SELECTED,
     DISK_ERR_ILLEGAL_WHILE_ACTIVE,
@@ -270,23 +271,7 @@ typedef struct
 
 
 // Function declarations
-// Function declarations
+// Only expose the factory; internal helpers are kept private in the .c file
 Device *CreateSMDDevice(uint8_t thumbwheel);
-
-static void ClearErrors(Device *self);
-static void ClearFlipFlops(ControllerRegs *regs);
-static void SetSelectedUnit(ControllerRegs *regs, uint8_t unit);
-static void HandleError(Device *self, DiskError error);
-static void ExecuteGO(Device *self);
-static uint32_t IncrementCoreAddress(ControllerRegs *regs);
-static uint32_t DecrementWordCounter(ControllerRegs *regs);
-static long ConvertCHStoLBA(ControllerRegs *regs, int cylinder, int head, int sector);
-static bool SMDReadEnd(Device *self, int drive);
-
-
-
-static void ClearFlipFlops(ControllerRegs* regs);
-
-static uint16_t SMD_Ident(Device *dev, uint16_t level);
 
 #endif /* DEVICE_SMD_H */
