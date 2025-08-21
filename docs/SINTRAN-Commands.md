@@ -414,6 +414,14 @@ This document contains a reference of all available SINTRAN III commands.
 - [VERSION](#version)
 - [WHO-IS-ON](#who-is-on)
 
+### SINTRAN-Appendix
+
+- [APPENDIX A](#appendix-a)
+- [APPENDIX B](#appendix-b)
+- [APPENDIX C](#appendix-c)
+- [APPENDIX D](#appendix-d)
+- [APPENDIX E](#appendix-e)
+
 ---
 
 ## Commands
@@ -10118,6 +10126,1531 @@ SWAPPING-LOG 60
 **Related Commands:**
 
 - [PROCESS-STATUS](#process-status) - Display status of a process
+
+---
+
+## SINTRAN-Appendix
+
+# APPENDIX A
+## ND Terminal Types
+
+The list shows the current types defined by Norsk Data A.S. New
+numbers are allocated as ND adds new terminal types to systems.
+
+To implement a non-standard terminal type see the VTM-compound
+program, explained in the SINTRAN III Utilities Manual, ND-60.151.
+
+## Terminal Type Number Calculation
+
+The terminal type number is calculated as follows:
+
+| Bit | Description |
+|-----|-------------|
+| 15  | Reserved |
+| 14  | Set to one if the terminal is a VDU (not hard copy) |
+| 13  | Set to one if the terminal handles the ASCII backspace character (BS) properly |
+| 12  | Set to one if ASCII form feed (FF) gives new page or clear screen |
+| 11  | Set to one if the VDU has cursor positioning (either directly or by use of cursor arrows) |
+| 10  | Set if the terminal utilises ASCII escape (ESC) within input sequences |
+| 9-8 | Not used |
+| 7-0 | Terminal model number. See table below |
+
+## Example
+
+The number for TANDBERG TDV-2115-STD on logical device number 49 is
+set as follows:
+
+```
+@SET-TERMINAL-TYPE 49,164003B
+```
+
+or more permanently
+
+```
+@SINTRAN-SERVICE-PROGRAM
+*CHANGE-DATAFIELD <terminal number> INPUT YES YES YES
+CTTYP/164003
+.
+EXIT
+```
+
+## Terminal Types Table
+
+| Model Name                       | VDU | BS | FF | Model No. | ND St. | Comments              |
+| :------------------------------- | :-- | :-- | :-- | :-------- | :----- | :-------------------- |
+| DUMMY                            |     |    |    | 0         |        | Terminal type not set |
+| VISTAR-OLD                       | X   |    | X  | 1         |        |                       |
+| TELETYPE-ASR-33                  | X   | X  |    | 2         | X      |                       |
+| TANDBERG TDV-2115                | X   | X  | X  | 3         | X      |                       |
+| INFOTON-200-1                    | X   | X  | X  | 4         |        |                       |
+| INFOTON-400                      | X   | X  | X  | 5         |        |                       |
+| DEC-VT100                        | X   | X  |    | 6         |        | 80-col. mode          |
+| TANDBERG TDV-2000                | X   | X  |    | 7         |        |                       |
+| BEEHIVE-100                      | X   | X  |    | 8         |        |                       |
+| ND-NCT                           | X   | X  | X  | 9         |        |                       |
+| HAZELTINE-1520                   | X   | X  |    | 10        |        |                       |
+| DEC-LA36                         |     | X  |    | 11        | X      | Decwriter-II          |
+| VISTAR-GTX                       | X   | X  |    | 12        |        |                       |
+| DEC-VT52                         | X   | X  |    | 29        |        |                       |
+| TEC-501/502                      | X   | X  |    | 30        |        |                       |
+| DACOLL-242                       | X   | X  |    | 31        |        |                       |
+| NEWBURY-7000/3                   | X   | X  |    | 32        |        |                       |
+| TELEVIDEO-912/920                | X   | X  |    | 33        |        |                       |
+| VISUAL-200                       | X   | X  |    | 34        |        |                       |
+| LEAR-SIEGLER-ADM-3A              | X   | X  |    | 35        |        |                       |
+| TANDBERG TDV-2215-EXTENDED       | X   | X  |    | 36        | X      |                       |
+| VOLKER-CRAIG-VC404               | X   | X  |    | 37        |        |                       |
+| VOLKER-CRAIG-VC410               | X   | X  | X  | 38        |        |                       |
+| VOLKER-CRAIG-VC414               | X   | X  |    | 39        |        |                       |
+| HEWLETT-PACKARD-2621A            | X   | X  |    | 40        |        |                       |
+| DATA-MEDIA-ELITE-3045            | X   | X  |    | 41        |        |                       |
+| BEEHIVE-MINIBEE                  | X   |    |    | 42        |        |                       |
+| PERICOM-6800                     | X   | X  | X  | 43        |        | 80-col.mode           |
+| LEAR-SIEGLER-ADM-31              | X   | X  |    | 44        |        |                       |
+| BEEHIVE-DM5A                     | X   | X  |    | 45        |        |                       |
+| FACIT-4420                       | X   | X  | X  | 46        |        | VT52-mode             |
+| ADDS-VIEWPOINT                   | X   | X  | X  | 47        |        |                       |
+| HAZELTINE-EXECUTIVE-80           | X   | X  |    | 48        |        |                       |
+| AMPEX-DIALOGUE-80                | X   | X  |    | 49        |        |                       |
+| VOLKER-CRAIG-VC4404              | X   | X  |    | 50        |        | ADM-3A                |
+| DATA-MEDIA-ELITE-1520/1521       | X   | X  | X  | 51        |        |                       |
+| TANDBERG TDV-2215-SDS-V2         | X   | X  |    | 52        | X      |                       |
+| TANDBERG TDV-2200/9-ND NOTIS     | X   | X  |    | 53        | X      |                       |
+| TANDBERG TDV-2220                | X   | X  |    | 54        |        |                       |
+| TANDBERG TDV-2200/9-ND-NET       | X   | X  |    | 55        |        |                       |
+| FACIT-4420-ND NOTIS              | X   | X  | X  | 57        | X      |                       |
+| NOKIA-VDU210                     | X   | X  |    | 58        |        |                       |
+| LEAR-SIEGLER-ADM-42              | X   | X  |    | 66        |        |                       |
+| LEAR-SIEGLER-ADM-32              | X   | X  |    | 70        |        |                       |
+| GENERAL-TERMINAL-CORP.-100/101   | X   | X  | X  | 73        |        |                       |
+| TEKTRONIX-4105                   | X   | X  |    | 78        |        |                       |
+| IBM-PC                           | X   | X  |    | 79        |        |                       |
+| TANDBERG TDV-2200/9-V2-ND-NOTIS  | X   | X  |    | 83        | X      |                       |
+| FACIT TWIST (24-LINE MODE)       | X   | X  | X  | 91        | X      |                       |
+| FACIT TWIST (72-LINE MODE)       | X   | X  | X  | 92        | X      |                       |
+| TANDBERG TDV-2200/9S-ND NOTIS    | X   | X  | X  | 93        | X      |                       |
+| SIEMENS 3975                     | X   |    |    | 94        |        |                       |
+| COLORTREND 210 ND                | X   |    |    | 99        | X      |                       |
+
+**Note:** ND St.: Those types automatically provided, when ordering NOTIS.
+
+
+---
+
+# APPENDIX B
+## LOGICAL DEVICE NUMBERS USED IN SINTRAN III
+
+## Overview of Logical Device Number Ranges
+
+| Octal Logical Device No. | Decimal Logical Device No. | Device Name                               |
+|--------------------------|----------------------------|-------------------------------------------|
+| 0-77                     | 0-63                       | Character devices                         |
+| 100-177                  | 64-127                     | Mass storage files                        |
+| 200-277                  | 128-191                    | Non-internal devices                      |
+| 300-377                  | 192-255                    | User Semaphores                           |
+| 400-477                  | 256-319                    | Process Control Devices/Connect Devices   |
+| 500-577                  | 320-383                    | System devices                            |
+| 600-677                  | 384-447                    | Previously used by ND-Net.                |
+| 700-777                  |                            | NORDCOM devices and other special devices |
+| 1000-1077                |                            | Extension of character devices            |
+| 1100-1177                |                            | System devices                            |
+| 1200-1277                |                            | System devices                            |
+| 1300-1377                |                            | System devices                            |
+| 1400-1477                |                            | System devices                            |
+| 1500-1577                |                            | System devices                            |
+| 1600-1677                |                            | System devices                            |
+| 1700-1777                |                            | System devices                            |
+| 2000-2077                |                            | Terminal nos. 65-125                      |
+
+## Detailed Logical Device Numbers
+
+### Character Devices (0-77)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 0     | 0       | INBT; INCH (background): edited input, else: dummy |
+| 1     | 1       | Background: "own terminal" RT: Terminal 1       |
+| 2     | 2       | Tape reader 1 (Console) / error device          |
+| 3     | 3       | Tape punch 1                                    |
+| 4     | 4       | Card reader 1                                   |
+| 5     | 5       | Line printer 1                                  |
+| 6     | 6       | Synchronous modem 1                             |
+| 7     | 7       | Terminal 17                                     |
+| 10    | 8       | Plotter 1                                       |
+| 11    | 9       | Terminal 2                                      |
+| 12    | 10      | Tape reader 2                                   |
+| 13    | 11      | Tape punch 2                                    |
+| 14    | 12      | Bus switch device                               |
+| 15    | 13      | Line printer 2                                  |
+| 16    | 14      | Synchronous modem 2                             |
+| 17    | 15      | Terminal 18                                     |
+| 20    | 16      | Cassette drive 1                                |
+| 21    | 17      | Cassette drive 2                                |
+| 22    | 18      | Versatec on DMA printer/plotter 1               |
+| 23    | 19      | Versatec on DMA printer/plotter 2               |
+| 24    | 20      | Tektronix display                               |
+| 25    | 21      | Magnetic tape 1 unit 2                          |
+| 26    | 22      | Synchronous modem 5                             |
+| 27    | 23      | Synchronous modem 6                             |
+| 30    | 24      | Synchronous modem 3                             |
+| 31    | 25      | Synchronous modem 4                             |
+| 32    | 26      | Magnetic tape 2 unit 0                          |
+| 33    | 27      | Magnetic tape 1 unit 3                          |
+| 34    | 28      | Magnetic tape 2 unit 1                          |
+| 35    | 29      | Card Punch 3                                    |
+| 36    | 30      | CDC link                                        |
+| 37    | 31      | Not used                                        |
+| 40    | 32      | Magnetic tape 1 unit 0                          |
+| 41    | 33      | Magnetic tape 1 unit 1                          |
+| 42-47 | 34-39   | Terminals 3-8                                   |
+| 50    | 40      | Card punch 1                                    |
+| 51    | 41      | Card punch 2                                    |
+| 52-57 | 42-47   | Terminals 19-24                                 |
+| 60-67 | 48-55   | Terminals 9-16                                  |
+| 70-77 | 56-63   | Terminals 25-32                                 |
+
+### Process Control Devices/Connect Devices (400-477)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 400-437 | 256-287 | CAMAC interrupts or special process interface |
+| 440   | 288     | Direct task level 6                             |
+| 441   | 289     | Direct task level 7                             |
+| 442   | 290     | Direct task level 8                             |
+| 443   | 291     | Direct task level 9                             |
+| 450-467 | 296-311 | CONNECT devices                                |
+| 470   | 312     | ND 23 - programmed clock                        |
+
+### System Devices (500-577)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 500   | 320     | Internal device for error message RT-program   |
+| 501   | 321     | Semaphore for segment transfer                 |
+| 502   | 322     | Disk 10Mb 1 data field                          |
+| 503   | 323     | RT-Loader command lock                          |
+| 504   | 324     | General lock for file system                   |
+| 505   | 325     | User-file-buffer lock                           |
+| 506   | 326     | Object-file-buffer lock                         |
+| 507   | 327     | RT-open-file-table lock                         |
+| 511   | 329     | Disk 10Mb 1, unit 0, R-bit-file-buffer lock    |
+| 512   | 330     | Disk 10Mb 1, unit 0, F-bit-file-buffer lock    |
+| 513   | 331     | Disk 10Mb 1, unit 0, R-directory lock          |
+| 514   | 332     | Disk 10Mb 1, unit 0, F-directory lock          |
+| 515   | 333     | DF1, file-transfer for RT lock for disk 1, disk 2, disk3 and disk 4 |
+| 516   | 334     | DF2, for open-file monitor call from RT-program data field |
+| 517   | 335     | RTFIL semaphore                                |
+| 520   | 336     | NOTIS-IR semaphore 2                            |
+| 521   | 337     | Device buffer allocation lock                   |
+| 522   | 338     | Disk 10Mb 1, unit 1, R-directory lock          |
+| 523   | 339     | Disk 10Mb 1, unit 1, F-directory lock          |
+| 524   | 340     | Disk 10Mb 1, unit 1, R-bit-file-buffer lock    |
+| 525   | 341     | Disk 10Mb 1, unit 1, F-bit-file-buffer lock    |
+| 526   | 342     | DF3, transfer lock for magnetic tape 1          |
+| 527   | 343     | Spooling queue semaphore                        |
+| 530   | 344     | Accounting semaphore                            |
+| 531   | 345     | CDC link monitor call data field               |
+| 532   | 346     | Spooling device 4, queue semaphore              |
+| 533   | 347     | Spooling device 4, queue I/O semaphore         |
+| 534   | 348     | Spooling device 5, queue semaphore              |
+| 535   | 349     | Spooling device 5, queue I/O semaphore         |
+| 536   | 350     | Spooling device 6, queue semaphore              |
+| 537   | 351     | Spooling device 6, queue I/O semaphore         |
+| 540   | 352     | Internal Device Remote Batch IBM                |
+| 541   | 353     | Internal Device Remote Batch UNIVAC             |
+| 542   | 354     | Internal Device Remote Batch Honeywell Bull     |
+| 543   | 355     | Internal Device Remote Batch CDC                |
+| 544   | 356     | Big disk 3, Unit 0 directory lock               |
+| 545   | 357     | Big disk 3, Unit 0 bit-file buffer lock        |
+| 546   | 358     | Unit 1                                         |
+| 550   | 360     | Unit 1                                         |
+| 551   | 361     | Unit 2                                         |
+| 552   | 362     | Unit 2                                         |
+| 554   | 364     | Disk 10Mb 1, unit 3, R-bit-file-buffer lock    |
+| 555   | 365     | Disk 10Mb 1, unit 3, F-bit-file-buffer lock    |
+| 556   | 366     | Disk 10Mb 1, unit 3, R-directory lock          |
+| 557   | 367     | Disk 10Mb 1, unit 3, F-directory lock          |
+| 560   | 368     | Magnetic tape 1, data field                     |
+| 561   | 369     | All magnetic tapes, directory lock              |
+| 562   | 370     | Spooling device 11, queue semaphore             |
+| 563   | 371     | Magtape 2, unit 2, I/O data field              |
+| 564   | 372     | Magtape 2, unit 3, I/O data field              |
+| 565   | 373     | Big disk 3, data field                          |
+| 567   | 375     | CDC link data field                             |
+| 570   | 376     | Disk 10Mb 1, unit 2, R-directory lock          |
+| 571   | 377     | Disk 10Mb 1, unit 2, F-directory lock          |
+| 572   | 378     | Disk 10Mb 1, unit 2, R-bit-file-buffer lock    |
+| 573   | 379     | Disk 10Mb 1, unit 2, F-bit-file-buffer lock    |
+| 574   | 380     | Monitor call data field for cassette            |
+| 575   | 381     | Cassette data field                             |
+| 576   | 382     | DF5, monitor call data field for Versatec 1     |
+| 577   | 383     | Versatec data field                             |
+
+### Extension of Character Devices (1000-1077)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 1000  | 512     | Floppy disk 1, unit 0, I/O data field          |
+| 1001  | 513     | Floppy disk 1, unit 1, I/O data field          |
+| 1002  | 514     | Floppy disk 1, unit 2, I/O data field          |
+| 1003  | 515     | Floppy disk 2, unit 0, I/O data field          |
+| 1004  | 516     | Floppy disk 2, unit 1, I/O data field          |
+| 1005  | 517     | Floppy disk 2, unit 2, I/O data field          |
+| 1006  | 518     | Hasp DMA 1, I/O data field                     |
+| 1007  | 519     | Hasp DMA 2, I/O data field                     |
+| 1010  | 520     | Hasp DMA 3, I/O data field                     |
+| 1011  | 521     | Hasp DMA 4, I/O data field                     |
+| 1012  | 522     | Hasp DMA 5, I/O data field                     |
+| 1013  | 523     | Hasp DMA 6, I/O data field                     |
+| 1014  | 524     | Line printer 3, I/O data field                 |
+| 1015  | 525     | Line printer 4, I/O data field                 |
+| 1040-1077 | 544-575 | Terminals 33 - 64                              |
+
+### System Devices (1100-1177)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 1100  | 576     | Big disk/big cartridge disk 1, data field      |
+| 1101  | 577     | Big disk/big cartridge disk 1, unit 0, directory lock |
+| 1102  | 578     | Big disk/big cartridge disk 1, unit 0, bit-file-buffer lock |
+| 1103  | 579     | NORD-50 data field                             |
+| 1104  | 580     | Disk 10Mb 2, data field                        |
+| 1105  | 581     | Disk 10Mb 2, unit 0, R-directory lock         |
+| 1106  | 582     | Disk 10Mb 2, unit 0, F-directory lock         |
+| 1107  | 583     | Disk 10Mb 2, unit 0, R-bit-file-buffer lock   |
+| 1110  | 584     | Disk 10Mb 2, unit 0, F-bit-file-buffer lock   |
+| 1111  | 585     | Magnetic tape 2 data field                     |
+| 1112  | 586     | Big disk 4, unit 0, directory lock            |
+| 1113  | 587     | Floppy disk 1, unit 3, I/O data field         |
+| 1114  | 588     | Big disk 4, unit 0, bit-file-buffer lock      |
+| 1115  | 589     | Floppy disk 2, unit 3, I/O data field         |
+| 1116  | 590     | DF7, transfer lock for magnetic tape 2         |
+| 1117  | 591     | Big disk/big cartridge disk 1, unit 1, directory lock |
+| 1120  | 592     | Big disk/big cartridge disk 1, unit 1, bit-file-buffer lock |
+| 1121  | 593     | Big disk/big cartridge disk 1, unit 2, directory lock |
+| 1122  | 594     | Big disk/big cartridge disk 1, unit 2, bit-file-buffer lock |
+| 1123  | 595     | Big disk/big cartridge disk 1, unit 3, directory lock |
+| 1124  | 596     | Big disk/big cartridge disk 1, unit 3, bit-file-buffer lock |
+| 1125  | 597     | Versatec controller 2                           |
+| 1126  | 598     | Monitor call data field for Versatec controller 2 |
+| 1127  | 599     | DF 39, magnetic tape 3 monitor call data field |
+| 1130  | 600     | Disk 10Mb 2, unit 1, R-directory lock         |
+| 1131  | 601     | Disk 10Mb 2, unit 1, F-directory lock         |
+| 1132  | 602     | Disk 10Mb 2, unit 1, R-bit-file lock          |
+| 1133  | 603     | Disk 10Mb 2, unit 1, F-bit-file lock          |
+| 1134  | 604     | Floppy disk 1, unit 3, directory table lock   |
+| 1135  | 605     | Floppy disk 1, unit 3, bit-file-buffer lock   |
+| 1136  | 606     | Spooling device 1, queue semaphore             |
+| 1137  | 607     | Spooling device 1, queue I/O semaphore        |
+| 1140  | 608     | Spooling device 2, queue semaphore             |
+| 1141  | 609     | Spooling device 2, queue I/O semaphore        |
+| 1142  | 610     | Spooling system general semaphore              |
+| 1143  | 611     | Spooling system wait for used pages semaphore |
+| 1144  | 612     | Spooling system wait for free pages semaphore |
+| 1145  | 613     | Floppy disk 1, data field                      |
+| 1146  | 614     | Monitor call data field for floppy disk 1      |
+| 1147  | 615     | Floppy disk 2, unit 3, directory table lock   |
+| 1150  | 616     | Floppy disk 1, unit 0, directory table lock   |
+| 1151  | 617     | Floppy disk 1, unit 0, bit-file-buffer lock   |
+| 1152  | 618     | Floppy disk 1, unit 1, directory table lock   |
+| 1153  | 619     | Floppy disk 1, unit 1, bit-file-buffer lock   |
+| 1154  | 620     | Floppy disk 1, unit 2, directory table lock   |
+| 1155  | 621     | Floppy disk 1, unit 2, bit-file-buffer lock   |
+| 1156  | 622     | Floppy disk 2, data field                      |
+| 1157  | 623     | Monitor call data field for floppy disk 2      |
+| 1160  | 624     | Floppy disk 2, unit 3, bit-file-buffer lock   |
+| 1161  | 625     | Floppy disk 2, unit 0, directory table lock   |
+| 1162  | 626     | Floppy disk 2, unit 0, bit-file-buffer lock   |
+| 1163  | 627     | Floppy disk 2, unit 1, directory table lock   |
+| 1164  | 628     | Floppy disk 2, unit 1, bit-file-buffer lock   |
+| 1165  | 629     | Floppy disk 2, unit 2, directory table lock   |
+| 1166  | 630     | Floppy disk 2, unit 2, bit-file-buffer lock   |
+| 1167  | 631     | Line printer 1, data field                     |
+| 1170  | 632     | Monitor call data field for line printer 1     |
+| 1171  | 633     | Big disk 4, unit 2, directory lock            |
+| 1172  | 634     | Big disk 4, unit 2, bit-file buffer lock      |
+| 1173  | 635     | Spooling device 3, queue semaphore             |
+| 1174  | 636     | Spooling device 3, queue I/O semaphore        |
+| 1175  | 637     | Line printer 2, data field                     |
+| 1176  | 638     | Monitor call data field for line printer 2     |
+| 1177  | 639     | Spooling semaphore, id data buffer lock        |
+
+### System Devices (1200-1277)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 1200  | 640     | ND TPS system semaphore                        |
+| 1201  | 641     | DMAC command lock                              |
+| 1202  | 642     | RT-PROGRAM-LOG semaphore                       |
+| 1203  | 643     | Histogram commands lock                        |
+| 1204  | 644     | SINTRAN-SERVICE-PROGRAM command lock           |
+| 1205  | 645     | Mail system lock                               |
+| 1206  | 646     | Accounting semaphore                           |
+| 1207  | 647     | NOTIS-IR semaphore                             |
+| 1210  | 648     | Terminal 1, data field                         |
+| 1211  | 649     | Big disk/big cartridge disk 2, data field     |
+| 1212  | 650     | Internal device 1, data field                 |
+| 1213  | 651     | Internal device 1, Monitor call data field   |
+| 1214  | 652     | Internal device 2, data field                 |
+| 1215  | 653     | Internal device 2, Monitor call data field   |
+| 1216  | 654     | Internal device 3, data field                 |
+| 1217  | 655     | Internal device 3, Monitor call data field   |
+| 1220  | 656     | Internal device 4, data field                 |
+| 1221  | 657     | Internal device 4, Monitor call data field   |
+| 1222  | 658     | Internal device 5, data field                 |
+| 1223  | 659     | Internal device 5, Monitor call data field   |
+| 1224  | 660     | Winchester disk, data field or STC magtape controller 4 |
+| 1225  | 661     | Winchester disk 1, unit 0, directory table lock |
+| 1226  | 662     | Winchester disk 1, unit 0, bit-file-buffer lock |
+| 1227  | 663     | Winchester disk 1, unit 1, directory table lock |
+| 1230  | 664     | Winchester disk 1, unit 1, bit-file-buffer lock |
+| 1231  | 665     | Winchester disk 2, data field or STC magtape controller 3 |
+| 1232  | 666     | Winchester disk 2, unit 0, directory table lock |
+| 1233  | 667     | Winchester disk 2, unit 0, bit-file-buffer lock |
+| 1234  | 668     | Winchester disk 2, unit 1, directory table lock |
+| 1235  | 669     | Winchester disk 2, unit 1, bit-file-buffer lock |
+| 1236  | 670     | Batch process 1, data field                    |
+| 1237  | 671     | Batch process 1, internal device               |
+| 1240  | 672     | Batch process 2, data field                    |
+| 1241  | 673     | Batch process 2, internal device               |
+| 1242  | 674     | Batch process 3, data field                    |
+| 1243  | 675     | Batch process 3, internal device               |
+| 1244  | 676     | Batch process 4, data field                    |
+| 1245  | 677     | Batch process 4, internal device               |
+| 1246  | 678     | Batch process 5, data field                    |
+| 1247  | 679     | Batch process 5, internal device               |
+| 1250  | 680     | Batch process 6, data field                    |
+| 1251  | 681     | Batch process 6, internal device               |
+| 1252  | 682     | Batch process 7, data field                    |
+| 1253  | 683     | Batch process 7, internal device               |
+| 1254  | 684     | Batch process 8, data field                    |
+| 1255  | 685     | Batch process 8, internal device               |
+| 1256  | 686     | Batch process 9, data field                    |
+| 1257  | 687     | Batch process 9, internal device               |
+| 1260  | 688     | Batch process 10, data field                   |
+| 1261  | 689     | Batch process 10, internal device              |
+| 1262  | 690     | Spooling device 7, queue semaphore             |
+| 1263  | 691     | Spooling device 7, queue I/O semaphore        |
+| 1264  | 692     | Spooling device 8, queue semaphore             |
+| 1265  | 693     | Spooling device 8, queue I/O semaphore        |
+| 1266  | 694     | Spooling device 9, queue semaphore             |
+| 1267  | 695     | Spooling device 9, queue I/O semaphore        |
+| 1270  | 696     | Spooling device 10, queue semaphore            |
+| 1271  | 697     | Spooling device 10, queue I/O semaphore       |
+| 1272  | 698     | Monitor call data field for internal device 1  |
+| 1273  | 699     | Monitor call data field for internal device 2  |
+| 1274  | 700     | Monitor call data field for internal device 3  |
+| 1275  | 701     | Monitor call data field for internal device 4  |
+| 1276  | 702     | Monitor call data field for internal device 5  |
+| 1277  | 703     | DF 40, magnetic tape 4, monitor call data field |
+
+### System Devices (1300-1377)
+
+| Octal | Decimal | Device Name                                     |
+|-------|---------|------------------------------------------------|
+| 1300  | 704     | Big disk 4, unit 3, directory lock            |
+| 1301  | 705     | Big disk 4, unit 3, bit file buffer lock      |
+| 1302  | 706     | Device buffer lock                             |
+| 1303  | 707     | Hasp DMA 1, data field                         |
+| 1304  | 708     | Hasp DMA 1, data field                         |
+| 1305  | 709     | Monitor call data field for Hasp DMA 1        |
+| 1306  | 710     | Monitor call data field for Hasp DMA 1        |
+| 1307  | 711     | Hasp DMA 2, data field                         |
+| 1310  | 712     | Hasp DMA 2, data field                         |
+| 1311  | 713     | Monitor call data field for Hasp DMA 2        |
+| 1312  | 714     | Monitor call data field for Hasp DMA 2        |
+| 1313  | 715     | Hasp DMA 3, data field                         |
+| 1314  | 716     | Hasp DMA 3, data field                         |
+| 1315  | 717     | Monitor call data field for Hasp DMA 3        |
+| 1316  | 718     | Monitor call data field for Hasp DMA 3        |
+| 1317  | 719     | Hasp DMA 4, data field                         |
+| 1320  | 720     | Hasp DMA 4, data field                         |
+| 1321  | 721     | Monitor call data field for Hasp DMA 4        |
+| 1322  | 722     | Monitor call data field for Hasp DMA 4        |
+| 1323  | 723     | Hasp DMA 5, data field                         |
+| 1324  | 724     | Hasp DMA 5, data field                         |
+| 1325  | 725     | Monitor call data field for Hasp DMA 5        |
+| 1326  | 726     | Monitor call data field for Hasp DMA 5        |
+| 1327  | 727     | Hasp DMA 6, data field                         |
+| 1330  | 728     | Hasp DMA 6, data field                         |
+| 1331  | 729     | Monitor call data field for Hasp DMA 6        |
+| 1332  | 730     | Monitor call data field for Hasp DMA 6        |
+| 1333  | 731     | Big disk/big cartridge disk 2, unit 0, directory table lock |
+| 1334  | 732     | Big disk/big cartridge disk 2, unit 0, bit-file-buffer lock |
+| 1335  | 733     | Big disk/big cartridge disk 2, unit 1, directory table lock |
+| 1336  | 734     | Big disk/big cartridge disk 2, unit 1, bit-file-buffer lock |
+| 1337  | 735     | Big disk/big cartridge disk 2, unit 2, directory table lock |
+| 1340  | 736     | Big disk/big cartridge disk 2, unit 2, bit-file-buffer lock |
+| 1341  | 737     | Big disk/big cartridge disk 2, unit 3, directory table lock |
+| 1342  | 738     | Big disk/big cartridge disk 2, unit 3, bit-file-buffer lock |
+| 1343  | 739     | Line printer 3, data field                     |
+| 1344  | 740     | Monitor call data field for line printer 3    |
+| 1345  | 741     | Line printer 4, data field                     |
+| 1346  | 742     | Monitor call data field for line printer 4    |
+| 1347  | 743     | Spooling device 11, queue I/O semaphore        |
+| 1350  | 744     | Spooling device 12, queue semaphore            |
+| 1351  | 745     | Spooling device 12, queue I/O semaphore        |
+| 1352  | 746     | RT-PROGRAM-LOG command lock                     |
+| 1360  | 752     | HDLC DMA, link 1, input; synchronous modem 1 for HDLC interface input/output |
+| 1361  | 753     | HDLC DMA, link 1, output                       |
+| 1362  | 754     | HDLC DMA, link 2, input; synchronous modem 2 for HDLC interface input/output |
+| 1364  | 756     | HDLC DMA, link 3, input; synchronous modem 3 for HDLC interface input/output |
+| 1366  | 758     | HDLC DMA, link 4, input; synchronous modem 4 for HDLC interface input/output |
+| 1373  | 763     | HDLC DMA, link 6, output; synchronous modem 6 for HDLC interface output |
+| 1374  | 764     | X.21 logical number 1                           |
+| 1375  | 765     | X.21 logical number 2                           |
+| 1376  | 766     | X.21 logical number 3                           |
+| 1377  | 767     | X.21 logical number 4                           |
+
+### Additional Device Ranges
+
+| Range | Description                                     |
+|-------|------------------------------------------------|
+| 1400-1537 | Terminal access device (TAD) 1-96 (decimal)   |
+| 1600-1677 | DMA device buffer, header locks for header numbers 0-77 (octal) |
+| 1722  | Spooling device 13, queue semaphore            |
+| 1723  | Spooling device 13, queue I/O semaphore       |
+| 1724  | Spooling device 14, queue semaphore            |
+| 1725  | Spooling device 14, queue I/O semaphore       |
+| 1726  | Spooling device 15, queue semaphore            |
+| 1727  | Spooling device 15, queue I/O semaphore       |
+| 1730  | COSMOS file access, DF data field             |
+| 1731  | COSMOS Spooling, peripheral device number     |
+| 2000-2077 | Terminal nos. 65-127                           |
+| 2130  | Spooling device 16, queue semaphore            |
+| 2131  | Spooling device 16, I/O semaphore             |
+| 2132  | Spooling device 17, queue semaphore            |
+| 2133  | Spooling device 17, I/O semaphore             |
+| 2134  | Spooling device 18, queue semaphore            |
+| 2135  | Spooling device 18, I/O semaphore             |
+| 2136  | Spooling device 19, queue semaphore            |
+| 2137  | Spooling device 19, I/O semaphore             |
+| 2140  | Spooling device 20, queue semaphore            |
+| 2141  | Spooling device 20, I/O semaphore             |
+| 2142  | Spooling device 21, queue semaphore            |
+| 2143  | Spooling device 21, I/O semaphore             |
+| 2144  | Spooling device 22, queue semaphore            |
+| 2145  | Spooling device 22, I/O semaphore             |
+| 2146  | Spooling device 23, queue semaphore            |
+| 2147  | Spooling device 23, I/O semaphore             |
+| 2150  | Spooling device 24, queue semaphore            |
+| 2151  | Spooling device 24, I/O semaphore             |
+| 2152  | Spooling device 25, queue semaphore            |
+| 2153  | Spooling device 25, I/O semaphore             |
+| 2154  | Spooling device 26, queue semaphore            |
+| 2155  | Spooling device 26, I/O semaphore             |
+| 2156  | Spooling device 27, queue semaphore            |
+| 2157  | Spooling device 27, I/O semaphore             |
+| 2160  | Spooling device 28, queue semaphore            |
+| 2161  | Spooling device 28, I/O semaphore             |
+| 2162  | Spooling device 29, queue semaphore            |
+| 2163  | Spooling device 29, I/O semaphore             |
+| 2164  | Spooling device 30, queue semaphore            |
+| 2165  | Spooling device 30, I/O semaphore             |
+| 2166  | COSMOS Spooling, queue semaphore              |
+| 2167  | COSMOS Spooling, I/O semaphore               |
+
+---
+
+# APPENDIX C
+## ERROR MESSAGES
+
+This appendix documents SINTRAN run-time and file system errors. Error messages originating in subsystems are documented in their respective subsystem documentation. This includes FORTRAN and BASIC run-time errors.
+
+## C.1 SINTRAN III Monitor
+
+### C.1.1 Run-Time Errors
+
+Most run-time errors cause the current RT-program to be aborted and an error message to be printed.
+
+**Error Message Format:**
+```
+aa.bb.cc ERROR nn IN rr AT ll ; tttt xx yy
+```
+
+**Error Message Output Location:**
+- If an error occurs in a background program, the message is written to the corresponding terminal.
+- For RT-programs, the message is written to the error message terminal (usually terminal 1).
+
+**Meaning of Parameters:**
+- `aa.bb.cc`: Time when the error message was printed.
+  - `aa`: hours
+  - `bb`: minutes
+  - `cc`: seconds
+- `nn`: Error number (refers to following pages).
+- `rr`: Name of RT-program.
+- `ll`: Octal address where the error occurred.
+- `tttt`: Explanatory text.
+- `xx, yy`: Numbers giving additional information about the error. One or both numbers can be omitted (refers to following pages).
+
+**Example:**
+```
+01.43.32 ERROR 14 IN RTP1 AT 114721;
+OUTSIDE SEGMENT BOUNDS
+```
+
+**Note:** In the case of a segment transfer error, an additional message "TRANSF!" is given.
+
+### C.1.2 Run-Time Error Codes
+
+| Error Code | Meaning | xx | yy | Program Aborted |
+|------------|---------|----|----|-----------------|
+| 00 | Illegal monitor call | | | yes |
+| 01 | Bad RT-program address | | | yes |
+| 02 | Wrong priority in PRIOR | | | yes |
+| 03 | Bad memory page | page no. | | yes |
+| 04 | Internal interrupt on direct task level | level | bit no. | |
+| 06 | Batch input error | error no. | | yes |
+| 07 | Batch output error | error no. | | yes |
+| 08 | Batch system error | error no. | L-reg. | yes |
+| 09 | Illegal parameter in CLOCK | | | yes |
+| 10 | Illegal parameter in ABSET | | | yes |
+| 11 | Illegal parameter in UPDAT | | | yes |
+| 12 | Illegal time parameters | | | yes |
+| 13 | Page fault for non-demand | page no. | | yes |
+| 14 | Outside segment bounds | page no. | | yes |
+| 15 | Illegal segment number | segment no. | | yes |
+| 16 | Segment not loaded | segment no. | | yes |
+| 17 | Fixing demand | segment no. | | yes |
+| 18 | Too many fixed pages | segment no. | | yes |
+| 19 | Too big segment | segment no. | | yes |
+| 20 | Disk transfer error | hardware device no. | unit | no (yes if segment transfer) |
+| 21 | Disk transfer error | last 16 bit of sector address | hardware status | no |
+| 22 | False interrupt | level | IDENTcode | no |
+| 23 | Device error | hardware device no. | hardware status | no |
+| 25 | Already fixed | segment no. | | yes |
+| 26 | Device timeout | hardware device | unit no. | no |
+| 27 | Illegal parameter in CONCT | | | yes |
+| 28 | Space not available | segment no. | | yes |
+| 29 | MON 64 and MON 65 (File system error) | error no. | (see NORD File Syst ND-60.122) | yes |
+| 30 | Divide by zero | | | yes |
+| 31 | Permit violation | | | yes |
+| 32 | Ring violation | | | yes |
+| 33 | HDLC driver, fatal error | | | yes |
+| 34 | Illegal instruction | | | yes |
+| 35 | Reentrant-FTN stack error | | | yes |
+| 36 | Privileged instruction | | | yes |
+| 37 | IOX error address level | | | no |
+| 38 | Memory parity error | PEA reg. | PES reg. | yes |
+| 39 | Memory out of range | PEA reg. | PES reg. | yes |
+| 40 | Power fail | | | no |
+| 41 | Illegal error code in ERMON | | | yes |
+| 42 | Overlapping segments | segments | | yes |
+| 44 | Corrected memory error | PEA reg. | PES reg. | no |
+| 45 | Not demand segments | | | yes |
+| 46 | XMSG fatal error, internal error or inconsistency | XMSG error code | physical address | yes |
+| 47 | XMSG user error | calling level | | yes |
+| 48 | False BEX interrupt | | | |
+| 49 | Remote power fail interrupt | | | |
+| 50-69 | User defined error (MON 142) | error no. | suberror number | no |
+| 70 | BEX parity error | | | |
+| 71 | False MPM4 interrupt | busc no. | hardware status | no |
+| 72 | MPM4 power fail interrupt | busc no. | | no |
+| 73 | MPM4 memory out of range | busc no. | lower limit | no |
+| 74 | MPM4 memory error | local PES | local PEA | no |
+| 75 | MPM4 parity error | busc no. | lower limit | no |
+| 76 | MPM4 write parity error | busc no. | port code number | |
+| 90 | FORTRAN run-time error | error no. | | no |
+| 91 | FORTRAN I/O error | error no. | | no |
+| 92 | Fatal error in GPIB driver. Controller stopped. | | | |
+| 93 | GPIB error | | | no |
+| 94 | Illegal page index block | | | |
+| 95 | Illegal function code | | | |
+| 96 | Segment is fixed in page index table | | | |
+| 97 | Trying to start uninitialised background program | | | |
+| 98 | No background process available | | | |
+| 99 | Octobus error | | | |
+| 100 | FTN library error | | | |
+
+## C.2 SINTRAN III File System
+
+### C.2.1 Error Codes Returned from Monitor Calls - Numeric List
+
+| Error Code (Octal) | Error Code (Decimal) | Message |
+|-------------------|---------------------|---------|
+| 000 | 000 | not used |
+| 001 | 001 | not used |
+| 002 | 002 | Bad file number |
+| 003 | 003 | End of file |
+| 004 | 004 | Card reader error (card read) |
+| 005 | 005 | Device not reserved |
+| 006 | 006 | not used |
+| 007 | 007 | Card reader error (card not read) |
+| 010 | 008 | not used |
+| 011 | 009 | not used |
+| 012 | 010 | End of device (timeout) |
+| 013 | 011 | not used |
+| 014 | 012 | not used |
+| 015 | 013 | not used |
+| 016 | 014 | not used |
+| 017 | 015 | not used |
+| 020 | 016 | not used |
+| 021 | 017 | Illegal character in parameter |
+| 022 | 018 | No such page |
+| 023 | 019 | Not decimal number |
+| 024 | 020 | Not octal number |
+| 025 | 021 | You are not authorised to do this |
+| 026 | 022 | Directory not entered |
+| 027 | 023 | Ambiguous directory name |
+| 030 | 024 | No such device name |
+| 031 | 025 | Ambiguous device name |
+| 032 | 026 | Directory entered |
+| 033 | 027 | No such logical unit |
+| 034 | 028 | Unit occupied |
+| 035 | 029 | Master block transfer error |
+| 036 | 030 | Bit-file transfer error |
+| 037 | 031 | No more tracks available |
+| 040 | 032 | Directory not on specified unit |
+| 041 | 033 | Files open on this directory |
+| 042 | 034 | Main directory not last one released |
+| 043 | 035 | No main directory |
+| 044 | 036 | Too long parameter |
+| 045 | 037 | Ambiguous user name |
+| 046 | 038 | No such user name |
+| 047 | 039 | No such user name in main directory |
+| 050 | 040 | Attempt to create too many users |
+| 051 | 041 | User already exists |
+| 052 | 042 | User has files |
+| 053 | 043 | User is entered |
+| 054 | 044 | Not so much space unreserved in directory |
+| 055 | 045 | Reserved space already used |
+| 056 | 046 | No such file name |
+| 057 | 047 | Ambiguous file name |
+| 060 | 048 | Wrong password |
+| 061 | 049 | User already entered |
+| 062 | 050 | No user entered |
+| 063 | 051 | Friend already exists |
+| 064 | 052 | No such friend |
+| 065 | 053 | Attempt to create too many friends |
+| 066 | 054 | Attempt to create yourself as friend |
+| 067 | 055 | Contiguous space not available |
+| 070 | 056 | Not directory access |
+| 071 | 057 | Space not available to expand file |
+| 072 | 058 | Space already allocated |
+| 073 | 059 | No space in default directories |
+| 074 | 060 | No such file version |
+| 075 | 061 | No more pages available for this user |
+| 076 | 062 | File already exists |
+| 077 | 063 | Attempt to create too many files |
+| 100 | 064 | Outside device limits |
+| 101 | 065 | No previous version |
+| 102 | 066 | File not contiguous |
+| 103 | 067 | File type already defined |
+| 104 | 068 | No such access code |
+| 105 | 069 | File already open |
+| 106 | 070 | Not write access |
+| 107 | 071 | Attempt to open too many files |
+| 110 | 072 | Not write and append access |
+| 111 | 073 | Not read access |
+| 112 | 074 | Not read, write and common access |
+| 113 | 075 | Not read and write access |
+| 114 | 076 | Not read and common access |
+| 115 | 077 | File reserved by another user |
+| 116 | 078 | File already opened for write by you |
+| 117 | 079 | No such user index |
+| 120 | 080 | Not append access |
+| 121 | 081 | Attempt to open too many mass storage files |
+| 122 | 082 | Attempt to open too many files |
+| 123 | 083 | Not open for sequential write |
+| 124 | 084 | Not open for sequential read |
+| 125 | 085 | Not open for random write |
+| 126 | 086 | Not open for random read |
+| 127 | 087 | File number out of range |
+| 130 | 088 | File number already used |
+| 131 | 089 | No more buffer space |
+| 132 | 090 | No file open with this number |
+| 133 | 091 | Not mass storage file |
+| 134 | 092 | File used for write |
+| 135 | 093 | File used for read |
+| 136 | 094 | File only open for sequential read or write |
+| 137 | 095 | No scratch file open |
+| 140 | 096 | File not reserved by you |
+| 141 | 097 | Transfer error |
+| 142 | 098 | File already reserved |
+| 143 | 099 | No such block |
+| 144 | 100 | Source and destination equal |
+| 145 | 101 | Illegal on tape device |
+| 146 | 102 | End of tape |
+| 147 | 103 | Device unit reserved for special use |
+| 150 | 104 | Main directory must be default |
+| 151 | 105 | Not last file on tape |
+| 152 | 106 | Not tape device |
+| 153 | 107 | Illegal address reference in monitor call |
+| 154 | 108 | Source empty |
+| 155 | 109 | File already opened by another user |
+| 156 | 110 | File already opened for write by another user |
+| 157 | 111 | Missing parameter |
+| 160 | 112 | Two pages must be left unreserved |
+| 161 | 113 | not used |
+| 162 | 114 | Device cannot be reserved |
+| 163 | 115 | Overflow in read |
+| 164 | 116 | DMA error |
+| 165 | 117 | Bad data block |
+| 166 | 118 | Control/modus word error |
+| 167 | 119 | Parity error |
+| 170 | 120 | LRC error |
+| 171 | 121 | Device error (device-function read-last-status to get status) |
+| 172 | 122 | Device buffer of requested size not available |
+| 173 | 123 | Illegal mass storage unit number |
+| 174 | 124 | Illegal parameter |
+| 175 | 125 | Write-protect violation |
+| 176 | 126 | Error detected by read after write |
+| 177 | 127 | No EOF mark found |
+| 200 | 128 | not used |
+| 201 | 129 | Illegal function code |
+| 202 | 130 | Timeout (no data block found) |
+| 203 | 131 | Paper fault |
+| 204 | 132 | Device not ready |
+| 205 | 133 | Device already reserved |
+| 206 | 134 | Not peripheral file |
+| 207 | 135 | No such queue entry |
+| 210 | 136 | Not so much space left |
+| 211 | 137 | No spooling for this device |
+| 212 | 138 | No such queue |
+| 213 | 139 | Queue empty |
+| 214 | 140 | Queue full |
+| 215 | 141 | Not last used by you |
+| 216 | 142 | not used |
+| 217 | 143 | not used |
+| 220 | 144 | not used |
+| 221 | 145 | not used |
+| 222 | 146 | not used |
+| 223 | 147 | Formatting error |
+| 224 | 148 | Incompatible device sizes |
+| 225 | 149 | not used |
+| 226 | 150 | Tape format error |
+| 227 | 151 | Block count error |
+| 230 | 152 | Volume not on specified unit |
+| 231 | 153 | Not deleted record |
+| 232 | 154 | Device error |
+| 233 | 155 | Error in object entry |
+| 234 | 156 | Odd number of bytes (right byte in last word insignificant) |
+| 235 | 157 | Error in backspace/forward-space print |
+| 236 | 158 | Block format error |
+| 237 | 159 | Overflow in write |
+| 240 | 160 | Illegal device type |
+| 241 | 161 | Segment not contiguously fixed |
+| 242 | 162 | Segment not fixed |
+| 243 | 163 | Approaching end of accounting file |
+| 244 | 164 | Accounting file full |
+| 245 | 165 | No more unused spooling files available |
+| 246 | 166 | Inconsistent directory |
+| 247 | 167 | Object entry not used |
+| 250 | 168 | User does not exist |
+| 251 | 169 | Directory not reserved |
+| 252 | 170 | Not a multiple of hardware block size |
+| 253 | 171 | Not indexed file |
+| 254 | 172 | Illegal floppy format |
+| 255 | 173 | File not open |
+| 256 | 174 | File already opened for read or write by you |
+| 257 | 175 | User does not exist in the same main directory as you |
+| 260 | 176 | File-access reentrant segments are not loaded |
+| 261 | 177 | Illegal access code for remote file |
+| 262 | 178 | File-access connection aborted by file server |
+| 263 | 179 | File-access connection aborted by file server administrator |
+| 264 | 180 | No answer from remote system; file-access connection aborted |
+| 265 | 181 | File-access initialize failed |
+| 266 | 182 | Unknown remote system name |
+| 267 | 183 | File-access protocol error; connection aborted |
+| 270 | 184 | File-access internal error; call not valid in current state |
+| 271 | 185 | Illegal range of LAMU identifier |
+| 272 | 186 | LAMU in use |
+| 273 | 187 | LAMU table full |
+| 274 | 188 | Illegal RT-program |
+| 275 | 189 | Maximum number of LAMUs per RT-program reached |
+| 276 | 190 | LAMU not connected |
+| 277 | 191 | No LAMU area big enough |
+| 300 | 192 | LAMU not defined |
+| 301 | 193 | Illegal logical page number |
+| 302 | 194 | Logical LAMU overlap |
+| 303 | 195 | You can only log in on a main directory |
+| 304 | 196 | Directory index too large |
+| 305 | 197 | Object index too large |
+| 306 | 198 | not used |
+| 307 | 199 | Warning; 2-bank prog. file, but segment is only 1-bank |
+| 310 | 200 | Warning; no such page in data bank, program starts as 1-bank |
+| 311 | 201 | The specified device is not a terminal |
+| 312 | 202 | No termination handling defined |
+| 313 | 203 | No more remote file-access data segments available |
+| 314 | 204 | Input while escape/local off is illegal |
+| 315 | 205 | TAD protocol error, illegal or inconsistent message |
+| 316 | 206 | Terminal line not connected |
+| 317 | 207 | Illegal combination of DENTE and DTUSE bits |
+| 320 | 208 | Directory not reserved by you |
+| 321 | 209 | Wrong project password |
+| 322 | 210 | File-access transport layer error; all connections aborted |
+| 323 | 211 | File-access internal error; invalid parameter value |
+| 324 | 212 | File-access not running or crashed; all connections aborted |
+| 325 | 213 | Wrong format in file |
+| 326 | 214 | Directory already reserved for special use |
+| 327 | 215 | Unknown user-control code |
+| 330 | 216 | No service is available for this code |
+| 331 | 217 | Please terminate current service before requesting new service |
+| 332 | 218 | This code is only legal within a service |
+| 333 | 219 | Remote file server is not available |
+| 334 | 220 | ND-100 panel clock incorrect |
+| 335 | 221 | Buffer size too big for buffer previously obtained |
+| 336 | 222 | Illegal segment name |
+| 337 | 223 | Not octal number |
+| 340 | 224 | Not contiguous file |
+| 341 | 225 | Ambiguous command |
+| 342 | 226 | Protected command |
+| 343 | 227 | Ambiguous subsystem |
+| 344 | 228 | No more spooling pages left |
+| 345 | 229 | No more versions can be created in this object block |
+| 346 | 230 | Illegal baud rate specified |
+| 347 | 231 | Illegal character length |
+| 350 | 232 | Illegal parity specified |
+| 351 | 233 | Not legal from RT-program |
+| 352 | 234 | Illegal when not originally own terminal |
+| 353 | 235 | Illegal break/echo strategy |
+| 354 | 236 | Illegal size of parameter array |
+| 355 | 237 | Illegal area specified |
+| 356 | 238 | Not 8 bits character length |
+| 357 | 239 | Terminal already in a display table |
+| 360 | 240 | Not a master terminal |
+| 361 | 241 | Not connected to specified master terminal |
+| 362 | 242 | Error in display table |
+| 363 | 243 | Fatal error occurred during read/write in segments |
+| 364 | 244 | Baud rate not set by software |
+| 365 | 245 | Illegal baud rate in data field |
+| 366 | 246 | Program is active |
+| 367 | 247 | No more physical memory available |
+| 370 | 248 | No more allocate-memory-table indexes available |
+| 371 | 249 | Illegal segment |
+| 372 | 250 | Illegal address |
+| 373 | 251 | Illegal program LAMU identifier |
+| 374 | 252 | Program LAMU already exists |
+| 375 | 253 | No such program LAMU |
+| 376 | 254 | Illegal program LAMU size |
+| 377 | 255 | Program LAMU not connected |
+| 3200 | 1664 | Not allowed now |
+| 3201 | 1665 | Illegal index |
+| 3202 | 1666 | Disc access log file is full |
+
+### C.2.2 Error Codes Returned from Monitor Calls - Alphabetic List
+
+**Accounting file full (244 oct)**: The file used to store accounting is full. The file must be reset by the accounting service program.
+
+**Ambiguous command (341 oct)**: The given command is an abbreviated form that can be expanded in more than one way, or its expansion is one of the few commands that must be written in full.
+
+**Ambiguous device name (031 oct)**: The given device specification matches the name of more than one device name.
+
+**Ambiguous directory name (027 oct)**: The given directory specification matches more than one directory name.
+
+**Ambiguous file name (057 oct)**: The given file specification matches more than one file name in the current directory.
+
+**Ambiguous subsystem (343 oct)**: The command given is an abbreviated form that matches the name of more than one subsystem.
+
+**Ambiguous user name (045 oct)**: The user specification matches more than one user name.
+
+**Approaching end of accounting file (243 oct)**: The file used to store accounting information is nearly full. The file must be reset by the accounting service program.
+
+**Attempt to create too many files (077 oct)**: The user already has the maximum number of files. Either delete files or increase the maximum number of files.
+
+**Attempt to create too many friends (065 oct)**: The maximum number of friends (8) has already been defined.
+
+**Attempt to create too many users (050 oct)**: The maximum number of users have already been created.
+
+**Attempt to create yourself as friend (066 oct)**: You are logged in as the user you specify as the new friend.
+
+**Attempt to open too many files (107 oct)**: You have already opened as many files as you are allowed to.
+
+**Attempt to open too many files (122 oct)**: You have already opened as many files as you are allowed to.
+
+**Attempt to open too many mass storage files (121 oct)**: You have already opened the maximum number of mass storage files.
+
+**Bad data block (165 oct)**: Read error - possible device malfunction.
+
+**Bad file number (002 oct)**: Internal error - the internal open-file-number is out of range.
+
+**Baud rate not set by software (364 oct)**: Terminal speed should have been set by software, but was only set by hardware.
+
+**Bit-file transfer error (036 oct)**: Error on a directory device. Unable to read system information on the device.
+
+**Block count error (227 oct)**: Self-explanatory.
+
+**Block format error (236 oct)**: Self-explanatory.
+
+**Buffer size too big for buffer previously obtained (335 oct)**: Attempt to change buffer size.
+
+**Card reader error (card not read) (007 oct)**: Error while reading cards. There may be a jammed card, or mispunch.
+
+**Card reader error (card read) (004 oct)**: Error while reading cards. There may be a jammed card, or mispunch.
+
+**Contiguous space not available (067 oct)**: Your file cannot be expanded.
+
+**Control/modus word error (166 oct)**: Error in control word.
+
+**DMA error (164 oct)**: Error in DMA transfer.
+
+**Device already reserved (205 oct)**: Self-explanatory.
+
+**Device buffer of requested size not available (172 oct)**: Self-explanatory.
+
+**Device cannot be reserved (162 oct)**: Self-explanatory.
+
+**Device error (232 oct)**: Device error detected.
+
+**Device error (device-function read-last-status to get status) (171 oct)**: Device error detected. Use the SINTRAN III command DEVICE-FUNCTION device,READ-LAST-STATUS to get status information.
+
+**Device not ready (204 oct)**: Possibly a floppy disk (or a disk pack) not properly inserted, a printer is in offline (unselect) mode etc. when trying to access the device.
+
+**Device not reserved (005 oct)**: Attempt to access a device which must be reserved without reserving it.
+
+**Device unit reserved for special use (147 oct)**: Device must be reserved for special use to be accessed the way you tried.
+
+**Directory already reserved for special use (326 oct)**: Devices reserved for special use may not be accessed by other users at the same time.
+
+**Directory entered (032 oct)**: Attempt to access a directory erroneously while it is entered.
+
+**Directory index too large (304 oct)**: Attempt to specify a directory index outside range.
+
+**Directory not entered (026 oct)**: Attempt to access a directory that has not been previously entered. Probably due to bad spelling of the directory name.
+
+**Directory not on specified unit (040 oct)**: Directory name misspelt or wrong unit specified or wrong removable pack inserted.
+
+**Directory not reserved (251 oct)**: The directory must be reserved for this function.
+
+**Directory not reserved by you (320 oct)**: The directory is already reserved, but not by you.
+
+**Disc access log file is full (3202 oct)**: The file used to store data for the disk access log facility is full.
+
+**End of device (timeout) (012 oct)**: Unable to get input from the device.
+
+**End of file (003 oct)**: Attempt to read past the end of the file.
+
+**End of tape (146 oct)**: Attempt to read past the last data written on tape, or write past physical end of tape.
+
+**Error detected by read after write (176 oct)**: The written data were read back in order to check that the write was successful, but showed that it was not.
+
+**Error in backspace/forward-space print (235 oct)**: Error while attempting backspace or forward-space print.
+
+**Error in display table (362 oct)**: Internal error in the table of terminals used for the display facility.
+
+**Error in object entry (233 oct)**: Internal file system error.
+
+**Fatal error occurred during read/write in segments (363 oct)**: Self-explanatory.
+
+**File-access internal error; call not valid in current state (270 oct)**: Self-explanatory.
+
+**File-access internal error; invalid parameter value (323 oct)**: Self-explanatory.
+
+**File-access not running or crashed; all connections aborted (324 oct)**: Self-explanatory.
+
+**File-access protocol error; connection aborted (267 oct)**: Internal error in remote file access.
+
+**File already exists (076 oct)**: Attempt to create a file with the same name as an existing file.
+
+**File already open (105 oct)**: Attempt to open a file that is already open, possibly by another user.
+
+**File already opened by another user (155 oct)**: Self-explanatory.
+
+**File already opened for read or write by you (256 oct)**: Attempt to open a file that is already open.
+
+**File already opened for write by another user (156 oct)**: Self-explanatory.
+
+**File already opened for write by you (116 oct)**: Attempt to open a file a second time without first closing it.
+
+**File already reserved (142 oct)**: Attempt to reserve a file that is already reserved for you.
+
+**File not contiguous (102 oct)**: Possibly attempt to define a segment file that is not contiguous.
+
+**File not open (255 oct)**: Attempt to read or write to a file that is not open. Possibly specifying wrong file number.
+
+**File not reserved by you (140 oct)**: File is reserved by and for some other user, or the same user but at an other terminal.
+
+**File number already used (130 oct)**: Attempt to connect a file with a specific file number, when an other file has that number.
+
+**File number out of range (127 oct)**: An open-file-number was specified, but no such open file exists.
+
+**File only open for sequential read or write (136 oct)**: Self-explanatory.
+
+**File reserved by another user (115 oct)**: Attempt to open a file that has been reserved by another user.
+
+**File type already defined (103 oct)**: Attempt to redefine file type (terminal file/peripheral file/spooling file, etc).
+
+**File used for read (135 oct)**: Self-explanatory.
+
+**File used for write (134 oct)**: Self-explanatory.
+
+**File-access connection aborted by file server (262 oct)**: Self-explanatory.
+
+**File-access connection aborted by file server administrator (263 oct)**: Self-explanatory.
+
+**File-access initialize failed (265 oct)**: Self-explanatory.
+
+**File-access reentrant segments are not loaded (260 oct)**: The reentrant segments used for remote file access is not loaded.
+
+**File-access transport layer error; all connections aborted (322 oct)**: Internal error in remote file access.
+
+**Files open on this directory (041 oct)**: The directory cannot be released until all files on it are closed.
+
+**Formatting error (223 oct)**: Error while attempting to format a disk or a floppy disk.
+
+**Friend already exists (063 oct)**: The specified user is already a friend.
+
+**Illegal RT-program (274 oct)**: No legal RT-program address specified.
+
+**Illegal access code for remote file (261 oct)**: Attempt to access a remote file with illegal access code(s).
+
+**Illegal address (372 oct)**: The address specified is illegal.
+
+**Illegal address reference in monitor call (153 oct)**: Probably internal error in the program.
+
+**Illegal area specified (355 oct)**: Attempt to specify illegal area in monitor call.
+
+**Illegal baud rate in data field (365 oct)**: Terminal speed out of range.
+
+**Illegal baud rate specified (346 oct)**: Self-explanatory.
+
+**Illegal break/echo strategy (353 oct)**: Attempt to specify illegal echo and/or break strategy.
+
+**Illegal character in parameter (021 oct)**: Wrong syntax in the parameter. Probably due to bad spelling, missing punctuation, unbalanced parenthesis or extraneous characters.
+
+**Illegal character length (347 oct)**: Attempt to set character length less then 5 bits or greater than 8 bits.
+
+**Illegal combination of DENTE and DTUSE bits (317 oct)**: Internal inconsistency - directory is marked both as entered and reserved for special use.
+
+**Illegal device type (240 oct)**: Self-explanatory.
+
+**Illegal floppy format (254 oct)**: Attempt to set or use an unsupported floppy format.
+
+**Illegal function code (201 oct)**: Illegal function code in monitor call.
+
+**Illegal index (3201 oct)**: Illegal sub-function code or index in monitor call.
+
+**Illegal logical page number (301 oct)**: Logical page numbers must be in the range 0-63 decimal (0-77 octal).
+
+**Illegal mass storage unit number (173 oct)**: Self-explanatory.
+
+**Illegal on tape device (145 oct)**: This function is not allowed on magnetic tape.
+
+**Illegal parameter (174 oct)**: One of the parameters can only have one of a few specific values, not including the value given.
+
+**Illegal parity specified (350 oct)**: Attempt to specify illegal parity.
+
+**Illegal program LAMU identifier (373 oct)**: The LAMU identifier specified is illegal.
+
+**Illegal program LAMU size (376 oct)**: Size of LAMU is out of range.
+
+**Illegal range of LAMU identifier (271 oct)**: LAMU identifier is out of range.
+
+**Illegal segment (371 oct)**: Attempt to change one of the active segments for a program to an illegal segment.
+
+**Illegal segment name (336 oct)**: The segment name specified is illegal.
+
+**Illegal size of parameter array (354 oct)**: Parameter array in monitor call too small.
+
+**Illegal when not originally own terminal (352 oct)**: Error in monitor call - attempt to reset other terminal to become own.
+
+**Incompatible device sizes (224 oct)**: Incompatible device sizes in COPY-DEVICE.
+
+**Inconsistent directory (246 oct)**: The information in the file directory contradicts itself, as when the same disk blocks are allocated to several files, or some blocks does not appear as belonging to any file, nor in the free list. This error may be a symptom of hardware errors that garble the data on write or read time.
+
+**Input while escape/local off is illegal (314 oct)**: Illegal input function when escape handling is disabled.
+
+**LAMU in use (272 oct)**: Attempt to access LAMU already in use.
+
+**LAMU not connected (276 oct)**: Attempt to access LAMU without connecting it.
+
+**LAMU not defined (300 oct)**: Attempt to access undefined LAMU.
+
+**LAMU table full (273 oct)**: Too many LAMUs defined.
+
+**LRC error (170 oct)**: Hardware error on LRC.
+
+**Logical LAMU overlap (302 oct)**: Two LAMUs may not overlap.
+
+**Main directory must be default (150 oct)**: Attempt to clear default directory flag on a main directory.
+
+**Main directory not last one released (042 oct)**: Attempt to release the main directory while some other directory is still entered.
+
+**Master block transfer error (035 oct)**: Unable to read system information on the device.
+
+**Maximum number of LAMUs per RT-program reached (275 oct)**: Attempt to connect too many LAMUs.
+
+**Missing parameter (157 oct)**: Self-explanatory.
+
+**ND-100 panel clock incorrect (334 oct)**: The ND-100 panel clock is incorrect, probably as a result of a power fail.
+
+**No answer from remote system; file-access connection aborted (264 oct)**: Self-explanatory.
+
+**No EOF mark found (177 oct)**: A tape device was unable to find the End-Of-File mark.
+
+**No LAMU area big enough (277 oct)**: Attempt to define a LAMU which is too big to fit into any LAMU areas.
+
+**No file open with this number (132 oct)**: Possibly a symptom of an earlier error. Attempt to access an open file, referencing it by an open-file-number that did not correspond to any open file, either because the number is wrong, or because the file was closed.
+
+**No main directory (043 oct)**: No main directory entered (only user SYSTEM may log in - on the console).
+
+**No more allocate-memory-table indexes available (370 oct)**: Too many allocated areas.
+
+**No more buffer space (131 oct)**: Cannot open further files.
+
+**No more pages available for this user (075 oct)**: All pages reserved for the user are occupied by his files.
+
+**No more physical memory available (367 oct)**: Too much physical memory is reserved by programs that use fixed pages or fixed segments, leaving insufficient swapping space.
+
+**No more remote file-access data segments available (313 oct)**: Too many simultaneous users of remote file accessed.
+
+**No more spooling pages left (344 oct)**: The total size of the objects in the spooling queue (the printing queue) exceeds the space set aside for this purpose.
+
+**No more tracks available (037 oct)**: Self-explanatory.
+
+**No more unused spooling files available (245 oct)**: Self-explanatory.
+
+**No more versions can be created in this object block (345 oct)**: All versions of a file must reside in the same object block in the file system. Attempt to create a new version when no free object entries in current object block.
+
+**No previous version (101 oct)**: Inconsistency in the file system. Attempt to access a version of a file when no such version exists.
+
+**No scratch file open (137 oct)**: Self-explanatory.
+
+**No service is available for this code (330 oct)**: Self-explanatory.
+
+**No space in default directories (073 oct)**: Self-explanatory.
+
+**No spooling for this device (211 oct)**: Self-explanatory.
+
+**No such access code (104 oct)**: Attempt set own, friend or public access for some object specifying an undefined access code.
+
+**No such block (143 oct)**: Self-explanatory.
+
+**No such device name (030 oct)**: Attempt to access a device with a name that is unknown to the system.
+
+**No such file name (056 oct)**: The given file specification does not match any file name on the current directory.
+
+**No such file version (074 oct)**: There is a file with the specified file name, but not with the specified version number.
+
+**No such friend (064 oct)**: The friend specification does not match the name of any existing friend.
+
+**No such logical unit (033 oct)**: Wrong logical unit number, or wrong device name specified.
+
+**No such page (022 oct)**: Inconsistency in the file system or attempt to access an indexed file as if it were contiguous.
+
+**No such program LAMU (375 oct)**: Attempt to refer to a non-existing program LAMU.
+
+**No such queue (212 oct)**: Self-explanatory.
+
+**No such queue entry (207 oct)**: A queue entry has been specified, but not found.
+
+**No such user index (117 oct)**: A user number was specified, but no user has that index number.
+
+**No such user name (046 oct)**: The user specification does not match any user name.
+
+**No such user name in main directory (047 oct)**: The user specification does not match any user name in the main directory.
+
+**No termination handling defined (312 oct)**: Attempt to enable termination handling when no termination handling is defined.
+
+**No user entered (062 oct)**: Attempt to get main directory for current user when no user is entered.
+
+**Not 8 bits character length (356 oct)**: Attempt to select 8-bit character conversion when device is using a different character size.
+
+**Not a master terminal (360 oct)**: Error while using the display facility.
+
+**Not a multiple of hardware block size (252 oct)**: Self-explanatory.
+
+**Not allowed now (3200 oct)**: Function is not allowed at this point.
+
+**Not append access (120 oct)**: Attempt to open a file for append access, thereby violating your access privileges for that file.
+
+**Not connected to specified master terminal (361 oct)**: Error while using the display facility.
+
+**Not contiguous file (340 oct)**: The file specified must be a contiguous file, but is not.
+
+**Not decimal number (023 oct)**: A parameter was given in another number system than expected, or in a non-numeric form when numeric form was expected.
+
+**Not deleted record (231 oct)**: Attempt to read a deleted record which was not deleted.
+
+**Not directory access (070 oct)**: Attempt to perform actions that require higher access privileges.
+
+**Not indexed file (253 oct)**: The file specified should be an indexed file, but is not.
+
+**Not last file on tape (151 oct)**: End of tape was expected, but not found.
+
+**Not last used by you (215 oct)**: Attempt to abort current printout or current batch job, but the job was not yours.
+
+**Not legal from RT-program (351 oct)**: Function illegal from RT-programs.
+
+**Not mass storage file (133 oct)**: The file specified is not a mass storage file.
+
+**Not octal number (024 oct)**: A parameter was expected to be given in the octal number system, but the given input did not look like an octal number.
+
+**Not octal number (337 oct)**: The number specified contains some illegal characters. Watch out for the letters O and L, and for the digits 8 and 9. Periods are also illegal.
+
+**Not open for random read (126 oct)**: Attempt to do a random read when the file was not opened for that kind of access. It was perhaps opened for sequential access.
+
+**Not open for random write (125 oct)**: Attempt to do a random write when the file was not opened for that kind of access. It was perhaps opened for sequential access.
+
+**Not open for sequential read (124 oct)**: Attempt to do a sequential read when the file was not opened for that kind of access. It was perhaps opened for random access.
+
+**Not open for sequential write (123 oct)**: Attempt to do a sequential write when the file was not opened for that kind of access. It was perhaps opened for random access.
+
+**Not peripheral file (206 oct)**: Attempt to access a disk file as if it were a peripheral device.
+
+**Not read access (111 oct)**: Attempt to open a file for read access, thereby violating your access privileges for that file.
+
+**Not read and common access (114 oct)**: Attempt to open a file for several kinds of access, of which some exceeds your access privileges to that file.
+
+**Not read and write access (113 oct)**: Attempt to open a file for several kinds of access, of which some exceeds your access privileges to that file.
+
+**Not read, write and common access (112 oct)**: Attempt to open a file for several kinds of access, of which some exceeds your access privileges to that file.
+
+**Not so much space left (210 oct)**: Self-explanatory.
+
+**Not so much space unreserved in directory (054 oct)**: Attempt to reserve more space than available.
+
+**Not tape device (152 oct)**: Attempt to perform some function that is only allowed on tape devices, on a device of a different kind.
+
+**Not write access (106 oct)**: Attempt to open a file for write access, thereby violating your access privileges for that file.
+
+**Not write and append access (110 oct)**: Attempt to open a file for several kinds of access, of which some exceeds your access privileges to that file.
+
+**Object entry not used (247 oct)**: Attempt to dump an unused object entry.
+
+**Object index too large (305 oct)**: Object index specified is too large.
+
+**Odd number of bytes (right byte in last word insignificant) (234 oct)**: An odd number of bytes was read.
+
+**Outside device limits (100 oct)**: Attempt to access a mass storage device, with some parameter(s) out of range.
+
+**Overflow in read (163 oct)**: Physical block read was too large to fit in buffer.
+
+**Overflow in write (237 oct)**: Block size too large.
+
+**Paper fault (203 oct)**: A printer device ran out of paper or the paper jammed.
+
+**Parity error (167 oct)**: Parity error detected when reading or writing to a device.
+
+**Please terminate current service before requesting new service (331 oct)**: Self-explanatory.
+
+**Program LAMU already exists (374 oct)**: Attempt to create an already existing program LAMU.
+
+**Program LAMU not connected (377 oct)**: Attempt to access a program LAMU without connecting it.
+
+**Program is active (366 oct)**: Attempt to clear a segment containing an active RT-program.
+
+**Protected command (342 oct)**: The command (or subsystem) specified is restricted to users RT and/or SYSTEM only.
+
+**Queue empty (213 oct)**: Attempt to get an entry from an empty queue.
+
+**Queue full (214 oct)**: Attempt to push an element onto a queue when the queue cannot hold more entries.
+
+**Remote file server is not available (333 oct)**: Self-explanatory.
+
+**Reserved space already used (055 oct)**: Attempt to reserve space which is already used.
+
+**Segment not contiguously fixed (241 oct)**: The segment is not fixed at all, or fixed, but its pages are scattered in physical memory. Some programs need contiguously fixed memory in order to communicate with devices that reads physical memory directly.
+
+**Segment not fixed (242 oct)**: Attempt to UNFIX, or access as fixed, a segment which was not fixed in memory.
+
+**Source and destination equal (144 oct)**: The same file has been specified as original and copy in a copying command.
+
+**Source empty (154 oct)**: Attempt to make a copy when the original file contains no data. Ensure that you are copying in the right direction.
+
+**Space already allocated (072 oct)**: Attempt to allocate a specific space to a file or to a user when that space is already allocated to another file or user.
+
+**Space not available to expand file (071 oct)**: Self-explaining.
+
+**TAD protocol error, illegal or inconsistent message (315 oct)**: Internal error when accessing a remote system.
+
+**Tape format error (226 oct)**: Illegal or unsupported magnetic tape format.
+
+**Terminal already in a display table (357 oct)**: Attempt to include a terminal in more than one display table.
+
+**Terminal line not connected (316 oct)**: Self-explanatory.
+
+**The specified device is not a terminal (311 oct)**: Self-explanatory.
+
+**This code is only legal within a service (332 oct)**: Self-explanatory.
+
+**Timeout (no data block found) (202 oct)**: Timeout while waiting for data transfer from a device.
+
+**Too long parameter (044 oct)**: Possibly missing separating character between two parameters.
+
+**Transfer error (141 oct)**: Error accessing a device.
+
+**Two pages must be left unreserved (160 oct)**: Attempt to give the last to pages on a disk device to a user.
+
+**Unit occupied (034 oct)**: A directory is already entered on the specified device and unit, possibly by another user. It may be in use, or he may have forgotten to release it.
+
+**Unknown remote system name (266 oct)**: Self-explanatory.
+
+**Unknown user-control code (327 oct)**: The user control code specified is undefined.
+
+**User already entered (061 oct)**: Self-explanatory.
+
+**User already exists (051 oct)**: There exists already a user with the specified name.
+
+**User does not exist (250 oct)**: A user number has appeared that is out of range, or a user specification that does not match any user name.
+
+**User does not exist in the same main directory as you (257 oct)**: Attempt to create a user on another main directory as friend.
+
+**User has files (052 oct)**: Attempt to delete a user before deleting its files.
+
+**User is entered (053 oct)**: Attempt to delete or rename a user while he is logged in.
+
+**Volume not on specified unit (230 oct)**: Both a (tape) volume and a (tape) drive unit have been specified, but the volume was not found on the unit. Possibly wrong tape mounted.
+
+**Warning; 2-bank prog. file, but segment is only 1-bank (307 oct)**: Attempt to run 2-bank programs when background segment is 1-bank.
+
+**Warning; no such page in data bank, program starts as 1-bank (310 oct)**: Attempt to access non-existing part of a 2-bank program.
+
+**Write-protect violation (175 oct)**: Attempt to write to a device that has been (physically) write-protected.
+
+**Wrong format in file (325 oct)**: Self-explanatory.
+
+**Wrong password (060 oct)**: The given password does not match the given user name.
+
+**Wrong project password (321 oct)**: Self-explanatory.
+
+**You are not authorized to do this (025 oct)**: Attempt to use functions which are restricted to users RT and/or SYSTEM only.
+
+**You can only log in on a main directory (303 oct)**: Attempt to specify a directory, which is not a main directory, at login.
+
+
+---
+
+# APPENDIX D
+## STANDARD PERIPHERAL FILE NAMES
+
+The following standard peripheral file names are recognized in SINTRAN III.
+
+| ND no.             | Description           | Peripheral File Name                              | Notes |
+|--------------------|-----------------------|---------------------------------------------------|-------|
+| 202, 204–228       | Terminals             | TERMINAL                                          | 1. Refers to own terminal in background. 2. Terminals can also be PRINTER. |
+| 252, 254           | Intercomputer link    | CHANNEL-0 … CHANNEL-15                            | If only one link. Links with background programs are usually not included. |
+|                    |                       | L1-CH-0 … L1-CH-15; L2-CH-0 … L2-CH-15            | If two or more links. |
+| 301, 302           | Paper Tape Reader     | TAPE-READER                                       | Suffix "-1", "-2", etc., is used if more than one device. |
+| 303                | Paper Tape Punch      | TAPE-PUNCH                                        | See ND-301. |
+| 305, etc.          | Floppy Disk           | FLOPPY-1, FLOPPY-2, …                             | These names only work with one controller. |
+| 400, etc.          | Card Reader           | CARD-READER                                       | See ND-301. |
+| 430, 431, etc.     | Line Printer          | LINE-PRINTER                                      | See ND-301. |
+| 414, 415, 417      | Matrix Printer        | PRINTER                                           | See ND-301. |
+| 420                | Card Punch            | CARD-PUNCH                                        | See ND-301. |
+| 515, etc.          | Magnetic Tape         | MAG-TAPE-0, MAG-TAPE-1, …                         | These names only work with one controller. |
+| 603, 604, 605, 606 | Versatec Printer/Plotter | LINE-PRINTER-1, LINE-PRINTER-2, …                | If no other line printer on the system. |
+|                    |                       | VERSATEC-1, VERSATEC-2, …                         | If another line printer on the system. |
+
+
+---
+
+# APPENDIX E
+## STANDARD NAMES OF MASS STORAGE DEVICES
+
+The following standard names are recognized for mass storage devices in SINTRAN III.
+
+| Device Name | Description |
+|-------------|-------------|
+| DISC-10MB-1 | 10-Megabyte cartridge disk controller 1 |
+| DISC-10MB-2 | 10-Megabyte cartridge disk controller 2 |
+| DISC-14MB-1 | 14-Megabyte disk controller 1 |
+| DISC-14MB-2 | 14-Megabyte disk controller 2 |
+| DISC-16MB-1 | 16-Megabyte disk controller 1 |
+| DISC-16MB-2 | 16-Megabyte disk controller 2 |
+| DISC-21MB-1 | 21-Megabyte disk controller 1 |
+| DISC-21MB-2 | 21-Megabyte disk controller 2 |
+| DISC-23MB-1 | 23-Megabyte disk controller 1 |
+| DISC-23MB-2 | 23-Megabyte disk controller 2 |
+| DISC-28MB-1 | 28-Megabyte disk controller 1 |
+| DISC-28MB-2 | 28-Megabyte disk controller 2 |
+| DISC-30MB-1 | 30-Megabyte big cartridge disk controller 1 |
+| DISC-30MB-2 | 30-Megabyte bit cartridge disk controller 2 |
+| DISC-33MB-1 | 33-Megabyte disk controller 1 |
+| DISC-33MB-2 | 33-Megabyte disk controller 2 |
+| DISC-36MB-1 | 36-Megabyte disk controller 1 (Butterfly) |
+| DISC-36MB-2 | 36-Megabyte disk controller 2 |
+| DISC-38MB-1 | 38-Megabyte disk controller 1 |
+| DISC-38MB-2 | 38-Megabyte disk controller 2 |
+| DISC-45MB-1 | 45-Megabyte disk controller 1 |
+| DISC-45MB-2 | 45-Megabyte disk controller 2 |
+| DISC-60MB-1 | 60-Megabyte disk controller 1 |
+| DISC-60MB-2 | 60-Megabyte disk controller 2 |
+| DISC-66MB-1 | 66-Megabyte disk controller 1 |
+| DISC-66MB-2 | 66-Megabyte disk controller 2 |
+| DISC-70MB-1 | 70-Megabyte disk controller 1 |
+| DISC-70MB-2 | 70-Megabyte disk controller 2 |
+| DISC-70MB-3 | 70-Megabyte disk controller 3 |
+| DISC-70MB-4 | 70-Megabyte disk controller 4 |
+| DISC-74MB-1 | 74-Megabyte disk controller 1 |
+| DISC-74MB-2 | 74-Megabyte disk controller 2 |
+| DISC-75MB-1 | 75-Megabyte disk controller 1 |
+| DISC-75MB-2 | 75-Megabyte disk controller 2 |
+| DISC-75MB-3 | 75-Megabyte disk controller 3 |
+| DISC-75MB-4 | 75-Megabyte disk controller 4 |
+| DISC-90MB-1 | 90-Megabyte disk controller 1 |
+| DISC-90MB-2 | 90-Megabyte disk controller 2 |
+| DISC-140MB-1-F | 140-Megabyte disk controller 1 (fixed) |
+| DISC-140MB-2-F | 140-Megabyte disk controller 2 (fixed) |
+| DISC-140MB-3-F | 140-Megabyte disk controller 3 (fixed) |
+| DISC-140MB-4-F | 140-Megabyte disk controller 4 (fixed) |
+| DISC-2-70MB-1-F | Subdivided 140-Megabyte disk controller 1 (fixed) |
+| DISC-2-70MB-2-F | Subdivided 140-Megabyte disk controller 2 (fixed) |
+| DISC-2-70MB-3-F | Subdivided 140-Megabyte disk controller 3 (fixed) |
+| DISC-2-70MB-4-F | Subdivided 140-Megabyte disk controller 4 (fixed) |
+| DISC-2-75MB-1 | Subdivided 150-Megabyte disk controller 1 |
+| DISC-2-75MB-2 | Subdivided 150-Megabyte disk controller 2 |
+| DISC-225MB-1-R | 225-Megabyte disk controller 1 (removable) |
+| DISC-225MB-2-R | 225-Megabyte disk controller 2 (removable) |
+| DISC-225MB-3-R | 225-Megabyte disk controller 3 (removable) |
+| DISC-225MB-4-R | 225-Megabyte disk controller 4 (removable) |
+| DISC-3-75MB-1 | Subdivided 225-Megabyte disk controller 1 |
+| DISC-3-75MB-2 | Subdivided 225-Megabyte disk controller 2 |
+| DISC-288MB-1-F | 288-Megabyte disk controller 1 (fixed) |
+| DISC-288MB-2-F | 288-Megabyte disk controller 2 (fixed) |
+| DISC-288MB-3-F | 288-Megabyte disk controller 3 (fixed) |
+| DISC-288MB-4-F | 288-Megabyte disk controller 4 (fixed) |
+| DISC-288MB-1-E | 288-Megabyte disk controller 1 (EMD) |
+| DISC-288MB-2-E | 288-Megabyte disk controller 2 (EMD) |
+| DISC-288MB-3-E | 288-Megabyte disk controller 3 (EMD) |
+| DISC-288MB-4-E | 288-Megabyte disk controller 4 (EMD) |
+| DISC-288MB-1-R | 288-Megabyte disk controller 1 (removable) |
+| DISC-288MB-2-R | 288-Megabyte disk controller 2 (removable) |
+| DISC-288MB-3-R | 288-Megabyte disk controller 3 (removable) |
+| DISC-288MB-4-R | 288-Megabyte disk controller 4 (removable) |
+| DISC-4-70MB-1-F | Subdivided 280-Megabyte disk controller 1 (fixed) |
+| DISC-4-70MB-2-F | Subdivided 280-Megabyte disk controller 2 (fixed) |
+| DISC-4-70MB-3-F | Subdivided 280-Megabyte disk controller 3 (fixed) |
+| DISC-4-70MB-4-F | Subdivided 280-Megabyte disk controller 4 (fixed) |
+| DISC-4-70MB-1-E | Subdivided 280-Megabyte disk controller 1 (EMD) |
+| DISC-4-70MB-2-E | Subdivided 280-Megabyte disk controller 2 (EMD) |
+| DISC-4-70MB-3-E | Subdivided 280-Megabyte disk controller 3 (EMD) |
+| DISC-4-70MB-4-E | Subdivided 280-Megabyte disk controller 4 (EMD) |
+| DISC-4-70MB-1-R | Subdivided 280-Megabyte disk controller 1 (remov.) |
+| DISC-4-70MB-2-R | Subdivided 280-Megabyte disk controller 2 (remov.) |
+| DISC-4-70MB-3-R | Subdivided 280-Megabyte disk controller 3 (remov.) |
+| DISC-4-70MB-4-R | Subdivided 280-Megabyte disk controller 4 (remov.) |
+| DISC-450MB-1-F | 450-Megabyte disk controller 1 (fixed) |
+| DISC-450MB-2-F | 450-Megabyte disk controller 2 (fixed) |
+| DISC-450MB-3-F | 450-Megabyte disk controller 3 (fixed) |
+| DISC-450MB-4-F | 450-Megabyte disk controller 4 (fixed) |
+| DISC-450MB-1-N | 450-Megabyte disk controller 1 (NEC) |
+| DISC-450MB-2-N | 450-Megabyte disk controller 2 (NEC) |
+| DISC-450MB-3-N | 450-Megabyte disk controller 3 (NEC) |
+| DISC-450MB-4-N | 450-Megabyte disk controller 4 (NEC) |
+| DISC-6-70MB-1-F | Subdivided 420-Megabyte disk controller 1 (fixed) |
+| DISC-6-70MB-2-F | Subdivided 420-Megabyte disk controller 2 (fixed) |
+| DISC-6-70MB-3-F | Subdivided 420-Megabyte disk controller 3 (fixed) |
+| DISC-6-70MB-4-F | Subdivided 420-Megabyte disk controller 4 (fixed) |
+| DISC-6-70MB-1-N | Subdivided 420-Megabyte disk controller 1 (NEC) |
+| DISC-6-70MB-2-N | Subdivided 420-Megabyte disk controller 2 (NEC) |
+| DISC-6-70MB-3-N | Subdivided 420-Megabyte disk controller 3 (NEC) |
+| DISC-6-70MB-4-N | Subdivided 420-Megabyte disk controller 4 (NEC) |
+| DISC-2-225MB-1-F | Subdivided 450-Megabyte disk controller 1 (fixed) |
+| DISC-2-225MB-2-F | Subdivided 450-Megabyte disk controller 2 (fixed) |
+| DISC-2-225MB-3-F | Subdivided 450-Megabyte disk controller 3 (fixed) |
+| DISC-2-225MB-4-F | Subdivided 450-Megabyte disk controller 4 (fixed) |
+| DISC-2-225MB-1-N | Subdivided 450-Megabyte disk controller 1 (NEC) |
+| DISC-2-225MB-2-N | Subdivided 450-Megabyte disk controller 2 (NEC) |
+| DISC-2-225MB-3-N | Subdivided 450-Megabyte disk controller 3 (NEC) |
+| DISC-2-225MB-4-N | Subdivided 450-Megabyte disk controller 4 (NEC) |
+| MAG-TAPE-1 | Magnetic tape controller 1 (fixed) |
+| MAG-TAPE-2 | Magnetic tape controller 2 (fixed) |
+| MAG-TAPE-3 | Magnetic tape controller 3 (fixed) |
+| MAG-TAPE-4 | Magnetic tape controller 4 (fixed) |
+| FLOPPY-DISC-1 | Floppy disk controller 1 |
+| FLOPPY-DISC-2 | Floppy disk controller 2 |
+
 
 ---
 
