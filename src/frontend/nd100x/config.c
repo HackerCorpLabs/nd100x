@@ -39,12 +39,13 @@ static struct option long_options[] = {
     {"help",    no_argument,       0, 'h'},
     {"debugger", no_argument,      0, 'd'},
     {"port",    no_argument,       0, 'p'},
+    {"hdlc",    required_argument, 0, 'H'},
     {0, 0, 0, 0}
 };
 
 void Config_Init(Config_t *config) {
     if (!config) return;
-    
+
     config->bootType = BOOT_NONE;
     config->imageFile = NULL;
     config->startAddress = 0;
@@ -53,18 +54,67 @@ void Config_Init(Config_t *config) {
     config->showHelp = false;
     config->debuggerEnabled = false;
     config->debuggerPort = 4711;
+
+    // HDLC configuration
+    config->hdlcEnabled = false;
+    config->hdlcAddress = NULL;
+    config->hdlcPort = HDLC_DEFAULT_PORT;
+    config->hdlcServer = false;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
     if (!bootStr) return BOOT_NONE;
-    
+
     if (strcmp("bp", bootStr) == 0) return BOOT_BP;
     if (strcmp("bpun", bootStr) == 0) return BOOT_BPUN;
     if (strcmp("aout", bootStr) == 0) return BOOT_AOUT;
     if (strcmp("floppy", bootStr) == 0) return BOOT_FLOPPY;
     if (strcmp("smd", bootStr) == 0) return BOOT_SMD;
-    
+
     return BOOT_NONE;
+}
+
+static bool parseHDLCConfig(Config_t *config, const char *hdlcStr) {
+    if (!hdlcStr || !config) return false;
+
+    // Parse HDLC configuration string
+    // Format: "port" for server mode or "ip:port" for client mode
+    char *colon = strchr(hdlcStr, ':');
+
+    if (colon) {
+        // Client mode: "ip:port" or "hostname:port"
+        *colon = '\0';  // Split the string
+        char *portStr = colon + 1;
+
+        config->hdlcAddress = strdup(hdlcStr);
+        if (!config->hdlcAddress) {
+            return false;
+        }
+
+        char *endptr;
+        config->hdlcPort = strtol(portStr, &endptr, 10);
+        if (*endptr != '\0' || config->hdlcPort <= 0 || config->hdlcPort > 65535) {
+            free(config->hdlcAddress);
+            config->hdlcAddress = NULL;
+            return false;
+        }
+
+        config->hdlcServer = false;  // Client mode
+        *colon = ':';  // Restore the string
+    } else {
+        // Server mode: just port number
+        char *endptr;
+        config->hdlcPort = strtol(hdlcStr, &endptr, 10);
+        if (*endptr != '\0' || config->hdlcPort <= 0 || config->hdlcPort > 65535) {
+            return false;
+        }
+
+        config->hdlcAddress = NULL;  // Server doesn't need address
+        config->hdlcServer = true;   // Server mode
+    }
+
+    config->hdlcEnabled = true;
+    return true;
 }
 
 bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
@@ -72,7 +122,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:H:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -114,7 +164,14 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             case 'h':
                 config->showHelp = true;
                 return true;
-                
+
+            case 'H':
+                if (!parseHDLCConfig(config, optarg)) {
+                    fprintf(stderr, "Invalid HDLC configuration: %s\n", optarg);
+                    return false;
+                }
+                break;
+
             case '?':
                 return false;
                 
@@ -149,6 +206,13 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
         printf("  Image file: %s\n", config->imageFile);
         printf("  Start address: 0x%x\n", config->startAddress);
         printf("  Disassembly: %s\n", config->disasmEnabled ? "enabled" : "disabled");
+        if (config->hdlcEnabled) {
+            if (config->hdlcServer) {
+                printf("  HDLC: Server mode on port %d\n", config->hdlcPort);
+            } else {
+                printf("  HDLC: Client mode to %s:%d\n", config->hdlcAddress, config->hdlcPort);
+            }
+        }
     }
     
 
@@ -164,10 +228,15 @@ void Config_PrintHelp(const char *progName) {
     printf("  -a,      --disasm       Enable disassembly output\n");
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
+    printf("  -H,      --hdlc=CONFIG  Enable HDLC controller\n");
+    printf("                          Server mode: --hdlc=PORT\n");
+    printf("                          Client mode: --hdlc=HOST:PORT\n");
     printf("  -v,      --verbose      Enable verbose output\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);
     printf("  %s --boot=floppy --image=disk.img --start=0x1000 --disasm\n", progName);
     printf("  %s --debugger\n", progName);
+    printf("  %s --hdlc=%d                    # HDLC server on port %d\n", progName, HDLC_DEFAULT_PORT, HDLC_DEFAULT_PORT);
+    printf("  %s --hdlc=192.168.1.10:%d       # HDLC client to 192.168.1.10:%d\n", progName, HDLC_DEFAULT_PORT, HDLC_DEFAULT_PORT);
 } 

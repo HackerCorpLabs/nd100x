@@ -151,7 +151,7 @@ void initialize()
 	
 	if (DISASM) disasm_init();
 
-	machine_init(config.debuggerEnabled);
+	machine_init(config.debuggerEnabled, config.hdlcEnabled, config.hdlcServer, config.hdlcAddress, config.hdlcPort);
 
     //     {0340, 044, 044, "TERMINAL 5/ TET12"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);

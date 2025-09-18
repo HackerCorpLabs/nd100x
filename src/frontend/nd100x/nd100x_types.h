@@ -41,6 +41,12 @@ typedef struct {
     bool showHelp;
     bool debuggerEnabled;
     int debuggerPort;
+
+    // HDLC configuration
+    bool hdlcEnabled;
+    char *hdlcAddress;   // IP address or hostname for client mode
+    int hdlcPort;        // Port number for server or client mode
+    bool hdlcServer;     // true = server mode, false = client mode
 } Config_t;
 
 #endif // CONFIG_H 
