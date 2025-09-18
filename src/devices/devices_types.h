@@ -114,8 +114,9 @@ typedef enum {
     DEVICE_TYPE_TERMINAL,
     DEVICE_TYPE_PAPER_TAPE,
     DEVICE_TYPE_FLOPPY_PIO,
-    DEVICE_TYPE_FLOPPY_DMA,    
+    DEVICE_TYPE_FLOPPY_DMA,
     DEVICE_TYPE_DISC_SMD,
+    DEVICE_TYPE_HDLC,
     DEVICE_TYPE_MAX
 } DeviceType;
 
@@ -190,7 +191,11 @@ typedef struct {
 
 
 #include "./floppy/deviceFloppyPIO.h"
-#include "./floppy/deviceFloppyDMA.h"   
+#include "./floppy/deviceFloppyDMA.h"
+#include "./hdlc/deviceHDLC.h"
+#include "./hdlc/chipCOM5025.h"
+#include "./hdlc/chipCOM5025Registers.h"
+#include "./hdlc/hdlc_crc.h"
 #include "./papertape/devicePapertape.h"
 #include "./rtc/deviceRTC.h"
 #include "./smd/deviceSMD.h"

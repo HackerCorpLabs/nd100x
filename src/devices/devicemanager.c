@@ -115,6 +115,39 @@ void DeviceManager_AddAllDevices(void)
 
     // Add the SMD at octal 1540-1547
     DeviceManager_AddDevice(DEVICE_TYPE_DISC_SMD, 0);
+
+    // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
+    // based on command line configuration
+}
+
+bool DeviceManager_AddHDLCDevice(void)
+{
+    // Add HDLC device at octal 1640-1657 (thumbwheel 1)
+    return DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
+}
+
+bool DeviceManager_AddHDLCDevice_WithConfig(bool isServer, const char *address, int port)
+{
+    // TODO: For now, just add the device. Later this will configure networking.
+    // The HDLC device configuration (server/client mode, address, port) will be
+    // passed to the device during creation or after creation via a configuration function.
+
+    bool success = DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
+
+    if (success) {
+        // TODO: Configure the HDLC device with network settings
+        // This would involve getting the device and calling a configuration function
+        // For example:
+        // Device *hdlcDevice = DeviceManager_GetDeviceByAddress(01640);
+        // HDLC_ConfigureNetwork(hdlcDevice, isServer, address, port);
+
+        Log(LOG_INFO, "HDLC device network configuration: %s mode %s:%d\n",
+            isServer ? "server" : "client",
+            address ? address : "localhost",
+            port);
+    }
+
+    return success;
 }
 
 static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
@@ -170,6 +203,14 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create floppy DMA device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_HDLC:
+        dev = CreateHDLCDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create HDLC device\n");
             return NULL;
         }
         break;
@@ -283,7 +324,7 @@ int DeviceManager_Ident(uint16_t level)
     for (int i = 0; i < deviceManager.deviceCount; i++)
     {
         Device *dev = deviceManager.devices[i].device;
-        if (dev)
+        if (dev && (dev->interruptBits & (1 << level)))
         {
             uint16_t id = Device_Ident(dev, level);
             if (id > 0)
