@@ -97,13 +97,13 @@ static void cleanup_drive_arrays() {
     }
 }
 
-void 
-machine_init (bool debuggerEnabled)
+void
+machine_init(bool debuggerEnabled, bool hdlcEnabled, bool hdlcServer, const char *hdlcAddress, int hdlcPort)
 {
-    
+
     // Initialize drive arrays
     init_drive_arrays();
-    
+
     // Initialize the CPU
     cpu_init(debuggerEnabled);
 
@@ -113,6 +113,24 @@ machine_init (bool debuggerEnabled)
     // Initialize IO devices
     IO_Init();
 
+    // Add HDLC device if enabled with proper configuration
+    if (hdlcEnabled) {
+        bool success = DeviceManager_AddHDLCDevice_WithConfig(
+            hdlcServer,
+            hdlcAddress,
+            hdlcPort
+        );
+        if (success) {
+            if (hdlcServer) {
+                Log(LOG_INFO, "HDLC device added successfully (server mode on port %d)\n", hdlcPort);
+            } else {
+                Log(LOG_INFO, "HDLC device added successfully (client mode to %s:%d)\n",
+                    hdlcAddress, hdlcPort);
+            }
+        } else {
+            Log(LOG_ERROR, "Failed to add HDLC device\n");
+        }
+    }
 
     // Set the CPU to RUN mode
     set_cpu_run_mode(CPU_RUNNING);
