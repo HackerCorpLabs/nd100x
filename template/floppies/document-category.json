@@ -1,0 +1,126 @@
+[
+  {
+    "group": "Hardware",
+    "items": [
+      {
+        "id": "01",
+        "name": "NORD-1 hardware (also including unnumbered NORD-1 manuals)"
+      },
+      {
+        "id": "02",
+        "name": "PIOC hardware"
+      },
+      {
+        "id": "05",
+        "name": "NORD-5, NORD-50, ND-500, ND-5000 CPUs"
+      },
+      {
+        "id": "06",
+        "name": "NORD-1, NORD-10, NORD-10/S, ND-100, ND-110, ND-120 CPUs"
+      },
+      {
+        "id": "07",
+        "name": "NORD-12"
+      },
+      {
+        "id": "10",
+        "name": "MPM hardware"
+      },
+      {
+        "id": "11",
+        "name": "Data storage equipment"
+      },
+      {
+        "id": "12",
+        "name": "I/O Interfaces"
+      },
+      {
+        "id": "13",
+        "name": "Miscellaneous hardware"
+      },
+      {
+        "id": "14",
+        "name": "Domino interfaces"
+      }
+    ]
+  },
+  {
+    "group": "Mixed",
+    "items": [
+      {
+        "id": "20",
+        "name": "Internal System Documentation"
+      },
+      {
+        "id": "23",
+        "name": "OpenLAN"
+      },
+      {
+        "id": "30",
+        "name": "Operating, diagnostic, maintenance"
+      },
+      {
+        "id": "40",
+        "name": "Miscellaneous"
+      },
+      {
+        "id": "50",
+        "name": "Hardware / software system description"
+      },
+      {
+        "id": "70",
+        "name": "Documentation packages"
+      }
+    ]
+  },
+  {
+    "group": "Software",
+    "items": [
+      {
+        "id": "60",
+        "name": "General software"
+      },
+      {
+        "id": "61",
+        "name": "NORTEXT software"
+      },
+      {
+        "id": "62",
+        "name": "Test and Verification software"
+      },
+      {
+        "id": "63",
+        "name": "NOTIS software"
+      },
+      {
+        "id": "65",
+        "name": "TECH or Technovision software"
+      },
+      {
+        "id": "67",
+        "name": "Miscellaneous software"
+      },
+      {
+        "id": "68",
+        "name": "NORCCIS"
+      },
+      {
+        "id": "80",
+        "name": "Utility software and special documentation"
+      }
+    ]
+  },
+  {
+    "group": "Reference",
+    "items": [
+      {
+        "id": "70",
+        "name": "Documentation packages"
+      },
+      {
+        "id": "99",
+        "name": "Reference cards"
+      }
+    ]
+  }
+] 

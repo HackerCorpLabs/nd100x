@@ -26,6 +26,16 @@
     function handleTerminalOutput(identCode, charCode) {
       if (terminals[identCode] && terminals[identCode].term) {
         terminals[identCode].term.write(String.fromCharCode(charCode));
+        
+        // Hide loading overlay when we receive terminal output
+        if (loadingOverlayVisible && !hasReceivedTerminalOutput) {
+          hasReceivedTerminalOutput = true;
+          hasEverStartedEmulation = true; // Mark that emulation has been started at least once
+          // Add a small delay to ensure the output is visible
+          setTimeout(() => {
+            hideLoadingOverlay();
+          }, 500);
+        }
       } else {
         console.error(`Terminal with identCode ${identCode} not found or not initialized in handleTerminalOutput`);
       }
@@ -57,25 +67,164 @@
       console.log("JavaScript terminal output handler registered successfully");
       return true;
     }
+    
+    // Function to load the disk images
+    function loadDiskImages() {
+        return new Promise((resolve, reject) => {
+            // First check if the FS API is available
+            if (typeof Module.FS === 'undefined') {
+                console.error("ERROR: Module.FS is not available! Check if FS was properly exported in EXPORTED_RUNTIME_METHODS.");
+                const statusElement = document.getElementById('status');
+                if (statusElement) {
+                    statusElement.textContent = 'Error: FS API not available. Check console.';
+                }
+                // Still show controls even if we can't load disk images
+                document.getElementById('controls').style.display = 'flex';
+                // We'll continue anyway since some functionality might still work
+                resolve();
+                return;
+            }
+            
+            console.log("Loading SMD0.IMG...");
+            fetch('SMD0.IMG')
+                .then(res => res.arrayBuffer())
+                .then(buf => {
+                    try {
+                        Module.FS.writeFile('/SMD0.IMG', new Uint8Array(buf));
+                        
+                        // Set read/write permissions (0o666 = rw-rw-rw-)
+                        try {
+                            Module.FS.chmod('/SMD0.IMG', 0o666);
+                            console.log("SMD0.IMG loaded with read/write permissions");
+                        } catch (e) {
+                            console.warn('Could not set SMD0.IMG permissions:', e.message);
+                        }
+                        
+                        // Load FLOPPY.IMG
+                        console.log("Loading FLOPPY.IMG...");
+                        return fetch('FLOPPY.IMG');
+                    } catch (e) {
+                        console.error("Error writing SMD0.IMG:", e);
+                        // Continue even with error
+                        console.log("Attempting to load FLOPPY.IMG anyway...");
+                        return fetch('FLOPPY.IMG');
+                    }
+                })
+                .then(res => res.arrayBuffer())
+                .then(buf => {
+                    try {
+                        Module.FS.writeFile('/FLOPPY.IMG', new Uint8Array(buf));
+                        
+                        // Set read/write permissions (0o666 = rw-rw-rw-)
+                        try {
+                            Module.FS.chmod('/FLOPPY.IMG', 0o666);
+                            console.log("FLOPPY.IMG loaded with read/write permissions");
+                        } catch (e) {
+                            console.warn('Could not set FLOPPY.IMG permissions:', e.message);
+                        }
+                        const statusElement = document.getElementById('status');
+                        if (statusElement) {
+                            statusElement.textContent = 'WebAssembly module loaded!';
+                        }
+                        document.getElementById('controls').style.display = 'flex';
+                        resolve();
+                    } catch (e) {
+                        console.error("Error writing FLOPPY.IMG:", e);
+                        // Still show controls even if we can't load disk images
+                        const statusElement = document.getElementById('status');
+                        if (statusElement) {
+                            statusElement.textContent = 'Warning: Failed to load disk images. Some features may not work.';
+                        }
+                        document.getElementById('controls').style.display = 'flex';
+                        resolve();
+                    }
+                })
+                .catch(error => {
+                    console.error("Failed to load disk images:", error);
+                    const statusElement = document.getElementById('status');
+                    if (statusElement) {
+                        statusElement.textContent = 'Warning: Failed to load disk images. Some features may not work.';
+                    }
+                    // Still show controls even if we can't load disk images
+                    document.getElementById('controls').style.display = 'flex';
+                    resolve();
+                });
+        });
+    }
+    
+    // Main initialization function called from Module.onRuntimeInitialized
+    function initializeSystem() {
+        console.log("System initialization starting...");
+        document.getElementById('init-btn').disabled = false;
+        
+        // Load disk images
+        loadDiskImages()
+            .then(() => {
+                // Wait for fonts to load before creating the first terminal
+                return document.fonts.ready;
+            })
+            .then(() => {
+                initializeTerminals();
+                console.log("Terminals initialized");
+            })
+            .catch(error => {
+                console.error("Error during initialization:", error);
+                document.getElementById('status').textContent = 'Error during initialization: ' + error.message;
+            });
+    }
   </script>
   
-  <!-- Add xterm.js and its CSS -->
+  <!-- Add xterm.js and its CSS (temporary rollback to working version) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
   <!-- Retro fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&family=Courier+Prime:wght@400;700&family=Share+Tech+Mono&family=Anonymous+Pro:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
       margin: 20px;
       max-width: 1200px;
       margin: 0 auto;
+      background-color: #ffffff;
+      color: #333333;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .header-content {
+      flex: 1;
+    }
+    .header-subtitle {
+      font-size: 18px;
+      font-weight: 400;
+      color: #666;
+      margin: 5px 0 5px 0;
+      font-style: italic;
+    }
+    .header-logo {
+      height: 60px;
+      width: auto;
+      mix-blend-mode: multiply;
+      opacity: 0.9;
+    }
+    .status-message {
+      text-align: left;
+      font-size: 11px;
+      color: #bbb;
+      margin: 0px 0 2px 0;
+      font-style: normal;
+      font-weight: 300;
     }
     .container {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 5px;
     }
     .terminal-tabs {
       display: flex;
@@ -148,12 +297,48 @@
     }
     .control-panel {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 5px;
+    }
+    .control-row {
+      display: flex;
       gap: 10px;
       align-items: center;
-      padding: 10px;
-      background-color: #f5f5f5;
-      border-radius: 5px;
+    }
+    .control-row.buttons {
+      justify-content: flex-start;
+    }
+    .control-row.settings {
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
+    .settings-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px;
+      min-width: 0;
+      flex: 1;
+    }
+    .settings-group-title {
+      font-weight: bold;
+      color: #333;
+      margin: 0;
+      font-size: 14px;
+      min-width: 70px;
+      flex-shrink: 0;
+      text-align: left;
+      font-family: 'Fira Mono', 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    .settings-controls {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex: 1;
     }
     button {
       padding: 8px 16px;
@@ -162,6 +347,10 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      min-width: 100px;
+      text-align: center;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      font-size: 13px;
     }
     button:disabled {
       background-color: #cccccc;
@@ -172,70 +361,1016 @@
       color: #fff !important;
       font-weight: bold;
       position: relative;
+      min-width: 100px;
     }
     .reset-btn .power-icon {
       font-size: 1.2em;
       margin-right: 6px;
       vertical-align: middle;
     }
-    .slider-container {
+    .setting-item {
       display: flex;
+      flex-direction: row;
       align-items: center;
       gap: 10px;
-      margin-left: 20px;
+      min-width: 200px;
+    }
+    .setting-item label {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+      min-width: 90px;
+      flex-shrink: 0;
+      text-align: left;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    .setting-item select {
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: white;
+      font-size: 13px;
+      min-width: 140px;
+      flex: 1;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    .setting-item select:disabled {
+      background-color: #f5f5f5;
+      color: #999;
+      cursor: not-allowed;
+      border-color: #ddd;
+    }
+    .footer {
+      margin-top: 40px;
+      padding: 20px 0;
+      border-top: 2px solid #e0e0e0;
+      background-color: #f8f9fa;
+      border-radius: 8px 8px 0 0;
+    }
+    .footer-content {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    .footer-text {
+      margin: 0 0 10px 0;
+      color: #555;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .footer-link {
+      margin: 0;
+    }
+    .footer-link a {
+      color: #4CAF50;
+      text-decoration: none;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s;
+    }
+    .footer-link a:hover {
+      color: #45a049;
+      text-decoration: underline;
+    }
+    .github-icon {
+      font-size: 16px;
+    }
+    /* Loading overlay styles */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .loading-content {
+      text-align: center;
+      color: white;
+      background-color: rgba(0, 0, 0, 0.9);
+      padding: 40px;
+      border-radius: 10px;
+      border: 2px solid #4CAF50;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #333;
+      border-top: 4px solid #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 0 0 10px 0;
+      color: #4CAF50;
+    }
+    .loading-subtext {
+      font-size: 14px;
+      margin: 0;
+      color: #ccc;
+    }
+    .loading-cancel-hint {
+      font-size: 12px;
+      margin: 15px 0 0 0;
+      color: #888;
+      font-style: italic;
+    }
+    /* Online Library Button */
+    .online-library-button {
+      padding: 6px 12px;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      min-width: 140px;
+      transition: background-color 0.2s;
+    }
+    .online-library-button:hover {
+      background-color: #1976D2;
+    }
+    /* Help Button */
+    .help-button {
+      background-color: #9C27B0 !important;
+      color: white !important;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    .help-button:hover {
+      background-color: #7B1FA2 !important;
+    }
+    /* Floppy Browser Modal - NDlib Style */
+    .floppy-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+    .floppy-modal-content {
+      background: white;
+      border-radius: 8px;
+      width: 95%;
+      max-width: 1200px;
+      height: 80%;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .floppy-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #f8f9fa;
+      border-radius: 8px 8px 0 0;
+    }
+    .floppy-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+    .floppy-modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #666;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .floppy-modal-close:hover {
+      background-color: #e0e0e0;
+      border-radius: 4px;
+    }
+    .floppy-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: #666;
+    }
+    .floppy-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #2196F3;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+    .floppy-browser-main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    .floppy-browser-left {
+      width: 40%;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .floppy-browser-right {
+      width: 60%;
+      display: flex;
+      flex-direction: column;
+    }
+    .floppy-search-section {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #f8f9fa;
+    }
+    .search-container {
+      position: relative;
+    }
+    #floppy-search {
+      width: 100%;
+      padding: 10px 40px 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 3px;
+    }
+    .search-clear:hover {
+      background-color: #e0e0e0;
+    }
+    .floppy-list-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .results-count {
+      padding: 10px 20px;
+      font-size: 13px;
+      color: #666;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .ndlib-floppy-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: #888 #f0f0f0;
+      min-height: 200px;
+    }
+    
+    /* Custom scrollbar for webkit browsers */
+    .ndlib-floppy-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .ndlib-floppy-list::-webkit-scrollbar-track {
+      background: #f0f0f0;
+      border-radius: 4px;
+    }
+    
+    .ndlib-floppy-list::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    
+    .ndlib-floppy-list::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+    .ndlib-floppy-item {
+      padding: 12px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .ndlib-floppy-item:hover {
+      background-color: #f8f9fa;
+    }
+    .ndlib-floppy-item.active {
+      background-color: #e3f2fd;
+      border-left: 3px solid #2196F3;
+    }
+    .ndlib-floppy-name {
+      font-weight: bold;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+    .ndlib-floppy-description {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .ndlib-product-badge {
+      font-size: 11px;
+      background-color: #2196F3;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .floppy-details {
+      flex: 1;
+      padding: 20px;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+    }
+    .no-selection {
+      text-align: center;
+      color: #999;
+      margin-top: 100px;
+    }
+    .floppy-details-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .floppy-details-content h4 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 16px;
+    }
+    .floppy-details-info {
+      margin-bottom: 20px;
+    }
+    .floppy-details-row {
+      display: flex;
+      margin-bottom: 8px;
+    }
+    .floppy-details-label {
+      font-weight: bold;
+      color: #555;
+      width: 100px;
+      flex-shrink: 0;
+      font-size: 13px;
+    }
+    .floppy-details-value {
+      color: #333;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .floppy-directory-content {
+      background-color: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 15px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: #333;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 150px;
+      max-height: calc(100% - 100px);
+    }
+    .floppy-mount-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 15px;
+    }
+    .floppy-mount-button:hover {
+      background-color: #45a049;
+    }
+    .floppy-mount-button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .floppy-modal-footer {
+      padding: 15px 20px;
+      border-top: 1px solid #e0e0e0;
+      background-color: #f8f9fa;
+      border-radius: 0 0 8px 8px;
+    }
+    .floppy-download-progress {
+      text-align: center;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    #progress-text {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    /* Product Selection Controls */
+    .product-selection-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .select-product-button {
+      flex: 1;
+      padding: 8px 12px;
+      background-color: #FF9800;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    .select-product-button:hover {
+      background-color: #F57C00;
+    }
+    .clear-product-button {
+      padding: 8px 12px;
+      background-color: #f44336;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+      white-space: nowrap;
+    }
+    .clear-product-button:hover {
+      background-color: #d32f2f;
+    }
+    
+    /* Products Modal Styling */
+    .products-modal-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .product-filter-section {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    #product-filter {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .products-list-container {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    .products-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .product-item {
+      padding: 12px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .product-item:hover {
+      background-color: #f8f9fa;
+    }
+    .product-item.selected {
+      background-color: #e3f2fd;
+      border-left: 3px solid #2196F3;
+    }
+    .product-item-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .product-item-main {
+      flex: 1;
+    }
+    .product-item-main strong {
+      color: #2196F3;
+      font-weight: 600;
+    }
+    .product-item-count {
+      margin-left: 15px;
+    }
+    .floppy-count {
+      background-color: #4CAF50;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .products-modal-button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 10px;
+    }
+    .products-modal-button.cancel {
+      background-color: #f5f5f5;
+      color: #666;
+    }
+    .products-modal-button.cancel:hover {
+      background-color: #e0e0e0;
+    }
+    .products-modal-button.ok {
+      background-color: #2196F3;
+      color: white;
+    }
+    .products-modal-button.ok:hover:not(:disabled) {
+      background-color: #1976D2;
+    }
+    .products-modal-button.ok:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    /* Help Modal Styling */
+    .help-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: #666;
+    }
+    .help-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background: white;
+    }
+    .help-content h1 {
+      color: #333;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    .help-content h2 {
+      color: #444;
+      margin-top: 30px;
+    }
+    .help-content h3 {
+      color: #555;
+      margin-top: 20px;
+    }
+    .help-content .command {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .help-content .command h3 {
+      margin-top: 0;
+    }
+    .help-content .section-header {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .help-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    .help-content th, 
+    .help-content td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    .help-content th {
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    .help-content th:hover {
+      background: #eee;
+    }
+    .help-content code {
+      background: #f5f5f5;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    .help-content pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    
+    /* Help Navigation Styling */
+    .help-navigation {
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #f8f9fa;
+      padding: 15px 20px;
+    }
+    .help-search-section {
+      margin-bottom: 15px;
+    }
+    .help-search-section .search-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 800px;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .help-search-section #help-search {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      min-width: 300px;
+    }
+    .search-clear-small {
+      padding: 4px 8px;
+      background-color: #f44336;
+      color: white;
+      border: 1px solid #f44336;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+    .search-clear-small:hover {
+      background-color: #d32f2f;
+    }
+    .search-navigation {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+    .search-results-count {
+      font-size: 13px;
+      color: #666;
+      font-weight: 500;
+    }
+    .search-nav-group {
+      display: flex;
+      gap: 8px;
+    }
+    .search-nav-btn {
+      padding: 6px 16px;
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      min-width: 80px;
+    }
+    .search-nav-btn:hover {
+      background-color: #e0e0e0;
+    }
+    .search-nav-btn:disabled {
+      background-color: #f9f9f9;
+      color: #ccc;
+      cursor: not-allowed;
+    }
+    .help-nav-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .help-nav-btn {
+      padding: 8px 16px;
+      background-color: #fff;
+      color: #666;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .help-nav-btn:hover {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+    .help-nav-btn.active {
+      background-color: #9C27B0;
+      color: white;
+      border-color: #9C27B0;
+    }
+    .help-nav-btn.active:hover {
+      background-color: #7B1FA2;
+      border-color: #7B1FA2;
+    }
+    
+    /* Search highlighting */
+    .help-content .search-highlight {
+      background-color: #ffeb3b;
+      padding: 1px 2px;
+      border-radius: 2px;
+    }
+    .help-content .search-highlight.current-match {
+      background-color: #ff9800;
+      color: white;
+      font-weight: bold;
+      animation: pulse 1s ease-in-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    
+    /* Hidden sections */
+    .help-content .section-hidden {
+      display: none !important;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>ND100X Emulator</h1>
-    <p id="status">Loading WebAssembly module...</p>
+    <div class="header">
+      <div class="header-content">
+        <h1>Norsk Data ND-100 Emulator</h1>
+        <h2 class="header-subtitle">Run Historic SINTRAN III Software in Your Browser</h2>
+      </div>
+      <img src="Logo_ND.png" alt="ND Logo" class="header-logo">
+    </div>
+
+    <p id="status" class="status-message">Initializing emulator...</p>
 
     <div id="controls" class="control-panel" style="display: none;">
-      <button id="init-btn">Initialize</button>
-      <button id="start-btn" disabled>Start</button>
-      <button id="stop-btn" disabled>Stop</button>
-      
-      <div class="slider-container">
-        <label for="boot-select">Boot device:</label>
-        <select id="boot-select">
-          <option value="smd">SMD</option>
-          <option value="floppy" selected>FLOPPY</option>
-        </select>
+      <!-- Buttons Row -->
+      <div class="control-row buttons">
+        <button id="init-btn">Initialize</button>
+        <button id="start-btn" disabled>Start</button>
+        <button id="stop-btn" disabled>Stop</button>
+        <button id="help-btn" class="help-button">SINTRAN Help</button>
       </div>
       
-      <div class="slider-container">
-        <label for="floppy-select">Floppy image:</label>
-        <select id="floppy-select">
-          <option value="FLOPPY.IMG">FLOPPY.IMG</option>
-          <option value="SMD0.IMG">SMD0.IMG</option>
-        </select>
+      <!-- Settings Rows -->
+      <div class="control-row settings">
+        <!-- Storage Settings Group -->
+        <div class="settings-group">
+          <div class="settings-group-title">Storage</div>
+          <div class="settings-controls">
+            <div class="setting-item">
+              <label for="boot-select">Boot device:</label>
+              <select id="boot-select">
+                <option value="smd" selected>SMD</option>
+                <option value="floppy">FLOPPY</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label>Online library:</label>
+              <button id="online-library-btn" class="online-library-button">Browse Floppies</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="slider-container">
-        <label for="font-family-select">Font:</label>
-        <select id="font-family-select">
-          <option value="monospace" selected>Monospace (default)</option>
-          <option value="'VT323', monospace">VT323 (Retro)</option>
-          <option value="'Fira Mono', monospace">Fira Mono</option>
-          <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
-          <option value="'Cascadia Mono', monospace">Cascadia Mono</option>
-          <option value="'Source Code Pro', monospace">Source Code Pro</option>
-        </select>
-      </div>
-      <div class="slider-container">
-        <label for="color-theme-select">Color:</label>
-        <select id="color-theme-select">
-          <option value="green">Green Phosphor (P1)</option>
-          <option value="amber">Amber Phosphor (P3)</option>
-          <option value="white">White Phosphor (P4)</option>
-          <option value="blue">Blue Phosphor (rare)</option>
-          <option value="paperwhite">Paper-White (VT420)</option>
-        </select>
+      
+      <div class="control-row settings">
+        <!-- Terminal Settings Group -->
+        <div class="settings-group">
+          <div class="settings-group-title">Terminal</div>
+          <div class="settings-controls">
+            <div class="setting-item">
+              <label for="font-family-select">Font:</label>
+              <select id="font-family-select">
+                <option value="monospace" selected>Monospace (default)</option>
+                <option value="'VT323', monospace">VT323 (Retro)</option>
+                <option value="'Fira Mono', monospace">Fira Mono</option>
+                <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
+                <option value="'Cascadia Mono', monospace">Cascadia Mono</option>
+                <option value="'Source Code Pro', monospace">Source Code Pro</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label for="color-theme-select">Color:</label>
+              <select id="color-theme-select">
+                <option value="green" selected>Green Phosphor (P1)</option>
+                <option value="amber">Amber Phosphor (P3)</option>
+                <option value="white">White Phosphor (P4)</option>
+                <option value="blue">Blue Phosphor (rare)</option>
+                <option value="paperwhite">Paper-White (VT420)</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="terminal-tabs"></div>
-    <!-- All terminal containers will be created dynamically by JS below this line -->    
+    <!-- All terminal containers will be created dynamically by JS below this line -->
+    
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p class="loading-text">Starting ND-100 emulation...</p>
+        <p class="loading-subtext" id="loading-boot-device">Booting from SMD</p>
+        <p class="loading-subtext">Please wait while the system initializes</p>
+        <p class="loading-cancel-hint">Press ESC to cancel</p>
+      </div>
+    </div>
+    
+    <!-- Floppy Browser Modal -->
+    <div id="floppy-modal" class="floppy-modal" style="display: none;">
+      <div class="floppy-modal-content">
+        <div class="floppy-modal-header">
+          <h3>Browse Floppy Library</h3>
+          <button class="floppy-modal-close" id="floppy-modal-close">&times;</button>
+        </div>
+        
+        <div class="floppy-loading" id="floppy-loading" style="display: none;">
+          <div class="floppy-spinner"></div>
+          <p>Loading floppy database...</p>
+        </div>
+        
+        <div class="floppy-browser-main" id="floppy-browser-main" style="display: none;">
+          <div class="floppy-browser-left">
+            <div class="floppy-search-section">
+              <div class="search-container">
+                <input type="text" id="floppy-search" placeholder="Search floppies, products, or directory content..." />
+                <button id="search-clear" class="search-clear" style="display: none;">Clear</button>
+              </div>
+              <div class="product-selection-controls">
+                <button id="select-product-btn" class="select-product-button">Select Product</button>
+                <button id="clear-product-btn" class="clear-product-button" style="display: none;">Clear Filter</button>
+              </div>
+            </div>
+            <div class="floppy-list-section">
+              <div id="floppy-results-count" class="results-count"></div>
+              <div id="floppy-list" class="ndlib-floppy-list">
+                <!-- Floppy items will be populated here -->
+              </div>
+            </div>
+          </div>
+          <div class="floppy-browser-right">
+            <div id="floppy-details" class="floppy-details">
+              <div class="no-selection">
+                <p>Select a floppy from the list to view details</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="floppy-modal-footer">
+          <div class="floppy-download-progress" id="floppy-download-progress" style="display: none;">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-text">Downloading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Products Selection Modal -->
+    <div id="products-modal" class="floppy-modal" style="display: none;">
+      <div class="floppy-modal-content" style="max-width: 800px;">
+        <div class="floppy-modal-header">
+          <h3>Select Product</h3>
+          <button class="floppy-modal-close" id="products-modal-close">&times;</button>
+        </div>
+        
+        <div class="products-modal-body">
+          <div class="product-filter-section">
+            <input type="text" id="product-filter" placeholder="Filter products by ID or name..." />
+          </div>
+          
+          <div class="products-list-container">
+            <ul id="products-list" class="products-list">
+              <!-- Products will be populated here -->
+            </ul>
+          </div>
+        </div>
+        
+        <div class="floppy-modal-footer">
+          <button id="products-cancel-btn" class="products-modal-button cancel">Cancel</button>
+          <button id="products-ok-btn" class="products-modal-button ok" disabled>OK</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- SINTRAN Help Modal -->
+    <div id="help-modal" class="floppy-modal" style="display: none;">
+      <div class="floppy-modal-content" style="max-width: 1400px; max-height: 90%; overflow: hidden;">
+        <div class="floppy-modal-header">
+          <h3>SINTRAN III Commands Reference</h3>
+          <button class="floppy-modal-close" id="help-modal-close">&times;</button>
+        </div>
+        
+        <!-- Help Navigation and Search -->
+        <div class="help-navigation" id="help-navigation" style="display: none;">
+          <div class="help-search-section">
+            <div class="search-container">
+              <div class="search-input-group">
+                <input type="text" id="help-search" placeholder="Search commands, descriptions, or parameters (press Enter)" />
+                <button id="help-search-clear" class="search-clear-small" style="display: none;">Clear</button>
+              </div>
+              <div class="search-navigation" id="search-navigation" style="display: none;">
+                <span class="search-results-count" id="search-results-count">0 matches</span>
+                <div class="search-nav-group">
+                  <button id="search-prev" class="search-nav-btn" title="Previous match">← Prev</button>
+                  <button id="search-next" class="search-nav-btn" title="Next match">Next →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="help-nav-buttons">
+            <button class="help-nav-btn active" data-section="all">All Sections</button>
+            <button class="help-nav-btn" data-section="index">Index</button>
+            <button class="help-nav-btn" data-section="commands">Commands</button>
+            <button class="help-nav-btn" data-section="sintran-service-program">Service Program</button>
+            <button class="help-nav-btn" data-section="nd-500-monitor-commands">ND-500 Monitor</button>
+            <button class="help-nav-btn" data-section="sintran-appendix">Appendix</button>
+          </div>
+        </div>
+        
+        <div class="help-loading" id="help-loading" style="display: none;">
+          <div class="floppy-spinner"></div>
+          <p>Loading SINTRAN commands reference...</p>
+        </div>
+        
+        <div id="help-content" class="help-content" style="display: none;">
+          <!-- SINTRAN-Commands.html content will be loaded here -->
+        </div>
+      </div>
+    </div>
+    
+    <footer class="footer">
+      <div class="footer-content">
+        <p class="footer-text">
+          <strong>nd100x</strong> — open-source ND-100 emulator with complete CPU opcode set, memory paging/protection, and emulated peripherals for running original software
+        </p>
+        <p class="footer-link">
+          <a href="https://github.com/HackerCorpLabs/nd100x" target="_blank" rel="noopener noreferrer">
+            <span class="github-icon">📁</span> View on GitHub
+          </a>
+        </p>
+      </div>
+    </footer>
   </div>
 
   <!-- Load the Emscripten-generated JavaScript after Module is defined -->
@@ -328,11 +1463,8 @@
             if (term.options.fontSize !== newFont) {
                 term.options.fontSize = newFont;
             }
-            // Update font family and color theme
-            term.options.fontFamily = selectedFontFamily;
-            term.options.theme = colorThemes[selectedColorTheme];
-            // Measure actual char size
-            const charSize = measureCharSize(selectedFontFamily, newFont);
+            // Measure actual char size (using current font settings)
+            const charSize = measureCharSize(term.options.fontFamily || selectedFontFamily, newFont);
             container.style.width = (charSize.width * 80) + 'px';
             container.style.height = (charSize.height * 24) + 'px';
             fitAddon.fit();
@@ -347,6 +1479,8 @@
           container,
           resizeTerminal
         };
+
+        console.log(`Terminal ${identCode} (${name}) created. Has clearTextureAtlas: ${typeof term.clearTextureAtlas === 'function'}`);
         terminalContainers[identCode] = container;
         
         // Add click handler for tab
@@ -393,6 +1527,22 @@
             document.querySelectorAll('.terminal-container').forEach(el => el.remove());
             // Create console with identCode 1
             createTerminal(1, '1');
+
+            // Apply current font and color settings to the pre-init console terminal
+            if (terminals[1]) {
+                // Apply color theme immediately
+                if (selectedColorTheme !== 'green') {
+                    terminals[1].term.options.theme = colorThemes[selectedColorTheme];
+                }
+
+                // Apply current settings simply
+                applyTerminalSettings();
+
+                // Make the terminal fully active by giving it focus
+                // This enables xterm.js to properly handle font changes
+                terminals[1].term.focus();
+            }
+
             switchTerminal(1);
             return;
         }
@@ -408,6 +1558,17 @@
         
         // Create a placeholder container for the console (identCode 1)
         createTerminal(1, '1');
+
+        // Apply current font and color settings to the newly created console terminal
+        if (terminals[1]) {
+            // Apply color theme immediately
+            if (selectedColorTheme !== 'green') {
+                terminals[1].term.options.theme = colorThemes[selectedColorTheme];
+            }
+
+            // Apply current settings simply
+            applyTerminalSettings();
+        }
         
         // Create terminals for any devices discovered after initialization
         if (isInitialized) {
@@ -543,6 +1704,60 @@
     let loopId = null;
     const instructionsPerFrame = 10000;
     let continuousStepMode = false;
+    let loadingOverlayVisible = false;
+    let hasReceivedTerminalOutput = false;
+    let hasEverStartedEmulation = false;
+
+    // Loading overlay functions
+    function showLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            // Update boot device text based on current selection
+            const bootSelect = document.getElementById('boot-select');
+            const bootDeviceText = document.getElementById('loading-boot-device');
+            if (bootSelect && bootDeviceText) {
+                const selectedDevice = bootSelect.value;
+                const deviceName = selectedDevice === 'smd' ? 'SMD' : 'FLOPPY';
+                bootDeviceText.textContent = `Booting from ${deviceName}`;
+            }
+            
+            overlay.style.display = 'flex';
+            loadingOverlayVisible = true;
+            hasReceivedTerminalOutput = false;
+            
+            // Add ESC key listener when overlay is shown
+            document.addEventListener('keydown', handleLoadingEscape);
+        }
+    }
+
+    function hideLoadingOverlay() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+            loadingOverlayVisible = false;
+            
+            // Remove ESC key listener when overlay is hidden
+            document.removeEventListener('keydown', handleLoadingEscape);
+        }
+    }
+    
+    // Handle ESC key to cancel loading
+    function handleLoadingEscape(event) {
+        if (event.key === 'Escape' && loadingOverlayVisible) {
+            console.log('User cancelled boot sequence with ESC key');
+            
+            // Hide the loading overlay immediately
+            hideLoadingOverlay();
+            
+            // Stop emulation
+            stopEmulation();
+            
+            // Show cancellation message in terminal
+            if (terminals[activeTerminalId] && terminals[activeTerminalId].term) {
+                terminals[activeTerminalId].term.writeln('\r\n\x1b[31mBoot sequence cancelled by user\x1b[0m');
+            }
+        }
+    }
 
     function executeInstructionBatch() {
         if (!emulationRunning && !continuousStepMode) {
@@ -574,6 +1789,14 @@
         document.getElementById('status').textContent = 'Emulation running...';
         terminals[activeTerminalId].term.writeln('\r\nEmulation started');
         
+        // Only show loading overlay on first start
+        if (!hasEverStartedEmulation) {
+            showLoadingOverlay();
+        } else {
+            // Reset the terminal output flag for subsequent starts
+            hasReceivedTerminalOutput = false;
+        }
+        
         document.getElementById('start-btn').disabled = true;
         document.getElementById('stop-btn').disabled = false;
         
@@ -595,86 +1818,13 @@
         terminals[activeTerminalId].term.writeln('\r\nEmulation stopped');
         document.getElementById('start-btn').disabled = false;
         document.getElementById('stop-btn').disabled = true;
-    }
-
-    // Function to load the disk images
-    function loadDiskImages() {
-        return new Promise((resolve, reject) => {
-            // First check if the FS API is available
-            if (typeof Module.FS === 'undefined') {
-                console.error("ERROR: Module.FS is not available! Check if FS was properly exported in EXPORTED_RUNTIME_METHODS.");
-                document.getElementById('status').textContent = 'Error: FS API not available. Check console.';
-                // Still show controls even if we can't load disk images
-                document.getElementById('controls').style.display = 'flex';
-                // We'll continue anyway since some functionality might still work
-                resolve();
-                return;
-            }
-            
-            console.log("Loading SMD0.IMG...");
-            fetch('SMD0.IMG')
-                .then(res => res.arrayBuffer())
-                .then(buf => {
-                    try {
-                        Module.FS.writeFile('/SMD0.IMG', new Uint8Array(buf));
-                        console.log("SMD0.IMG loaded");
-                        
-                        // Load FLOPPY.IMG
-                        console.log("Loading FLOPPY.IMG...");
-                        return fetch('FLOPPY.IMG');
-                    } catch (e) {
-                        console.error("Error writing SMD0.IMG:", e);
-                        // Continue even with error
-                        console.log("Attempting to load FLOPPY.IMG anyway...");
-                        return fetch('FLOPPY.IMG');
-                    }
-                })
-                .then(res => res.arrayBuffer())
-                .then(buf => {
-                    try {
-                        Module.FS.writeFile('/FLOPPY.IMG', new Uint8Array(buf));
-                        console.log("FLOPPY.IMG loaded");
-                        document.getElementById('status').textContent = 'WebAssembly module loaded!';
-                        document.getElementById('controls').style.display = 'flex';
-                        resolve();
-                    } catch (e) {
-                        console.error("Error writing FLOPPY.IMG:", e);
-                        // Still show controls even if we can't load disk images
-                        document.getElementById('status').textContent = 'Warning: Failed to load disk images. Some features may not work.';
-                        document.getElementById('controls').style.display = 'flex';
-                        resolve();
-                    }
-                })
-                .catch(error => {
-                    console.error("Failed to load disk images:", error);
-                    document.getElementById('status').textContent = 'Warning: Failed to load disk images. Some features may not work.';
-                    // Still show controls even if we can't load disk images
-                    document.getElementById('controls').style.display = 'flex';
-                    resolve();
-                });
-        });
-    }
-
-    // Main initialization function called from Module.onRuntimeInitialized
-    function initializeSystem() {
-        console.log("System initialization starting...");
-        document.getElementById('init-btn').disabled = false;
         
-        // Load disk images
-        loadDiskImages()
-            .then(() => {
-                // Wait for fonts to load before creating the first terminal
-                return document.fonts.ready;
-            })
-            .then(() => {
-                initializeTerminals();
-                console.log("Terminals initialized");
-            })
-            .catch(error => {
-                console.error("Error during initialization:", error);
-                document.getElementById('status').textContent = 'Error during initialization: ' + error.message;
-            });
+        // Hide loading overlay if it's visible
+        if (loadingOverlayVisible) {
+            hideLoadingOverlay();
+        }
     }
+
 
     // Button logic
     const initBtn = document.getElementById('init-btn');
@@ -722,12 +1872,25 @@
                 console.error("Failed to register terminal callbacks");
                 document.getElementById('start-btn').disabled = true;
             }
+            
+            // Disable boot device dropdown after initialization
+            document.getElementById('boot-select').disabled = true;
+            
             setToResetButton();
             isInitializedBtn = true;
         } else {
-            // RESET logic: reload WASM and reset UI
+            // RESET logic: unload WASM and reload it
             document.getElementById('controls').style.display = 'none';
-            document.getElementById('status').textContent = 'Reloading...';
+            const statusElement = document.getElementById('status');
+            if (statusElement) {
+                statusElement.textContent = 'Unloading WASM module...';
+            }
+            
+            // Stop emulation if running
+            if (emulationRunning) {
+                stopEmulation();
+            }
+            
             // Remove all terminals
             document.querySelector('.terminal-tabs').innerHTML = '';
             document.querySelectorAll('.terminal-container').forEach(el => el.remove());
@@ -736,40 +1899,1198 @@
             });
             terminals = {};
             terminalContainers = {};
-            isInitialized = false;
-            isInitializedBtn = false;
-            setToInitButton();
             
-            // Instead of reloading the entire module, just restart
-            if (Module._Stop) {
+            // Unload the WASM module
+            if (Module && Module._Stop) {
                 Module._Stop();
             }
-            document.getElementById('controls').style.display = 'flex';
-            document.getElementById('status').textContent = 'Ready to initialize';
-            initializeTerminals();
+            
+            // Clear module reference
+            Module = null;
+            
+            // Reset state
+            isInitialized = false;
+            isInitializedBtn = false;
+            
+            // Re-enable boot device dropdown for next initialization
+            document.getElementById('boot-select').disabled = false;
+            
+            setToInitButton();
+            
+            // Reload the entire page to properly reset the WASM module
+            if (statusElement) {
+                statusElement.textContent = 'Reloading page...';
+            }
+            
+            // Reload the page after a short delay to show the message
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
         }
     });
 
-    // Listen for font family and color theme changes
+
+
+    // Apply font and color settings with xterm.js rendering fix
+    function applyTerminalSettings() {
+        if (Object.keys(terminals).length === 0) return;
+
+        Object.entries(terminals).forEach(([terminalId, t]) => {
+            // Set font and color
+            t.term.options.fontFamily = selectedFontFamily;
+
+            // Workaround for xterm.js font rendering bug:
+            // Briefly flash background to force complete re-render
+            t.term.options.theme = { ...colorThemes[selectedColorTheme], background: '#FF0000' };
+            t.term.refresh(0, t.term.rows - 1);
+
+            setTimeout(() => {
+                t.term.options.theme = colorThemes[selectedColorTheme];
+                t.term.refresh(0, t.term.rows - 1);
+            }, 50);
+        });
+    }
+
     document.getElementById('font-family-select').addEventListener('change', function(e) {
         selectedFontFamily = e.target.value;
-        Object.values(terminals).forEach(t => {
-            t.term.options.fontFamily = selectedFontFamily;
-            t.resizeTerminal();
-            t.fitAddon.fit();
-            t.term.refresh(0, t.term.rows - 1);
-        });
+        applyTerminalSettings();
     });
-    
+
     document.getElementById('color-theme-select').addEventListener('change', function(e) {
         selectedColorTheme = e.target.value;
-        Object.values(terminals).forEach(t => {
-            t.term.options.theme = colorThemes[selectedColorTheme];
-            t.resizeTerminal();
-            t.fitAddon.fit();
-            t.term.refresh(0, t.term.rows - 1);
+        applyTerminalSettings();
+    });
+
+    // Initialize dropdown values to match JavaScript defaults on page load
+    function initializeDropdowns() {
+        const fontSelect = document.getElementById('font-family-select');
+        const colorSelect = document.getElementById('color-theme-select');
+
+        // Set dropdown values to match JS defaults
+        if (fontSelect) fontSelect.value = selectedFontFamily;
+        if (colorSelect) colorSelect.value = selectedColorTheme;
+    }
+
+    // Call initialization when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeDropdowns);
+    } else {
+        initializeDropdowns();
+    }
+
+    // Floppy Browser Implementation
+    let floppyDatabase = [];
+    let productsDatabase = [];
+    let filteredFloppies = [];
+    let currentMountedFloppy = null;
+    let selectedProductId = null;
+    let currentProductFilter = '';
+
+    // Open floppy browser modal
+    document.getElementById('online-library-btn').addEventListener('click', function() {
+        openFloppyBrowser();
+    });
+
+    // Close modal handlers
+    document.getElementById('floppy-modal-close').addEventListener('click', function() {
+        closeFloppyBrowser();
+    });
+
+    document.getElementById('floppy-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeFloppyBrowser();
+        }
+    });
+
+    // Search functionality
+    document.getElementById('floppy-search').addEventListener('input', function(e) {
+        filterFloppies();
+    });
+
+    // Search clear functionality
+    document.getElementById('search-clear').addEventListener('click', function() {
+        document.getElementById('floppy-search').value = '';
+        filterFloppies();
+    });
+
+    // Products modal functionality
+    document.getElementById('select-product-btn').addEventListener('click', function() {
+        openProductsModal();
+    });
+
+    document.getElementById('clear-product-btn').addEventListener('click', function() {
+        clearProductFilter();
+    });
+
+    document.getElementById('products-modal-close').addEventListener('click', function() {
+        closeProductsModal();
+    });
+
+    document.getElementById('products-cancel-btn').addEventListener('click', function() {
+        closeProductsModal();
+    });
+
+    document.getElementById('products-ok-btn').addEventListener('click', function() {
+        selectProductAndClose();
+    });
+
+    document.getElementById('product-filter').addEventListener('input', function() {
+        filterProductsList();
+    });
+
+    // Close products modal when clicking outside
+    document.getElementById('products-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeProductsModal();
+        }
+    });
+
+    function openFloppyBrowser() {
+        document.getElementById('floppy-modal').style.display = 'flex';
+        loadFloppyDatabase();
+    }
+
+    function closeFloppyBrowser() {
+        document.getElementById('floppy-modal').style.display = 'none';
+    }
+
+    async function loadFloppyDatabase() {
+        const floppyLoading = document.getElementById('floppy-loading');
+        const floppyList = document.getElementById('floppy-list');
+        
+        floppyLoading.style.display = 'flex';
+        floppyList.innerHTML = '';
+
+        try {
+            // Load floppy database from local floppies subfolder
+            console.log('Loading floppy database...');
+            const floppyResponse = await fetch('floppies/floppies.json');
+            if (!floppyResponse.ok) {
+                throw new Error(`Failed to load floppy database: ${floppyResponse.status}`);
+            }
+            floppyDatabase = await floppyResponse.json();
+            console.log(`Loaded ${floppyDatabase.length} floppies`);
+
+            // Load products database from local floppies subfolder
+            console.log('Loading products database...');
+            const productsResponse = await fetch('floppies/products.json');
+            if (!productsResponse.ok) {
+                throw new Error(`Failed to load products database: ${productsResponse.status}`);
+            }
+            productsDatabase = await productsResponse.json();
+            console.log(`Loaded ${productsDatabase.length} products`);
+
+            // Show the main browser interface
+            document.getElementById('floppy-browser-main').style.display = 'flex';
+            
+            // Initialize filtered floppies with only Status = 0 floppies
+            filteredFloppies = floppyDatabase.filter(floppy => floppy.Status === 0);
+            displayFloppies();
+            
+            floppyLoading.style.display = 'none';
+            
+        } catch (error) {
+            console.error('Error loading floppy database:', error);
+            floppyLoading.innerHTML = `
+                <div style="color: #e53935; text-align: center;">
+                    <p><strong>Error loading floppy database</strong></p>
+                    <p>${error.message}</p>
+                    <p><small>Please check your internet connection and try again.</small></p>
+                </div>
+            `;
+        }
+    }
+
+    function updateResultsCount() {
+        const resultsCount = document.getElementById('floppy-results-count');
+        const count = filteredFloppies.length;
+        resultsCount.textContent = `${count} floppy${count !== 1 ? 'ies' : ''} found`;
+    }
+
+    function filterFloppies() {
+        const searchTerm = document.getElementById('floppy-search').value.toLowerCase();
+        const searchClearBtn = document.getElementById('search-clear');
+        
+        // Show/hide clear button
+        searchClearBtn.style.display = searchTerm ? 'block' : 'none';
+        
+        filteredFloppies = floppyDatabase.filter(floppy => {
+            // Only show floppies with Status = 0
+            if (floppy.Status !== 0) {
+                return false;
+            }
+            
+            // Filter by selected product first using ndlib matching logic
+            if (selectedProductId) {
+                const selectedProduct = productsDatabase.find(p => p.Id === selectedProductId);
+                if (!selectedProduct || !floppyMatchesProduct(floppy, selectedProduct)) {
+                    return false;
+                }
+            }
+            
+            // Then apply search filter
+            if (!searchTerm) return true;
+            
+            const matchesName = floppy.Name && floppy.Name.toLowerCase().includes(searchTerm);
+            const matchesDescription = floppy.Description && floppy.Description.toLowerCase().includes(searchTerm);
+            const matchesDirectoryContent = floppy.DirectoryContent && floppy.DirectoryContent.toLowerCase().includes(searchTerm);
+            const matchesReference = floppy.Reference && floppy.Reference.toLowerCase().includes(searchTerm);
+            const matchesFilePath = floppy.FilePath && floppy.FilePath.toLowerCase().includes(searchTerm);
+            
+            // Handle Product field safely - most are null in the current dataset
+            let matchesProduct = false;
+            if (floppy.Product && floppy.Product.Name) {
+                matchesProduct = floppy.Product.Name.toLowerCase().includes(searchTerm);
+            }
+            
+            return matchesName || matchesDescription || matchesDirectoryContent || matchesReference || matchesFilePath || matchesProduct;
+        });
+        
+        displayFloppies();
+        updateResultsCount();
+    }
+
+    function displayFloppies() {
+        const floppyList = document.getElementById('floppy-list');
+        floppyList.innerHTML = '';
+        
+        if (filteredFloppies.length === 0) {
+            floppyList.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">No floppies found matching your search criteria.</div>';
+            updateResultsCount();
+            return;
+        }
+        
+        filteredFloppies.forEach(floppy => {
+            const floppyItem = createFloppyItem(floppy);
+            floppyList.appendChild(floppyItem);
+        });
+        
+        updateResultsCount();
+    }
+
+    function createFloppyItem(floppy) {
+        const item = document.createElement('div');
+        item.className = 'ndlib-floppy-item';
+        item.onclick = () => selectFloppy(floppy);
+        
+        const name = floppy.Name || 'Unnamed Floppy';
+        const description = floppy.Description || 'No description available';
+        
+        // Handle Product field using ndlib matching logic
+        let productName = 'No Product';
+        if (floppy.Product && floppy.Product.Name) {
+            productName = floppy.Product.Name;
+        } else {
+            // Try to find matching product using ndlib logic
+            const matchingProduct = productsDatabase.find(product => floppyMatchesProduct(floppy, product));
+            if (matchingProduct) {
+                productName = matchingProduct.Name;
+            }
+        }
+        
+        item.innerHTML = `
+            <div class="ndlib-floppy-name">${escapeHtml(name)}</div>
+            <div class="ndlib-floppy-description">${escapeHtml(description)}</div>
+            <div class="ndlib-product-badge">${escapeHtml(productName)}</div>
+        `;
+        
+        return item;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function selectFloppy(floppy) {
+        
+        // Remove active class from all items
+        document.querySelectorAll('.ndlib-floppy-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        // Add active class to clicked item
+        event.currentTarget.classList.add('active');
+        
+        // Display floppy details
+        displayFloppyDetails(floppy);
+    }
+    
+    function displayFloppyDetails(floppy) {
+        const detailsContainer = document.getElementById('floppy-details');
+        
+        const name = floppy.Name || 'Unnamed Floppy';
+        const description = floppy.Description || 'No description available';
+        const md5 = floppy.Md5 || 'N/A';
+        const directoryContent = floppy.DirectoryContent || 'No directory content available';
+        
+        // Handle Product field using ndlib matching logic
+        let productName = 'No Product';
+        if (floppy.Product && floppy.Product.Name) {
+            productName = floppy.Product.Name;
+        } else {
+            // Try to find matching product using ndlib logic
+            const matchingProduct = productsDatabase.find(product => floppyMatchesProduct(floppy, product));
+            if (matchingProduct) {
+                productName = matchingProduct.Name;
+            }
+        }
+        
+        detailsContainer.innerHTML = `
+            <div class="floppy-details-content">
+                <h4>${escapeHtml(name)}</h4>
+                
+                <div class="floppy-details-info">
+                    <div class="floppy-details-row">
+                        <div class="floppy-details-label">Name:</div>
+                        <div class="floppy-details-value">${escapeHtml(name)}</div>
+                    </div>
+                    <div class="floppy-details-row">
+                        <div class="floppy-details-label">Description:</div>
+                        <div class="floppy-details-value">${escapeHtml(description)}</div>
+                    </div>
+                    <div class="floppy-details-row">
+                        <div class="floppy-details-label">Product:</div>
+                        <div class="floppy-details-value">${escapeHtml(productName)}</div>
+                    </div>
+                    <div class="floppy-details-row">
+                        <div class="floppy-details-label">MD5:</div>
+                        <div class="floppy-details-value">${escapeHtml(md5)}</div>
+                    </div>
+                </div>
+                
+                <h5>Directory Content:</h5>
+                <div class="floppy-directory-content">${escapeHtml(directoryContent)}</div>
+                
+                <button class="floppy-mount-button" onclick="mountFloppy(arguments[0])" data-floppy='${JSON.stringify(floppy)}'>Mount Floppy</button>
+            </div>
+        `;
+    }
+    
+    async function mountFloppy(floppy) {
+        console.log('Mounting floppy:', floppy);
+        
+        const mountButton = document.querySelector('.floppy-mount-button');
+        const progressContainer = document.getElementById('floppy-download-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        
+        try {
+            // Parse floppy data from button attribute
+            const floppyData = JSON.parse(mountButton.getAttribute('data-floppy'));
+            
+            // Show progress
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Downloading floppy...';
+            
+            mountButton.textContent = 'Downloading...';
+            mountButton.disabled = true;
+            
+            // Use MD5 hash to construct ndlib download URL
+            const md5Hash = floppyData.Md5;
+            if (!md5Hash) {
+                throw new Error('No MD5 hash available for this floppy');
+            }
+            
+            // Download floppy image directly from ndlib blob storage using hash
+            const imageUrl = `https://hackercorp.blob.core.windows.net/upload/ndlib/images/${md5Hash}.img`;
+            console.log(`Downloading floppy from: ${imageUrl}`);
+            
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to download floppy: ${response.status} ${response.statusText}`);
+            }
+            
+            const contentLength = parseInt(response.headers.get('content-length') || '0');
+            const reader = response.body.getReader();
+            let receivedLength = 0;
+            let chunks = [];
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) break;
+                
+                chunks.push(value);
+                receivedLength += value.length;
+                
+                if (contentLength > 0) {
+                    const progress = (receivedLength / contentLength) * 100;
+                    progressFill.style.width = progress + '%';
+                    progressText.textContent = `Downloading... ${Math.round(progress)}%`;
+                }
+            }
+            
+            // Combine chunks
+            const floppyImageData = new Uint8Array(receivedLength);
+            let position = 0;
+            for (let chunk of chunks) {
+                floppyImageData.set(chunk, position);
+                position += chunk.length;
+            }
+            
+            // Mount the floppy to virtual filesystem
+            if (typeof Module !== 'undefined' && Module.FS) {
+                Module.FS.writeFile('/FLOPPY.IMG', floppyImageData);
+                
+                // Set read/write permissions (0o666 = rw-rw-rw-)
+                try {
+                    Module.FS.chmod('/FLOPPY.IMG', 0o666);
+                    console.log('FLOPPY.IMG permissions set to read/write');
+                } catch (e) {
+                    console.warn('Could not set FLOPPY.IMG permissions:', e.message);
+                }
+                
+                currentMountedFloppy = floppyData;
+                
+                progressText.textContent = 'Floppy mounted successfully!';
+                progressFill.style.width = '100%';
+                progressFill.style.backgroundColor = '#4CAF50';
+                
+                mountButton.textContent = 'Mounted!';
+                mountButton.style.backgroundColor = '#4CAF50';
+                
+                // Update the online library button text
+                const libraryBtn = document.getElementById('online-library-btn');
+                libraryBtn.textContent = escapeHtml(floppyData.Name || 'Custom Floppy');
+                libraryBtn.style.backgroundColor = '#4CAF50';
+                
+                console.log('Floppy mounted successfully:', floppyData.Name);
+                
+                setTimeout(() => {
+                    closeFloppyBrowser();
+                }, 2000);
+                
+            } else {
+                throw new Error('Virtual filesystem not available');
+            }
+            
+        } catch (error) {
+            console.error('Error mounting floppy:', error);
+            progressText.textContent = `Error: ${error.message}`;
+            progressFill.style.backgroundColor = '#e53935';
+            mountButton.textContent = `Error: ${error.message}`;
+            mountButton.style.backgroundColor = '#e53935';
+        }
+    }
+    
+    // Make mountFloppy globally accessible
+    window.mountFloppy = mountFloppy;
+
+    // Products Modal Functions
+    function openProductsModal() {
+        document.getElementById('products-modal').style.display = 'flex';
+        loadProductsWithCounts();
+        document.getElementById('product-filter').value = '';
+        selectedProductId = null;
+        updateProductsOkButton();
+    }
+
+    function closeProductsModal() {
+        document.getElementById('products-modal').style.display = 'none';
+    }
+
+    function floppyMatchesProduct(floppy, product) {
+        const floppyName = (floppy.Name || '').toUpperCase();
+        const productId = product.Id.toUpperCase();
+        
+        // Rule 1: Floppy name starts with product ID
+        if (floppyName.startsWith(productId)) {
+            return true;
+        }
+        
+        // Rule 2: If product ID starts with "ND-", check if floppy name starts with the number part
+        if (productId.startsWith('ND-')) {
+            const numberPart = productId.substring(3); // Remove "ND-" prefix
+            if (floppyName.startsWith(numberPart)) {
+                return true;
+            }
+        }
+        
+        // Rule 3: Check if floppy name contains product ID (without "ND-" prefix)
+        const productIdWithoutND = productId.startsWith('ND-') ? productId.substring(3) : productId;
+        if (floppyName.includes(productIdWithoutND)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    function loadProductsWithCounts() {
+        // Count floppies for each product using ndlib matching logic
+        const productsWithCounts = productsDatabase.map(product => {
+            const matchCount = floppyDatabase.filter(floppy => {
+                return floppyMatchesProduct(floppy, product);
+            }).length;
+            return { ...product, matchCount };
+        }).sort((a, b) => {
+            // Sort by match count descending, then by product ID ascending
+            if (b.matchCount !== a.matchCount) {
+                return b.matchCount - a.matchCount;
+            }
+            return a.Id.localeCompare(b.Id);
+        });
+        
+        currentProductFilter = '';
+        displayProductsList(productsWithCounts);
+    }
+
+    function displayProductsList(products) {
+        const productsList = document.getElementById('products-list');
+        
+        const filteredProducts = products.filter(product => {
+            if (!currentProductFilter) return product.matchCount > 0; // Only show products with floppies
+            
+            const matchesId = product.Id.toLowerCase().includes(currentProductFilter);
+            const matchesName = product.Name.toLowerCase().includes(currentProductFilter);
+            
+            return (matchesId || matchesName) && product.matchCount > 0;
+        });
+        
+        if (filteredProducts.length === 0) {
+            productsList.innerHTML = '<li style="padding: 20px; text-align: center; color: #666;">No products found matching your criteria.</li>';
+            return;
+        }
+        
+        productsList.innerHTML = filteredProducts.map(product => `
+            <li class="product-item" data-id="${escapeHtml(product.Id)}" onclick="selectProduct('${escapeHtml(product.Id)}')">
+                <div class="product-item-content">
+                    <div class="product-item-main">
+                        <strong>${escapeHtml(product.Id)}</strong>: ${escapeHtml(product.Name)}
+                    </div>
+                    <div class="product-item-count">
+                        <span class="floppy-count">${product.matchCount}</span>
+                    </div>
+                </div>
+            </li>
+        `).join('');
+    }
+
+    function filterProductsList() {
+        currentProductFilter = document.getElementById('product-filter').value.toLowerCase();
+        
+        // Recalculate products with counts
+        const productCounts = {};
+        floppyDatabase.forEach(floppy => {
+            const productId = floppy.ProductId;
+            if (productId) {
+                productCounts[productId] = (productCounts[productId] || 0) + 1;
+            }
+        });
+        
+        const productsWithCounts = productsDatabase.map(product => ({
+            ...product,
+            matchCount: productCounts[product.Id] || 0
+        })).sort((a, b) => b.matchCount - a.matchCount);
+        
+        displayProductsList(productsWithCounts);
+    }
+
+    function selectProduct(productId) {
+        // Remove previous selection
+        document.querySelectorAll('.product-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        // Add selection to clicked item
+        const selectedItem = document.querySelector(`.product-item[data-id="${productId}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('selected');
+            selectedProductId = productId;
+        }
+        
+        updateProductsOkButton();
+    }
+
+    function updateProductsOkButton() {
+        const okButton = document.getElementById('products-ok-btn');
+        okButton.disabled = !selectedProductId;
+    }
+
+    function selectProductAndClose() {
+        if (!selectedProductId) return;
+        
+        // Update the Select Product button to show selected product
+        const selectedProduct = productsDatabase.find(p => p.Id === selectedProductId);
+        const selectProductBtn = document.getElementById('select-product-btn');
+        const clearProductBtn = document.getElementById('clear-product-btn');
+        
+        if (selectedProduct) {
+            selectProductBtn.textContent = `${selectedProduct.Id}: ${selectedProduct.Name}`;
+            selectProductBtn.style.backgroundColor = '#4CAF50';
+            clearProductBtn.style.display = 'block';
+        }
+        
+        // Apply the product filter to floppies
+        filterFloppies();
+        
+        closeProductsModal();
+    }
+
+    // Clear product filter function (can be called externally)
+    function clearProductFilter() {
+        selectedProductId = null;
+        const selectProductBtn = document.getElementById('select-product-btn');
+        const clearProductBtn = document.getElementById('clear-product-btn');
+        
+        selectProductBtn.textContent = 'Select Product';
+        selectProductBtn.style.backgroundColor = '#FF9800';
+        clearProductBtn.style.display = 'none';
+        
+        filterFloppies();
+    }
+
+    // Make functions globally accessible
+    window.selectProduct = selectProduct;
+    window.clearProductFilter = clearProductFilter;
+
+    // Help Modal Functions
+    let helpContentLoaded = false;
+    let helpSections = [];
+    let currentSearchTerm = '';
+    let currentSection = 'all';
+    let searchMatches = [];
+    let currentMatchIndex = -1;
+
+    // Open help modal
+    document.getElementById('help-btn').addEventListener('click', function() {
+        openHelpModal();
+    });
+
+    // Close help modal handlers
+    document.getElementById('help-modal-close').addEventListener('click', function() {
+        closeHelpModal();
+    });
+
+    document.getElementById('help-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeHelpModal();
+        }
+    });
+
+    // Search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Use event delegation since elements might not exist yet
+        document.addEventListener('keydown', function(e) {
+            if (e.target && e.target.id === 'help-search' && e.key === 'Enter') {
+                e.preventDefault();
+                handleHelpSearch();
+            }
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'help-search-clear') {
+                clearHelpSearch();
+            } else if (e.target && e.target.classList.contains('help-nav-btn')) {
+                handleSectionNav(e.target);
+            } else if (e.target && e.target.id === 'search-prev') {
+                navigateToMatch(currentMatchIndex - 1);
+            } else if (e.target && e.target.id === 'search-next') {
+                navigateToMatch(currentMatchIndex + 1);
+            }
         });
     });
+
+    function openHelpModal() {
+        document.getElementById('help-modal').style.display = 'flex';
+        
+        if (!helpContentLoaded) {
+            loadHelpContent();
+        } else {
+            document.getElementById('help-content').style.display = 'block';
+            document.getElementById('help-navigation').style.display = 'block';
+        }
+    }
+
+    function closeHelpModal() {
+        document.getElementById('help-modal').style.display = 'none';
+    }
+
+    async function loadHelpContent() {
+        const helpLoading = document.getElementById('help-loading');
+        const helpContent = document.getElementById('help-content');
+        
+        helpLoading.style.display = 'flex';
+        helpContent.style.display = 'none';
+
+        try {
+            console.log('Loading SINTRAN commands reference...');
+            const response = await fetch('SINTRAN-Commands.html');
+            if (!response.ok) {
+                throw new Error(`Failed to load help content: ${response.status}`);
+            }
+            
+            const htmlContent = await response.text();
+            
+            // Extract the body content from the loaded HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            const bodyContent = doc.body.innerHTML;
+            
+            // Insert the content
+            helpContent.innerHTML = bodyContent;
+            
+            // Remove any problematic object elements that might be causing rendering issues
+            const objectElements = helpContent.querySelectorAll('object');
+            objectElements.forEach(obj => {
+                // Replace object element with its content if any, or just remove it
+                if (obj.innerHTML) {
+                    obj.outerHTML = obj.innerHTML;
+                } else {
+                    obj.remove();
+                }
+            });
+            
+            // Re-enable any JavaScript functionality from the original file
+            // (like table sorting if it exists)
+            const scripts = doc.querySelectorAll('script');
+            scripts.forEach(script => {
+                if (script.innerHTML) {
+                    try {
+                        eval(script.innerHTML);
+                    } catch (e) {
+                        console.warn('Could not execute help script:', e);
+                    }
+                }
+            });
+            
+            helpContentLoaded = true;
+            helpLoading.style.display = 'none';
+            helpContent.style.display = 'block';
+            
+            // Show navigation controls
+            document.getElementById('help-navigation').style.display = 'block';
+            
+            // Initialize sections and search functionality
+            initializeHelpFunctionality();
+            
+            console.log('SINTRAN commands reference loaded successfully');
+            
+        } catch (error) {
+            console.error('Error loading help content:', error);
+            helpContent.innerHTML = `
+                <div style="text-align: center; color: #e53935; padding: 40px;">
+                    <h2>Error Loading Help Content</h2>
+                    <p>${error.message}</p>
+                    <p><small>Please check that SINTRAN-Commands.html is available in the same directory.</small></p>
+                </div>
+            `;
+            helpLoading.style.display = 'none';
+            helpContent.style.display = 'block';
+        }
+    }
+
+    // Initialize help functionality after content is loaded
+    function initializeHelpFunctionality() {
+        const helpContent = document.getElementById('help-content');
+        
+        // Remove the navigation text that appears at the top
+        const navDiv = helpContent.querySelector('.nav');
+        if (navDiv) {
+            navDiv.remove();
+        }
+        
+        // Also remove the introductory paragraph with navigation links
+        const introPara = helpContent.querySelector('p');
+        if (introPara && introPara.textContent.includes('This document contains a reference of all available SINTRAN III commands')) {
+            introPara.remove();
+        }
+        
+        // Find all sections by looking for div.section containers
+        const sectionDivs = helpContent.querySelectorAll('div.section');
+        helpSections = [];
+        
+        // Handle the Index section separately (it's not in a section div)
+        const indexH2 = helpContent.querySelector('h2#index');
+        if (indexH2) {
+            let indexContent = [indexH2];
+            let nextElement = indexH2.nextElementSibling;
+            
+            // Collect content until we hit a section div
+            while (nextElement && !nextElement.classList.contains('section')) {
+                indexContent.push(nextElement);
+                nextElement = nextElement.nextElementSibling;
+            }
+            
+            helpSections.push({
+                id: 'index',
+                title: 'Index',
+                elements: indexContent
+            });
+        }
+        
+        // Process each section div - find all content within each section
+        sectionDivs.forEach((sectionDiv, index) => {
+            // Look specifically for h2 within section-header div
+            const sectionHeaderDiv = sectionDiv.querySelector('.section-header');
+            const h2Element = sectionHeaderDiv ? sectionHeaderDiv.querySelector('h2[id]') : null;
+            
+            if (h2Element) {
+                const sectionId = h2Element.id;
+                const sectionTitle = h2Element.textContent.trim();
+                
+                
+                // Collect all elements within this section
+                let sectionElements = [];
+                
+                // Start with the section div itself
+                sectionElements.push(sectionDiv);
+                
+                // Find all child elements within the section (commands, etc.)
+                // Use direct children approach to avoid cross-section contamination
+                const allChildElements = Array.from(sectionDiv.querySelectorAll('*'));
+                allChildElements.forEach(child => {
+                    // Only include elements that are actually descendants of this specific section
+                    if (sectionDiv.contains(child) && child.closest('.section') === sectionDiv) {
+                        sectionElements.push(child);
+                    }
+                });
+                
+                helpSections.push({
+                    id: sectionId,
+                    title: sectionTitle,
+                    elements: sectionElements
+                });
+                
+            }
+        });
+        
+    }
+
+    // Handle search functionality
+    function handleHelpSearch() {
+        const searchInput = document.getElementById('help-search');
+        const searchNavigation = document.getElementById('search-navigation');
+        const clearBtn = document.getElementById('help-search-clear');
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        
+        currentSearchTerm = searchTerm;
+        
+        // Show/hide search controls
+        searchNavigation.style.display = searchTerm ? 'flex' : 'none';
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+        
+        // Reset match tracking
+        searchMatches = [];
+        currentMatchIndex = -1;
+        
+        // Apply search and current section filter
+        applyFilters();
+        
+        // If we have matches, go to the first one
+        if (searchMatches.length > 0) {
+            navigateToMatch(0);
+        }
+    }
+
+    // Clear search
+    function clearHelpSearch() {
+        const searchInput = document.getElementById('help-search');
+        const searchNavigation = document.getElementById('search-navigation');
+        const clearBtn = document.getElementById('help-search-clear');
+        
+        searchInput.value = '';
+        currentSearchTerm = '';
+        searchNavigation.style.display = 'none';
+        clearBtn.style.display = 'none';
+        
+        // Reset match tracking
+        searchMatches = [];
+        currentMatchIndex = -1;
+        
+        // Remove any error messages
+        removeNoSearchResults();
+        
+        // Clear highlights and apply filters
+        clearSearchHighlights();
+        applyFilters();
+    }
+
+    // Handle section navigation
+    function handleSectionNav(button) {
+        // Update button states
+        document.querySelectorAll('.help-nav-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        button.classList.add('active');
+        
+        currentSection = button.dataset.section;
+        
+        // Apply section filter
+        applyFilters();
+        
+        // Scroll to section if not 'all'
+        if (currentSection !== 'all') {
+            // First scroll to top to ensure content is visible
+            const helpContent = document.getElementById('help-content');
+            helpContent.scrollTop = 0;
+            // Give time for DOM updates to complete before scrolling
+            setTimeout(() => {
+                scrollToSection(currentSection);
+            }, 200);
+        }
+    }
+
+    // Apply both search and section filters
+    function applyFilters() {
+        const helpContent = document.getElementById('help-content');
+        
+        // Remove any existing "no results" message
+        removeNoSearchResults();
+        
+        // Clear previous highlights
+        clearSearchHighlights();
+        
+        // Show all sections first
+        helpSections.forEach(section => {
+            section.elements.forEach(el => {
+                el.classList.remove('section-hidden');
+                el.style.display = '';
+            });
+        });
+        
+        // Apply section filter
+        if (currentSection !== 'all') {
+            helpSections.forEach(section => {
+                if (section.id !== currentSection) {
+                    section.elements.forEach(el => {
+                        el.classList.add('section-hidden');
+                    });
+                } else {
+                    section.elements.forEach(el => {
+                        el.classList.remove('section-hidden');
+                        
+                        
+                        // CRITICAL FIX: Remove section-hidden from ALL parent elements
+                        let parent = el.parentElement;
+                        while (parent && parent !== helpContent) {
+                            if (parent.classList.contains('section-hidden')) {
+                                parent.classList.remove('section-hidden');
+                            }
+                            parent = parent.parentElement;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Apply search filter
+        if (currentSearchTerm) {
+            const searchRegex = new RegExp(`(${escapeRegex(currentSearchTerm)})`, 'gi');
+            let hasVisibleResults = false;
+            
+            // Search within visible sections
+            helpSections.forEach(section => {
+                if (currentSection === 'all' || section.id === currentSection) {
+                    let sectionHasMatches = false;
+                    
+                    section.elements.forEach(el => {
+                        const textContent = el.textContent.toLowerCase();
+                        if (textContent.includes(currentSearchTerm)) {
+                            sectionHasMatches = true;
+                            hasVisibleResults = true;
+                            
+                            // Highlight matches in the element
+                            highlightSearchTerm(el, searchRegex);
+                        }
+                    });
+                    
+                    // If section has no matches and we're searching, hide it
+                    if (!sectionHasMatches && currentSearchTerm) {
+                        section.elements.forEach(el => {
+                            el.classList.add('section-hidden');
+                        });
+                    }
+                }
+            });
+            
+            // Show "no results" message if needed
+            if (!hasVisibleResults) {
+                showNoSearchResults();
+            }
+        }
+    }
+
+    // Highlight search terms in an element and collect matches
+    function highlightSearchTerm(element, regex) {
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+        
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            textNodes.push(node);
+        }
+        
+        textNodes.forEach(textNode => {
+            if (regex.test(textNode.textContent)) {
+                const span = document.createElement('span');
+                span.innerHTML = textNode.textContent.replace(regex, '<span class="search-highlight">$1</span>');
+                textNode.parentNode.replaceChild(span, textNode);
+                
+                // Collect all the newly created highlight spans
+                const highlights = span.querySelectorAll('.search-highlight');
+                highlights.forEach(highlight => {
+                    searchMatches.push(highlight);
+                });
+            }
+        });
+    }
+
+    // Clear search highlights
+    function clearSearchHighlights() {
+        const highlights = document.querySelectorAll('.help-content .search-highlight');
+        highlights.forEach(highlight => {
+            const parent = highlight.parentNode;
+            parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+            parent.normalize();
+        });
+    }
+
+    // Scroll to a specific section
+    function scrollToSection(sectionId) {
+        const helpContent = document.getElementById('help-content');
+        const targetElement = helpContent.querySelector(`#${sectionId}`);
+        
+        if (targetElement) {
+            targetElement.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+
+    // Show no search results message
+    function showNoSearchResults() {
+        const helpContent = document.getElementById('help-content');
+        const existing = helpContent.querySelector('.no-search-results');
+        
+        if (!existing) {
+            const noResults = document.createElement('div');
+            noResults.className = 'no-search-results';
+            noResults.style.cssText = 'text-align: center; padding: 40px; color: #666; font-style: italic;';
+            noResults.innerHTML = `
+                <p>No results found for "${escapeHtml(currentSearchTerm)}"</p>
+                <p><small>Try adjusting your search terms or selecting a different section.</small></p>
+            `;
+            helpContent.appendChild(noResults);
+        }
+    }
+
+    // Remove no search results message
+    function removeNoSearchResults() {
+        const helpContent = document.getElementById('help-content');
+        const existing = helpContent.querySelector('.no-search-results');
+        if (existing) {
+            existing.remove();
+        }
+    }
+
+    // Utility functions
+    function escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Navigate to a specific match
+    function navigateToMatch(matchIndex) {
+        if (searchMatches.length === 0) return;
+        
+        // Ensure index is within bounds
+        if (matchIndex < 0) matchIndex = 0;
+        if (matchIndex >= searchMatches.length) matchIndex = searchMatches.length - 1;
+        
+        // Remove current match highlighting
+        searchMatches.forEach(match => {
+            match.classList.remove('current-match');
+        });
+        
+        // Update current match index
+        currentMatchIndex = matchIndex;
+        
+        // Highlight current match
+        const currentMatch = searchMatches[currentMatchIndex];
+        currentMatch.classList.add('current-match');
+        
+        // Scroll to current match
+        scrollToMatch(currentMatch);
+        
+        // Update UI
+        updateSearchUI();
+    }
+
+    // Scroll to a specific match element
+    function scrollToMatch(matchElement) {
+        const helpContent = document.getElementById('help-content');
+        const elementTop = matchElement.offsetTop;
+        const contentTop = helpContent.scrollTop;
+        const contentHeight = helpContent.clientHeight;
+        
+        // Calculate relative position
+        let scrollTarget = elementTop - (contentHeight / 2);
+        
+        // Find the actual offset by walking up the parent chain
+        let parent = matchElement.offsetParent;
+        let actualTop = matchElement.offsetTop;
+        
+        while (parent && parent !== helpContent) {
+            actualTop += parent.offsetTop;
+            parent = parent.offsetParent;
+        }
+        
+        // Scroll to show the match in the middle of the viewport
+        helpContent.scrollTo({
+            top: actualTop - (contentHeight / 2),
+            behavior: 'smooth'
+        });
+    }
+
+    // Update search UI with match count and button states
+    function updateSearchUI() {
+        const resultsCount = document.getElementById('search-results-count');
+        const prevBtn = document.getElementById('search-prev');
+        const nextBtn = document.getElementById('search-next');
+        
+        // Update match count display
+        if (searchMatches.length === 0) {
+            resultsCount.textContent = 'No matches found';
+        } else {
+            resultsCount.textContent = `Match ${currentMatchIndex + 1} of ${searchMatches.length}`;
+        }
+        
+        // Update button states
+        const hasMatches = searchMatches.length > 0;
+        const isFirst = currentMatchIndex <= 0;
+        const isLast = currentMatchIndex >= searchMatches.length - 1;
+        
+        if (prevBtn) {
+            prevBtn.disabled = !hasMatches || isFirst;
+        }
+        if (nextBtn) {
+            nextBtn.disabled = !hasMatches || isLast;
+        }
+    }
+
+    // Update the applyFilters function to call updateSearchUI
+    const originalApplyFilters = applyFilters;
+    applyFilters = function() {
+        // Call the original function
+        originalApplyFilters();
+        
+        // Update search UI after filtering
+        updateSearchUI();
+    };
   </script>
 </body>
 </html>
