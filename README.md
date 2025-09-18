@@ -97,6 +97,11 @@ sudo apt update
 sudo apt install libcurl4-openssl-dev libncurses5-dev
 ```
 
+On FreeBSD
+```bash
+pkg install curl ncurses
+```
+
 **Note**: The floppy menu requires an internet connection to function properly.
 
 **Note 2**: The floppy menu is disabled on RISC-V and WASM builds.

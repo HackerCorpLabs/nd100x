@@ -1,0 +1,866 @@
+[
+    {
+        "id": 1,
+        "title": "SINTRAN III User's Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Comprehensive user manual for the SINTRAN III operating system, covering basic commands and operations.",
+        "abstract": "This manual provides comprehensive instructions for using the SINTRAN III operating system. It covers all basic commands, file operations, terminal usage, and system interactions required for everyday use. Written for both new and experienced users, it serves as the primary reference for SINTRAN III operations.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.128.03_SINTRAN_III_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.128.03_SINTRAN_III_User_Guide.pdf",
+        "productIds": ["ND-10048"]
+    },
+    {
+        "id": 2,
+        "title": "NORD-10 Hardware Reference Manual",
+        "category": "Hardware",
+        "categoryId": "06",
+        "description": "Detailed hardware specifications and reference material for the NORD-10 minicomputer system.",
+        "abstract": "This manual provides complete hardware specifications and technical reference information for the NORD-10 minicomputer system. It includes detailed diagrams, component descriptions, interface specifications, and architectural details needed by technicians and system engineers.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-06.015.01_NORD-10_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            },
+            {
+                "url": "https://bitsavers.org/pdf/norsk/ND-06.015.01_NORD-10_Reference_Manual.pdf",
+                "title": "Bitsavers PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nord10",
+        "fileName": "ND-06.015.01_NORD-10_Reference_Manual.pdf",
+        "productIds": ["ND-06015"]
+    },
+    {
+        "id": 3,
+        "title": "ND-100 Reference Manual",
+        "category": "Hardware",
+        "categoryId": "06",
+        "description": "Technical reference manual for the ND-100 processor, including architecture and instruction set details.",
+        "abstract": "This manual provides a complete technical reference for the ND-100 processor. It covers the processor architecture, instruction set, addressing modes, register usage, and hardware interfaces. Essential for programmers working at the machine level and hardware engineers integrating with ND-100 systems.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-06.014.02_ND-100_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nd100",
+        "fileName": "ND-06.014.02_ND-100_Reference_Manual.pdf",
+        "productIds": ["ND-06014"]
+    },
+    {
+        "id": 4,
+        "title": "PLANC Language Reference Manual",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Reference manual for the PLANC programming language, including syntax, semantics, and standard libraries.",
+        "abstract": "Complete reference manual for the PLANC programming language. This document covers all language constructs, syntax rules, semantics, built-in functions, and standard library components. Includes programming examples and best practices for effective PLANC development.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.117.03_PLANC_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/planc",
+        "fileName": "ND-60.117.03_PLANC_Reference_Manual.pdf",
+        "productIds": []
+    },
+    {
+        "id": 5,
+        "title": "System Supervisor Guide",
+        "category": "Mixed",
+        "categoryId": "30",
+        "description": "Guide for system supervisors covering both hardware and software administration tasks for ND systems.",
+        "abstract": "This guide serves as the primary reference for system supervisors managing ND computer systems. It covers both hardware maintenance procedures and software administration tasks, including system configuration, user management, security, backup procedures, and troubleshooting techniques for the integrated ND environment.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-30.003.06_System_Supervisor_Guide.pdf",
+                "title": "ND Wiki PDF"
+            },
+            {
+                "url": "https://bitsavers.org/pdf/norsk/ND-30.003.06_System_Supervisor_Guide.pdf",
+                "title": "Bitsavers PDF"
+            }
+        ],
+        "localPath": "documents/mixed/sysadmin",
+        "fileName": "ND-30.003.06_System_Supervisor_Guide.pdf",
+        "productIds": ["ND-30003"]
+    },
+    {
+        "id": 6,
+        "title": "SIBAS Database Management System",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Documentation for the SIBAS database management system, including installation, configuration, and usage.",
+        "abstract": "Comprehensive documentation for the SIBAS database management system. This manual covers installation procedures, system configuration, database design principles, query operations, transaction processing, and administration tasks. Includes detailed examples for creating and maintaining efficient database applications on ND systems.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.133.01_SIBAS_User_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sibas",
+        "fileName": "ND-60.133.01_SIBAS_User_Manual.pdf",
+        "productIds": ["ND-10008"]
+    },
+    {
+        "id": 7,
+        "title": "SINTRAN III Reference Card",
+        "category": "Reference",
+        "categoryId": "99",
+        "description": "Quick reference card for SINTRAN III commands and syntax.",
+        "abstract": "Compact reference card providing quick access to all essential SINTRAN III commands and their syntax. This handy guide organizes commands by function and includes parameter descriptions, options, and common usage examples. Ideal for users who need fast access to command information without consulting the full manual.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-99.001.01_SINTRAN_III_Reference_Card.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/reference/sintran",
+        "fileName": "ND-99.001.01_SINTRAN_III_Reference_Card.pdf",
+        "productIds": ["ND-10048"]
+    },
+    {
+        "id": 8,
+        "title": "PIOC Hardware Reference Manual",
+        "category": "Hardware",
+        "categoryId": "02",
+        "description": "Reference manual for the PIOC (Programmed Input/Output Controller) hardware, built around an MC 68000 microprocessor with 128KB of RAM.",
+        "abstract": "PIOC, the Programmable Input Output Controller is an ND-100 interface card capable of handling 4 full duplex serial communication lines. The hardware is built around an MC 68000 microprocessor and 128 kbytes of Random Access Memory (RAM) with error correction logic. The new PIOC print (number 3108C) is called PIOC EXP., which means PIOC EXPANDED. The added function is X.21 Clear Detection in hardware for line 0 and 1. The print is produced in two versions called PIOC 64 and PIOC 256 depending on local memory size in kwords. If the PIOC print is equipped with 64 kbit memory chips, the memory size is 128 kbytes. When 256 kbit chips are used, the memory size is 512 kbytes. The manual is intended for hardware engineers and other personnel performing maintenance on ND products. Basic knowledge of the ND-100 computer system is recommended.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-02.003.01_PIOC_Hardware_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/pioc",
+        "fileName": "ND-02.003.01_PIOC_Hardware_Reference_Manual.pdf",
+        "productIds": ["ND-02003"]
+    },
+    {
+        "id": 9,
+        "title": "NORD-50 Reference Manual",
+        "category": "Hardware",
+        "categoryId": "05",
+        "description": "Detailed description of the NORD-50 registers and instruction set, written for programmers and operators.",
+        "abstract": "This manual gives a detailed description of the NORD-50 registers and instruction set. It is written for programmers and operators. The part concerning registers should be of interest to technical and maintenance personnel. Readers should be familiar with the NORD-50 CPU at the level described in the NORD-50 Functional Description.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-05.003.01_NORD-50_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nord50",
+        "fileName": "ND-05.003.01_NORD-50_Reference_Manual.pdf",
+        "productIds": ["ND-05003"]
+    },
+    {
+        "id": 10,
+        "title": "NORD-50 Functional Description",
+        "category": "Hardware",
+        "categoryId": "05",
+        "description": "Description of the main building blocks of the NORD-50 and their functions from a hardware perspective.",
+        "abstract": "This manual describes the main building blocks of the NORD-50 and their functions, from a hardware point of view. It is written for technical and maintenance personnel requiring detailed information about the NORD-50 and should also be of interest to software personnel. Some knowledge of digital techniques and computer systems in general is recommended. Knowledge of the NORD-50 instruction set as found in the NORD-50 Reference Manual is necessary.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-05.007.01_NORD-50_Functional_Description.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nord50",
+        "fileName": "ND-05.007.01_NORD-50_Functional_Description.pdf",
+        "productIds": ["ND-05007"]
+    },
+    {
+        "id": 11,
+        "title": "NORD-500 Reference Manual",
+        "category": "Hardware",
+        "categoryId": "05",
+        "description": "Reference manual describing the general design, instruction set and addressing modes of the ND-500.",
+        "abstract": "This manual describes the general design, instruction set and addressing modes of the ND-500. It is organized as a reference manual. It is written for ND-500 assembler programmers, system programmers needing to know the exact format of the generated code and anybody needing a description of the ND-500 architecture. The manual is required by programmers wanting to fully utilize the trap handling system and memory management system in any programming language. No previous knowledge of the ND-500 is required. General knowledge of computer architecture is desirable and assembly language experience is required for those using the manual to program in the ND-500 assembler language.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-05.009.01_NORD-500_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nord500",
+        "fileName": "ND-05.009.01_NORD-500_Reference_Manual.pdf",
+        "productIds": ["ND-05009"]
+    },
+    {
+        "id": 12,
+        "title": "ND-500 Hardware Description",
+        "category": "Hardware",
+        "categoryId": "05",
+        "description": "Hardware description for ND-500 models 520/540/560, written for service and maintenance personnel.",
+        "abstract": "The manual is written for all service and maintenance personnel. It should also be used when attending ND-500 hardware courses. The manual consists of 12 chapters and 1 appendix. The chapters contain information on the architecture, data flow, instructions and their formats, prefetch processor, ND-100/ND-500 communication, description of CACHE, description of the memory management system, the control logic, the trap system, and the floating arithmetic.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-05.011.01_ND-500_Hardware_Description.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/nd500",
+        "fileName": "ND-05.011.01_ND-500_Hardware_Description.pdf",
+        "productIds": ["ND-05011"]
+    },
+    {
+        "id": 13,
+        "title": "SINTRAN III Real Time Loader System Documentation",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Description of the implementation of the real time loader, written for system programmers in support and development.",
+        "abstract": "The manual describes the implementation of the real time loader. It is written for system programmers working in support and development. Familiarity with the SINTRAN III Real Time Loader manual is required.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.072.01_SINTRAN_III_Real_Time_Loader_System_Documentation.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.072.01_SINTRAN_III_Real_Time_Loader_System_Documentation.pdf",
+        "productIds": ["ND-60072"]
+    },
+    {
+        "id": 14,
+        "title": "NORD-50 Assembler",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Manual describing the NORD-50 assembler operating procedure, assembler directives, macro usage and external program representation.",
+        "abstract": "This manual describes the NORD-50 assembler operating procedure, the assembler directives, macro usage and external program representation. The appendixes contain tables of instructions, BRF directives generated by the assembler and numeric opcodes. It is written for users of the NORD-50 assembler. Familiarity with assembler programming and sufficient SINTRAN III experience to run the assembler is required. Details of the instruction set are given in the NORD-50 Reference Manual, ND-05.003.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.075.01_NORD-50_Assembler.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/nord50",
+        "fileName": "ND-60.075.01_NORD-50_Assembler.pdf",
+        "productIds": ["ND-60075"]
+    },
+    {
+        "id": 15,
+        "title": "NORD-50 Monitor User's Guide and System Documentation",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Guide explaining how to run NORD-50 programs, available commands, file access, and monitor system architecture.",
+        "abstract": "The first three chapters of this manual describe how to run NORD-50 programs. All available commands are explained, including those reserved for the system supervisor. File access and the use of monitor calls from the NORD-50 are described. Chapters four to six contain the monitor system architecture and describe how to implement monitor and system documentation. This manual should be read by NORD-50 users. The first three chapters are intended for users who execute programs on the NORD-50. A working knowledge of SINTRAN III and familiarity with NORD-50 FORTRAN are required.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.076.01_NORD-50_Monitor_Users_Guide_and_System_Documentation.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/nord50",
+        "fileName": "ND-60.076.01_NORD-50_Monitor_Users_Guide_and_System_Documentation.pdf",
+        "productIds": ["ND-60076"]
+    },
+    {
+        "id": 16,
+        "title": "SIBINTER",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Description of SIBINTER, the ND Interactive Information Processing and Report Generating System, for processing records interactively in the database.",
+        "abstract": "This manual describes the software product SIBINTER (ND Interactive Information Processing and Report Generating System), the tool for processing records interactively (from terminals) in the database. All access methods used in programs are also available from SIBINTER. Knowledge of the structure of SIBAS databases and programming experience are recommended, along with study of the SIBAS II User's Manual.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.077.01_SIBINTER.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sibas",
+        "fileName": "ND-60.077.01_SIBINTER.pdf",
+        "productIds": ["ND-60077"]
+    },
+    {
+        "id": 17,
+        "title": "Data Base Theory and Design",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Introduction to database concepts, record access methods, and database design, suitable for anyone setting up a database.",
+        "abstract": "This manual covers the main concepts of databases, not their implementation on ND computers. The two principle methods of record access, by index or random, are discussed and illustrated by examples. The manual is a suitable introduction for anybody setting up a database. No previous knowledge of databases or programming is required, but some elementary experience of data processing is useful.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.078.01_Data_Base_Theory_and_Design.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/database",
+        "fileName": "ND-60.078.01_Data_Base_Theory_and_Design.pdf",
+        "productIds": ["ND-60078"]
+    },
+    {
+        "id": 18,
+        "title": "MEAS II - An Analog Program System for Process Control User's Manual",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User manual for MEAS II, an analog program system for real time process control running under SINTRAN III.",
+        "abstract": "MEAS II is an analog program system for real time process control. This manual describes how to run the MEAS program system under SINTRAN III. It is written for application programmers, but the program calls themselves are documented in MEAS II — An Analog Input Program System for Process Control, Application Manual; SINTEF Report STF48 A73023.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.079.01_MEAS_II_Users_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/meas",
+        "fileName": "ND-60.079.01_MEAS_II_Users_Manual.pdf",
+        "productIds": ["ND-60079"]
+    },
+    {
+        "id": 19,
+        "title": "Documentation Catalogue",
+        "category": "Mixed",
+        "categoryId": "40",
+        "description": "Comprehensive catalogue of all Norsk Data documentation available for Norsk Data computer systems.",
+        "abstract": "This catalogue describes the documentation available to users of Norsk Data computer systems. It explains the various categories of documentation (hardware, software, mixed), the numbering system, color codes, and intended reader audiences. The catalogue provides an organized survey of manuals categorized by subject matter, with brief descriptions of each document including its content, target audience, and prerequisites.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-40.004.7_EN_Documentation_Catalogue.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/mixed/catalogue",
+        "fileName": "ND-40.004.7_EN_Documentation_Catalogue.pdf",
+        "productIds": ["ND-40004"]
+    },
+    {
+        "id": 20,
+        "title": "SINTRAN III Core User's Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the non-disk version of SINTRAN III, known as SINTRAN III/RT.",
+        "abstract": "This manual describes the simplified version of SINTRAN III that does not use a disk, known as SINTRAN III/RT. It provides instructions for users of this core-only version of the operating system, explaining available commands and operations in a system with more limited functionality than the disk-based SINTRAN III/VS.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.082.01_SINTRAN_III_Core_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.082.01_SINTRAN_III_Core_User_Guide.pdf",
+        "productIds": ["ND-60082"]
+    },
+    {
+        "id": 21,
+        "title": "NORD-50 Loader",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Manual describing the NORD-50 loader, which loads relocatable object files into the NORD-50 memory.",
+        "abstract": "This manual describes the NORD-50 loader, which loads relocatable object files into the NORD-50 memory. It includes information on loader commands, memory allocation, and file formats. The manual is written for NORD-50 users who need to load programs into memory and execute them.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.083.01_NORD-50_Loader.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/nord50",
+        "fileName": "ND-60.083.01_NORD-50_Loader.pdf",
+        "productIds": ["ND-60083"]
+    },
+    {
+        "id": 22,
+        "title": "ND Screen Handling System",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Description of the ND Screen Handling System for creating and managing screen forms on ND systems.",
+        "abstract": "This manual describes the ND Screen Handling System, which allows users to create and manage screen forms for data entry and display on ND computer systems. It includes specifications for screen layout, field definitions, validation rules, and interaction with application programs. The system provides a consistent interface for terminal-based applications across different ND platforms.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.088.01_ND_Screen_Handling_System.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/screen",
+        "fileName": "ND-60.088.01_ND_Screen_Handling_System.pdf",
+        "productIds": ["ND-60088"]
+    },
+    {
+        "id": 23,
+        "title": "NORD Process I/O",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Documentation for the NORD Process I/O system for industrial process control applications.",
+        "abstract": "This manual documents the NORD Process I/O system, which provides interfaces and software for industrial process control applications. It covers hardware connections, signal processing, data acquisition, control algorithms, and integration with SINTRAN III. The system enables ND computers to interact with sensors, actuators, and control equipment in industrial environments.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.093.01_NORD_Process_IO.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/process",
+        "fileName": "ND-60.093.01_NORD_Process_IO.pdf",
+        "productIds": ["ND-60093"]
+    },
+    {
+        "id": 24,
+        "title": "NORDCOM User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the NORDCOM communication system for ND computers.",
+        "abstract": "This manual serves as a user guide for the NORDCOM communication system for ND computers. It describes the communication protocols, terminal emulation capabilities, file transfer functions, and network configurations supported by NORDCOM. The guide is intended for users who need to establish connections between ND systems and other computers or terminals.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.094.01_NORDCOM_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/nordcom",
+        "fileName": "ND-60.094.01_NORDCOM_User_Guide.pdf",
+        "productIds": ["ND-60094"]
+    },
+    {
+        "id": 25,
+        "title": "MAC Assembler User's Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the MAC Assembler used on NORD-10 and ND-100 systems.",
+        "abstract": "This manual is a user guide for the MAC Assembler, which is used on NORD-10 and ND-100 systems. It describes the assembler syntax, directives, macro capabilities, and operating procedures. The guide provides information on creating, assembling, and debugging assembly language programs for NORD/ND computers.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.096.01_MAC_Assembler_Users_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/mac",
+        "fileName": "ND-60.096.01_MAC_Assembler_Users_Guide.pdf",
+        "productIds": ["ND-60096"]
+    },
+    {
+        "id": 26,
+        "title": "FLOCON User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for FLOCON, a flow control system for process applications.",
+        "abstract": "This manual is a user guide for FLOCON, a flow control system designed for process applications on ND computers. It covers system configuration, data acquisition, signal processing, control algorithms, and operator interfaces. FLOCON provides specialized functions for managing fluid flow in industrial processes and integrates with the ND Process I/O system.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.099.01_FLOCON_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/flocon",
+        "fileName": "ND-60.099.01_FLOCON_User_Guide.pdf",
+        "productIds": ["ND-60099"]
+    },
+    {
+        "id": 27,
+        "title": "VIP Emulator User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the VIP Emulator, which allows ND systems to emulate Honeywell VIP terminals.",
+        "abstract": "This manual is a user guide for the VIP Emulator, which enables ND computer systems to emulate Honeywell VIP terminals. It describes installation, configuration, terminal emulation features, and file transfer capabilities. The emulator allows ND systems to connect to Honeywell mainframes and access their applications as if they were native VIP terminals.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.100.01_VIP_Emulator_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/vip",
+        "fileName": "ND-60.100.01_VIP_Emulator_User_Guide.pdf",
+        "productIds": ["ND-60100"]
+    },
+    {
+        "id": 28,
+        "title": "NORD Data Entry System",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Documentation for the NORD Data Entry System for structured data input.",
+        "abstract": "This manual documents the NORD Data Entry System, which provides facilities for structured data input on ND computers. It covers form design, field validation, record formatting, and batch processing capabilities. The system enables efficient and accurate entry of data into databases and files, with comprehensive error checking and format control.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.101.01_NORD_Data_Entry_System.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/dataentry",
+        "fileName": "ND-60.101.01_NORD_Data_Entry_System.pdf",
+        "productIds": ["ND-60101"]
+    },
+    {
+        "id": 29,
+        "title": "ND TPS General Description",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "General description of the ND Transaction Processing System (TPS).",
+        "abstract": "This manual provides a general description of the ND Transaction Processing System (TPS). It explains the architecture, components, and operation of the transaction processing environment on ND computer systems. The document serves as an introduction to TPS, outlining its capabilities and applications for handling online transactions.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.105.01_ND_TPS_General_Description.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/tps",
+        "fileName": "ND-60.105.01_ND_TPS_General_Description.pdf",
+        "productIds": ["ND-60105"]
+    },
+    {
+        "id": 30,
+        "title": "Utilities for RPG-II",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Documentation for utility programs supporting the RPG-II programming language on ND systems.",
+        "abstract": "This manual describes utility programs that support the RPG-II programming language on ND computer systems. It covers tools for program development, debugging, file maintenance, and report generation specific to RPG-II applications. These utilities enhance the productivity of RPG-II developers and assist in managing RPG-II program libraries.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.106.01_Utilities_for_RPG-II.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/rpg",
+        "fileName": "ND-60.106.01_Utilities_for_RPG-II.pdf",
+        "productIds": ["ND-60106"]
+    },
+    {
+        "id": 31,
+        "title": "DATACON User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for DATACON, a data conversion utility for ND systems.",
+        "abstract": "This manual is a user guide for DATACON, a data conversion utility for ND computer systems. It explains how to convert data between different formats, file types, and character sets. DATACON supports transformations needed for data exchange between different applications and systems, ensuring compatibility and proper interpretation of information.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.107.01_DATACON_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/datacon",
+        "fileName": "ND-60.107.01_DATACON_User_Guide.pdf",
+        "productIds": ["ND-60107"]
+    },
+    {
+        "id": 32,
+        "title": "ISAM User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the Indexed Sequential Access Method (ISAM) file system on ND computers.",
+        "abstract": "This manual is a user guide for the Indexed Sequential Access Method (ISAM) file system on ND computers. It describes the organization, creation, and maintenance of indexed files, as well as programming interfaces for accessing them. ISAM provides efficient keyed access to records while maintaining the ability to process files sequentially, offering flexibility for various application requirements.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.108.01_ISAM_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/isam",
+        "fileName": "ND-60.108.01_ISAM_User_Guide.pdf",
+        "productIds": ["ND-60108"]
+    },
+    {
+        "id": 33,
+        "title": "ND TPS User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for the ND Transaction Processing System (TPS).",
+        "abstract": "This manual is a user guide for the ND Transaction Processing System (TPS). It provides detailed instructions for designing, programming, testing, and operating transaction processing applications on ND computer systems. The guide covers transaction definition, screen handling, program development, database access, and system configuration for efficient online transaction processing.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.111.01_ND_TPS_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/tps",
+        "fileName": "ND-60.111.01_ND_TPS_User_Guide.pdf",
+        "productIds": ["ND-60111"]
+    },
+    {
+        "id": 34,
+        "title": "SINTRAN III File System System Documentation",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "System documentation describing the implementation of the SINTRAN III file system.",
+        "abstract": "This manual provides system documentation describing the implementation of the SINTRAN III file system. It explains the internal structure, algorithms, and data structures used in managing files, directories, and storage allocation in SINTRAN III. The document is intended for system programmers who need to understand the file system's operation for maintenance, enhancement, or troubleshooting purposes.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.122.01_SINTRAN_III_File_System_System_Documentation.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.122.01_SINTRAN_III_File_System_System_Documentation.pdf",
+        "productIds": ["ND-60122"]
+    },
+    {
+        "id": 35,
+        "title": "SINTRAN III Introduction",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Introductory manual for the SINTRAN III operating system.",
+        "abstract": "This manual provides an introduction to the SINTRAN III operating system. It presents an overview of the system's capabilities, components, and user interface, serving as a starting point for new users. The introduction explains basic concepts, terminology, and operational models to establish a foundation for working with SINTRAN III.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.125.01_SINTRAN_III_Introduction.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.125.01_SINTRAN_III_Introduction.pdf",
+        "productIds": ["ND-60125"]
+    },
+    {
+        "id": 36,
+        "title": "MAGTAPE UTILITY User Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User guide for magnetic tape utilities on ND computer systems.",
+        "abstract": "This manual is a user guide for magnetic tape utilities on ND computer systems. It describes commands and procedures for handling magnetic tapes, including reading, writing, copying, labeling, and verifying operations. The utilities support various tape formats and provide facilities for data exchange with other computer systems through magnetic tape media.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.126.01_MAGTAPE_UTILITY_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/magtape",
+        "fileName": "ND-60.126.01_MAGTAPE_UTILITY_User_Guide.pdf",
+        "productIds": ["ND-60126"]
+    },
+    {
+        "id": 37,
+        "title": "SIBAS II User Manual",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "User manual for SIBAS II, the database management system for ND computers.",
+        "abstract": "This manual is a user manual for SIBAS II, the database management system for ND computers. It provides comprehensive documentation of database creation, maintenance, and access methods. The manual covers database structures, schema definition, query operations, transaction management, and programming interfaces for applications using SIBAS II databases.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.127.01_SIBAS_II_User_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sibas",
+        "fileName": "ND-60.127.01_SIBAS_II_User_Manual.pdf",
+        "productIds": ["ND-60127"]
+    },
+    {
+        "id": 38,
+        "title": "SINTRAN III Reference Manual",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Comprehensive reference manual for all SINTRAN III commands and features.",
+        "abstract": "This manual is a comprehensive reference manual for all SINTRAN III commands and features. It documents every command, parameter, and system call in detail, providing exact syntax, options, and operational behavior. The reference serves as the definitive resource for users and programmers who need precise information about SINTRAN III's capabilities and interfaces.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.128.01_SINTRAN_III_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.128.01_SINTRAN_III_Reference_Manual.pdf",
+        "productIds": ["ND-60128"]
+    },
+    {
+        "id": 39,
+        "title": "SINTRAN III Real Time Guide",
+        "category": "Software",
+        "categoryId": "60",
+        "description": "Guide for real-time programming and operations under SINTRAN III.",
+        "abstract": "This manual is a guide for real-time programming and operations under the SINTRAN III operating system. It explains how to develop, debug, and run real-time applications, including interrupt handling, timing, priority management, and resource allocation. The guide is essential for programmers creating time-critical applications on ND computer systems.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-60.133.01_Real_Time_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/sintran",
+        "fileName": "ND-60.133.01_Real_Time_Guide.pdf",
+        "productIds": ["ND-60133"]
+    },
+    {
+        "id": 40,
+        "title": "NOTIS-DS Introduction",
+        "category": "Software",
+        "categoryId": "63",
+        "description": "Introduction to NOTIS-DS, the Document Storage system for ND office automation.",
+        "abstract": "This manual provides an introduction to NOTIS-DS, the Document Storage system for ND office automation. It explains the concepts, features, and operations of the electronic document storage and retrieval system. NOTIS-DS enables organizations to digitally store, categorize, search, and manage documents across the enterprise, integrating with other NOTIS office automation components.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-63.017.01_NOTIS-DS_Introduction.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/notis",
+        "fileName": "ND-63.017.01_NOTIS-DS_Introduction.pdf",
+        "productIds": ["ND-63017"]
+    },
+    {
+        "id": 41,
+        "title": "NOTIS-WP User Guide",
+        "category": "Software",
+        "categoryId": "63",
+        "description": "User guide for NOTIS-WP, the Word Processing system for ND computers.",
+        "abstract": "This manual is a user guide for NOTIS-WP, the Word Processing system for ND computers. It provides comprehensive instructions for creating, editing, formatting, and printing documents using the NOTIS word processing capabilities. The guide covers text manipulation, document formatting, pagination, printing options, and integration with other NOTIS office automation components.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-63.018.01_NOTIS-WP_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/notis",
+        "fileName": "ND-63.018.01_NOTIS-WP_User_Guide.pdf",
+        "productIds": ["ND-63018"]
+    },
+    {
+        "id": 42,
+        "title": "ND TELEX User Guide",
+        "category": "Software",
+        "categoryId": "63",
+        "description": "User guide for the ND TELEX system for sending and receiving TELEX messages.",
+        "abstract": "This manual is a user guide for the ND TELEX system, which enables sending and receiving TELEX messages from ND computer systems. It explains the configuration, operation, and maintenance of TELEX communications, including message formatting, transmission scheduling, and status monitoring. The system integrates with other ND communication and office automation components.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-63.027.01_ND_TELEX_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/notis",
+        "fileName": "ND-63.027.01_ND_TELEX_User_Guide.pdf",
+        "productIds": ["ND-63027"]
+    },
+    {
+        "id": 43,
+        "title": "NOTIS-BG User Manual",
+        "category": "Software",
+        "categoryId": "63",
+        "description": "User manual for NOTIS-BG, the Business Graphics system for ND computers.",
+        "abstract": "This manual is a user manual for NOTIS-BG, the Business Graphics system for ND computers. It provides instructions for creating, editing, and presenting various types of business charts and graphs. The system supports bar charts, pie charts, line graphs, and other visualization formats for numerical data, with options for customizing appearance, labeling, and output to different display or printing devices.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-63.033.01_NOTIS-BG_User_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/notis",
+        "fileName": "ND-63.033.01_NOTIS-BG_User_Manual.pdf",
+        "productIds": ["ND-63033"]
+    },
+    {
+        "id": 44,
+        "title": "NOTIS-CALC User Guide",
+        "category": "Software",
+        "categoryId": "63",
+        "description": "User guide for NOTIS-CALC, the spreadsheet application for ND computers.",
+        "abstract": "This manual is a user guide for NOTIS-CALC, the spreadsheet application for ND computers. It provides instructions for creating, editing, and using electronic spreadsheets for financial calculations and data analysis. The guide covers cell formatting, formula creation, mathematical functions, data manipulation, and integration with other NOTIS office automation components.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-63.025.01_NOTIS-CALC_User_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/notis",
+        "fileName": "ND-63.025.01_NOTIS-CALC_User_Guide.pdf",
+        "productIds": ["ND-63025"]
+    },
+    {
+        "id": 45,
+        "title": "TECH2D Reference Manual",
+        "category": "Software",
+        "categoryId": "65",
+        "description": "Reference manual for TECH2D, the 2D CAD/CAM module of TECHNOVISION.",
+        "abstract": "This manual is a reference manual for TECH2D, the two-dimensional CAD/CAM module of the TECHNOVISION system. It provides detailed information on commands, functions, and procedures for creating and manipulating 2D technical drawings. The manual covers drafting tools, dimensioning, symbol libraries, layering, and output options for engineering and manufacturing documentation.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-65.001.01_TECH2D_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/technovision",
+        "fileName": "ND-65.001.01_TECH2D_Reference_Manual.pdf",
+        "productIds": ["ND-65001"]
+    },
+    {
+        "id": 46,
+        "title": "TECH3D Reference Manual",
+        "category": "Software",
+        "categoryId": "65",
+        "description": "Reference manual for TECH3D, the 3D CAD/CAM module of TECHNOVISION.",
+        "abstract": "This manual is a reference manual for TECH3D, the three-dimensional CAD/CAM module of the TECHNOVISION system. It provides detailed information on commands, functions, and procedures for creating and manipulating 3D models. The manual covers solid modeling techniques, surface generation, assembly modeling, visualization tools, and integration with manufacturing processes.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-65.009.01_TECH3D_Reference_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/technovision",
+        "fileName": "ND-65.009.01_TECH3D_Reference_Manual.pdf",
+        "productIds": ["ND-65009"]
+    },
+    {
+        "id": 47,
+        "title": "TECHARC User Manual",
+        "category": "Software",
+        "categoryId": "65",
+        "description": "User manual for TECHARC, the Drawing Archive system of TECHNOVISION.",
+        "abstract": "This manual is a user manual for TECHARC, the Drawing Archive system of the TECHNOVISION CAD/CAM suite. It explains how to store, organize, retrieve, and manage technical drawings and associated documents. The archive system provides classification, version control, search capabilities, and access management for CAD data across engineering and manufacturing operations.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-65.003.01_TECHARC_User_Manual.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/software/technovision",
+        "fileName": "ND-65.003.01_TECHARC_User_Manual.pdf",
+        "productIds": ["ND-65003"]
+    },
+    {
+        "id": 48,
+        "title": "FTX Operating Guide",
+        "category": "Mixed",
+        "categoryId": "30",
+        "description": "Operating guide for the FTX system, which provides fault tolerance and high availability for ND systems.",
+        "abstract": "This manual is an operating guide for the FTX (Fault Tolerant eXecution) system, which provides fault tolerance and high availability for ND computer systems. It explains the configuration, operation, and maintenance of redundant system components, automatic failover mechanisms, and recovery procedures. The guide covers both hardware and software aspects of maintaining continuous operation in the presence of component failures.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-30.051.01_FTX_Operating_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/mixed/ftx",
+        "fileName": "ND-30.051.01_FTX_Operating_Guide.pdf",
+        "productIds": ["ND-30051"]
+    },
+    {
+        "id": 49,
+        "title": "Compact Operator Guide",
+        "category": "Mixed",
+        "categoryId": "30",
+        "description": "Operator guide for Compact computer systems from Norsk Data.",
+        "abstract": "This manual is an operator guide for Compact computer systems from Norsk Data. It provides instructions for system startup, operation, maintenance, and troubleshooting. The guide covers daily operational procedures, peripheral management, backup operations, and routine administrative tasks specific to the Compact series of minicomputers.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-30.031.01_Compact_Operator_Guide.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/mixed/compact",
+        "fileName": "ND-30.031.01_Compact_Operator_Guide.pdf",
+        "productIds": ["ND-30031"]
+    },
+    {
+        "id": 50,
+        "title": "HAWK Disk System",
+        "category": "Hardware",
+        "categoryId": "11",
+        "description": "Reference manual for the HAWK disk storage system used with ND computers.",
+        "abstract": "This manual is a reference manual and user guide for the HAWK disk storage system used with ND computers. It describes the major components and basic principles of read/write operations, including the read/write assembly, interface signals, power distribution system, seek operations, sectoring, and fault handling and detection. Knowledge of the hardware associated with the HAWK-Disk system is required for full understanding of this technical documentation.",
+        "sources": [
+            {
+                "url": "https://ndwiki.org/wiki/File:ND-11.009.01_HAWK_Disk_System.pdf",
+                "title": "ND Wiki PDF"
+            }
+        ],
+        "localPath": "documents/hardware/storage",
+        "fileName": "ND-11.009.01_HAWK_Disk_System.pdf",
+        "productIds": ["ND-11009"]
+    }
+]
+
+
+
+    
+      
+      

@@ -41,6 +41,22 @@ set_target_properties(ndlib PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
+# Link CURL for platforms where it's available so headers and linkage are visible
+if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
+    # Prefer imported target when available
+    if(TARGET CURL::libcurl)
+        target_link_libraries(ndlib PUBLIC CURL::libcurl)
+    else()
+        # Fallback to variables set by FindCURL
+        if(DEFINED CURL_INCLUDE_DIRS)
+            target_include_directories(ndlib PUBLIC ${CURL_INCLUDE_DIRS})
+        endif()
+        if(DEFINED CURL_LIBRARIES)
+            target_link_libraries(ndlib PUBLIC ${CURL_LIBRARIES})
+        endif()
+    endif()
+endif()
+
 # Platform-specific compile definitions
 if(PLATFORM_LINUX)
     target_compile_definitions(ndlib PUBLIC PLATFORM_LINUX)
