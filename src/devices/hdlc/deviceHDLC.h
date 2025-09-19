@@ -24,6 +24,7 @@
 #define DEVICE_HDLC_H
 
 #include "hdlc_constants.h"
+#include "chipCOM5025.h"
 
 // HDLC device registers
 typedef enum {
@@ -262,6 +263,19 @@ typedef struct {
     bool deviceActive;
     bool maintenanceMode;
     int tickCounter;
+
+    // COM5025 chip state
+    COM5025State *com5025;
+
+    // Modem signal flags
+    HDLCReceiverTransferStatus rxModemFlags;      // Current modem signal states
+    HDLCTransmitterTransferStatus txModemFlags;   // Current modem signal states
+    HDLCReceiverTransferStatus rxModemFlagsMask;  // Mask for modem-related bits
+    HDLCTransmitterTransferStatus txModemFlagsMask; // Mask for modem-related bits
+
+    // Clock timing
+    int cpuTicks;
+    int cpuTicksPerTx;
 } HDLCData;
 
 // Function declarations

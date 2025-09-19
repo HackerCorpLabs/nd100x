@@ -28,6 +28,13 @@
 #include "../devices_protos.h"
 
 #include "deviceHDLC.h"
+#include "chipCOM5025.h"
+
+// Forward declarations
+static void HDLC_CheckTriggerIRQ12(Device *self);
+static void HDLC_CheckTriggerIRQ13(Device *self);
+static void HDLC_CheckTriggerInterrupt(Device *self);
+static void HDLC_UpdateRQTS(Device *self);
 
 // Debug flags (convert from C# #define)
 //#define DEBUG_DETAIL
@@ -80,6 +87,22 @@ static void HDLC_Reset(Device *self)
     data->maintenanceMode = false;
     data->tickCounter = 0;
 
+    // Initialize COM5025 chip
+    if (data->com5025) {
+        COM5025_Init(data->com5025);
+        COM5025_Reset(data->com5025);
+    }
+
+    // Initialize modem signal flags and masks
+    data->rxModemFlags.raw = 0;
+    data->txModemFlags.raw = 0;
+    data->rxModemFlagsMask.raw = (1 << 5) | (1 << 6) | (1 << 7); // SignalDetector, DataSetReady, RingIndicator
+    data->txModemFlagsMask.raw = (1 << 6); // ReadyForSending
+
+    // Initialize clock timing
+    data->cpuTicks = 0;
+    data->cpuTicksPerTx = 625; // Default timing divider
+
     // Set default baud rate based on thumbwheel
     data->baudRate = HDLC_BAUD_9600; // Default to 9600 bps
 }
@@ -97,7 +120,14 @@ static uint16_t HDLC_Tick(Device *self)
     // Increment tick counter for timing
     data->tickCounter++;
 
-    // TODO: Implement COM5025 chip emulation
+    // Clock the COM5025 chip with timing divider
+    data->cpuTicks++;
+    if (data->cpuTicks >= data->cpuTicksPerTx) {
+        data->cpuTicks = 0;
+        COM5025_ClockTransmitter(data->com5025);
+        COM5025_ClockReceiver(data->com5025);
+    }
+
     // TODO: Implement modem handling
     // TODO: Implement DMA engine
 
@@ -118,20 +148,21 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
 
     switch (reg) {
         case HDLC_READ_RX_DATA:                // IOX +0: Read Receiver Data Register
-            value = data->rxDataRegister;
+            value = COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_RECEIVER_DATA_BUFFER);
             break;
 
         case HDLC_READ_RX_STATUS:              // IOX +2: Read Receiver Status Register
-            value = data->rxStatusRegister;
+            value = COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_RECEIVER_STATUS);
             break;
 
         case HDLC_WRITE_CHAR_LENGTH:           // IOX +4: Character Length (read operation)
-            // TODO: Implement character length reading
+            // Write character length register (use 8 bits default)
+            COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_DATA_LENGTH_SELECT, 0);
             value = 0; // Default to 8 bits
             break;
 
         case HDLC_READ_TX_STATUS:              // IOX +6: Read Transmitter Status Register
-            value = data->txStatusRegister;
+            value = COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_TRANSMITTER_STATUS_CONTROL);
             break;
 
         case HDLC_READ_RX_TRANSFER_STATUS:     // IOX +10: Read Receiver Transfer Status
@@ -140,6 +171,10 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
 #endif
             // Clear DMA Module Request before reading
             data->rxTransferStatus.bits.dmaModuleRequest = 0;
+
+            // Latch modem signals (RI, SD, DSR) on read of this register
+            data->rxTransferStatus.raw &= ~(data->rxModemFlagsMask.raw); // Clear old modem bits
+            data->rxTransferStatus.raw |= (data->rxModemFlags.raw & data->rxModemFlagsMask.raw); // Latch new bits
 
             value = data->rxTransferStatus.raw;
 
@@ -157,6 +192,10 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
 #endif
             // Clear DMA Module Request before reading
             data->txTransferStatus.bits.dmaModuleRequest = 0;
+
+            // Latch ReadyForSending (CTS) on read of this register
+            data->txTransferStatus.raw &= ~(data->txModemFlagsMask.raw); // Clear old modem bits
+            data->txTransferStatus.raw |= (data->txModemFlags.raw & data->txModemFlagsMask.raw); // Latch new bits
 
             value = data->txTransferStatus.raw;
 
@@ -207,22 +246,26 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 #ifdef DEBUG_DETAIL_PLUS_DESCRIPTION
             printf("Writing Parameter Control Register = 0x%02X\n", (uint8_t)value);
 #endif
-            // TODO: Configure COM5025 MODE register
+            // Configure COM5025 MODE register
+            COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_MODE_CONTROL, (uint8_t)value);
             break;
 
         case HDLC_WRITE_SYNC_ADDRESS:          // IOX +3: Write Sync/Address Register
             data->syncAddressRegister = (uint8_t)value;
-            // TODO: Configure COM5025 SYNC/Address register
+            // Configure COM5025 SYNC/Address register
+            COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_SYNC_ADDRESS, (uint8_t)value);
             break;
 
         case HDLC_WRITE_TX_DATA:               // IOX +5: Write Transmitter Data Register
             data->txDataRegister = (uint8_t)value;
-            // TODO: Send data to COM5025 transmitter
+            // Send data to COM5025 transmitter
+            COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_TRANSMITTER_DATA, (uint8_t)value);
             break;
 
         case HDLC_WRITE_TX_CONTROL:            // IOX +7: Write Transmitter Control Register
             data->txControlRegister = (uint8_t)value;
-            // TODO: Configure COM5025 transmitter control
+            // Configure COM5025 transmitter control
+            COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_TRANSMITTER_STATUS_CONTROL, (uint8_t)value);
             break;
 
         case HDLC_WRITE_RX_TRANSFER_CONTROL:   // IOX +11: Write Receiver Transfer Control
@@ -243,14 +286,33 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
                 data->maintenanceMode = true;
             }
 
-            // TODO: Configure receiver enable, DMA enable, etc.
-            // TODO: Handle DTR signal to modem
+            // Configure COM5025 receiver enable pin
+            COM5025_SetInputPin(data->com5025, COM5025_PIN_IN_RXENA, data->rxTransferControl.bits.enableReceiver);
+
+            // Set maintenance select pin
+            if (data->maintenanceMode) {
+                COM5025_SetInputPin(data->com5025, COM5025_PIN_IN_MSEL, true);
+                HDLC_UpdateRQTS(self);
+            }
+
+            // TODO: Handle DTR signal to modem (data->rxTransferControl.bits.dtr)
+
+            // Check for interrupt triggers
+            HDLC_CheckTriggerIRQ13(self);
+            HDLC_CheckTriggerInterrupt(self);
             break;
 
         case HDLC_WRITE_TX_TRANSFER_CONTROL:   // IOX +13: Write Transmitter Transfer Control
             data->txTransferControl.raw = value;
-            // TODO: Configure transmitter enable, DMA enable, etc.
-            // TODO: Handle RTS signal logic
+
+            // Configure COM5025 transmitter enable pin
+            COM5025_SetInputPin(data->com5025, COM5025_PIN_IN_TXENA, data->txTransferControl.bits.transmitterEnabled);
+
+            // Update RQTS signal logic
+            HDLC_UpdateRQTS(self);
+
+            // Check for interrupt triggers
+            HDLC_CheckTriggerIRQ12(self);
             break;
 
         case HDLC_WRITE_DMA_ADDRESS:           // IOX +15: Write DMA Address
@@ -301,8 +363,13 @@ static void HDLC_Destroy(Device *self)
 {
     if (!self) return;
 
-    // Any device-specific cleanup would go here
-    // For now, the base Device_Destroy will handle freeing deviceData
+    HDLCData *data = (HDLCData *)self->deviceData;
+    if (data && data->com5025) {
+        free(data->com5025);
+        data->com5025 = NULL;
+    }
+
+    // Base Device_Destroy will handle freeing deviceData
 }
 
 Device* CreateHDLCDevice(uint8_t thumbwheel)
@@ -333,6 +400,15 @@ Device* CreateHDLCDevice(uint8_t thumbwheel)
 
     // Clear device data
     memset(data, 0, sizeof(HDLCData));
+
+    // Allocate COM5025 chip state
+    data->com5025 = malloc(sizeof(COM5025State));
+    if (!data->com5025) {
+        printf("HDLC: Failed to allocate COM5025 state\n");
+        free(data);
+        free(dev);
+        return NULL;
+    }
 
     // Set up device configuration based on thumbwheel
     int devIndex = thumbwheel - 1;
@@ -403,6 +479,111 @@ static void HDLC_CheckInterrupts(Device *self)
         data->txTransferControl.bits.transmitterUnderrunIE) {
         Device_SetInterruptStatus(self, true, 12);
     }
+}
+
+static void HDLC_CheckTriggerIRQ12(Device *self)
+{
+    if (!self) return;
+
+    HDLCData *data = (HDLCData *)self->deviceData;
+    if (!data) return;
+
+    // Check if TRANSMIT interrupt is enabled for modem status change
+    if (!data->txTransferControl.bits.modemStatusChangeIE) return;
+
+    // Check if there's a signal difference between modem signals and status register
+    uint16_t write_signals = data->txTransferStatus.raw & data->txModemFlagsMask.raw;
+    uint16_t modem_signals = data->txModemFlags.raw & data->txModemFlagsMask.raw;
+
+    // TMCS (Transmit Modem Status Change) set => Trigger interrupt 12 on change
+    bool TMCS = (write_signals != modem_signals);
+    if (TMCS) {
+        Device_SetInterruptStatus(self, true, 12);
+    }
+}
+
+static void HDLC_CheckTriggerIRQ13(Device *self)
+{
+    if (!self) return;
+
+    HDLCData *data = (HDLCData *)self->deviceData;
+    if (!data) return;
+
+    // Check if RECEIVE interrupt is enabled for modem status change
+    if (!data->rxTransferControl.bits.modemStatusChangeIE) return;
+
+    // Check if there's a signal difference between modem signals and status register
+    uint16_t read_signals = data->rxTransferStatus.raw & data->rxModemFlagsMask.raw;
+    uint16_t modem_signals = data->rxModemFlags.raw & data->rxModemFlagsMask.raw;
+
+    // RMSC (Receive Modem Status Change) set => Trigger interrupt 13 on change
+    bool RMSC = (read_signals != modem_signals);
+    if (RMSC) {
+        Device_SetInterruptStatus(self, true, 13);
+    }
+}
+
+static void HDLC_CheckTriggerInterrupt(Device *self)
+{
+    if (!self) return;
+
+    HDLCData *data = (HDLCData *)self->deviceData;
+    if (!data) return;
+
+    /*** LEVEL 13 RX ***/
+    if (data->rxTransferStatus.bits.dataAvailable) {
+        if (data->rxTransferControl.bits.dataAvailableIE) {
+            Device_SetInterruptStatus(self, true, 13);
+        }
+    }
+
+    if (data->rxTransferStatus.bits.statusAvailable) {
+        if (data->rxTransferControl.bits.statusAvailableIE) {
+            Device_SetInterruptStatus(self, true, 13);
+        }
+    }
+
+    /*** LEVEL 12 TX ***/
+    if (data->txTransferStatus.bits.transmitBufferEmpty) {
+        if (data->txTransferControl.bits.transmitBufferEmptyIE) {
+            Device_SetInterruptStatus(self, true, 12);
+        }
+    }
+
+    if (data->txTransferStatus.bits.transmitterUnderrun) {
+        if (data->txTransferControl.bits.transmitterUnderrunIE) {
+            Device_SetInterruptStatus(self, true, 12);
+        }
+    }
+}
+
+static void HDLC_UpdateRQTS(Device *self)
+{
+    if (!self) return;
+
+    HDLCData *data = (HDLCData *)self->deviceData;
+    if (!data) return;
+
+    // In maintenance mode, always set RTS
+    if (data->maintenanceMode) {
+        // TODO: Set modem RTS signal to true
+        return;
+    }
+
+    // A = Negated Signal Detect
+    bool a = !(data->rxModemFlags.bits.signalDetector);
+
+    // B = RequestToSend OR TransmitterActive, then negated
+    bool b = data->txTransferControl.bits.requestToSend || data->txTransferStatus.bits.transmitterActive;
+    b = !b; // Negate B
+
+    // C = Half Duplex mode
+    bool c = data->txTransferControl.bits.halfDuplex;
+
+    // RQTS is a 3-input Negated-OR (NOR) from A, B and C
+    bool new_rqts = !(a || b || c);
+
+    // TODO: Set modem RTS signal to new_rqts value
 }
 
 static void HDLC_SetBaudRate(Device *self, HDLCBaudRate baudRate)
