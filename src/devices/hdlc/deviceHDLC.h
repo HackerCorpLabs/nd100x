@@ -25,6 +25,8 @@
 
 #include "hdlc_constants.h"
 #include "chipCOM5025.h"
+#include "modem.h"
+#include "dmaEngine.h"
 
 // HDLC device registers
 typedef enum {
@@ -266,6 +268,10 @@ typedef struct {
 
     // COM5025 chip state
     COM5025State *com5025;
+
+    // Modem and DMA engine
+    ModemState *modem;
+    DMAEngine *dmaEngine;
 
     // Modem signal flags
     HDLCReceiverTransferStatus rxModemFlags;      // Current modem signal states

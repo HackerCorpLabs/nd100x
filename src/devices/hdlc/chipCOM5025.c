@@ -451,7 +451,14 @@ void COM5025_TransmitData(COM5025State *chip, uint8_t data)
 static void COM5025_SetOutputPin(COM5025State *chip, COM5025SignalPinOut pin, bool value)
 {
     if (!chip || pin >= COM5025_MAX_OUT_PINS) return;
+
+    bool oldValue = chip->outputPins[pin];
     chip->outputPins[pin] = value;
+
+    // Notify callback of pin value change
+    if (oldValue != value && chip->onPinValueChanged) {
+        chip->onPinValueChanged(chip->callbackContext, pin, value);
+    }
 }
 
 static void COM5025_ClearAllInputPins(COM5025State *chip)
@@ -572,7 +579,9 @@ static void COM5025_SendOneByte(COM5025State *chip, uint8_t data)
     }
 
     // Send it! (even if maintenance mode is enabled, we want to know the output)
-    // TODO: Implement transmitter output callback
+    if (chip->onTransmitterOutput) {
+        chip->onTransmitterOutput(chip->callbackContext, data);
+    }
 }
 
 static bool COM5025_TSR_Empty(COM5025State *chip)
@@ -606,4 +615,19 @@ static void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus)
     if (bitsFrom0To1 != 0) {
         COM5025_SetOutputPin(chip, COM5025_PIN_OUT_RSA, true); // trigger RSA
     }
+}
+
+// Callback setup functions
+void COM5025_SetTransmitterOutputCallback(COM5025State *chip, void (*callback)(void *context, uint8_t data), void *context)
+{
+    if (!chip) return;
+    chip->onTransmitterOutput = callback;
+    chip->callbackContext = context;
+}
+
+void COM5025_SetPinValueChangedCallback(COM5025State *chip, void (*callback)(void *context, COM5025SignalPinOut pin, bool value), void *context)
+{
+    if (!chip) return;
+    chip->onPinValueChanged = callback;
+    chip->callbackContext = context;
 }

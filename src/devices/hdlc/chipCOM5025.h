@@ -262,6 +262,11 @@ typedef struct {
 
     // Register state pointer
     void *registers;
+
+    // Callback function pointers
+    void (*onTransmitterOutput)(void *context, uint8_t data);
+    void (*onPinValueChanged)(void *context, COM5025SignalPinOut pin, bool value);
+    void *callbackContext;
 } COM5025State;
 
 // Function declarations
@@ -286,5 +291,9 @@ void COM5025_ProcessBit(COM5025State *chip, bool bit);
 
 void COM5025_ReceiveData(COM5025State *chip, const uint8_t *data, int length);
 void COM5025_TransmitData(COM5025State *chip, uint8_t data);
+
+// Callback setup functions
+void COM5025_SetTransmitterOutputCallback(COM5025State *chip, void (*callback)(void *context, uint8_t data), void *context);
+void COM5025_SetPinValueChangedCallback(COM5025State *chip, void (*callback)(void *context, COM5025SignalPinOut pin, bool value), void *context);
 
 #endif // CHIP_COM5025_H
