@@ -192,6 +192,13 @@ typedef struct {
 
 #include "./floppy/deviceFloppyPIO.h"
 #include "./floppy/deviceFloppyDMA.h"
+#include "./hdlc/dmaEnum.h"
+#include "./hdlc/dmaDCB.h"
+#include "./hdlc/dmaParamBuf.h"
+#include "./hdlc/dmaControlBlocks.h"
+#include "./hdlc/dmaTransmitter.h"
+#include "./hdlc/dmaReceiver.h"
+#include "./hdlc/dmaEngine.h"
 #include "./hdlc/deviceHDLC.h"
 #include "./hdlc/chipCOM5025.h"
 #include "./hdlc/chipCOM5025Registers.h"

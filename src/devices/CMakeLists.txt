@@ -51,6 +51,13 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/chipCOM5025.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/chipCOM5025Registers.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/hdlc_crc.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/modem.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaEngine.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaDCB.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaControlBlocks.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaParamBuf.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaTransmitter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaReceiver.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for devices"
     VERBATIM
