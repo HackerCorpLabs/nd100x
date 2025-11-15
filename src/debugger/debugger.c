@@ -52,6 +52,17 @@ SymbolTables symbol_tables;
 // Structure to hold the stack trace information
 StackTrace stack_trace;
 
+// Source reference mapping for non-disk sources
+typedef struct {
+    int sourceReference;
+    char *filepath;
+    char *content;  // Cached content
+} SourceReferenceMap;
+
+static SourceReferenceMap *source_refs = NULL;
+static int source_ref_count = 0;
+static int next_source_ref = 1000;  // Start from 1000
+
 #ifdef _WIN32
 #include <windows.h>
 HANDLE p_debugger_thread;
@@ -249,12 +260,42 @@ static int cmd_check_cpu_events(DAPServer *server)
     if (reason != STOP_REASON_NONE)
     {
         const char *dap_reason_str = cpuStopReasonToString(reason);
-        if (dap_server_send_stopped_event(server, dap_reason_str, NULL) == 0)
+        
+        // Get current source location for detailed context
+        int line = 0;
+        const char *file = NULL;
+        
+        // Try to get source location from symbol tables
+        if (symbol_tables.symbol_table_stabs) {
+            line = symbols_get_line(symbol_tables.symbol_table_stabs, gPC);
+            file = symbols_get_file(symbol_tables.symbol_table_stabs, gPC);
+        }
+        if ((!line || !file) && symbol_tables.symbol_table_map) {
+            line = symbols_get_line(symbol_tables.symbol_table_map, gPC);
+            file = symbols_get_file(symbol_tables.symbol_table_map, gPC);
+        }
+        if ((!line || !file) && symbol_tables.symbol_table_aout) {
+            line = symbols_get_line(symbol_tables.symbol_table_aout, gPC);
+            file = symbols_get_file(symbol_tables.symbol_table_aout, gPC);
+        }
+        
+        // Create detailed stop message
+        char description[256];
+        if (line > 0 && file) {
+            snprintf(description, sizeof(description), 
+                    "Stopped at %s:%d (PC=%06o)", file, line, gPC);
+        } else {
+            snprintf(description, sizeof(description), 
+                    "Stopped at PC=%06o", gPC);
+        }
+        
+        if (dap_server_send_stopped_event(server, dap_reason_str, description) == 0)
         {
             server->debugger_state.has_stopped = true;
-            // Mesaage sent succesfully, now clear the stop reason
+            // Message sent successfully, now clear the stop reason
             set_cpu_stop_reason(STOP_REASON_NONE);
-            dap_server_send_output_category(server, DAP_OUTPUT_STDOUT, dap_reason_str);
+            // Log to console with detailed info
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, description);
         }
     }
 
@@ -270,6 +311,142 @@ static void ensure_cpu_running()
         set_cpu_run_mode(CPU_RUNNING);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Switched CPU to running mode\n");
     }
+}
+
+/********************************** INSTRUCTION ANALYSIS ***********************************/
+
+/// @brief Check if instruction is a procedure call (JPL or similar)
+/// @param operand The instruction word
+/// @return true if instruction is a call, false otherwise
+static bool is_procedure_call(uint16_t operand)
+{
+    // JPL instruction - Jump and Link (procedure call)
+    // Format: 0134xxx (octal), where xxx includes addressing mode and displacement
+    // JPL saves return address to L register: L = PC
+    // This is the primary procedure call instruction in ND-100
+    if ((operand & 0xF800) == 0134000) {
+        return true;
+    }
+
+    // Note: ENTR (0140135) is NOT a call instruction
+    // ENTR sets up a stack frame INSIDE a function but doesn't jump/call
+    // It just advances PC by 2 after setting up the frame
+    // The actual call happens via JPL before ENTR is executed
+
+    return false;
+}
+
+/// @brief Check if instruction is a return (EXIT or similar)
+/// @param operand The instruction word
+/// @return true if instruction is a return, false otherwise
+/// @note This only detects EXIT which returns via L register (paired with JPL)
+///       For stack frame returns (LEAVE/ELEAV), use is_c_function_epilogue()
+static bool is_procedure_return(uint16_t operand)
+{
+    // EXIT instruction - Return via L register
+    // Opcode: 0146142 (octal) - This is "COPY SL DP" which does P = L
+    // Used with JPL calling convention: JPL saves to L, EXIT returns via L
+    if (operand == 0146142) {
+        return true;
+    }
+
+    // Note: LEAVE (0140136) and ELEAV (0140137) are NOT included here
+    // They return via stack LINK (Memory[B-128]), not via L register
+    // Those are detected by is_c_function_epilogue() instead
+
+    return false;
+}
+
+/// @brief Get the target address of a JPL instruction
+/// @param pc Current program counter
+/// @param operand JPL instruction word
+/// @return Target address (simplified P-relative calculation)
+/// @note This is a simplified version. Full implementation would need CPU register access
+///       for all 8 addressing modes. See New_GetEffectiveAddr() in cpu.c for complete logic.
+static uint16_t get_jpl_target_address(uint16_t pc, uint16_t operand)
+{
+    // JPL format: bits 15-11 = opcode (0134x)
+    //             bits 10-8  = addressing mode (X, I, B flags)
+    //             bits 7-0   = 8-bit signed displacement
+
+    // Extract 8-bit displacement and sign-extend to 16 bits
+    int8_t disp = (int8_t)(operand & 0xFF);
+    uint16_t displacement = (uint16_t)(int16_t)disp;
+
+    // Extract addressing mode flags
+    // Bit 10 (X): Index by X register
+    // Bit 9  (I): Indirect addressing
+    // Bit 8  (B): Base-relative (vs P-relative)
+    uint8_t mode = (operand >> 8) & 0x07;
+
+    // For simple case, assume P-relative addressing (mode 0)
+    // Full implementation would need access to gB, gX registers and memory
+    // EA = P + displacement (for P-relative mode)
+    uint16_t ea = pc + displacement;
+
+    // TODO: Implement full addressing mode support when we have access to:
+    //       - gB register (for B-relative modes)
+    //       - gX register (for indexed modes)
+    //       - Memory access (for indirect modes)
+    //       See New_GetEffectiveAddr() in src/cpu/cpu.c for reference
+    (void)mode;  // Unused for now
+
+    return ea;
+}
+
+/// @brief Detect if current instruction sequence is a C function prologue
+/// @param pc Program counter
+/// @return true if looks like C function entry
+/// @note ND-100 C compiler uses ENTR instruction for structured stack frames
+static bool is_c_function_prologue(uint16_t pc)
+{
+    // Read the instruction at current PC
+    uint16_t operand = ReadVirtualMemory(pc, false);
+
+    // ND-100 C calling convention uses ENTR instruction to enter stack frames
+    // ENTR opcode: 0140135 (octal)
+    // ENTR behavior:
+    //   - Saves old B register to PREVB (Memory[new_B - 127])
+    //   - Saves return address to LINK (Memory[new_B - 128])
+    //   - Allocates stack space based on next word in memory
+    //   - Updates stack pointers
+    if (operand == 0140135) {
+        return true;
+    }
+
+    return false;
+}
+
+/// @brief Detect if current instruction sequence is a C function epilogue
+/// @param pc Program counter
+/// @return true if looks like C function exit
+/// @note Detects LEAVE/ELEAV which return via stack LINK (paired with ENTR)
+static bool is_c_function_epilogue(uint16_t pc)
+{
+    // Read the instruction at current PC
+    uint16_t operand = ReadVirtualMemory(pc, false);
+
+    // LEAVE instruction - Normal return from structured stack frame
+    // Opcode: 0140136 (octal)
+    // Behavior: P = Memory[B-128] (LINK), B = Memory[B-127] (PREVB)
+    // Used with ENTR to manage stack frames
+    if (operand == 0140136) {
+        return true;
+    }
+
+    // ELEAV instruction - Error return from structured stack frame
+    // Opcode: 0140137 (octal)
+    // Behavior: Similar to LEAVE but takes error return path
+    // Also restores from stack LINK and PREVB
+    if (operand == 0140137) {
+        return true;
+    }
+
+    // Note: EXIT (0146142) is NOT included here
+    // EXIT returns via L register (JPL calling convention)
+    // LEAVE/ELEAV return via stack LINK (ENTR calling convention)
+
+    return false;
 }
 
 /// @brief Find the memory address of the return address of the current stack frame.
@@ -307,11 +484,13 @@ void debugger_update_jpl_entrypoint(uint16_t ea)
 void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
 {
 
-    // Check if this is a JPL instruction
+    // Check for different call types
     bool is_jpl = ((operand & 0xF800) == 0134000);
-
-    // Check if this is an EXIT instruction (146142)
     bool is_exit = (operand == 0146142);
+    
+    // NEW: Check for C calling convention (will be filled in after investigation)
+    bool is_c_call = is_c_function_prologue(pc);
+    bool is_c_return = is_c_function_epilogue(pc);
 
     // Is this the first frame?
     if (stack_trace.frame_count == 0)
@@ -326,11 +505,12 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
         stack_trace.frames[stack_trace.current_frame].pc = pc;
     }
 
-    if (is_jpl)
+    // Handle function calls (JPL or C calling convention)
+    if (is_jpl || is_c_call)
     {
-        // For JPL, we need to create a new stack frame
-        // Calculate the return address (next instruction after JPL)
-        uint16_t return_address = pc + 1;
+        // Create new stack frame
+        // Calculate the return address (next instruction after call)
+        uint16_t return_address = pc + 1;  // Both JPL and typical C calls return to next instruction
 
         stack_trace.current_frame = (stack_trace.current_frame + 1) % MAX_STACK_FRAMES;
         if (stack_trace.frame_count < MAX_STACK_FRAMES)
@@ -346,9 +526,10 @@ void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
 
         return;
     }
-    else if (is_exit)
+    // Handle function returns (EXIT or C return)
+    else if (is_exit || is_c_return)
     {
-        // For EXIT, we need to remove the last frame
+        // Remove the last frame from stack
         if (stack_trace.frame_count > 1)
         {
             // Clear the current frame
@@ -415,19 +596,50 @@ int step_cpu(DAPServer *server, StepType step_type)
             ensure_cpu_running();
             return 0;
         }
+        
+        // NEW: Check if current instruction is a procedure call
+        uint16_t current_operand = ReadVirtualMemory(current_pc, false);
+        if (is_procedure_call(current_operand)) {
+            // For Step Over, we want to step OVER the call, not into it
+            // Set breakpoint at return address (next instruction after call)
+            uint16_t return_addr = current_pc + 1;  // JPL is 1 word
+            
+            snprintf(log_message, sizeof(log_message),
+                    "Stepping over function call, return at %06o\n", return_addr);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+            
+            breakpoint_manager_add(return_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+            ensure_cpu_running();
+            return 0;
+        }
 
         // If we have symbol table and want to step by line
-        if (symbol_tables.symbol_table_map && ((ctx->granularity == DAP_STEP_GRANULARITY_LINE) || (ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)))
+        // CRITICAL FIX: Check STABS first, then MAP
+        if ((symbol_tables.symbol_table_stabs || symbol_tables.symbol_table_map) && 
+            ((ctx->granularity == DAP_STEP_GRANULARITY_LINE) || (ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT)))
         {
-            // Get the next line's address
-            target_pc = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
-
-            if (target_pc != 0 && target_pc != current_pc)
-            {
-                stepping_to_line = true;
-                snprintf(log_message, sizeof(log_message),
-                         "Stepping to next line at address %06o\n", target_pc);
-                dap_server_send_output(server, log_message);
+            // Try STABS first (for C programs with STABS debug info)
+            if (symbol_tables.symbol_table_stabs) {
+                target_pc = symbols_get_next_line_address(symbol_tables.symbol_table_stabs, current_pc);
+                
+                if (target_pc != 0 && target_pc != current_pc) {
+                    stepping_to_line = true;
+                    snprintf(log_message, sizeof(log_message),
+                            "Stepping to next line at address %06o (from STABS)\n", target_pc);
+                    dap_server_send_output(server, log_message);
+                }
+            }
+            
+            // Try MAP if STABS didn't work (for assembly programs)
+            if ((!stepping_to_line) && symbol_tables.symbol_table_map) {
+                target_pc = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
+                
+                if (target_pc != 0 && target_pc != current_pc) {
+                    stepping_to_line = true;
+                    snprintf(log_message, sizeof(log_message),
+                            "Stepping to next line at address %06o (from MAP)\n", target_pc);
+                    dap_server_send_output(server, log_message);
+                }
             }
         }
 
@@ -451,13 +663,98 @@ int step_cpu(DAPServer *server, StepType step_type)
         return 0;
     }
 
-    // Step in - step one instruction (F11)
+    // Step in - intelligent source-level stepping (F11)
     if (step_type == STEP_IN)
     {
-        snprintf(log_message, sizeof(log_message), "Stepping on instruction from %06o\n", current_pc);
+        snprintf(log_message, sizeof(log_message), "Step In from %06o\n", current_pc);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
-
-        // Tell breakpoint manager to step one instruction
+        
+        // Check granularity - are we stepping by line or instruction?
+        bool is_line_granularity = 
+            (ctx->granularity == DAP_STEP_GRANULARITY_LINE) || 
+            (ctx->granularity == DAP_STEP_GRANULARITY_STATEMENT);
+        
+        if (is_line_granularity) {
+            // Source-level Step In
+            
+            // Get the current instruction
+            uint16_t current_operand = ReadVirtualMemory(current_pc, false);
+            
+            // Check if this is a procedure call
+            if (is_procedure_call(current_operand)) {
+                // Calculate where the call will jump to
+                uint16_t call_target = get_jpl_target_address(current_pc, current_operand);
+                
+                if (call_target != 0) {
+                    // Try to find the first source line in the called function
+                    int target_line = 0;
+                    const char *target_file = NULL;
+                    
+                    // Try STABS first (for C functions)
+                    if (symbol_tables.symbol_table_stabs) {
+                        target_line = symbols_get_line(symbol_tables.symbol_table_stabs, call_target);
+                        target_file = symbols_get_file(symbol_tables.symbol_table_stabs, call_target);
+                    }
+                    
+                    // Try MAP if STABS didn't work (for assembly functions)
+                    if ((!target_line || !target_file) && symbol_tables.symbol_table_map) {
+                        target_line = symbols_get_line(symbol_tables.symbol_table_map, call_target);
+                        target_file = symbols_get_file(symbol_tables.symbol_table_map, call_target);
+                    }
+                    
+                    if (target_line && target_file) {
+                        // Found source info - step into the function
+                        snprintf(log_message, sizeof(log_message),
+                                "Stepping into %s:%d (address %06o)\n", 
+                                target_file, target_line, call_target);
+                        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+                        
+                        // Set temporary breakpoint at function entry
+                        breakpoint_manager_add(call_target, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+                        ensure_cpu_running();
+                        return 0;
+                    }
+                    
+                    // No source info - still step into, but at instruction level
+                    snprintf(log_message, sizeof(log_message),
+                            "Stepping into function at %06o (no source info)\n", call_target);
+                    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+                    
+                    breakpoint_manager_add(call_target, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+                    ensure_cpu_running();
+                    return 0;
+                }
+            }
+            
+            // Not a call - step to next source line in current function
+            uint16_t next_line_addr = 0;
+            
+            // Try STABS first
+            if (symbol_tables.symbol_table_stabs) {
+                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_stabs, current_pc);
+            }
+            
+            // Try MAP if STABS didn't work
+            if ((!next_line_addr || next_line_addr == current_pc) && symbol_tables.symbol_table_map) {
+                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
+            }
+            
+            if (next_line_addr && next_line_addr != current_pc) {
+                snprintf(log_message, sizeof(log_message),
+                        "Stepping to next line at %06o\n", next_line_addr);
+                dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+                
+                breakpoint_manager_add(next_line_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+                ensure_cpu_running();
+                return 0;
+            }
+        }
+        
+        // Fallback: instruction-level step
+        snprintf(log_message, sizeof(log_message), 
+                "Step In (instruction level) from %06o\n", current_pc);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+        
         breakpoint_manager_step_one();
         ensure_cpu_running();
         return 0;
@@ -477,6 +774,123 @@ int step_cpu(DAPServer *server, StepType step_type)
     }
 
     return -1;
+}
+
+/********************************** HELPER FUNCTIONS **********************************/
+
+/// @brief Check if a string ends with a specific suffix
+/// @param str The string to check
+/// @param suffix The suffix to look for
+/// @return true if str ends with suffix, false otherwise
+static bool str_ends_with(const char *str, const char *suffix)
+{
+    if (!str || !suffix) return false;
+    
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    
+    if (suffix_len > str_len) return false;
+    
+    return strcmp(str + str_len - suffix_len, suffix) == 0;
+}
+
+/// @brief Check if a file exists on disk
+/// @param filepath Path to the file
+/// @return true if file exists, false otherwise
+static bool file_exists(const char *filepath)
+{
+    if (!filepath) return false;
+    
+    FILE *f = fopen(filepath, "r");
+    if (f) {
+        fclose(f);
+        return true;
+    }
+    return false;
+}
+
+/// @brief Get or create a source reference for a file
+/// @param filepath Path to the source file
+/// @return Source reference ID (> 0) or 0 on error
+static int get_or_create_source_reference(const char *filepath)
+{
+    if (!filepath) return 0;
+    
+    // Check if we already have a reference for this file
+    for (int i = 0; i < source_ref_count; i++) {
+        if (source_refs[i].filepath && strcmp(source_refs[i].filepath, filepath) == 0) {
+            return source_refs[i].sourceReference;
+        }
+    }
+    
+    // Create new reference
+    source_ref_count++;
+    source_refs = realloc(source_refs, source_ref_count * sizeof(SourceReferenceMap));
+    if (!source_refs) {
+        source_ref_count--;
+        return 0;
+    }
+    
+    int idx = source_ref_count - 1;
+    source_refs[idx].sourceReference = next_source_ref++;
+    source_refs[idx].filepath = strdup(filepath);
+    source_refs[idx].content = NULL;  // Load on demand
+    
+    return source_refs[idx].sourceReference;
+}
+
+/// @brief Load source file content by reference
+/// @param sourceReference The source reference ID
+/// @return File content (caller must free) or NULL on error
+static char *load_source_file_by_reference(int sourceReference)
+{
+    // Find the source reference
+    for (int i = 0; i < source_ref_count; i++) {
+        if (source_refs[i].sourceReference == sourceReference) {
+            // Return cached content if available
+            if (source_refs[i].content) {
+                return strdup(source_refs[i].content);
+            }
+            
+            // Load from file
+            if (source_refs[i].filepath) {
+                FILE *f = fopen(source_refs[i].filepath, "r");
+                if (!f) return NULL;
+                
+                // Get file size
+                fseek(f, 0, SEEK_END);
+                long size = ftell(f);
+                fseek(f, 0, SEEK_SET);
+                
+                // Read content
+                char *content = malloc(size + 1);
+                if (content) {
+                    fread(content, 1, size, f);
+                    content[size] = '\0';
+                    
+                    // Cache it
+                    source_refs[i].content = strdup(content);
+                }
+                
+                fclose(f);
+                return content;
+            }
+        }
+    }
+    
+    return NULL;
+}
+
+/// @brief Free all source references
+static void free_source_references(void)
+{
+    for (int i = 0; i < source_ref_count; i++) {
+        if (source_refs[i].filepath) free(source_refs[i].filepath);
+        if (source_refs[i].content) free(source_refs[i].content);
+    }
+    if (source_refs) free(source_refs);
+    source_refs = NULL;
+    source_ref_count = 0;
 }
 
 /********************************** CALLBACKS **********************************/
@@ -1711,15 +2125,45 @@ static int cmd_stack_trace(DAPServer *server)
         }
         */
 
-        // Get source location information
-        int line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
-        const char *file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+        // Get source location information - try multiple symbol tables
+        int line = 0;
+        const char *file = NULL;
+        
+        // Try MAP file first (most reliable for assembly)
+        if (symbol_tables.symbol_table_map) {
+            line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
+            file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+        }
+        
+        // Try STABS if MAP didn't work
+        if ((!line || !file) && symbol_tables.symbol_table_stabs) {
+            line = symbols_get_line(symbol_tables.symbol_table_stabs, memory_reference);
+            file = symbols_get_file(symbol_tables.symbol_table_stabs, memory_reference);
+        }
+        
+        // Try AOUT as last resort
+        if ((!line || !file) && symbol_tables.symbol_table_aout) {
+            line = symbols_get_line(symbol_tables.symbol_table_aout, memory_reference);
+            file = symbols_get_file(symbol_tables.symbol_table_aout, memory_reference);
+        }
 
         if (line > 0 && file)
         {
             // We found source information
             frame->line = line;
-            frame->source_path = strdup(file);
+            
+            // Check if file exists on disk
+            if (file_exists(file)) {
+                // File exists - use path directly
+                frame->source_path = strdup(file);
+                // NOTE: source_reference field removed from DAPStackFrame in libdap
+                // frame->source_reference = 0;
+            } else {
+                // File doesn't exist - use sourceReference
+                frame->source_path = NULL;
+                // NOTE: source_reference field removed from DAPStackFrame in libdap
+                // frame->source_reference = get_or_create_source_reference(file);
+            }
 
             // Extract source name from path
             const char *name = strrchr(file, '/');
@@ -1818,21 +2262,39 @@ static int cmd_set_breakpoints(DAPServer *server)
         DAPBreakpoint *bp = &server->current_command.context.breakpoint.breakpoints[i];
 
         bool validSymbol = false;
-        // Try to get the a valid memory address for this line number
         uint16_t address = 0;
         uint16_t diff = 0;
-        if (symbol_tables.symbol_table_map)
-        {
-            // Get the address for this line in the source file
-            validSymbol = symbols_find_address(symbol_tables.symbol_table_map, source_path, &address, &diff, bp->line);
+        
+        // Try multiple symbol tables in order of preference
+        
+        // 1. Try STABS (most detailed for C/mixed programs)
+        if (!validSymbol && symbol_tables.symbol_table_stabs) {
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_stabs, 
+                                              source_path, &address, &diff, bp->line);
+        }
+        
+        // 2. Try MAP file (reliable for assembly)
+        if (!validSymbol && symbol_tables.symbol_table_map) {
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_map, 
+                                              source_path, &address, &diff, bp->line);
+        }
+        
+        // 3. Try AOUT (last resort - function symbols)
+        if (!validSymbol && symbol_tables.symbol_table_aout && str_ends_with(source_path, ".s")) {
+            // For assembly files, try to find by label/function name
+            // This is a fallback for when line mapping doesn't work
+            validSymbol = symbols_find_address(symbol_tables.symbol_table_aout,
+                                              source_path, &address, &diff, bp->line);
         }
 
-        if ((!validSymbol) || (diff != 0))
+        if (!validSymbol || diff != 0)
         {
             // If we couldn't map the line to an address, log it and continue
-
             char msg[256];
-            snprintf(msg, sizeof(msg), "Warning: Could not map line %d to memory address - missing N_SO for %s\n", bp->line, source_path);
+            const char *reason = !validSymbol ? "no symbol table entry" : "inexact match";
+            snprintf(msg, sizeof(msg), 
+                    "Warning: Could not map %s line %d to memory address (%s)\n", 
+                    source_path, bp->line, reason);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
 
             bp->verified = false;
@@ -2058,8 +2520,9 @@ static int cmd_launch_callback(DAPServer *server)
         gPC = STARTADDR;
     }
 
-    // Clear old symbols
+    // Clear old symbols and source references
     free_symbol_table();
+    free_source_references();
     // Load symbols !!
 
     if (map_path)
@@ -2411,6 +2874,38 @@ static int cmd_write_memory(DAPServer *server)
     return 0;
 }
 
+/// @brief DAP command to retrieve source file content
+/// @param server DAP server instance
+/// @return 0 on success, -1 on error
+static int cmd_source(DAPServer *server)
+{
+    if (!server) return -1;
+
+    // NOTE: context.source is not available in current libdap API
+    // This command needs to be reimplemented when libdap adds source context support
+    dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
+                                    "Error: Source command not yet implemented in current DAP library version\n");
+    return -1;
+
+    /* TODO: Reimplement when libdap adds source context
+    int sourceReference = server->current_command.context.source.source_reference;
+
+    // Load source file content
+    char *content = load_source_file_by_reference(sourceReference);
+
+    if (!content) {
+        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
+                                        "Error: Could not load source file\n");
+        return -1;
+    }
+
+    // Store in context for response
+    server->current_command.context.source.content = content;
+
+    return 0;
+    */
+}
+
 // cpu/cpu_disasm.c
 void OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
 
@@ -2570,6 +3065,9 @@ int ndx_server_init(int port)
     // Register disassemble callback
     dap_server_register_command_callback(server, DAP_CMD_DISASSEMBLE, cmd_disassemble);
 
+    // Register source callback
+    dap_server_register_command_callback(server, DAP_CMD_SOURCE, cmd_source);
+
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
 
@@ -2727,14 +3225,25 @@ int set_default_dap_capabilities(DAPServer *server)
     }
 
     return dap_server_set_capabilities(server,
+                                       // Core session management
                                        DAP_CAP_CONFIG_DONE_REQUEST, true,
-                                       DAP_CAP_EVALUATE_FOR_HOVERS, true,
                                        DAP_CAP_RESTART_REQUEST, true,
                                        DAP_CAP_TERMINATE_REQUEST, true,
-                                       DAP_CAP_SET_VARIABLE, true,
+                                       DAP_CAP_TERMINATE_DEBUGGEE, true,
+                                       
+                                       // Memory operations
                                        DAP_CAP_READ_MEMORY_REQUEST, true,
-                                       DAP_CAP_WRITE_MEMORY_REQUEST, true,
                                        DAP_CAP_DISASSEMBLE_REQUEST, true,
+                                       
+                                       // Breakpoint features
+                                       DAP_CAP_LOG_POINTS, true,  // Already works!
+                                       DAP_CAP_STEPPING_GRANULARITY, true,  // Line/instruction stepping
+                                       DAP_CAP_INSTRUCTION_BREAKPOINTS, true,  // Assembly breakpoints
+                                       
+                                       // Variable inspection (removed false claims)
+                                       // DAP_CAP_EVALUATE_FOR_HOVERS - not implemented
+                                       // DAP_CAP_SET_VARIABLE - stub only
+                                       // DAP_CAP_WRITE_MEMORY_REQUEST - stub only
 
                                        DAP_CAP_COUNT // End of list
     );
