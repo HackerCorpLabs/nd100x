@@ -7,6 +7,7 @@ BUILD_DIR_DEBUG = build
 BUILD_DIR_RELEASE = build_release
 BUILD_DIR_SANITIZE = build_sanitize
 BUILD_DIR_WASM = build_wasm
+BUILD_DIR_WASM_GLASS = build_wasm_glass
 BUILD_DIR_RISCV = build_riscv
 
 # Commands with full paths
@@ -48,7 +49,7 @@ mkptypes:
 	$(MAKE) -C tools/mkptypes
 
 # Build targets
-.PHONY: debug release sanitize wasm riscv clean install run help
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
@@ -83,6 +84,39 @@ wasm: check-deps mkptypes
 	@echo "  cd $(BUILD_DIR_WASM)/bin"
 	@echo "  python3 -m http.server"
 	@echo "Then open http://localhost:8000/index.html in your browser."
+
+wasm-glass: check-deps mkptypes
+	@echo "Building WebAssembly version (glassmorphism UI)..."
+	@command -v emcmake >/dev/null 2>&1 || { echo "Error: emcmake not found. Please install and activate Emscripten SDK."; exit 1; }
+	@mkdir -p $(BUILD_DIR_WASM_GLASS)
+	cd $(BUILD_DIR_WASM_GLASS) && $(EMCMAKE) $(CMAKE) .. -DBUILD_WASM=ON -DDEBUGGER_ENABLED=ON
+	cd $(BUILD_DIR_WASM_GLASS) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
+	@echo "Copying glassmorphism UI and shared assets to build directory..."
+	@mkdir -p $(BUILD_DIR_WASM_GLASS)/bin
+	@cp template-glass/index.html $(BUILD_DIR_WASM_GLASS)/bin/index.html
+	@cp -r template-glass/css $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp -r template-glass/js $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp template/Logo_ND.png template/favicon.ico template/favicon.png $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp -r template/floppies $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp FLOPPY.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@echo ""
+	@echo "WebAssembly build (glassmorphism UI) completed successfully!"
+	@echo "To test in a browser, serve the build directory via HTTP:"
+	@echo "  cd $(BUILD_DIR_WASM_GLASS)/bin"
+	@echo "  python3 -m http.server"
+	@echo "Then open http://localhost:8000/index.html in your browser."
+
+wasm-run: wasm
+	@echo "Starting HTTP server for standard WASM build..."
+	@echo "Open http://localhost:8000/index.html in your browser."
+	cd $(BUILD_DIR_WASM)/bin && python3 -m http.server
+
+wasm-glass-run: wasm-glass
+	@echo "Starting HTTP server for glassmorphism WASM build..."
+	@echo "Open http://localhost:8000/index.html in your browser."
+	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 -m http.server
 
 riscv: check-riscv-deps mkptypes
 	@echo "Building RISC-V Linux version with DAP support..."
@@ -121,7 +155,7 @@ dap-tools: check-deps mkptypes
 
 clean:
 	@echo "Cleaning build directories..."
-	rm -rf $(BUILD_DIR) $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) $(BUILD_DIR_SANITIZE) $(BUILD_DIR_WASM) $(BUILD_DIR_RISCV)
+	rm -rf $(BUILD_DIR) $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) $(BUILD_DIR_SANITIZE) $(BUILD_DIR_WASM) $(BUILD_DIR_WASM_GLASS) $(BUILD_DIR_RISCV)
 
 
 update-libdap:
@@ -169,8 +203,10 @@ help:
 	@echo "  debug         - Build debug version"
 	@echo "  release       - Build release version"
 	@echo "  sanitize      - Build with address sanitizer"
-	@echo "  wasm          - Build WebAssembly version"
-	@echo "                  (Requires Emscripten SDK, run in browser via HTTP server)"
+	@echo "  wasm          - Build WebAssembly version (standard UI)"
+	@echo "  wasm-run      - Build and serve standard WASM version"
+	@echo "  wasm-glass    - Build WebAssembly version (glassmorphism UI)"
+	@echo "  wasm-glass-run - Build and serve glassmorphism WASM version"
 	@echo "  riscv         - Build RISC-V Linux version with DAP support"
 	@echo "                  (Requires compiler at /home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin)"
 	@echo "  dap-tools     - Build with DAP tools (dap_debugger and dap_mock_server)"

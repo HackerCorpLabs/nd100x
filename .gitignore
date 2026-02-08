@@ -49,10 +49,16 @@
 ehthumbs.db
 Thumbs.db
 
+# Node / NPM
+node_modules/
+package-lock.json
+package.json
+
 # Project specific
 /tools/mkptypes/mkptypes
 /build/
 /build_wasm/
+src/build/
 FLOPPY.IMG
 SMD0.IMG
 /asm/
