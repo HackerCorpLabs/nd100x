@@ -1,9 +1,23 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#ifndef __EMSCRIPTEN__
 #include <pthread.h>
 #include <unistd.h>
 #include <signal.h>
 #include <stdatomic.h>
+#endif
+
+/* Include DAP headers BEFORE cpu_types.h to avoid ulong typedef conflict.
+   System headers pulled by dap_transport.h define ulong as unsigned long,
+   while cpu_types.h defines it as uint64_t. On WASM these differ in size. */
+#ifdef WITH_DEBUGGER
+#include "../../external/libdap/libdap/include/dap_server.h"
+#include "../../external/libdap/libdap/include/dap_server_cmds.h"
+#include "../../external/libdap/libdap/include/dap_protocol.h"
+#include "../../external/libsymbols/include/symbols.h"
+#endif
 
 #include "debugger.h"
 #include "../cpu/cpu_types.h"
@@ -11,10 +25,6 @@
 
 #ifdef WITH_DEBUGGER
 
-#include "../../external/libdap/libdap/include/dap_server.h"
-#include "../../external/libdap/libdap/include/dap_server_cmds.h"
-#include "../../external/libdap/libdap/include/dap_protocol.h"
-#include "../../external/libsymbols/include/symbols.h"
 #include "symbols_support.h"
 #include "machine_types.h"
 #include "machine_protos.h"
@@ -23,6 +33,52 @@
 #include "ndlib_protos.h"
 
 #include "debugger_protos.h"
+
+/* ================================================================
+   WASM: Stubs for libdap functions (we include headers for types
+   but do not link the library for WASM builds)
+   ================================================================ */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+DAPServer *dap_server_create(const DAPServerConfig *c) { (void)c; return NULL; }
+void dap_server_free(DAPServer *s) { if(s) free(s); }
+int dap_server_start(DAPServer *s) { (void)s; return 0; }
+int dap_server_stop(DAPServer *s) { (void)s; return 0; }
+int dap_server_run(DAPServer *s) { (void)s; return 0; }
+void dap_server_terminate(DAPServer *s, int sig) { (void)s; (void)sig; }
+int dap_server_register_command_callback(DAPServer *s, DAPCommandType cmd, DAPCommandCallback cb)
+{
+    if(s && cmd >= 0 && cmd < DAP_CMD_MAX)
+        s->command_callbacks[cmd] = cb;
+    return 0;
+}
+int dap_server_send_response(DAPServer *s, DAPCommandType cmd, int seq, int req_seq, bool success, cJSON *body)
+{
+    (void)s; (void)cmd; (void)seq; (void)req_seq; (void)success; (void)body; return 0;
+}
+int dap_server_send_event(DAPServer *s, const char *ev, cJSON *body) { (void)s; (void)ev; (void)body; return 0; }
+int dap_server_send_output(DAPServer *s, const char *msg) { (void)s; printf("%s", msg); return 0; }
+int dap_server_send_output_category(DAPServer *s, DAPOutputCategory cat, const char *msg)
+{
+    (void)s; (void)cat; printf("%s", msg); return 0;
+}
+int dap_server_send_stopped_event(DAPServer *s, const char *reason, const char *desc)
+{
+    (void)s; (void)reason; (void)desc; return 0;
+}
+int dap_server_send_process_event(DAPServer *s, const char *name, int pid, bool local, const char *method)
+{
+    (void)s; (void)name; (void)pid; (void)local; (void)method; return 0;
+}
+int dap_server_send_thread_event(DAPServer *s, const char *reason, int tid) { (void)s; (void)reason; (void)tid; return 0; }
+int dap_server_send_terminated_event(DAPServer *s, bool restart) { (void)s; (void)restart; return 0; }
+int dap_server_send_exited_event(DAPServer *s, int code) { (void)s; (void)code; return 0; }
+int dap_server_set_capabilities(DAPServer *s, ...) { (void)s; return 0; }
+
+char *base64_encode(const uint8_t *data, size_t len) { (void)data; (void)len; return strdup(""); }
+
+#endif /* __EMSCRIPTEN__ */
 
 // Forward declarations for CPU breakpoint functions
 
@@ -63,6 +119,10 @@ static SourceReferenceMap *source_refs = NULL;
 static int source_ref_count = 0;
 static int next_source_ref = 1000;  // Start from 1000
 
+#ifdef __EMSCRIPTEN__
+/* WASM: no threads, no atomics */
+static bool debugger_thread_should_exit = false;
+#else
 #ifdef _WIN32
 #include <windows.h>
 HANDLE p_debugger_thread;
@@ -74,12 +134,14 @@ HANDLE p_debugger_thread;
 pthread_t p_debugger_thread;
 #endif
 
+// Add atomic flag for thread termination
+static atomic_bool debugger_thread_should_exit = false;
+#endif /* __EMSCRIPTEN__ */
+
 #include "debugger_protos.h"
 #include "debugger.h"
 
-// Add atomic flag for thread termination
-static atomic_bool debugger_thread_should_exit = false;
-
+#ifndef __EMSCRIPTEN__
 // Signal handler for the debugger thread
 static void debugger_signal_handler(int sig)
 {
@@ -190,6 +252,28 @@ void stop_debugger_thread()
     }
 }
 
+#else /* __EMSCRIPTEN__ */
+
+/* WASM: Initialize DAP server struct in-process, no thread/transport */
+static int ndx_server_init_wasm(void);
+
+void start_debugger()
+{
+    ndx_server_init_wasm();
+}
+
+void ndx_server_terminate(int sig)
+{
+    (void)sig;
+}
+
+void stop_debugger_thread()
+{
+    /* no thread to stop */
+}
+
+#endif /* __EMSCRIPTEN__ */
+
 const char *cpuStopReasonToString(CpuStopReason r)
 {
     switch (r)
@@ -219,6 +303,13 @@ const char *cpuStopReasonToString(CpuStopReason r)
 
 static int cmd_wait_for_debugger(DAPServer *server)
 {
+#ifdef __EMSCRIPTEN__
+    /* WASM: single-threaded, just request pause */
+    (void)server;
+    set_debugger_request_pause(true);
+    set_debugger_control_granted(true);
+    return 0;
+#else
     int cnt = 0;
     int max_cnt = 10000; // 10000 * 1ms = 10s
     // Tell CPU thread we want it to pause
@@ -240,6 +331,7 @@ static int cmd_wait_for_debugger(DAPServer *server)
 
     // CPU is paused; debugger now owns control
     return 0;
+#endif
 }
 
 static int cmd_release_debugger(DAPServer *server)
@@ -309,7 +401,9 @@ static void ensure_cpu_running()
     {
         // CPU is paused, so we need to resume it
         set_cpu_run_mode(CPU_RUNNING);
+#ifndef __EMSCRIPTEN__
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Switched CPU to running mode\n");
+#endif
     }
 }
 
@@ -3153,6 +3247,264 @@ void debugger_kbd_input(char c)
         }
     }
 }
+
+/* ================================================================
+   WASM: In-process DAP server init and public API functions
+   ================================================================ */
+#ifdef __EMSCRIPTEN__
+
+/// @brief Initialize DAP server struct in-process for WASM (no transport, no thread)
+static int ndx_server_init_wasm(void)
+{
+    /* Allocate server struct directly (no dap_server_create which needs transport) */
+    server = (DAPServer *)calloc(1, sizeof(DAPServer));
+    if (!server)
+    {
+        printf("Failed to allocate DAP server struct for WASM\n");
+        return -1;
+    }
+
+    server->is_initialized = true;
+    server->is_running = true;
+    server->attached = true;
+    server->debugger_state.has_stopped = false;
+    server->debugger_state.current_thread_id = 1;
+
+    /* Register all the same callbacks as native */
+    dap_server_register_command_callback(server, DAP_CMD_NEXT, cmd_next);
+    dap_server_register_command_callback(server, DAP_CMD_STEP_IN, cmd_step_in);
+    dap_server_register_command_callback(server, DAP_CMD_STEP_OUT, cmd_step_out);
+    dap_server_register_command_callback(server, DAP_CMD_CONTINUE, cmd_continue);
+    dap_server_register_command_callback(server, DAP_CMD_STACK_TRACE, cmd_stack_trace);
+    dap_server_register_command_callback(server, DAP_CMD_SCOPES, cmd_scopes);
+    dap_server_register_command_callback(server, DAP_CMD_VARIABLES, cmd_variables);
+    dap_server_register_command_callback(server, DAP_CMD_DISASSEMBLE, cmd_disassemble);
+    dap_server_register_command_callback(server, DAP_CMD_READ_MEMORY, cmd_read_memory);
+
+    printf("WASM DAP debugger initialized (in-process, no transport)\n");
+    return 0;
+}
+
+/// @brief Get the DAP server pointer for direct struct access
+DAPServer *dbg_get_server(void) { return server; }
+
+/* --- Helper: Free a variable array filled by add_variable_to_array --- */
+static void dbg_free_variable_array(void)
+{
+    if (!server) return;
+    DAPVariable *arr = server->current_command.context.variables.variable_array;
+    int count = server->current_command.context.variables.variable_count;
+    if (arr)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (arr[i].name) free(arr[i].name);
+            if (arr[i].value) free(arr[i].value);
+            if (arr[i].type) free(arr[i].type);
+            if (arr[i].evaluate_name) free(arr[i].evaluate_name);
+        }
+        free(arr);
+        server->current_command.context.variables.variable_array = NULL;
+    }
+    server->current_command.context.variables.variable_count = 0;
+}
+
+/* JSON buffer for returning data to JS */
+static char dbg_json_buf[32768];
+
+/// @brief Get scopes as JSON string
+/// @return JSON array of scope objects
+const char *dbg_get_scopes_json(void)
+{
+    if (!server) return "[]";
+
+    /* Call the scopes callback directly */
+    server->current_command.context.scopes.frame_id = 0;
+    cmd_scopes(server);
+
+    /* Build JSON from the scopes array */
+    int pos = 0;
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "[");
+
+    DAPScope *scopes = server->current_command.context.scopes.scopes;
+    int count = server->current_command.context.scopes.scope_count;
+
+    for (int i = 0; i < count && pos < (int)sizeof(dbg_json_buf) - 256; i++)
+    {
+        if (i > 0) pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, ",");
+        pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos,
+            "{\"name\":\"%s\",\"variablesReference\":%d,\"expensive\":%s}",
+            scopes[i].name ? scopes[i].name : "",
+            scopes[i].variables_reference,
+            scopes[i].expensive ? "true" : "false");
+    }
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "]");
+
+    /* Free scope names */
+    if (scopes)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (scopes[i].name) free(scopes[i].name);
+            if (scopes[i].source_path) free(scopes[i].source_path);
+        }
+        free(scopes);
+        server->current_command.context.scopes.scopes = NULL;
+    }
+
+    return dbg_json_buf;
+}
+
+/// @brief Get variables for a scope as JSON string
+/// @param scope_id The scope/variables reference ID
+/// @return JSON array of variable objects
+const char *dbg_get_variables_json(int scope_id)
+{
+    if (!server) return "[]";
+
+    /* Set up context and call variables callback */
+    server->current_command.context.variables.variables_reference = scope_id;
+    server->current_command.context.variables.variable_count = 0;
+    server->current_command.context.variables.variable_array = NULL;
+    cmd_variables(server);
+
+    /* Build JSON from the variable array */
+    int pos = 0;
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "[");
+
+    DAPVariable *vars = server->current_command.context.variables.variable_array;
+    int count = server->current_command.context.variables.variable_count;
+
+    for (int i = 0; i < count && pos < (int)sizeof(dbg_json_buf) - 512; i++)
+    {
+        if (i > 0) pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, ",");
+        pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos,
+            "{\"name\":\"%s\",\"value\":\"%s\",\"type\":\"%s\",\"variablesReference\":%d,\"memoryReference\":%d}",
+            vars[i].name ? vars[i].name : "",
+            vars[i].value ? vars[i].value : "",
+            vars[i].type ? vars[i].type : "",
+            vars[i].variables_reference,
+            vars[i].memory_reference);
+    }
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "]");
+
+    /* Free the variable array */
+    dbg_free_variable_array();
+
+    return dbg_json_buf;
+}
+
+/// @brief Get stack trace as JSON string
+/// @return JSON array of stack frame objects
+const char *dbg_get_stack_trace_json(void)
+{
+    if (!server) return "[]";
+
+    /* Set up context and call stack trace callback */
+    server->current_command.context.stack_trace.start_frame = 0;
+    server->current_command.context.stack_trace.levels = MAX_STACK_FRAMES;
+    server->current_command.context.stack_trace.frames = NULL;
+    server->current_command.context.stack_trace.frame_count = 0;
+    cmd_stack_trace(server);
+
+    /* Build JSON */
+    int pos = 0;
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "[");
+
+    DAPStackFrame *frames = server->current_command.context.stack_trace.frames;
+    int count = server->current_command.context.stack_trace.frame_count;
+
+    for (int i = 0; i < count && pos < (int)sizeof(dbg_json_buf) - 512; i++)
+    {
+        if (i > 0) pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, ",");
+        pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos,
+            "{\"id\":%d,\"name\":\"%s\",\"instructionPointerReference\":%d,\"line\":%d,\"source\":\"%s\"}",
+            frames[i].id,
+            frames[i].name ? frames[i].name : "",
+            frames[i].instruction_pointer_reference,
+            frames[i].line,
+            frames[i].source_name ? frames[i].source_name : "");
+    }
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "]");
+
+    /* Free frames */
+    if (frames)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (frames[i].name) free(frames[i].name);
+            if (frames[i].source_path) free(frames[i].source_path);
+            if (frames[i].source_name) free(frames[i].source_name);
+            if (frames[i].module_id) free(frames[i].module_id);
+        }
+        free(frames);
+        server->current_command.context.stack_trace.frames = NULL;
+    }
+
+    return dbg_json_buf;
+}
+
+/// @brief Get thread/runlevel info as JSON string
+/// @return JSON array of thread objects (16 runlevels)
+const char *dbg_get_threads_json(void)
+{
+    int pos = 0;
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "[");
+
+    for (int lev = 0; lev < 16; lev++)
+    {
+        if (lev > 0) pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, ",");
+
+        ushort pcr = gReg->reg_PCR[lev];
+        int ring = pcr & 0x03;
+        int pt, apt;
+        if (pcr & (1 << 2))
+        {
+            pt = (pcr >> 11) & 0x0F;
+            apt = (pcr >> 7) & 0x0F;
+        }
+        else
+        {
+            pt = (pcr >> 9) & 0x03;
+            apt = (pcr >> 7) & 0x03;
+        }
+        ushort p_reg = gReg->reg[lev][_P];
+        bool is_current = (lev == gPIL);
+
+        pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos,
+            "{\"id\":%d,\"name\":\"Level %d\",\"pc\":%d,\"ring\":%d,\"pt\":%d,\"apt\":%d,\"current\":%s}",
+            lev, lev, p_reg, ring, pt, apt,
+            is_current ? "true" : "false");
+    }
+    pos += snprintf(dbg_json_buf + pos, sizeof(dbg_json_buf) - pos, "]");
+
+    return dbg_json_buf;
+}
+
+/// @brief Step in (single instruction into calls)
+int dbg_step_in(void)
+{
+    if (!server) return -1;
+    server->current_command.context.step.granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
+    return step_cpu(server, STEP_IN);
+}
+
+/// @brief Step over (step past calls)
+int dbg_step_over(void)
+{
+    if (!server) return -1;
+    server->current_command.context.step.granularity = DAP_STEP_GRANULARITY_INSTRUCTION;
+    return step_cpu(server, STEP_OVER);
+}
+
+/// @brief Step out (run until return)
+int dbg_step_out(void)
+{
+    if (!server) return -1;
+    return step_cpu(server, STEP_OUT);
+}
+
+#endif /* __EMSCRIPTEN__ */
 
 // Add this before the end of the #ifdef WITH_DEBUGGER section
 #ifdef WITH_DEBUGGER

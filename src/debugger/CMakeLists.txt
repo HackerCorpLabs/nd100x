@@ -51,49 +51,71 @@ if(DEBUGGER_ENABLED)
     )
     message(STATUS "Debugger module: WITH_DEBUGGER flag set")
 
-    # Only include DAP and symbols libraries if debugger is enabled 
+    if(PLATFORM_WASM)
+        # WASM: Include libdap/libsymbols headers for type definitions only (no linking)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+            target_include_directories(debugger
+                PRIVATE ${LIBDAP_INCLUDE_DIR}
+            )
+            message(STATUS "Debugger module: DAP headers included for WASM (no linking)")
+        endif()
 
-    # Check if libdap exists
-    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
-        # Include libdap
-        target_include_directories(debugger
-            PRIVATE ${LIBDAP_INCLUDE_DIR}
-        )
-
-        # Link with libdap - change from dap to dap_objects
-        target_link_libraries(debugger
-            PRIVATE dap_objects
-            PRIVATE cjson_objects
-        )
-
-        # Add DAP_ENABLED definition
-        target_compile_definitions(debugger
-            PRIVATE DAP_ENABLED=1
-        )
-
-        message(STATUS "Debugger module: DAP support enabled (using libdap)")
+        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+            set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
+            target_include_directories(debugger
+                PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
+            )
+            # Link libsymbols for WASM (symbols_objects has no pthread dependency)
+            target_link_libraries(debugger
+                PRIVATE symbols_objects
+            )
+            message(STATUS "Debugger module: Symbol support enabled for WASM")
+        endif()
     else()
-        message(STATUS "Debugger module: DAP support disabled (libdap not found)")
-    endif()
+        # Native: Full DAP and symbols library linking
 
-    # Check if libsymbols exists
-    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
-        # Set libsymbols include directory
-        set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
+        # Check if libdap exists
+        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+            # Include libdap
+            target_include_directories(debugger
+                PRIVATE ${LIBDAP_INCLUDE_DIR}
+            )
 
-        # Include libsymbols
-        target_include_directories(debugger
-            PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
-        )
+            # Link with libdap - change from dap to dap_objects
+            target_link_libraries(debugger
+                PRIVATE dap_objects
+                PRIVATE cjson_objects
+            )
 
-        # Link with libsymbols
-        target_link_libraries(debugger
-            PRIVATE symbols_objects
-        )
+            # Add DAP_ENABLED definition
+            target_compile_definitions(debugger
+                PRIVATE DAP_ENABLED=1
+            )
 
-        message(STATUS "Debugger module: Symbol support enabled (using libsymbols)")
-    else()
-        message(STATUS "Debugger module: Symbol support disabled (libsymbols not found)")
+            message(STATUS "Debugger module: DAP support enabled (using libdap)")
+        else()
+            message(STATUS "Debugger module: DAP support disabled (libdap not found)")
+        endif()
+
+        # Check if libsymbols exists
+        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+            # Set libsymbols include directory
+            set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
+
+            # Include libsymbols
+            target_include_directories(debugger
+                PRIVATE ${LIBSYMBOLS_INCLUDE_DIR}
+            )
+
+            # Link with libsymbols
+            target_link_libraries(debugger
+                PRIVATE symbols_objects
+            )
+
+            message(STATUS "Debugger module: Symbol support enabled (using libsymbols)")
+        else()
+            message(STATUS "Debugger module: Symbol support disabled (libsymbols not found)")
+        endif()
     endif()
 
 else()

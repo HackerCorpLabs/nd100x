@@ -30,7 +30,9 @@
 
 #include <string.h>
 #include <setjmp.h>
+#ifndef __EMSCRIPTEN__
 #include <unistd.h>
+#endif
 
 
 #include "cpu_types.h"
@@ -40,11 +42,15 @@
 
 #ifdef WITH_DEBUGGER
 	void stop_debugger_thread();
-
-	#include <stdatomic.h>
 	extern void start_debugger();
 
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+	/* WASM: single-threaded, no atomics needed */
+	int cpu_run_mode;
+	int cpu_stop_reason;
+	bool debugger_request_pause;
+	bool debugger_control_granted;
+#elif defined(_WIN32)
     #include <windows.h>
 	volatile LONG cpu_run_mode;
 	volatile LONG debugger_stop_reason;
@@ -58,9 +64,7 @@
 	atomic_int cpu_stop_reason;     // CpuStopReason
 	atomic_bool debugger_request_pause; // set by DAP thread to request pause
 	atomic_bool debugger_control_granted; // set by CPU thread when paused and debugger can access
-
 #endif
-
 
 #else
 int CurrentCPURunMode;
@@ -347,6 +351,12 @@ ushort PhysMemRead(ulong addr)
  */
 void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_select)
 {
+#ifdef WITH_DEBUGGER
+	if (watchpoint_get_count() > 0 && watchpoint_check(addr, true)) {
+		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
+		set_cpu_run_mode(CPU_BREAKPOINT);
+	}
+#endif
 	WriteVirtualMemory(addr, value, UseAPT, byte_select); // in cpu_mms.c
 }
 
@@ -356,6 +366,12 @@ void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_sele
  */
 ushort MemoryRead(ushort addr, bool UseAPT)
 {
+#ifdef WITH_DEBUGGER
+	if (watchpoint_get_count() > 0 && watchpoint_check(addr, false)) {
+		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
+		set_cpu_run_mode(CPU_BREAKPOINT);
+	}
+#endif
 	return ReadVirtualMemory(addr, UseAPT); // in cpu_mms.c
 }
 
@@ -440,8 +456,10 @@ void private_cpu_tick()
 		lvlcnt = (gPIL == 0) ? (lvlcnt + 1) : 0;
 
 		if (lvlcnt > 10000)
-		{			
-			sleep_ms(1); // Sleep 1 ms
+		{
+#ifndef __EMSCRIPTEN__
+			sleep_ms(1); // Sleep 1 ms - skip on WASM to avoid blocking browser
+#endif
 			lvlcnt = 0;
 		}
 	}
@@ -524,8 +542,10 @@ bool cpu_instruction_is_jump()
 int cpu_run(int ticks)
 {
 #ifdef WITH_DEBUGGER
-	if (get_debugger_control_granted()) {		
+	if (get_debugger_control_granted()) {
+#ifndef __EMSCRIPTEN__
 		usleep(100000); // Sleep 100ms
+#endif
 		return ticks; // Debugger has control, return immediately
 	}
 #endif
@@ -608,7 +628,7 @@ int cpu_run(int ticks)
 
 
 void cpu_init(bool debuggerEnabled)
-{	
+{
 	/* initialize an empty register set */
 	gReg = calloc(1, sizeof(struct CpuRegs));
 
@@ -695,11 +715,13 @@ void cleanup_cpu()
 
 
 /// @brief Request from the debugger to take control of the CPU
-/// @param requested 
+/// @param requested
 void set_debugger_request_pause(bool requested)
 {
-#ifdef WITH_DEBUGGER	
-	#ifdef _WIN32
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		debugger_request_pause = requested;
+	#elif defined(_WIN32)
 		InterlockedExchange((volatile LONG *)&debugger_request_pause, (LONG)requested);
 	#else
 		atomic_store(&debugger_request_pause, requested);
@@ -711,19 +733,21 @@ void set_debugger_request_pause(bool requested)
 /// @return true if the debugger has requested to pause the CPU, false otherwise
 /// @details This function is used to check if the debugger has requested to pause the CPU.
 bool get_debugger_request_pause(void) {
-	#ifdef WITH_DEBUGGER
-		#ifdef _WIN32
-			return (CPURunMode)InterlockedCompareExchange(
-				(volatile LONG *)&debugger_request_pause,
-				0,  // Exchange value (ignored)
-				0   // Comparand (ignored)
-			);
-		#else
-			return atomic_load(&debugger_request_pause);
-		#endif	
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		return debugger_request_pause;
+	#elif defined(_WIN32)
+		return (CPURunMode)InterlockedCompareExchange(
+			(volatile LONG *)&debugger_request_pause,
+			0,  // Exchange value (ignored)
+			0   // Comparand (ignored)
+		);
 	#else
-		return false;
+		return atomic_load(&debugger_request_pause);
 	#endif
+#else
+	return false;
+#endif
 }
 
 /// @brief Set the debugger control granted flag
@@ -731,8 +755,10 @@ bool get_debugger_request_pause(void) {
 /// @details This function is used to set the debugger control granted flag.
 void set_debugger_control_granted(bool requested)
 {
-#ifdef WITH_DEBUGGER	
-	#ifdef _WIN32
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		debugger_control_granted = requested;
+	#elif defined(_WIN32)
 		InterlockedExchange((volatile LONG *)&debugger_control_granted, (LONG)requested);
 	#else
 		atomic_store(&debugger_control_granted, requested);
@@ -744,26 +770,30 @@ void set_debugger_control_granted(bool requested)
 /// @details This function is used to check if the debugger control is granted.
 /// @return  true if the debugger control is granted, false otherwise
 bool get_debugger_control_granted(void) {
-	#ifdef WITH_DEBUGGER
-		#ifdef _WIN32
-			return (CPURunMode)InterlockedCompareExchange(
-				(volatile LONG *)&debugger_control_granted,
-				0,  // Exchange value (ignored)
-				0   // Comparand (ignored)
-			);
-		#else
-			return atomic_load(&debugger_control_granted);
-		#endif	
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		return debugger_control_granted;
+	#elif defined(_WIN32)
+		return (CPURunMode)InterlockedCompareExchange(
+			(volatile LONG *)&debugger_control_granted,
+			0,  // Exchange value (ignored)
+			0   // Comparand (ignored)
+		);
 	#else
-		return false;
+		return atomic_load(&debugger_control_granted);
 	#endif
+#else
+	return false;
+#endif
 }
 
 /// @brief Set the debugger stop reason
 /// @param reason The reason for stopping the cpu
 void set_cpu_stop_reason(CpuStopReason reason) {
-#ifdef WITH_DEBUGGER	
-	#ifdef _WIN32
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		cpu_stop_reason = reason;
+	#elif defined(_WIN32)
 		InterlockedExchange((volatile LONG *)&cpu_stop_reason, (LONG)reason);
 	#else
 		atomic_store(&cpu_stop_reason, reason);
@@ -774,7 +804,9 @@ void set_cpu_stop_reason(CpuStopReason reason) {
 
 CpuStopReason get_cpu_stop_reason(void) {
 #ifdef WITH_DEBUGGER
-	#ifdef _WIN32
+	#ifdef __EMSCRIPTEN__
+		return (CpuStopReason)cpu_stop_reason;
+	#elif defined(_WIN32)
 		return (CpuStopReason)InterlockedCompareExchange(
 			(volatile LONG *)&cpu_stop_reason,
 			0,  // Exchange value (ignored)
@@ -785,17 +817,19 @@ CpuStopReason get_cpu_stop_reason(void) {
 	#endif
 #else
 	return STOP_REASON_NONE;
-#endif	
+#endif
 }
-	
+
 
 
 void set_cpu_run_mode(CPURunMode new_mode) {
-#ifdef WITH_DEBUGGER	
-	#ifdef _WIN32
-		 InterlockedExchange((volatile LONG *)&cpu_run_mode, (LONG)new_mode);
+#ifdef WITH_DEBUGGER
+	#ifdef __EMSCRIPTEN__
+		cpu_run_mode = new_mode;
+	#elif defined(_WIN32)
+		InterlockedExchange((volatile LONG *)&cpu_run_mode, (LONG)new_mode);
 	#else
-		atomic_store(&cpu_run_mode, new_mode);    
+		atomic_store(&cpu_run_mode, new_mode);
 	#endif
 #else
 	CurrentCPURunMode = new_mode;
@@ -805,15 +839,17 @@ void set_cpu_run_mode(CPURunMode new_mode) {
 
 CPURunMode get_cpu_run_mode(void) {
 #ifdef WITH_DEBUGGER
-    #ifdef _WIN32
-        return (CPURunMode)InterlockedCompareExchange(
-            (volatile LONG *)&cpu_run_mode,
-            0,  // Exchange value (ignored)
-            0   // Comparand (ignored)
-        );
-    #else
-        return atomic_load(&cpu_run_mode);
-    #endif	
+	#ifdef __EMSCRIPTEN__
+		return (CPURunMode)cpu_run_mode;
+	#elif defined(_WIN32)
+		return (CPURunMode)InterlockedCompareExchange(
+			(volatile LONG *)&cpu_run_mode,
+			0,  // Exchange value (ignored)
+			0   // Comparand (ignored)
+		);
+	#else
+		return atomic_load(&cpu_run_mode);
+	#endif
 #else
 	return CurrentCPURunMode;
 #endif

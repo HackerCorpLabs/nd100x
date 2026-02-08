@@ -283,3 +283,91 @@ CpuStopReason stopReasonFromBreakpoint(BreakpointType t) {
         default: return STOP_REASON_BREAKPOINT;
     }
 }
+
+//********** Watchpoints (memory access breakpoints) **********
+
+static WatchpointEntry watchpoints[MAX_WATCHPOINTS];
+static int watchpoint_count = 0;
+
+/// @brief Add a watchpoint at a memory address
+/// @param address Memory address to watch
+/// @param type WATCH_READ, WATCH_WRITE, or WATCH_READWRITE
+/// @return 0 on success, -1 if full or duplicate
+int watchpoint_add(uint16_t address, WatchpointType type)
+{
+    /* Update existing watchpoint at same address */
+    for (int i = 0; i < watchpoint_count; i++) {
+        if (watchpoints[i].active && watchpoints[i].address == address) {
+            watchpoints[i].type = type;
+            return 0;
+        }
+    }
+    if (watchpoint_count >= MAX_WATCHPOINTS) return -1;
+
+    watchpoints[watchpoint_count].address = address;
+    watchpoints[watchpoint_count].type = type;
+    watchpoints[watchpoint_count].active = true;
+    watchpoint_count++;
+    return 0;
+}
+
+/// @brief Remove watchpoint at address
+/// @param address Memory address
+void watchpoint_remove(uint16_t address)
+{
+    for (int i = 0; i < watchpoint_count; i++) {
+        if (watchpoints[i].active && watchpoints[i].address == address) {
+            /* Swap with last entry */
+            watchpoints[i] = watchpoints[watchpoint_count - 1];
+            watchpoints[watchpoint_count - 1].active = false;
+            watchpoint_count--;
+            return;
+        }
+    }
+}
+
+/// @brief Check if a memory access hits a watchpoint
+/// @param address Memory address being accessed
+/// @param isWrite true if write, false if read
+/// @return 1 if watchpoint hit, 0 otherwise
+int watchpoint_check(uint16_t address, bool isWrite)
+{
+    for (int i = 0; i < watchpoint_count; i++) {
+        if (!watchpoints[i].active) continue;
+        if (watchpoints[i].address != address) continue;
+        WatchpointType t = watchpoints[i].type;
+        if (t == WATCH_READWRITE) return 1;
+        if (isWrite && (t == WATCH_WRITE)) return 1;
+        if (!isWrite && (t == WATCH_READ)) return 1;
+    }
+    return 0;
+}
+
+/// @brief Clear all watchpoints
+void watchpoint_clear(void)
+{
+    for (int i = 0; i < MAX_WATCHPOINTS; i++) {
+        watchpoints[i].active = false;
+    }
+    watchpoint_count = 0;
+}
+
+/// @brief Get number of active watchpoints
+int watchpoint_get_count(void)
+{
+    return watchpoint_count;
+}
+
+/// @brief Get watchpoint at index
+/// @param index Slot index (0..watchpoint_count-1)
+/// @param out_addr Output: address
+/// @param out_type Output: type
+/// @return 0 on success, -1 if out of range
+int watchpoint_get(int index, uint16_t *out_addr, int *out_type)
+{
+    if (index < 0 || index >= watchpoint_count) return -1;
+    if (!watchpoints[index].active) return -1;
+    *out_addr = watchpoints[index].address;
+    *out_type = (int)watchpoints[index].type;
+    return 0;
+}

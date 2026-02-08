@@ -54,34 +54,11 @@ const char* boot_type_str[] = {
 
 // Initialize drive arrays
 void init_drive_arrays() {
-    // Allocate and initialize floppy drives array (3 units)
-    floppy_drives = malloc(3 * sizeof(MountedDriveInfo_t));
-    if (floppy_drives) {
-        for (int i = 0; i < 3; i++) {
-            floppy_drives[i].md5[0] = '\0';
-            floppy_drives[i].name[0] = '\0';
-            floppy_drives[i].description[0] = '\0';
-            floppy_drives[i].image_path[0] = '\0';
-            floppy_drives[i].is_remote = false;
-            floppy_drives[i].data.local_file = NULL;
-            floppy_drives[i].data_size = 0;
-            floppy_drives[i].block_size = 0;
-        }
+    if (!floppy_drives) {
+        floppy_drives = calloc(3, sizeof(MountedDriveInfo_t));
     }
-    
-    // Allocate and initialize SMD drives array (4 units)
-    smd_drives = malloc(4 * sizeof(MountedDriveInfo_t));
-    if (smd_drives) {
-        for (int i = 0; i < 4; i++) {
-            smd_drives[i].md5[0] = '\0';
-            smd_drives[i].name[0] = '\0';
-            smd_drives[i].description[0] = '\0';
-            smd_drives[i].image_path[0] = '\0';
-            smd_drives[i].is_remote = false;
-            smd_drives[i].data.local_file = NULL;
-            smd_drives[i].data_size = 0;
-            smd_drives[i].block_size = 0;
-        }
+    if (!smd_drives) {
+        smd_drives = calloc(4, sizeof(MountedDriveInfo_t));
     }
 }
 
@@ -97,13 +74,13 @@ static void cleanup_drive_arrays() {
     }
 }
 
-void 
+void
 machine_init (bool debuggerEnabled)
 {
-    
+
     // Initialize drive arrays
     init_drive_arrays();
-    
+
     // Initialize the CPU
     cpu_init(debuggerEnabled);
 
@@ -112,7 +89,6 @@ machine_init (bool debuggerEnabled)
 
     // Initialize IO devices
     IO_Init();
-
 
     // Set the CPU to RUN mode
     set_cpu_run_mode(CPU_RUNNING);
@@ -165,14 +141,23 @@ void  machine_run (int ticks)
         if (gDebuggerEnabled)
         {
             if (get_debugger_request_pause())
-            {                
+            {
                 if (!get_debugger_control_granted())
                 {
-                    set_debugger_control_granted(true);                    
+                    set_debugger_control_granted(true);
                 }
             }
-            
+
+#ifdef __EMSCRIPTEN__
+            /* WASM: if debugger has control, exit immediately to avoid
+               busy-looping in single-threaded environment */
+            if (get_debugger_control_granted())
+            {
+                return;
+            }
+#else
             usleep(100000); // Sleep 100ms
+#endif
             if ((get_cpu_run_mode() == CPU_PAUSED) || (get_cpu_run_mode() == CPU_BREAKPOINT))
             {
                 //if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
@@ -289,7 +274,6 @@ void autoMountDrives()
      int result;
      STARTADDR = 0;
 
- 
      switch (bootType)
      {
      case BOOT_BP:
@@ -297,16 +281,24 @@ void autoMountDrives()
          if (bootAddress < 0)
          {
              printf("Error loading BP file '%s'\n", imageFile);
+#ifdef __EMSCRIPTEN__
+             return;
+#else
              exit(1);
+#endif
          }
          break;
- 
-     case BOOT_BPUN:		
+
+     case BOOT_BPUN:
          bootAddress = LoadBPUN(imageFile,verbose);
          if (bootAddress < 0)
          {
              printf("Error loading BPUN file '%s'\n", imageFile);
+#ifdef __EMSCRIPTEN__
+             return;
+#else
              exit(1);
+#endif
          }
          STARTADDR = bootAddress;
          break;
@@ -315,11 +307,15 @@ void autoMountDrives()
         if (bootAddress < 0)
         {
             printf("Error loading AOUT file '%s'\n", imageFile);
+#ifdef __EMSCRIPTEN__
+            return;
+#else
             exit(1);
+#endif
         }
         STARTADDR = bootAddress;
         break;
-     case BOOT_FLOPPY:        
+     case BOOT_FLOPPY:
         // Record mount state for UI/menus; device still boots via BPUN for now
          mount_floppy(imageFile,0);
 
@@ -327,13 +323,17 @@ void autoMountDrives()
          if (bootAddress < 0)
          {
              printf("Error loading BPUN file\n");
+#ifdef __EMSCRIPTEN__
+             return;
+#else
              exit(1);
+#endif
          }
- 
+
          STARTADDR = bootAddress;
- 
-         //gPC = (CONFIG_OK) ? bootaddress : 0;		
- 
+
+         //gPC = (CONFIG_OK) ? bootaddress : 0;
+
          /*
          result = sectorread(0, 0, 1, (ushort *)&VolatileMemory);
          if (result < 0) {
@@ -346,12 +346,17 @@ void autoMountDrives()
      case BOOT_SMD:
 
         // Ensure unit 0 is mounted before we ask the SMD device to memory-boot
-        mount_smd(imageFile, 0);        
+        mount_smd(imageFile, 0);
 
          bootAddress = DeviceManager_Boot(01540);
          if (bootAddress < 0)
          {
+             printf("Error booting from SMD device\n");
+#ifdef __EMSCRIPTEN__
+             return;
+#else
              exit(10);
+#endif
          }
          STARTADDR = bootAddress;
          break;
@@ -382,7 +387,11 @@ void autoMountDrives()
     
     // Check if unit is valid
     if (unit < 0 || unit >= max_units) {
-        //printf("Error: Invalid unit %d for drive type %d\n", unit, drive_type);
+        return false;
+    }
+
+    // Safety check for NULL array
+    if (!drives) {
         return false;
     }
 
@@ -393,7 +402,7 @@ void autoMountDrives()
 void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *name, const char *description, const char *image_path) {
     MountedDriveInfo_t* drives = NULL;
     int max_units = 0;
-    
+
     // Determine which array to use and max units
     if (drive_type == DRIVE_SMD) {
         drives = smd_drives;
@@ -402,20 +411,21 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
         drives = floppy_drives;
         max_units = 3;  // Floppy has units 0-2
     } else {
-        //printf("Error: Invalid drive type\n");
         return;
     }
-    
+
     // Check if unit is valid
     if (unit < 0 || unit >= max_units) {
-        //printf("Error: Invalid unit %d for drive type %d\n", unit, drive_type);
         return;
     }
-    
-    // Check if array is initialized
+
+    // Lazy init if drive arrays not yet allocated
     if (!drives) {
-        //printf("Error: Drive arrays not initialized\n");
-        return;
+        init_drive_arrays();
+        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        if (!drives) {
+            return;
+        }
     }
     
     // Handle image path (HTTP download or local file)
@@ -453,10 +463,14 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
             // Local file - open for read-write binary
             FILE* file = fopen(image_path, "rb+");
             if (!file) {
+                int saved_errno = errno;
                 // If we dont have write access, try to open the file for read-only
-                if (errno == EACCES || errno == EROFS || errno == EPERM) {
+                if (saved_errno == EACCES || saved_errno == EROFS || saved_errno == EPERM) {
                     file = fopen(image_path, "rb");  // fallback
                     if (file) drives[unit].is_writeprotected = true;
+                }
+                if (!file) {
+                    return;
                 }
             }
             if (file) {
@@ -464,14 +478,14 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
                 fseek(file, 0, SEEK_END);
                 long file_size = ftell(file);
                 fseek(file, 0, SEEK_SET);
-                
-                drives[unit].is_remote = false;                
+
+                drives[unit].is_remote = false;
                 drives[unit].data.local_file = file;
                 drives[unit].data_size = (size_t)file_size;
-                
+
                 //printf("Opened local file: %s (size: %ld bytes)\n", image_path, file_size);
             } else {
-                //printf("Error: Failed to open local file %s\n", image_path);
+                printf("mount_drive: Failed to open %s\n", image_path);
                 drives[unit].is_mounted = false;
                 return;
             }
