@@ -35,7 +35,6 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     message(STATUS "Building for Windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     set(PLATFORM_WASM TRUE)
-    set(DEBUGGER_ENABLED FALSE)
     message(STATUS "Building for WebAssembly")
     
     if(BUILD_WASM OR EMSCRIPTEN)
@@ -103,8 +102,8 @@ if(DEBUGGER_ENABLED)
     # Add this to the include path
     include_directories(${CMAKE_BINARY_DIR}/include)
     
-    # Add libdap if it exists
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap")
+    # Add libdap if it exists (skip for WASM - no pthreads/sockets)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap" AND NOT PLATFORM_WASM)
         set(BUILD_DAP_TEST_TOOLS ${BUILD_DAP_TOOLS} CACHE BOOL "Build libdap test tools" FORCE)
         add_subdirectory(external/libdap)
         if(TARGET dap_objects)
