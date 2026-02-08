@@ -32,7 +32,9 @@ target_include_directories(nd100wasm PRIVATE
     ${CMAKE_SOURCE_DIR}/src/devices/floppy
     ${CMAKE_SOURCE_DIR}/src/devices/smd
     ${CMAKE_SOURCE_DIR}/src/machine
+    ${CMAKE_SOURCE_DIR}/src/debugger
     ${CMAKE_SOURCE_DIR}/external/libsymbols/include
+    ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include
 )
 
 # Modify nd100wasm.c to not include missing nd100x_types.h for now
@@ -53,6 +55,7 @@ target_link_libraries(nd100wasm PRIVATE
     cpu
     devices
     machine
+    debugger
     symbols_objects
 )
 
@@ -67,8 +70,8 @@ if(PLATFORM_WASM)
     # Add Emscripten-specific compiler and linker flags
     set(EMSCRIPTEN_LINK_FLAGS 
         "-s WASM=1 \
-         -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','addFunction'] \
-         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback','_GetTerminalIdentCode','_TerminalOutputToJS','_SetJSTerminalOutputHandler'] \
+         -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','addFunction','UTF8ToString'] \
+         -s EXPORTED_FUNCTIONS=['_main','_Init','_Step','_Stop','_Setup','_IO_Tick','_SendKeyToTerminal','_GetTerminalAddress','_SetTerminalOutputCallback','_GetTerminalIdentCode','_TerminalOutputToJS','_SetJSTerminalOutputHandler','_RemountFloppy','_RemountSMD','_UnmountFloppy','_UnmountSMD','_Dbg_SetPaused','_Dbg_IsPaused','_Dbg_StepOne','_Dbg_StepOver','_Dbg_StepOut','_Dbg_RunWithBreakpoints','_Dbg_GetPC','_Dbg_GetRegA','_Dbg_GetRegD','_Dbg_GetRegB','_Dbg_GetRegT','_Dbg_GetRegL','_Dbg_GetRegX','_Dbg_GetSTS','_Dbg_GetPIL','_Dbg_GetEA','_Dbg_GetRegAtLevel','_Dbg_GetPANS','_Dbg_GetOPR','_Dbg_GetPGS','_Dbg_GetPVL','_Dbg_GetIIC','_Dbg_GetIID','_Dbg_GetPID','_Dbg_GetPIE','_Dbg_GetCSR','_Dbg_GetALD','_Dbg_GetPES','_Dbg_GetPGC','_Dbg_GetPEA','_Dbg_GetPCR','_Dbg_GetPANC','_Dbg_GetLMP','_Dbg_GetIIE','_Dbg_GetCCL','_Dbg_GetLCIL','_Dbg_GetUCIL','_Dbg_GetECCR','_Dbg_GetInstrCount','_Dbg_GetRunMode','_Dbg_GetStopReason','_Dbg_ReadMemory','_Dbg_WriteMemory','_Dbg_AddBreakpoint','_Dbg_RemoveBreakpoint','_Dbg_ClearBreakpoints','_Dbg_Disassemble','_Dbg_GetLevelInfo','_Dbg_GetScopes','_Dbg_GetVariables','_Dbg_GetThreads','_Dbg_GetStackTrace','_Dbg_GetBreakpointList','_Dbg_AddWatchpoint','_Dbg_RemoveWatchpoint','_Dbg_ClearWatchpoints','_Dbg_GetWatchpointCount','_Dbg_GetWatchpointAddr','_Dbg_GetWatchpointType'] \
          -s EXPORT_NAME='ND100Module' \
          -s MODULARIZE=1 \
          -s ALLOW_TABLE_GROWTH=1 \

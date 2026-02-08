@@ -1,7 +1,28 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
 /* /home/ronny/repos/nd100x/src/debugger/debugger.c */
+DAPServer *dap_server_create(const DAPServerConfig *c);
+void dap_server_free(DAPServer *s);
+int dap_server_start(DAPServer *s);
+int dap_server_stop(DAPServer *s);
+int dap_server_run(DAPServer *s);
+void dap_server_terminate(DAPServer *s, int sig);
+int dap_server_register_command_callback(DAPServer *s, DAPCommandType cmd, DAPCommandCallback cb);
+int dap_server_send_response(DAPServer *s, DAPCommandType cmd, int seq, int req_seq, bool success, cJSON *body);
+int dap_server_send_event(DAPServer *s, const char *ev, cJSON *body);
+int dap_server_send_output(DAPServer *s, const char *msg);
+int dap_server_send_output_category(DAPServer *s, DAPOutputCategory cat, const char *msg);
+int dap_server_send_stopped_event(DAPServer *s, const char *reason, const char *desc);
+int dap_server_send_process_event(DAPServer *s, const char *name, int pid, bool local, const char *method);
+int dap_server_send_thread_event(DAPServer *s, const char *reason, int tid);
+int dap_server_send_terminated_event(DAPServer *s, bool restart);
+int dap_server_send_exited_event(DAPServer *s, int code);
+int dap_server_set_capabilities(DAPServer *s, ...);
+char *base64_encode(const uint8_t *data, size_t len);
 int debugger_thread_win(LPVOID lpParam);
+void start_debugger(void);
+void ndx_server_terminate(int sig);
+void stop_debugger_thread(void);
 void start_debugger(void);
 void ndx_server_terminate(int sig);
 void stop_debugger_thread(void);
@@ -18,6 +39,14 @@ int init_symbol_support(const char *filename, SymbolType symbol_type);
 int ndx_server_init(int port);
 int ndx_server_stop(void);
 void debugger_kbd_input(char c);
+DAPServer *dbg_get_server(void);
+const char *dbg_get_scopes_json(void);
+const char *dbg_get_variables_json(int scope_id);
+const char *dbg_get_stack_trace_json(void);
+const char *dbg_get_threads_json(void);
+int dbg_step_in(void);
+int dbg_step_over(void);
+int dbg_step_out(void);
 const char *find_symbol_by_address(symbol_table_t *symtab, uint16_t address);
 const char *get_symbol_for_address(uint16_t address);
 const char *get_source_location(uint16_t address, int *line);

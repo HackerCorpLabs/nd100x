@@ -65,7 +65,13 @@ typedef uint16_t  ushort;  // If you *really* want this alias
 typedef int16_t   sshort;
 typedef uint32_t  uint;
 typedef int32_t   sint;
+#ifndef __EMSCRIPTEN__
 typedef uint64_t  ulong;
+#else
+/* On WASM, sys/types.h defines ulong as unsigned long (32-bit).
+   This is sufficient for ND-100 emulation (max 32-bit values). */
+#include <sys/types.h>
+#endif
 typedef int64_t   slong;
 
 // Better way!
@@ -490,6 +496,23 @@ typedef struct {
 	// Number of instructions to step (for single stepping when we cant set a breakpoint)
 	int step_count;
 } BreakpointManager;
+
+//********** Watchpoints (memory access breakpoints) **********
+
+#define MAX_WATCHPOINTS 32
+
+typedef enum {
+    WATCH_NONE      = 0,
+    WATCH_READ      = 1,
+    WATCH_WRITE     = 2,
+    WATCH_READWRITE = 3
+} WatchpointType;
+
+typedef struct {
+    uint16_t address;
+    WatchpointType type;
+    bool active;
+} WatchpointEntry;
 
 /// @brief Enumeration of CPU stop reasons for the debugger
 /// @details This enum is used to indicate the reason for stopping the CPU in the debugger. - aligned with DAP spec
