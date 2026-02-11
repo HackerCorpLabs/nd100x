@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ND100X WASM Emulator</title>
+
+  <!-- Module config must load before nd100wasm.js -->
+  <script src="js/module-init.js"></script>
+
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
+
+  <!-- Retro fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&family=Courier+Prime:wght@400;700&family=Share+Tech+Mono&family=Anonymous+Pro:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/themes.css">
+</head>
+<body>
+  <!-- Animated background orbs -->
+  <div class="bg-effects">
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+  </div>
+
+  <!-- =========================================
+       TOOLBAR
+       ========================================= -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <img src="Logo_ND.png" alt="ND Logo" class="toolbar-logo">
+      <span class="toolbar-brand">Norsk Data ND-100 Emulator</span>
+      <span class="toolbar-version">(v1.0.1)</span>
+    </div>
+    <div class="toolbar-center">
+      <!-- View dropdown -->
+      <div class="toolbar-menu-container" id="view-menu-container">
+        <button class="toolbar-menu-trigger" id="btn-view-menu">
+          View <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,3 5,6 8,3"/></svg>
+        </button>
+        <div class="toolbar-menu" id="view-menu">
+          <button class="toolbar-menu-item" id="menu-machine-info">Machine Info</button>
+          <button class="toolbar-menu-item" id="menu-cpu-load-graph">CPU Load</button>
+          <button class="toolbar-menu-item" id="menu-floppy-library">Floppy Library</button>
+          <div class="toolbar-menu-separator"></div>
+          <button class="toolbar-menu-item" id="menu-debugger">Debugger</button>
+          <button class="toolbar-menu-item" id="menu-disassembly">Disassembly</button>
+          <button class="toolbar-menu-item" id="menu-breakpoints">Breakpoints</button>
+        </div>
+      </div>
+      <!-- SINTRAN dropdown (hidden until detected) -->
+      <div class="toolbar-menu-container" id="sintran-menu-container" style="display: none;">
+        <button class="toolbar-menu-trigger" id="btn-sintran-menu">
+          SINTRAN <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,3 5,6 8,3"/></svg>
+        </button>
+        <div class="toolbar-menu" id="sintran-menu">
+          <button class="toolbar-menu-item" id="menu-system-info">System Information</button>
+          <div class="toolbar-menu-separator"></div>
+          <button class="toolbar-menu-item" id="menu-process-list">RT Descriptions</button>
+          <button class="toolbar-menu-item" id="menu-queue-viewer">Queue Viewer</button>
+          <button class="toolbar-menu-item" id="menu-segment-table">Segment Table</button>
+          <button class="toolbar-menu-item" id="menu-io-devices">I/O Devices</button>
+          <button class="toolbar-menu-item" id="menu-page-tables">Page Tables</button>
+          <div class="toolbar-menu-separator"></div>
+          <button class="toolbar-menu-item" id="menu-dump-memory">Dump Memory</button>
+        </div>
+      </div>
+      <!-- Help dropdown -->
+      <div class="toolbar-menu-container" id="help-menu-container">
+        <button class="toolbar-menu-trigger" id="btn-help-menu">
+          Help <svg class="chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,3 5,6 8,3"/></svg>
+        </button>
+        <div class="toolbar-menu" id="help-menu">
+          <button class="toolbar-menu-item" id="menu-sintran-help">SINTRAN Help</button>
+          <div class="toolbar-menu-separator"></div>
+          <button class="toolbar-menu-item" id="menu-about">About</button>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar-right">
+      <span id="status" class="toolbar-status">Initializing...</span>
+      <div class="toolbar-separator"></div>
+      <!-- Power -->
+      <button id="toolbar-power" class="toolbar-btn toolbar-power-btn" disabled title="Power on">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 3v5"/>
+          <path d="M18.36 6.64A9 9 0 1 1 5.64 6.64" fill="none"/>
+        </svg>
+      </button>
+      <!-- Boot device selector -->
+      <label class="toolbar-boot-label" for="boot-select">Boot:</label>
+      <select id="boot-select" class="toolbar-boot-select" disabled>
+        <option value="smd" selected>SMD</option>
+        <option value="floppy">FLOPPY</option>
+        <option value="bpun">BPUN</option>
+      </select>
+      <!-- Hidden file input for BPUN upload -->
+      <input type="file" id="bpun-file-input" accept=".bpun,.BPUN,.out,.img,.IMG" style="display:none">
+      <!-- Boot -->
+      <button id="toolbar-boot" class="toolbar-btn toolbar-boot-btn" disabled title="Boot">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <polygon points="5,3 13,8 5,13"/>
+        </svg>
+      </button>
+      <div class="toolbar-separator"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       MACHINE INFO WINDOW (visible by default)
+       ========================================= -->
+  <div id="machine-window" class="glass-window" style="display: flex;">
+    <div class="glass-window-header" id="machine-window-header">
+      <span class="glass-window-title">Machine Info</span>
+      <button class="glass-window-close" id="machine-window-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-window-body">
+      <div class="machine-info-row">
+        <span class="machine-info-label">Status</span>
+        <span class="machine-info-value" id="machine-status">Not initialized</span>
+      </div>
+      <div class="machine-info-row">
+        <span class="machine-info-label">CPU Load</span>
+        <span class="machine-info-value" id="machine-cpu-load">-</span>
+      </div>
+      <div class="machine-info-row">
+        <span class="machine-info-label">Levels</span>
+        <div class="machine-info-value lv-bars" id="machine-level-bars"></div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">SMD unit 0</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name">SMD0.IMG</span>
+        </div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">FLOPPY-DISC-1 (Unit 0)</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name" id="floppy-drive-1-name">Empty</span>
+          <button class="floppy-drive-mount" id="floppy-drive-1-mount">Mount</button>
+          <button class="floppy-drive-eject" id="floppy-drive-1-eject" style="display:none">Eject</button>
+        </div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">FLOPPY-DISC-1 (Unit 1)</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name" id="floppy-drive-2-name">Empty</span>
+          <button class="floppy-drive-mount" id="floppy-drive-2-mount">Mount</button>
+          <button class="floppy-drive-eject" id="floppy-drive-2-eject" style="display:none">Eject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       CPU LOAD GRAPH WINDOW (hidden by default)
+       ========================================= -->
+  <div id="cpu-load-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="cpu-load-window-header">
+      <span class="glass-window-title">CPU Load</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span id="cpu-load-graph-pct" style="font-size:11px;color:rgba(180,210,255,0.7);font-variant-numeric:tabular-nums;">0%</span>
+        <button class="glass-window-close" id="cpu-load-window-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="cpu-load-window-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <canvas id="cpu-load-canvas" style="width:100%;flex:1;display:block;"></canvas>
+    </div>
+  </div>
+
+  <!-- =========================================
+       ABOUT WINDOW (hidden by default)
+       ========================================= -->
+  <div id="about-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header">
+      <span class="glass-window-title">About</span>
+      <button class="glass-window-close" id="about-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-window-body">
+      <img src="Logo_ND.png" alt="ND Logo" class="about-logo">
+      <p class="about-title">nd100x</p>
+      <p class="about-description">
+        Open-source ND-100 emulator with complete CPU opcode set, memory paging/protection, and emulated peripherals for running original software.
+      </p>
+      <a href="https://github.com/HackerCorpLabs/nd100x" target="_blank" rel="noopener noreferrer" class="about-link">View on GitHub</a>
+    </div>
+  </div>
+
+  <!-- =========================================
+       CONFIG WINDOW (hidden by default)
+       ========================================= -->
+  <div id="config-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="config-window-header">
+      <span class="glass-window-title">Config</span>
+      <button class="glass-window-close" id="config-window-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-window-body">
+      <div class="config-section-title">Theme</div>
+      <div class="theme-grid">
+        <button class="theme-card active" data-theme="dark">
+          <div class="theme-swatch">
+            <div class="theme-swatch-bg" style="background:linear-gradient(135deg,#0a0c1a,#111336);"></div>
+            <div class="theme-swatch-glass" style="background:rgba(12,16,35,0.88);"></div>
+            <div class="theme-swatch-accent" style="background:rgba(0,200,180,0.8);"></div>
+          </div>
+          <span class="theme-card-label">Dark</span>
+        </button>
+        <button class="theme-card" data-theme="light">
+          <div class="theme-swatch">
+            <div class="theme-swatch-bg" style="background:#e8ecf4;"></div>
+            <div class="theme-swatch-glass" style="background:rgba(255,255,255,0.75);border-color:rgba(0,0,0,0.1);"></div>
+            <div class="theme-swatch-accent" style="background:rgba(50,100,200,0.8);"></div>
+          </div>
+          <span class="theme-card-label">Light</span>
+        </button>
+        <button class="theme-card" data-theme="amber">
+          <div class="theme-swatch">
+            <div class="theme-swatch-bg" style="background:#0a0800;"></div>
+            <div class="theme-swatch-glass" style="background:rgba(20,16,5,0.9);border-color:rgba(255,176,0,0.15);"></div>
+            <div class="theme-swatch-accent" style="background:rgba(255,176,0,0.8);"></div>
+          </div>
+          <span class="theme-card-label">Amber CRT</span>
+        </button>
+        <button class="theme-card" data-theme="nord">
+          <div class="theme-swatch">
+            <div class="theme-swatch-bg" style="background:#2e3440;"></div>
+            <div class="theme-swatch-glass" style="background:rgba(46,52,64,0.88);border-color:rgba(136,192,208,0.12);"></div>
+            <div class="theme-swatch-accent" style="background:rgba(136,192,208,0.8);"></div>
+          </div>
+          <span class="theme-card-label">Nord</span>
+        </button>
+        <button class="theme-card" data-theme="synthwave">
+          <div class="theme-swatch">
+            <div class="theme-swatch-bg" style="background:linear-gradient(135deg,#1a0a2e,#2d1050);"></div>
+            <div class="theme-swatch-glass" style="background:rgba(26,10,46,0.88);border-color:rgba(255,50,150,0.12);"></div>
+            <div class="theme-swatch-accent" style="background:rgba(255,50,150,0.8);"></div>
+          </div>
+          <span class="theme-card-label">Synthwave</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       TERMINAL WINDOW
+       ========================================= -->
+  <div id="terminal-window" class="terminal-window">
+    <div class="terminal-window-header" id="terminal-window-header">
+      <span class="terminal-window-title">Terminal (VT100) - Push ESC to wake up SINTRAN</span>
+      <div class="terminal-window-controls">
+        <select id="font-family-select" class="term-header-select" title="Font">
+          <option value="monospace" selected>Monospace</option>
+          <option value="'VT323', monospace">VT323 (Retro)</option>
+          <option value="'Fira Mono', monospace">Fira Mono</option>
+          <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
+          <option value="'Cascadia Mono', monospace">Cascadia Mono</option>
+          <option value="'Source Code Pro', monospace">Source Code Pro</option>
+        </select>
+        <select id="color-theme-select" class="term-header-select" title="Color Theme">
+          <option value="green" selected>Green (P1)</option>
+          <option value="amber">Amber (P3)</option>
+          <option value="white">White (P4)</option>
+          <option value="blue">Blue</option>
+          <option value="paperwhite">Paper-White</option>
+        </select>
+        <button class="terminal-window-btn" id="term-maximize" title="Maximize">
+          <svg id="term-maximize-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9,1 13,1 13,5"/>
+            <line x1="13" y1="1" x2="8" y2="6"/>
+            <polyline points="5,13 1,13 1,9"/>
+            <line x1="1" y1="13" x2="6" y2="8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="terminal-window-body" id="terminal-window-body">
+      <div class="terminal-tabs"></div>
+      <!-- Terminal containers created dynamically by JS -->
+    </div>
+  </div>
+
+  <!-- =========================================
+       LOADING OVERLAY
+       ========================================= -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="loading-text">Starting ND-100 emulation...</p>
+      <p class="loading-subtext" id="loading-boot-device">Booting from SMD</p>
+      <p class="loading-subtext">Please wait while the system initializes</p>
+      <div class="loading-buttons">
+        <button class="loading-btn loading-btn-cancel" id="loading-cancel-btn">Cancel</button>
+        <button class="loading-btn loading-btn-ok" id="loading-ok-btn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       FLOPPY BROWSER GLASS WINDOW
+       ========================================= -->
+  <div id="floppy-modal" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="floppy-modal-header">
+      <span class="glass-window-title">Floppy Library</span>
+      <button class="glass-window-close" id="floppy-modal-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="floppy-modal-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;">
+      <div class="floppy-loading" id="floppy-loading" style="display: none;">
+        <div class="floppy-spinner"></div>
+        <p>Loading floppy database...</p>
+      </div>
+      <div class="floppy-browser-main" id="floppy-browser-main" style="display: none;">
+        <div class="floppy-browser-left">
+          <div class="floppy-search-section">
+            <div class="search-container">
+              <input type="text" id="floppy-search" placeholder="Search floppies, products, or directory content..." />
+              <button id="search-clear" class="search-clear" style="display: none;">Clear</button>
+            </div>
+            <div class="product-selection-controls">
+              <button id="select-product-btn" class="select-product-button">Select Product</button>
+              <button id="clear-product-btn" class="clear-product-button" style="display: none;">Clear Filter</button>
+            </div>
+          </div>
+          <div class="floppy-list-section">
+            <div id="floppy-results-count" class="results-count"></div>
+            <div id="floppy-list" class="ndlib-floppy-list"></div>
+          </div>
+        </div>
+        <div class="floppy-browser-right">
+          <div id="floppy-details" class="floppy-details">
+            <div class="no-selection">
+              <p>Select a floppy from the list to view details</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="floppy-modal-footer">
+        <div class="floppy-download-progress" id="floppy-download-progress" style="display: none;">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <p id="progress-text">Downloading...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       PRODUCTS SELECTION MODAL
+       ========================================= -->
+  <div id="products-modal" class="floppy-modal" style="display: none;">
+    <div class="floppy-modal-content" style="max-width: 800px;">
+      <div class="floppy-modal-header">
+        <h3>Select Product</h3>
+        <button class="floppy-modal-close" id="products-modal-close">&times;</button>
+      </div>
+      <div class="products-modal-body">
+        <div class="product-filter-section">
+          <input type="text" id="product-filter" placeholder="Filter products by ID or name..." />
+        </div>
+        <div class="products-list-container">
+          <ul id="products-list" class="products-list"></ul>
+        </div>
+      </div>
+      <div class="floppy-modal-footer">
+        <button id="products-cancel-btn" class="products-modal-button cancel">Cancel</button>
+        <button id="products-ok-btn" class="products-modal-button ok" disabled>OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       SINTRAN HELP GLASS WINDOW
+       ========================================= -->
+  <div id="help-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="help-window-header">
+      <span class="glass-window-title">SINTRAN III Commands Reference</span>
+      <button class="glass-window-close" id="help-window-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="help-window-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="help-navigation" id="help-navigation" style="display: none;">
+      <div class="help-search-section">
+        <div class="search-container">
+          <div class="search-input-group">
+            <input type="text" id="help-search" placeholder="Search commands, descriptions, or parameters (press Enter)" />
+            <button id="help-search-clear" class="search-clear-small" style="display: none;">Clear</button>
+          </div>
+          <div class="search-navigation" id="search-navigation" style="display: none;">
+            <span class="search-results-count" id="search-results-count">0 matches</span>
+            <div class="search-nav-group">
+              <button id="search-prev" class="search-nav-btn" title="Previous match">&#8592; Prev</button>
+              <button id="search-next" class="search-nav-btn" title="Next match">Next &#8594;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="help-nav-buttons">
+        <button class="help-nav-btn active" data-section="all">All Sections</button>
+        <button class="help-nav-btn" data-section="index">Index</button>
+        <button class="help-nav-btn" data-section="commands">Commands</button>
+        <button class="help-nav-btn" data-section="sintran-service-program">Service Program</button>
+        <button class="help-nav-btn" data-section="nd-500-monitor-commands">ND-500 Monitor</button>
+        <button class="help-nav-btn" data-section="sintran-appendix">Appendix</button>
+      </div>
+    </div>
+    <div class="help-loading" id="help-loading" style="display: none;">
+      <div class="floppy-spinner"></div>
+      <p>Loading SINTRAN commands reference...</p>
+    </div>
+    <div id="help-content" class="help-content" style="display: none;"></div>
+  </div>
+
+  <!-- =========================================
+       DEBUGGER FLOATING WINDOW
+       ========================================= -->
+  <div id="debugger-window" class="debugger-window" style="display: none;">
+    <div class="debugger-header" id="debugger-header">
+      <span class="debugger-header-title">ND-100 Debugger</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="debugger-header-status paused" id="dbg-status">PAUSED</span>
+        <button class="debugger-header-close" id="dbg-close">&times;</button>
+      </div>
+    </div>
+    <div class="debugger-toolbar">
+      <button class="dbg-btn dbg-btn-run" id="dbg-run">Run</button>
+      <button class="dbg-btn dbg-btn-pause" id="dbg-pause">Pause</button>
+      <button class="dbg-btn dbg-btn-step" id="dbg-step" title="Step In (F11)">Step</button>
+      <button class="dbg-btn dbg-btn-stepover" id="dbg-step-over" title="Step Over (F10)">Over</button>
+      <button class="dbg-btn dbg-btn-stepout" id="dbg-step-out" title="Step Out (Shift+F11)">Out</button>
+      <button class="dbg-btn dbg-btn-step" id="dbg-step10" title="Step 10 instructions">x10</button>
+      <span class="dbg-instr-count" id="dbg-instr-count">IC: 0</span>
+    </div>
+    <div class="debugger-tabs">
+      <button class="debugger-tab active" data-tab="registers">Registers</button>
+      <button class="debugger-tab" data-tab="variables">Variables</button>
+      <button class="debugger-tab" data-tab="stack">Stack</button>
+      <button class="debugger-tab" data-tab="levels">Levels</button>
+      <button class="debugger-tab" data-tab="sysregs">System</button>
+      <button class="debugger-tab" data-tab="memory">Memory</button>
+    </div>
+    <div class="debugger-body">
+      <div class="debugger-tab-content active" data-tab="registers">
+        <div class="debugger-registers">
+          <div class="debugger-section-title">CPU Registers (Level <span id="dbg-pil-display">0</span>)</div>
+          <div class="reg-grid" id="dbg-reg-grid">
+            <div class="reg-item"><span class="reg-name">STS</span><span class="reg-value" id="dbg-r-sts">000000</span></div>
+            <div class="reg-item"><span class="reg-name">P</span><span class="reg-value" id="dbg-r-p">000000</span></div>
+            <div class="reg-item"><span class="reg-name">A</span><span class="reg-value" id="dbg-r-a">000000</span></div>
+            <div class="reg-item"><span class="reg-name">D</span><span class="reg-value" id="dbg-r-d">000000</span></div>
+            <div class="reg-item"><span class="reg-name">B</span><span class="reg-value" id="dbg-r-b">000000</span></div>
+            <div class="reg-item"><span class="reg-name">L</span><span class="reg-value" id="dbg-r-l">000000</span></div>
+            <div class="reg-item"><span class="reg-name">T</span><span class="reg-value" id="dbg-r-t">000000</span></div>
+            <div class="reg-item"><span class="reg-name">X</span><span class="reg-value" id="dbg-r-x">000000</span></div>
+          </div>
+          <div class="debugger-section-title" style="margin-top:6px">Effective Address</div>
+          <div class="reg-grid" style="grid-template-columns: 1fr;">
+            <div class="reg-item"><span class="reg-name">EA</span><span class="reg-value" id="dbg-r-ea">000000</span></div>
+          </div>
+        </div>
+        <div class="debugger-flags">
+          <div class="debugger-section-title">Status Flags</div>
+          <div class="flags-row">
+            <span class="flag-item" id="dbg-f-ptm">PTM</span>
+            <span class="flag-item" id="dbg-f-tg">TG</span>
+            <span class="flag-item" id="dbg-f-k">K</span>
+            <span class="flag-item" id="dbg-f-z">Z</span>
+            <span class="flag-item" id="dbg-f-q">Q</span>
+            <span class="flag-item" id="dbg-f-o">O</span>
+            <span class="flag-item" id="dbg-f-c">C</span>
+            <span class="flag-item" id="dbg-f-m">M</span>
+          </div>
+          <div class="flags-row" style="margin-top:3px">
+            <span class="flag-item" id="dbg-f-n100">N100</span>
+            <span class="flag-item" id="dbg-f-sexi">SEXI</span>
+            <span class="flag-item" id="dbg-f-poni">PONI</span>
+            <span class="flag-item" id="dbg-f-ioni">IONI</span>
+            <span class="flag-item" style="background:rgba(0,200,180,0.08);color:rgba(0,200,180,0.7)" id="dbg-f-pil">PIL: 0</span>
+          </div>
+        </div>
+      </div>
+      <div class="debugger-tab-content" data-tab="variables">
+        <div class="debugger-variables" id="dbg-variables-view" style="padding:8px 14px;font-size:11px;"></div>
+      </div>
+      <div class="debugger-tab-content" data-tab="stack">
+        <div class="debugger-stacktrace" id="dbg-stacktrace-view" style="padding:8px 14px;"></div>
+      </div>
+      <div class="debugger-tab-content" data-tab="levels">
+        <div class="debugger-levels">
+          <div class="debugger-section-title">Interrupt Levels (<span title="Priority Interrupt Level - currently executing level">PIL</span>: <span id="dbg-level-pil">0</span>, <span title="Previous interrupt Level - level that was interrupted">PVL</span>: <span id="dbg-level-pvl">000000</span>)</div>
+          <div class="level-grid" id="dbg-levels-grid"></div>
+        </div>
+      </div>
+      <div class="debugger-tab-content" data-tab="sysregs">
+        <div class="debugger-sysregs">
+          <div class="debugger-section-title">Read-Only Registers</div>
+          <div class="sysreg-grid" id="dbg-sysregs-ro"></div>
+          <div class="debugger-section-title" style="margin-top:8px">Write-Only Registers</div>
+          <div class="sysreg-grid" id="dbg-sysregs-wo"></div>
+        </div>
+      </div>
+      <div class="debugger-tab-content" data-tab="memory">
+        <div class="debugger-memory">
+          <div class="debugger-section-title">Memory Dump</div>
+          <div class="memory-controls">
+            <label style="font-size:11px;color:rgba(160,175,210,0.6)">Addr (octal):</label>
+            <input type="text" id="dbg-mem-addr" value="0" placeholder="Address">
+            <button class="dbg-btn dbg-btn-step" id="dbg-mem-go" style="min-width:40px">Go</button>
+            <label style="font-size:11px;color:rgba(160,175,210,0.6);margin-left:8px">Words:</label>
+            <input type="text" id="dbg-mem-count" value="64" placeholder="Count" style="width:50px">
+          </div>
+          <div class="memory-dump" id="dbg-mem-dump"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       DISASSEMBLY GLASS WINDOW
+       ========================================= -->
+  <div id="disasm-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="disasm-window-header">
+      <span class="glass-window-title">Disassembly</span>
+      <button class="glass-window-close" id="disasm-window-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="disasm-window-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;">
+      <div class="disasm-view" id="disasm-standalone-view"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       BREAKPOINTS GLASS WINDOW
+       ========================================= -->
+  <div id="breakpoints-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="breakpoints-window-header">
+      <span class="glass-window-title">Breakpoints</span>
+      <button class="glass-window-close" id="breakpoints-window-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="breakpoints-window-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="bp-add-bar">
+        <input type="text" id="bp-add-addr" placeholder="Address (octal)" class="bp-input">
+        <select id="bp-add-type" class="bp-select">
+          <option value="exec">Execution</option>
+          <option value="read">Read</option>
+          <option value="write">Write</option>
+          <option value="readwrite">Read/Write</option>
+        </select>
+        <button class="bp-add-btn" id="bp-add-btn">Add</button>
+      </div>
+      <div class="bp-section-header">Execution Breakpoints</div>
+      <div class="bp-list" id="bp-exec-list"></div>
+      <div class="bp-section-header">Memory Watchpoints</div>
+      <div class="bp-list" id="bp-watch-list"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       SYSTEM INFORMATION WINDOW (hidden by default)
+       ========================================= -->
+  <div id="sysinfo-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="sysinfo-window-header">
+      <span class="glass-window-title">System Information</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="sysinfo-refresh-btn copy-table-btn" id="sysinfo-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="sysinfo-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="sysinfo-window-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-window-body" id="sysinfo-body">
+      <!-- Content populated by sintran.js -->
+    </div>
+  </div>
+
+  <!-- =========================================
+       PROCESS LIST WINDOW (hidden by default)
+       ========================================= -->
+  <div id="process-list-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="process-list-header">
+      <span class="glass-window-title">RT Descriptions</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <label class="proc-auto-label"><input type="checkbox" id="proc-auto-refresh" checked> Auto</label>
+        <button class="sysinfo-refresh-btn copy-table-btn" id="proc-list-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="proc-list-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="proc-list-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="process-list-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="proc-filter-bar" id="proc-filter-bar">
+        <label class="proc-filter-chip"><input type="checkbox" value="Running" checked><span class="proc-chip-label proc-running">Running</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="I/O Wait" checked><span class="proc-chip-label proc-waiting">I/O Wait</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="Ready"><span class="proc-chip-label proc-ready">Ready</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="Res Wait"><span class="proc-chip-label proc-waiting">Res Wait</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="Swap Wait"><span class="proc-chip-label proc-waiting">Swap Wait</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="Off"><span class="proc-chip-label proc-off">Off</span></label>
+        <label class="proc-filter-chip"><input type="checkbox" value="Idle"><span class="proc-chip-label proc-idle">Idle</span></label>
+      </div>
+      <div class="proc-list-table" id="proc-list-body"></div>
+      <div class="proc-detail" id="proc-detail-panel" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       QUEUE VIEWER WINDOW (hidden by default)
+       ========================================= -->
+  <div id="queue-viewer-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="queue-viewer-header">
+      <span class="glass-window-title">Queue Viewer</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <label class="proc-auto-label"><input type="checkbox" id="queue-auto-refresh" checked> Auto</label>
+        <button class="sysinfo-refresh-btn copy-table-btn" id="queue-viewer-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="queue-viewer-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="queue-viewer-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="queue-viewer-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="queue-tabs">
+        <button class="queue-tab active" data-tab="exec">Execution</button>
+        <button class="queue-tab" data-tab="time">Time</button>
+        <button class="queue-tab" data-tab="mon">Monitor</button>
+      </div>
+      <div class="queue-tab-content active" data-tab="exec" id="queue-exec-content"></div>
+      <div class="queue-tab-content" data-tab="time" id="queue-time-content"></div>
+      <div class="queue-tab-content" data-tab="mon" id="queue-mon-content"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       SEGMENT TABLE WINDOW (hidden by default)
+       ========================================= -->
+  <div id="segment-table-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="segment-table-header">
+      <span class="glass-window-title">Segment Table</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <label class="proc-auto-label"><input type="checkbox" id="segment-auto-refresh" checked> Auto</label>
+        <button class="sysinfo-refresh-btn copy-table-btn" id="segment-table-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="segment-table-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="segment-table-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="segment-table-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="proc-list-table" id="segment-table-body"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       I/O DEVICES WINDOW (hidden by default)
+       ========================================= -->
+  <div id="io-devices-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="io-devices-header">
+      <span class="glass-window-title">I/O Devices</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <label class="proc-auto-label"><input type="checkbox" id="io-auto-refresh" checked> Auto</label>
+        <button class="sysinfo-refresh-btn copy-table-btn" id="io-devices-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="io-devices-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="io-devices-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="io-devices-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="io-filter-bar" id="io-filter-bar">
+        <label class="io-filter-label" title="Filter devices by operational state">Show:
+          <select id="io-filter-level" class="term-header-select" style="min-width:120px;max-width:160px;" title="All: every known address&#10;Configured: TYPRI or driver set&#10;Initialized: driver + ISET flag&#10;Active: driver + reserved by a program">
+            <option value="all">All</option>
+            <option value="configured">Configured</option>
+            <option value="initialized" selected>Initialized</option>
+            <option value="active">Active</option>
+          </select>
+        </label>
+      </div>
+      <div class="io-dev-tabs" id="io-dev-tabs"></div>
+      <div class="io-dev-tab-content" id="io-devices-body"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       PAGE TABLE WINDOW (hidden by default)
+       ========================================= -->
+  <div id="page-table-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="page-table-header">
+      <span class="glass-window-title">Page Tables</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <select id="pt-select" class="term-header-select" title="Page Table" style="width:70px;"></select>
+        <button class="sysinfo-refresh-btn copy-table-btn" id="page-table-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="page-table-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="page-table-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="page-table-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="pt-info-bar" id="pt-info" style="padding:4px 10px;font-size:11px;color:rgba(160,175,210,0.6);border-bottom:1px solid rgba(255,255,255,0.06);">Select a page table</div>
+      <div class="proc-list-table" id="pt-table-body" style="flex:1;overflow:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Load Emscripten-generated JS after Module is defined -->
+  <script src="nd100wasm.js"></script>
+
+  <!-- Application JS modules -->
+  <script src="js/theme-manager.js"></script>
+  <script src="js/terminal.js"></script>
+  <script src="js/emulation.js"></script>
+  <script src="js/toolbar.js"></script>
+  <script src="js/floppy-browser.js"></script>
+  <script src="js/help-window.js"></script>
+  <script src="js/debugger.js"></script>
+  <script src="js/disassembly.js"></script>
+  <script src="js/breakpoints.js"></script>
+  <script src="js/sintran.js"></script>
+  <script src="js/sintran-symbols.js"></script>
+  <script src="js/sintran-rt-names.js"></script>
+  <script src="js/sintran-processes.js"></script>
+  <script src="js/sintran-queues.js"></script>
+  <script src="js/sintran-seg-names.js"></script>
+  <script src="js/sintran-segments.js"></script>
+  <script src="js/sintran-dev-names.js"></script>
+  <script src="js/sintran-devices.js"></script>
+  <script src="js/pagetables.js"></script>
+  <!-- Window taskbar -->
+  <div class="window-taskbar" id="window-taskbar-outer">
+    <div id="window-taskbar" style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;"></div>
+    <div id="taskbar-level-bars" class="lv-bars lv-bars-sm"></div>
+    <div id="taskbar-cpu-load" class="taskbar-cpu-load" title="CPU Load - click to open graph">
+      <canvas id="taskbar-cpu-canvas" width="160" height="48"></canvas>
+    </div>
+    <button id="taskbar-settings" class="taskbar-settings-btn" title="Settings">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+
+  <script src="js/cpu-load-graph.js"></script>
+</body>
+</html>

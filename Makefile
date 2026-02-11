@@ -96,11 +96,21 @@ wasm-glass: check-deps mkptypes
 	@cp template-glass/index.html $(BUILD_DIR_WASM_GLASS)/bin/index.html
 	@cp -r template-glass/css $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/js $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp -r template-glass/data $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template/Logo_ND.png template/favicon.ico template/favicon.png $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template/floppies $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
-	@cp FLOPPY.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in index.html
+	@BUILD_TS=$$(date +%s); \
+	sed -i \
+	  -e "s|src=\"js/|src=\"js/|g" \
+	  -e "s|src=\"nd100wasm.js\"|src=\"nd100wasm.js?v=$$BUILD_TS\"|g" \
+	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
+	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \
+	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \
+	  $(BUILD_DIR_WASM_GLASS)/bin/index.html; \
+	echo "Cache-bust: v=$$BUILD_TS"
 	@echo ""
 	@echo "WebAssembly build (glassmorphism UI) completed successfully!"
 	@echo "To test in a browser, serve the build directory via HTTP:"
