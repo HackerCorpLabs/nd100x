@@ -1,0 +1,8962 @@
+{
+  "0": {
+    "desc": "INBT/INCH: edited input (background) / dummy",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "1": {
+    "desc": "Terminal 1 (console) / background own terminal",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "2": {
+    "desc": "Error device (output) / Paper tape reader 1 (input)",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "3": {
+    "desc": "Paper tape punch 1",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "4": {
+    "desc": "Card reader 1",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "5": {
+    "desc": "Line printer 1",
+    "group": "DV000",
+    "cat": "printer"
+  },
+  "6": {
+    "desc": "Synchronous modem 1",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "7": {
+    "desc": "Terminal 17",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "10": {
+    "desc": "Plotter 1",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "11": {
+    "desc": "Terminal 2",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "12": {
+    "desc": "Paper tape reader 2 / mode file internal device",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "13": {
+    "desc": "Paper tape punch 2 / mode file internal device",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "14": {
+    "desc": "Bus switch device",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "15": {
+    "desc": "Line printer 2",
+    "group": "DV000",
+    "cat": "printer"
+  },
+  "16": {
+    "desc": "Synchronous modem 2",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "17": {
+    "desc": "Terminal 18",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "20": {
+    "desc": "Cassette drive 1",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "21": {
+    "desc": "Cassette drive 2",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "22": {
+    "desc": "Versatec printer/plotter 1 (DMA) / IBM communication",
+    "group": "DV000",
+    "cat": "printer"
+  },
+  "23": {
+    "desc": "Versatec printer/plotter 2 (DMA)",
+    "group": "DV000",
+    "cat": "printer"
+  },
+  "24": {
+    "desc": "Tektronix display",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "25": {
+    "desc": "Magnetic tape controller 1, unit 2",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "26": {
+    "desc": "Synchronous modem 5",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "27": {
+    "desc": "Synchronous modem 6",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "30": {
+    "desc": "Synchronous modem 3",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "31": {
+    "desc": "Synchronous modem 4",
+    "group": "DV000",
+    "cat": "modem"
+  },
+  "32": {
+    "desc": "Magnetic tape controller 2, unit 0",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "33": {
+    "desc": "Magnetic tape controller 1, unit 3",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "34": {
+    "desc": "Magnetic tape controller 2, unit 1",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "35": {
+    "desc": "Card punch 3",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "36": {
+    "desc": "CDC link / TTY link sender",
+    "group": "DV000",
+    "cat": "communication"
+  },
+  "37": {
+    "desc": "TTY link receiver",
+    "group": "DV000",
+    "cat": "communication"
+  },
+  "40": {
+    "desc": "Magnetic tape controller 1, unit 0",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "41": {
+    "desc": "Magnetic tape controller 1, unit 1",
+    "group": "DV000",
+    "cat": "tape"
+  },
+  "42": {
+    "desc": "Terminal 3",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "43": {
+    "desc": "Terminal 4 / barcode reader",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "44": {
+    "desc": "Terminal 5 / barcode reader",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "45": {
+    "desc": "Terminal 6",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "46": {
+    "desc": "Terminal 7",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "47": {
+    "desc": "Terminal 8",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "50": {
+    "desc": "Card punch 1",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "51": {
+    "desc": "Card punch 2",
+    "group": "DV000",
+    "cat": "character"
+  },
+  "52": {
+    "desc": "Terminal 19",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "53": {
+    "desc": "Terminal 20",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "54": {
+    "desc": "Terminal 21",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "55": {
+    "desc": "Terminal 22",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "56": {
+    "desc": "Terminal 23",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "57": {
+    "desc": "Terminal 24",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "60": {
+    "desc": "Terminal 9",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "61": {
+    "desc": "Terminal 10",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "62": {
+    "desc": "Terminal 11",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "63": {
+    "desc": "Terminal 12",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "64": {
+    "desc": "Terminal 13",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "65": {
+    "desc": "Terminal 14",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "66": {
+    "desc": "Terminal 15",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "67": {
+    "desc": "Terminal 16",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "70": {
+    "desc": "Terminal 25 / special sync modem 5",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "71": {
+    "desc": "Terminal 26 / special sync modem 6",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "72": {
+    "desc": "Terminal 27 / special sync modem 7 / Graf cassette 1",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "73": {
+    "desc": "Terminal 28 / special sync modem 8 / Graf cassette 2",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "74": {
+    "desc": "Terminal 29 / special sync modem 9 / photosetter 1",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "75": {
+    "desc": "Terminal 30 / photosetter 2",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "76": {
+    "desc": "Terminal 31 / photosetter 3",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "77": {
+    "desc": "Terminal 32",
+    "group": "DV000",
+    "cat": "terminal"
+  },
+  "100": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "101": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "102": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "103": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "104": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "105": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "106": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "107": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "110": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "111": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "112": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "113": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "114": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "115": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "116": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "117": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "120": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "121": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "122": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "123": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "124": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "125": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "126": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "127": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "130": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "131": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "132": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "133": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "134": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "135": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "136": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "137": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "140": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "141": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "142": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "143": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "144": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "145": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "146": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "147": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "150": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "151": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "152": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "153": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "154": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "155": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "156": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "157": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "160": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "161": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "162": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "163": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "164": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "165": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "166": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "167": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "170": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "171": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "172": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "173": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "174": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "175": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "176": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "177": {
+    "desc": "Open mass storage file",
+    "group": "(reserved)",
+    "cat": "file"
+  },
+  "200": {
+    "desc": "Internal device 1",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "201": {
+    "desc": "Internal device 2",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "202": {
+    "desc": "Internal device 3",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "203": {
+    "desc": "Internal device 4",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "204": {
+    "desc": "Internal device 5",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "205": {
+    "desc": "Internal device 6",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "206": {
+    "desc": "Internal device 7",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "207": {
+    "desc": "Internal device 8",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "210": {
+    "desc": "Internal device 9",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "211": {
+    "desc": "Internal device 10",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "212": {
+    "desc": "Internal device 11",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "213": {
+    "desc": "Internal device 12",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "214": {
+    "desc": "Internal device 13",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "215": {
+    "desc": "Internal device 14",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "216": {
+    "desc": "Internal device 15",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "217": {
+    "desc": "Internal device 16",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "220": {
+    "desc": "Internal device 17",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "221": {
+    "desc": "Internal device 18",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "222": {
+    "desc": "Internal device 19",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "223": {
+    "desc": "Internal device 20",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "224": {
+    "desc": "Internal device 21",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "225": {
+    "desc": "Internal device 22",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "226": {
+    "desc": "Internal device 23",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "227": {
+    "desc": "Internal device 24",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "230": {
+    "desc": "Internal device 25",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "231": {
+    "desc": "Internal device 26",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "232": {
+    "desc": "Internal device 27",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "233": {
+    "desc": "Internal device 28",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "234": {
+    "desc": "Internal device 29",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "235": {
+    "desc": "Internal device 30",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "236": {
+    "desc": "Internal device 31",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "237": {
+    "desc": "Internal device 32",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "240": {
+    "desc": "SIBAS internal device 1",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "241": {
+    "desc": "SIBAS internal device 2",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "242": {
+    "desc": "SIBAS internal device 3",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "243": {
+    "desc": "SIBAS internal device 4",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "244": {
+    "desc": "SIBAS internal device 5",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "245": {
+    "desc": "SIBAS internal device 6",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "246": {
+    "desc": "SIBAS internal device 7",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "247": {
+    "desc": "SIBAS internal device 8",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "250": {
+    "desc": "SIBAS internal device 9",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "251": {
+    "desc": "SIBAS internal device 10",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "252": {
+    "desc": "SIBAS internal device 11",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "253": {
+    "desc": "SIBAS internal device 12",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "254": {
+    "desc": "SIBAS internal device 13",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "255": {
+    "desc": "SIBAS internal device 14",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "256": {
+    "desc": "SIBAS internal device 15",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "257": {
+    "desc": "SIBAS internal device 16",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "260": {
+    "desc": "SIBAS internal device 17",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "261": {
+    "desc": "SIBAS internal device 18",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "262": {
+    "desc": "SIBAS internal device 19",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "263": {
+    "desc": "SIBAS internal device 20",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "264": {
+    "desc": "SIBAS internal device 21",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "265": {
+    "desc": "SIBAS internal device 22",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "266": {
+    "desc": "SIBAS internal device 23",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "267": {
+    "desc": "SIBAS internal device 24",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "270": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "271": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "272": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "273": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "274": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "275": {
+    "desc": "Not used",
+    "group": "DV200",
+    "cat": "system"
+  },
+  "276": {
+    "desc": "Internal device for ERS/SINTRAN III Watchdog",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "277": {
+    "desc": "Internal device for FTX error logger",
+    "group": "DV200",
+    "cat": "internal"
+  },
+  "300": {
+    "desc": "User semaphore 1",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "301": {
+    "desc": "User semaphore 2",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "302": {
+    "desc": "User semaphore 3",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "303": {
+    "desc": "User semaphore 4",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "304": {
+    "desc": "User semaphore 5",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "305": {
+    "desc": "User semaphore 6",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "306": {
+    "desc": "User semaphore 7",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "307": {
+    "desc": "User semaphore 8",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "310": {
+    "desc": "User semaphore 9",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "311": {
+    "desc": "User semaphore 10",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "312": {
+    "desc": "User semaphore 11",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "313": {
+    "desc": "User semaphore 12",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "314": {
+    "desc": "User semaphore 13",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "315": {
+    "desc": "User semaphore 14",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "316": {
+    "desc": "User semaphore 15",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "317": {
+    "desc": "User semaphore 16",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "320": {
+    "desc": "User semaphore 17",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "321": {
+    "desc": "User semaphore 18",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "322": {
+    "desc": "User semaphore 19",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "323": {
+    "desc": "User semaphore 20",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "324": {
+    "desc": "User semaphore 21",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "325": {
+    "desc": "User semaphore 22",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "326": {
+    "desc": "User semaphore 23",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "327": {
+    "desc": "User semaphore 24",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "330": {
+    "desc": "User semaphore 25",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "331": {
+    "desc": "User semaphore 26",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "332": {
+    "desc": "User semaphore 27",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "333": {
+    "desc": "User semaphore 28",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "334": {
+    "desc": "User semaphore 29",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "335": {
+    "desc": "User semaphore 30",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "336": {
+    "desc": "User semaphore 31",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "337": {
+    "desc": "User semaphore 32",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "340": {
+    "desc": "User semaphore 33",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "341": {
+    "desc": "User semaphore 34",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "342": {
+    "desc": "User semaphore 35",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "343": {
+    "desc": "User semaphore 36",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "344": {
+    "desc": "User semaphore 37",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "345": {
+    "desc": "User semaphore 38",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "346": {
+    "desc": "User semaphore 39",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "347": {
+    "desc": "User semaphore 40",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "350": {
+    "desc": "User semaphore 41",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "351": {
+    "desc": "User semaphore 42",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "352": {
+    "desc": "User semaphore 43",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "353": {
+    "desc": "User semaphore 44",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "354": {
+    "desc": "User semaphore 45",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "355": {
+    "desc": "User semaphore 46",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "356": {
+    "desc": "User semaphore 47",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "357": {
+    "desc": "User semaphore 48",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "360": {
+    "desc": "User semaphore 49",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "361": {
+    "desc": "User semaphore 50",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "362": {
+    "desc": "User semaphore 51",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "363": {
+    "desc": "User semaphore 52",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "364": {
+    "desc": "User semaphore 53",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "365": {
+    "desc": "User semaphore 54",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "366": {
+    "desc": "User semaphore 55",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "367": {
+    "desc": "User semaphore 56",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "370": {
+    "desc": "User semaphore 57",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "371": {
+    "desc": "User semaphore 58",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "372": {
+    "desc": "User semaphore 59",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "373": {
+    "desc": "User semaphore 60 (also Backup-System)",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "374": {
+    "desc": "User semaphore 61 (also Backup-System)",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "375": {
+    "desc": "User semaphore 62 (also Backup-System)",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "376": {
+    "desc": "User semaphore 63 (also Backup-System)",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "377": {
+    "desc": "User semaphore 64 (also Backup-System)",
+    "group": "DV300",
+    "cat": "semaphore"
+  },
+  "400": {
+    "desc": "CAMAC 1 / Special DMA DF 1 / Digital I/O 1 / DR11C 1 / Aristogrid 1",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "401": {
+    "desc": "CAMAC 2 / Special DMA DF 2 / Digital I/O 2 / DR11C 2 / Aristogrid 1",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "402": {
+    "desc": "CAMAC 3 / Special DMA DF 3 / Digital I/O 3 / DR11C 3 / Aristogrid 2",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "403": {
+    "desc": "CAMAC 4 / Special DMA DF 4 / Digital I/O 4 / DR11C 4 / Aristogrid 2",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "404": {
+    "desc": "CAMAC 5 / Special DMA DF 5 / Digital I/O 5 / DR11C 5 / Aristogrid 3",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "405": {
+    "desc": "CAMAC 6 / Special DMA DF 6 / Digital I/O 6 / DR11C 6 / Aristogrid 3",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "406": {
+    "desc": "CAMAC 7 / Digital I/O 7 / DR11C 7 / Aristogrid 4",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "407": {
+    "desc": "CAMAC 8 / Digital I/O 8 / DR11C 8 / Aristogrid 4",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "410": {
+    "desc": "CAMAC 9 / Special DMA DF 7 / Digital I/O 9 / DR11C 9 / Norcontrol PIO 1 / Aristogrid 5",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "411": {
+    "desc": "CAMAC 10 / Special DMA DF 8 / Digital I/O 10 / DR11C 10 / Norcontrol PIO 2 / Aristogrid 5",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "412": {
+    "desc": "CAMAC 11 / Digital I/O 11 / DR11C 11 / Norcontrol PIO 3 / Aristogrid 6",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "413": {
+    "desc": "CAMAC 12 / Special DMA DF 9 / Digital I/O 12 / DR11C 12 / Norcontrol PIO 4 / Aristogrid 6",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "414": {
+    "desc": "CAMAC 13 / Special DMA DF 10 / Digital I/O 13 / DR11C 13 / Norcontrol PIO 5 / Aristogrid 7",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "415": {
+    "desc": "CAMAC 14 / Special DMA DF 11 / Digital I/O 14 / DR11C 14 / Norcontrol PIO 6 / Aristogrid 7",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "416": {
+    "desc": "CAMAC 15 / Digital I/O 15 / DR11C 15 / Norcontrol PIO 7 / Aristogrid 8",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "417": {
+    "desc": "CAMAC 16 / Digital I/O 16 / DR11C 16 / Norcontrol PIO 8 / Aristogrid 8",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "420": {
+    "desc": "CAMAC 17 / Digital I/O 17 / DR11C 17 / Norcontrol PIO 9 / Aristogrid 9",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "421": {
+    "desc": "Digital I/O 18 / DR11C 18 / Norcontrol PIO 10 / Aristogrid 9",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "422": {
+    "desc": "Digital I/O 19 / DR11C 19 / Norcontrol PIO 11 / Aristogrid 10",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "423": {
+    "desc": "Digital I/O 20 / DR11C 20 / Norcontrol PIO 12 / Aristogrid 10",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "424": {
+    "desc": "Norcontrol process I/O 13",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "425": {
+    "desc": "Norcontrol process I/O 14",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "426": {
+    "desc": "Norcontrol process I/O 15",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "427": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "430": {
+    "desc": "Analog input unit 1",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "431": {
+    "desc": "Analog input unit 2",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "432": {
+    "desc": "Analog input unit 3",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "433": {
+    "desc": "Analog input unit 4",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "434": {
+    "desc": "Analog input unit 5",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "435": {
+    "desc": "Analog input unit 6",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "436": {
+    "desc": "Analog input unit 7",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "437": {
+    "desc": "Analog input unit 8",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "440": {
+    "desc": "Direct task level 6",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "441": {
+    "desc": "Direct task level 7",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "442": {
+    "desc": "Direct task level 8",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "443": {
+    "desc": "Direct task level 9",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "444": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "445": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "446": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "447": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "450": {
+    "desc": "CONNECT device 1",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "451": {
+    "desc": "CONNECT device 2",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "452": {
+    "desc": "CONNECT device 3",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "453": {
+    "desc": "CONNECT device 4",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "454": {
+    "desc": "CONNECT device 5",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "455": {
+    "desc": "CONNECT device 6",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "456": {
+    "desc": "CONNECT device 7",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "457": {
+    "desc": "CONNECT device 8",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "460": {
+    "desc": "CONNECT device 9",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "461": {
+    "desc": "CONNECT device 10",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "462": {
+    "desc": "CONNECT device 11",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "463": {
+    "desc": "CONNECT device 12",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "464": {
+    "desc": "CONNECT device 13",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "465": {
+    "desc": "CONNECT device 14",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "466": {
+    "desc": "CONNECT device 15",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "467": {
+    "desc": "CONNECT device 16",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "470": {
+    "desc": "ND 23 - programmed clock",
+    "group": "DV400",
+    "cat": "process"
+  },
+  "471": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "472": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "473": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "474": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "475": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "476": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "477": {
+    "desc": "Not used",
+    "group": "DV400",
+    "cat": "system"
+  },
+  "500": {
+    "desc": "Internal device for error message RT-program",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "501": {
+    "desc": "Semaphore for segment transfer",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "502": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "503": {
+    "desc": "RT-Loader command semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "504": {
+    "desc": "General semaphore for file system",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "505": {
+    "desc": "User-file-buffer semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "506": {
+    "desc": "Object-file-buffer semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "507": {
+    "desc": "RT-open-file-table semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "510": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "511": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "512": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "513": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "514": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "515": {
+    "desc": "DF1, file-transfer for RT, semaphore for disk 1-4",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "516": {
+    "desc": "DF2, open-file mon call from RT-program data field",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "517": {
+    "desc": "RTFIL semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "520": {
+    "desc": "NOTIS-IR semaphore 2",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "521": {
+    "desc": "Device buffer allocation semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "522": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "523": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "524": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "525": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "526": {
+    "desc": "DF3, transfer semaphore for magnetic tape 1",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "527": {
+    "desc": "Spooling queue semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "530": {
+    "desc": "Accounting semaphore",
+    "group": "DV500",
+    "cat": "semaphore"
+  },
+  "531": {
+    "desc": "CDC link monitor call data field",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "532": {
+    "desc": "Spooling device 4, queue semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "533": {
+    "desc": "Spooling device 4, I/O semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "534": {
+    "desc": "Spooling device 5, queue semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "535": {
+    "desc": "Spooling device 5, I/O semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "536": {
+    "desc": "Spooling device 6, queue semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "537": {
+    "desc": "Spooling device 6, I/O semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "540": {
+    "desc": "Internal device Remote Batch IBM",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "541": {
+    "desc": "Internal device Remote Batch UNIVAC",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "542": {
+    "desc": "Internal device Remote Batch Honeywell Bull",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "543": {
+    "desc": "Internal device Remote Batch CDC",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "544": {
+    "desc": "ECC disk ctrl 3, unit 0, directory semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "545": {
+    "desc": "ECC disk ctrl 3, unit 0, bit file semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "546": {
+    "desc": "ECC disk ctrl 3, unit 1, directory semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "547": {
+    "desc": "ECC disk ctrl 3, unit 1, bit file semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "550": {
+    "desc": "ECC disk ctrl 3, unit 2, directory semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "551": {
+    "desc": "ECC disk ctrl 3, unit 2, bit file semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "552": {
+    "desc": "ECC disk ctrl 3, unit 3, directory semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "553": {
+    "desc": "ECC disk ctrl 3, unit 3, bit file semaphore",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "554": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "555": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "556": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "557": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "560": {
+    "desc": "Magnetic tape controller 1, data field",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "561": {
+    "desc": "All magnetic tapes, directory semaphore",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "562": {
+    "desc": "Spooling device 11, queue semaphore",
+    "group": "DV500",
+    "cat": "spooling"
+  },
+  "563": {
+    "desc": "Magnetic tape controller 2, unit 2, I/O data field",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "564": {
+    "desc": "Magnetic tape controller 2, unit 3, I/O data field",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "565": {
+    "desc": "ECC disk controller 3, data field",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "566": {
+    "desc": "ECC disk controller 4, data field",
+    "group": "DV500",
+    "cat": "disk"
+  },
+  "567": {
+    "desc": "CDC link data field",
+    "group": "DV500",
+    "cat": "communication"
+  },
+  "570": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "571": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "572": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "573": {
+    "desc": "Not used",
+    "group": "DV500",
+    "cat": "system"
+  },
+  "574": {
+    "desc": "Monitor call data field for cassette",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "575": {
+    "desc": "Cassette data field",
+    "group": "DV500",
+    "cat": "tape"
+  },
+  "576": {
+    "desc": "DF5, monitor call data field for Versatec 1",
+    "group": "DV500",
+    "cat": "printer"
+  },
+  "577": {
+    "desc": "Versatec data field",
+    "group": "DV500",
+    "cat": "printer"
+  },
+  "600": {
+    "desc": "BADMIN semaphores",
+    "group": "DV600",
+    "cat": "semaphore"
+  },
+  "601": {
+    "desc": "BASEM",
+    "group": "DV600",
+    "cat": "semaphore"
+  },
+  "602": {
+    "desc": "Default subsystem semaphore",
+    "group": "DV600",
+    "cat": "semaphore"
+  },
+  "603": {
+    "desc": "Not used",
+    "group": "DV600",
+    "cat": "system"
+  },
+  "604": {
+    "desc": "Spooling device 31, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "605": {
+    "desc": "Spooling device 31, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "606": {
+    "desc": "Spooling device 32, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "607": {
+    "desc": "Spooling device 32, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "610": {
+    "desc": "Spooling device 33, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "611": {
+    "desc": "Spooling device 33, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "612": {
+    "desc": "Spooling device 34, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "613": {
+    "desc": "Spooling device 34, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "614": {
+    "desc": "Spooling device 35, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "615": {
+    "desc": "Spooling device 35, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "616": {
+    "desc": "Spooling device 36, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "617": {
+    "desc": "Spooling device 36, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "620": {
+    "desc": "Spooling device 37, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "621": {
+    "desc": "Spooling device 37, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "622": {
+    "desc": "Spooling device 38, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "623": {
+    "desc": "Spooling device 38, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "624": {
+    "desc": "Spooling device 39, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "625": {
+    "desc": "Spooling device 39, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "626": {
+    "desc": "Spooling device 40, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "627": {
+    "desc": "Spooling device 40, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "630": {
+    "desc": "Spooling device 41, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "631": {
+    "desc": "Spooling device 41, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "632": {
+    "desc": "Spooling device 42, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "633": {
+    "desc": "Spooling device 42, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "634": {
+    "desc": "Spooling device 43, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "635": {
+    "desc": "Spooling device 43, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "636": {
+    "desc": "Spooling device 44, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "637": {
+    "desc": "Spooling device 44, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "640": {
+    "desc": "Spooling device 45, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "641": {
+    "desc": "Spooling device 45, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "642": {
+    "desc": "Spooling device 46, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "643": {
+    "desc": "Spooling device 46, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "644": {
+    "desc": "Spooling device 47, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "645": {
+    "desc": "Spooling device 47, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "646": {
+    "desc": "Spooling device 48, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "647": {
+    "desc": "Spooling device 48, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "650": {
+    "desc": "Spooling device 49, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "651": {
+    "desc": "Spooling device 49, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "652": {
+    "desc": "Spooling device 50, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "653": {
+    "desc": "Spooling device 50, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "654": {
+    "desc": "Spooling device 51, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "655": {
+    "desc": "Spooling device 51, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "656": {
+    "desc": "Spooling device 52, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "657": {
+    "desc": "Spooling device 52, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "660": {
+    "desc": "Spooling device 53, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "661": {
+    "desc": "Spooling device 53, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "662": {
+    "desc": "Spooling device 54, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "663": {
+    "desc": "Spooling device 54, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "664": {
+    "desc": "Spooling device 55, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "665": {
+    "desc": "Spooling device 55, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "666": {
+    "desc": "Spooling device 56, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "667": {
+    "desc": "Spooling device 56, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "670": {
+    "desc": "Spooling device 57, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "671": {
+    "desc": "Spooling device 57, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "672": {
+    "desc": "Spooling device 58, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "673": {
+    "desc": "Spooling device 58, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "674": {
+    "desc": "Spooling device 59, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "675": {
+    "desc": "Spooling device 59, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "676": {
+    "desc": "Spooling device 60, queue semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "677": {
+    "desc": "Spooling device 60, I/O semaphore",
+    "group": "DV600",
+    "cat": "spooling"
+  },
+  "700": {
+    "desc": "HDLC DMA link 7 input / NORCOM sys 1 semigraphic buf 0",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "701": {
+    "desc": "HDLC DMA link 7 output / NORCOM sys 1 semigraphic buf 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "702": {
+    "desc": "HDLC DMA link 8 input / NORCOM sys 1 semigraphic buf 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "703": {
+    "desc": "HDLC DMA link 8 output / NORCOM sys 1 semigraphic buf 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "704": {
+    "desc": "HDLC DMA link 9 input / NORCOM sys 1 semigraphic buf 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "705": {
+    "desc": "HDLC DMA link 9 output / NORCOM sys 1 semigraphic buf 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "706": {
+    "desc": "HDLC DMA link 10 input / NORCOM sys 1 semigraphic buf 6",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "707": {
+    "desc": "HDLC DMA link 10 output / NORCOM sys 1 semigraphic buf 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "710": {
+    "desc": "HDLC DMA link 11 input / NORCOM sys 1 graphic buf 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "711": {
+    "desc": "HDLC DMA link 11 output / NORCOM sys 1 graphic buf 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "712": {
+    "desc": "HDLC DMA link 12 input / NORCOM sys 1 graphic buf 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "713": {
+    "desc": "HDLC DMA link 12 output / NORCOM sys 1 graphic buf 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "714": {
+    "desc": "HDLC DMA link 13 input / NORCOM sys 1 selector 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "715": {
+    "desc": "HDLC DMA link 13 output / NORCOM sys 1 selector 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "716": {
+    "desc": "HDLC DMA link 14 input / NORCOM sys 1 selector 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "717": {
+    "desc": "HDLC DMA link 14 output / NORCOM sys 1 selector 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "720": {
+    "desc": "HDLC DMA link 15 input / NORCOM sys 1 selector 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "721": {
+    "desc": "HDLC DMA link 15 output / NORCOM sys 1 selector 6",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "722": {
+    "desc": "HDLC DMA link 16 input / NORCOM sys 1 selector 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "723": {
+    "desc": "HDLC DMA link 16 output / NORCOM sys 1 selector 8",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "724": {
+    "desc": "HDLC DMA link 17 input",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "725": {
+    "desc": "HDLC DMA link 17 output",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "726": {
+    "desc": "HDLC DMA link 18 input / NORCOM sys 2 semigraphic buf 0",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "727": {
+    "desc": "HDLC DMA link 18 output / NORCOM sys 2 semigraphic buf 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "730": {
+    "desc": "HDLC DMA link 19 input / NORCOM sys 2 semigraphic buf 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "731": {
+    "desc": "HDLC DMA link 19 output / NORCOM sys 2 semigraphic buf 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "732": {
+    "desc": "HDLC DMA link 20 input / NORCOM sys 2 semigraphic buf 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "733": {
+    "desc": "HDLC DMA link 20 output / NORCOM sys 2 semigraphic buf 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "734": {
+    "desc": "HDLC DMA link 21 input / NORCOM sys 2 semigraphic buf 6 / ACM 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "735": {
+    "desc": "HDLC DMA link 21 output / NORCOM sys 2 semigraphic buf 7 / ACM 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "736": {
+    "desc": "HDLC DMA link 22 input / NORCOM sys 2 graphic buf 1 / ACM 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "737": {
+    "desc": "HDLC DMA link 22 output / NORCOM sys 2 graphic buf 3 / ACM 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "740": {
+    "desc": "HDLC DMA link 23 input / NORCOM sys 2 graphic buf 5 / ACM 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "741": {
+    "desc": "HDLC DMA link 23 output / NORCOM sys 2 graphic buf 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "742": {
+    "desc": "HDLC DMA link 24 input / NORCOM sys 2 selector 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "743": {
+    "desc": "HDLC DMA link 24 output / NORCOM sys 2 selector 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "744": {
+    "desc": "HDLC DMA link 25 input / NORCOM sys 2 selector 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "745": {
+    "desc": "HDLC DMA link 25 output / NORCOM sys 2 selector 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "746": {
+    "desc": "HDLC DMA link 26 input / NORCOM sys 2 selector 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "747": {
+    "desc": "HDLC DMA link 26 output / NORCOM sys 2 selector 6",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "750": {
+    "desc": "HDLC DMA link 27 input / NORCOM sys 2 selector 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "751": {
+    "desc": "HDLC DMA link 27 output / NORCOM sys 2 selector 8",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "752": {
+    "desc": "HDLC DMA link 28 input",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "753": {
+    "desc": "HDLC DMA link 28 output",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "754": {
+    "desc": "HDLC DMA link 29 input / NORCOM sys 3 semigraphic buf 0",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "755": {
+    "desc": "HDLC DMA link 29 output / NORCOM sys 3 semigraphic buf 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "756": {
+    "desc": "HDLC DMA link 30 input / NORCOM sys 3 semigraphic buf 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "757": {
+    "desc": "HDLC DMA link 30 output / NORCOM sys 3 semigraphic buf 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "760": {
+    "desc": "HDLC DMA link 31 input / NORCOM sys 3 semigraphic buf 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "761": {
+    "desc": "HDLC DMA link 31 output / NORCOM sys 3 semigraphic buf 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "762": {
+    "desc": "HDLC DMA link 32 input / NORCOM sys 3 semigraphic buf 6",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "763": {
+    "desc": "HDLC DMA link 32 output / NORCOM sys 3 semigraphic buf 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "764": {
+    "desc": "NORCOM system 3, graphic buffer 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "765": {
+    "desc": "NORCOM system 3, graphic buffer 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "766": {
+    "desc": "NORCOM system 3, graphic buffer 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "767": {
+    "desc": "NORCOM system 3, graphic buffer 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "770": {
+    "desc": "NORCOM system 3, selector module 1",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "771": {
+    "desc": "NORCOM system 3, selector module 2",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "772": {
+    "desc": "NORCOM system 3, selector module 3",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "773": {
+    "desc": "NORCOM system 3, selector module 4",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "774": {
+    "desc": "NORCOM system 3, selector module 5",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "775": {
+    "desc": "NORCOM system 3, selector module 6",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "776": {
+    "desc": "NORCOM system 3, selector module 7",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "777": {
+    "desc": "NORCOM system 3, selector module 8",
+    "group": "DV700",
+    "cat": "communication"
+  },
+  "1000": {
+    "desc": "Floppy disk ctrl 1, unit 0, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1001": {
+    "desc": "Floppy disk ctrl 1, unit 1, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1002": {
+    "desc": "Floppy disk ctrl 1, unit 2, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1003": {
+    "desc": "Floppy disk ctrl 2, unit 0, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1004": {
+    "desc": "Floppy disk ctrl 2, unit 1, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1005": {
+    "desc": "Floppy disk ctrl 2, unit 2, I/O data field",
+    "group": "D1000",
+    "cat": "disk"
+  },
+  "1006": {
+    "desc": "HASP DMA 1, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1007": {
+    "desc": "HASP DMA 2, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1010": {
+    "desc": "HASP DMA 3, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1011": {
+    "desc": "HASP DMA 4, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1012": {
+    "desc": "HASP DMA 5, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1013": {
+    "desc": "HASP DMA 6, I/O data field",
+    "group": "D1000",
+    "cat": "communication"
+  },
+  "1014": {
+    "desc": "Line printer 3, I/O data field",
+    "group": "D1000",
+    "cat": "printer"
+  },
+  "1015": {
+    "desc": "Line printer 4, I/O data field",
+    "group": "D1000",
+    "cat": "printer"
+  },
+  "1016": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1017": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1020": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1021": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1022": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1023": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1024": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1025": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1026": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1027": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1030": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1031": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1032": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1033": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1034": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1035": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1036": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1037": {
+    "desc": "Not used",
+    "group": "D1000",
+    "cat": "system"
+  },
+  "1040": {
+    "desc": "Terminal 33",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1041": {
+    "desc": "Terminal 34",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1042": {
+    "desc": "Terminal 35",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1043": {
+    "desc": "Terminal 36",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1044": {
+    "desc": "Terminal 37",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1045": {
+    "desc": "Terminal 38",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1046": {
+    "desc": "Terminal 39",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1047": {
+    "desc": "Terminal 40",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1050": {
+    "desc": "Terminal 41",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1051": {
+    "desc": "Terminal 42",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1052": {
+    "desc": "Terminal 43",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1053": {
+    "desc": "Terminal 44",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1054": {
+    "desc": "Terminal 45",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1055": {
+    "desc": "Terminal 46",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1056": {
+    "desc": "Terminal 47",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1057": {
+    "desc": "Terminal 48",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1060": {
+    "desc": "Terminal 49",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1061": {
+    "desc": "Terminal 50",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1062": {
+    "desc": "Terminal 51",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1063": {
+    "desc": "Terminal 52",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1064": {
+    "desc": "Terminal 53",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1065": {
+    "desc": "Terminal 54",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1066": {
+    "desc": "Terminal 55",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1067": {
+    "desc": "Terminal 56",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1070": {
+    "desc": "Terminal 57",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1071": {
+    "desc": "Terminal 58",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1072": {
+    "desc": "Terminal 59",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1073": {
+    "desc": "Terminal 60",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1074": {
+    "desc": "Terminal 61",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1075": {
+    "desc": "Terminal 62",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1076": {
+    "desc": "Terminal 63",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1077": {
+    "desc": "Terminal 64",
+    "group": "D1000",
+    "cat": "terminal"
+  },
+  "1100": {
+    "desc": "ECC disk controller 1, data field",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1101": {
+    "desc": "ECC disk ctrl 1, unit 0, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1102": {
+    "desc": "ECC disk ctrl 1, unit 0, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1103": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1104": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1105": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1106": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1107": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1110": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1111": {
+    "desc": "Magnetic tape controller 2, data field",
+    "group": "D1100",
+    "cat": "tape"
+  },
+  "1112": {
+    "desc": "ECC disk ctrl 4, unit 0, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1113": {
+    "desc": "Floppy disk ctrl 1, unit 3, I/O data field",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1114": {
+    "desc": "ECC disk ctrl 4, unit 0, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1115": {
+    "desc": "Floppy disk ctrl 2, unit 3, I/O data field",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1116": {
+    "desc": "DR 7, transfer semaphore for mag tape ctrl 2",
+    "group": "D1100",
+    "cat": "tape"
+  },
+  "1117": {
+    "desc": "ECC disk ctrl 1, unit 1, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1120": {
+    "desc": "ECC disk ctrl 1, unit 1, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1121": {
+    "desc": "ECC disk ctrl 1, unit 2, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1122": {
+    "desc": "ECC disk ctrl 1, unit 2, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1123": {
+    "desc": "ECC disk ctrl 1, unit 3, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1124": {
+    "desc": "ECC disk ctrl 1, unit 3, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1125": {
+    "desc": "Versatec controller 2",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1126": {
+    "desc": "Monitor call DF for Versatec controller 2",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1127": {
+    "desc": "DF 39, mag tape ctrl 3, monitor call data field",
+    "group": "D1100",
+    "cat": "tape"
+  },
+  "1130": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1131": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1132": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1133": {
+    "desc": "Not used",
+    "group": "D1100",
+    "cat": "system"
+  },
+  "1134": {
+    "desc": "Floppy disk ctrl 1, unit 3, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1135": {
+    "desc": "Floppy disk ctrl 1, unit 3, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1136": {
+    "desc": "Spooling device 1, queue semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1137": {
+    "desc": "Spooling device 1, I/O semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1140": {
+    "desc": "Spooling device 2, queue semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1141": {
+    "desc": "Spooling device 2, I/O semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1142": {
+    "desc": "Spooling system general semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1143": {
+    "desc": "Spooling system wait for used pages semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1144": {
+    "desc": "Spooling system wait for free pages semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1145": {
+    "desc": "Floppy disk controller 1, data field",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1146": {
+    "desc": "Monitor call DF for floppy disk ctrl 1",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1147": {
+    "desc": "Floppy disk ctrl 2, unit 3, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1150": {
+    "desc": "Floppy disk ctrl 1, unit 0, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1151": {
+    "desc": "Floppy disk ctrl 1, unit 0, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1152": {
+    "desc": "Floppy disk ctrl 1, unit 1, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1153": {
+    "desc": "Floppy disk ctrl 1, unit 1, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1154": {
+    "desc": "Floppy disk ctrl 1, unit 2, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1155": {
+    "desc": "Floppy disk ctrl 1, unit 2, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1156": {
+    "desc": "Floppy disk controller 2, data field",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1157": {
+    "desc": "Monitor call DF for floppy disk ctrl 2",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1160": {
+    "desc": "Floppy disk ctrl 2, unit 3, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1161": {
+    "desc": "Floppy disk ctrl 2, unit 0, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1162": {
+    "desc": "Floppy disk ctrl 2, unit 0, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1163": {
+    "desc": "Floppy disk ctrl 2, unit 1, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1164": {
+    "desc": "Floppy disk ctrl 2, unit 1, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1165": {
+    "desc": "Floppy disk ctrl 2, unit 2, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1166": {
+    "desc": "Floppy disk ctrl 2, unit 2, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1167": {
+    "desc": "DMA line printer 1, data field",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1170": {
+    "desc": "Monitor call DF for DMA line printer 1",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1171": {
+    "desc": "ECC disk ctrl 4, unit 2, directory semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1172": {
+    "desc": "ECC disk ctrl 4, unit 2, bit file semaphore",
+    "group": "D1100",
+    "cat": "disk"
+  },
+  "1173": {
+    "desc": "Spooling device 3, queue semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1174": {
+    "desc": "Spooling device 3, I/O semaphore",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1175": {
+    "desc": "DMA line printer 2, data field",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1176": {
+    "desc": "Monitor call DF for DMA line printer 2",
+    "group": "D1100",
+    "cat": "printer"
+  },
+  "1177": {
+    "desc": "Spooling semaphore for id data buffer",
+    "group": "D1100",
+    "cat": "spooling"
+  },
+  "1200": {
+    "desc": "NOTPS system semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1201": {
+    "desc": "DMAC command semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1202": {
+    "desc": "RT-PROGRAM-LOG semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1203": {
+    "desc": "Histogram commands semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1204": {
+    "desc": "SINTRAN Service Program command semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1205": {
+    "desc": "Mail system semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1206": {
+    "desc": "Terminal 1, data field",
+    "group": "D1200",
+    "cat": "terminal"
+  },
+  "1207": {
+    "desc": "ECC disk controller 2, data field",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1210": {
+    "desc": "Internal device 1, data field",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1211": {
+    "desc": "Monitor call DF for internal device 1",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1212": {
+    "desc": "Internal device 2, data field",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1213": {
+    "desc": "Monitor call DF for internal device 2",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1214": {
+    "desc": "Internal device 3, data field",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1215": {
+    "desc": "Monitor call DF for internal device 3",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1216": {
+    "desc": "Internal device 4, data field",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1217": {
+    "desc": "Monitor call DF for internal device 4",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1220": {
+    "desc": "Internal device 5, data field",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1221": {
+    "desc": "Monitor call DF for internal device 5",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1222": {
+    "desc": "Accounting semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1223": {
+    "desc": "NOTIS-IR semaphore",
+    "group": "D1200",
+    "cat": "semaphore"
+  },
+  "1224": {
+    "desc": "ST-506 Winchester disk ctrl 1 DF / STC mag tape ctrl 4",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1225": {
+    "desc": "Winchester ctrl 1 unit 0 dir sema / STC mag tape 4 unit 0 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1226": {
+    "desc": "Winchester ctrl 1 unit 0 bit sema / STC mag tape 4 unit 1 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1227": {
+    "desc": "Winchester ctrl 1 unit 1 dir sema / STC mag tape 4 unit 2 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1230": {
+    "desc": "Winchester ctrl 1 unit 1 bit sema / STC mag tape 4 unit 3 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1231": {
+    "desc": "ST-506 Winchester disk ctrl 2 DF / STC mag tape ctrl 3",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1232": {
+    "desc": "Winchester ctrl 2 unit 0 dir sema / STC mag tape 3 unit 0 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1233": {
+    "desc": "Winchester ctrl 2 unit 0 bit sema / STC mag tape 3 unit 1 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1234": {
+    "desc": "Winchester ctrl 2 unit 1 dir sema / STC mag tape 3 unit 2 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1235": {
+    "desc": "Winchester ctrl 2 unit 1 bit sema / STC mag tape 3 unit 3 I/O DF",
+    "group": "D1200",
+    "cat": "disk"
+  },
+  "1236": {
+    "desc": "Batch process 1, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1237": {
+    "desc": "Batch process 1, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1240": {
+    "desc": "Batch process 2, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1241": {
+    "desc": "Batch process 2, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1242": {
+    "desc": "Batch process 3, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1243": {
+    "desc": "Batch process 3, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1244": {
+    "desc": "Batch process 4, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1245": {
+    "desc": "Batch process 4, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1246": {
+    "desc": "Batch process 5, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1247": {
+    "desc": "Batch process 5, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1250": {
+    "desc": "Batch process 6, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1251": {
+    "desc": "Batch process 6, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1252": {
+    "desc": "Batch process 7, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1253": {
+    "desc": "Batch process 7, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1254": {
+    "desc": "Batch process 8, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1255": {
+    "desc": "Batch process 8, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1256": {
+    "desc": "Batch process 9, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1257": {
+    "desc": "Batch process 9, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1260": {
+    "desc": "Batch process 10, data field",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1261": {
+    "desc": "Batch process 10, internal device",
+    "group": "D1200",
+    "cat": "batch"
+  },
+  "1262": {
+    "desc": "Spooling device 7, queue semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1263": {
+    "desc": "Spooling device 7, I/O semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1264": {
+    "desc": "Spooling device 8, queue semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1265": {
+    "desc": "Spooling device 8, I/O semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1266": {
+    "desc": "Spooling device 9, queue semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1267": {
+    "desc": "Spooling device 9, I/O semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1270": {
+    "desc": "Spooling device 10, queue semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1271": {
+    "desc": "Spooling device 10, I/O semaphore",
+    "group": "D1200",
+    "cat": "spooling"
+  },
+  "1272": {
+    "desc": "Monitor call DF for internal device 1",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1273": {
+    "desc": "Monitor call DF for internal device 2",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1274": {
+    "desc": "Monitor call DF for internal device 3",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1275": {
+    "desc": "Monitor call DF for internal device 4",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1276": {
+    "desc": "Monitor call DF for internal device 5",
+    "group": "D1200",
+    "cat": "internal"
+  },
+  "1277": {
+    "desc": "DF 40, mag tape ctrl 4, monitor call data field",
+    "group": "D1200",
+    "cat": "tape"
+  },
+  "1300": {
+    "desc": "ECC disk ctrl 4, unit 3, directory semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1301": {
+    "desc": "ECC disk ctrl 4, unit 3, bit file semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1302": {
+    "desc": "Device buffer semaphore",
+    "group": "D1300",
+    "cat": "semaphore"
+  },
+  "1303": {
+    "desc": "HASP DMA 1, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1304": {
+    "desc": "HASP DMA 1, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1305": {
+    "desc": "Monitor call DF for HASP DMA 1, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1306": {
+    "desc": "Monitor call DF for HASP DMA 1, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1307": {
+    "desc": "HASP DMA 2, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1310": {
+    "desc": "HASP DMA 2, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1311": {
+    "desc": "Monitor call DF for HASP DMA 2, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1312": {
+    "desc": "Monitor call DF for HASP DMA 2, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1313": {
+    "desc": "HASP DMA 3, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1314": {
+    "desc": "HASP DMA 3, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1315": {
+    "desc": "Monitor call DF for HASP DMA 3, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1316": {
+    "desc": "Monitor call DF for HASP DMA 3, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1317": {
+    "desc": "HASP DMA 4, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1320": {
+    "desc": "HASP DMA 4, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1321": {
+    "desc": "Monitor call DF for HASP DMA 4, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1322": {
+    "desc": "Monitor call DF for HASP DMA 4, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1323": {
+    "desc": "HASP DMA 5, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1324": {
+    "desc": "HASP DMA 5, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1325": {
+    "desc": "Monitor call DF for HASP DMA 5, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1326": {
+    "desc": "Monitor call DF for HASP DMA 5, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1327": {
+    "desc": "HASP DMA 6, input data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1330": {
+    "desc": "HASP DMA 6, output data field",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1331": {
+    "desc": "Monitor call DF for HASP DMA 6, input",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1332": {
+    "desc": "Monitor call DF for HASP DMA 6, output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1333": {
+    "desc": "ECC disk ctrl 2, unit 0, directory semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1334": {
+    "desc": "ECC disk ctrl 2, unit 0, bit file semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1335": {
+    "desc": "ECC disk ctrl 2, unit 1, directory semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1336": {
+    "desc": "ECC disk ctrl 2, unit 1, bit file semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1337": {
+    "desc": "ECC disk ctrl 2, unit 2, directory semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1340": {
+    "desc": "ECC disk ctrl 2, unit 2, bit file semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1341": {
+    "desc": "ECC disk ctrl 2, unit 3, directory semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1342": {
+    "desc": "ECC disk ctrl 2, unit 3, bit file semaphore",
+    "group": "D1300",
+    "cat": "disk"
+  },
+  "1343": {
+    "desc": "DMA line printer 3, data field",
+    "group": "D1300",
+    "cat": "printer"
+  },
+  "1344": {
+    "desc": "Monitor call DF for DMA line printer 3",
+    "group": "D1300",
+    "cat": "printer"
+  },
+  "1345": {
+    "desc": "DMA line printer 4, data field",
+    "group": "D1300",
+    "cat": "printer"
+  },
+  "1346": {
+    "desc": "Monitor call DF for DMA line printer 4",
+    "group": "D1300",
+    "cat": "printer"
+  },
+  "1347": {
+    "desc": "Spooling device 11, I/O semaphore",
+    "group": "D1300",
+    "cat": "spooling"
+  },
+  "1350": {
+    "desc": "Spooling device 12, queue semaphore",
+    "group": "D1300",
+    "cat": "spooling"
+  },
+  "1351": {
+    "desc": "Spooling device 12, I/O semaphore",
+    "group": "D1300",
+    "cat": "spooling"
+  },
+  "1352": {
+    "desc": "RT-PROGRAM-LOG command semaphore",
+    "group": "D1300",
+    "cat": "semaphore"
+  },
+  "1353": {
+    "desc": "Not used",
+    "group": "D1300",
+    "cat": "system"
+  },
+  "1354": {
+    "desc": "Not used",
+    "group": "D1300",
+    "cat": "system"
+  },
+  "1355": {
+    "desc": "Not used",
+    "group": "D1300",
+    "cat": "system"
+  },
+  "1356": {
+    "desc": "Not used",
+    "group": "D1300",
+    "cat": "system"
+  },
+  "1357": {
+    "desc": "Not used",
+    "group": "D1300",
+    "cat": "system"
+  },
+  "1360": {
+    "desc": "HDLC DMA link 1 input / sync modem 1 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1361": {
+    "desc": "HDLC DMA link 1 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1362": {
+    "desc": "HDLC DMA link 2 input / sync modem 2 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1363": {
+    "desc": "HDLC DMA link 2 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1364": {
+    "desc": "HDLC DMA link 3 input / sync modem 3 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1365": {
+    "desc": "HDLC DMA link 3 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1366": {
+    "desc": "HDLC DMA link 4 input / sync modem 4 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1367": {
+    "desc": "HDLC DMA link 4 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1370": {
+    "desc": "HDLC DMA link 5 input / sync modem 5 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1371": {
+    "desc": "HDLC DMA link 5 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1372": {
+    "desc": "HDLC DMA link 6 input / sync modem 6 for HDLC",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1373": {
+    "desc": "HDLC DMA link 6 output",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1374": {
+    "desc": "X.21 line number 1",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1375": {
+    "desc": "X.21 line number 2",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1376": {
+    "desc": "X.21 line number 3",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1377": {
+    "desc": "X.21 line number 4",
+    "group": "D1300",
+    "cat": "communication"
+  },
+  "1400": {
+    "desc": "Terminal access device (TAD) 1",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1401": {
+    "desc": "Terminal access device (TAD) 2",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1402": {
+    "desc": "Terminal access device (TAD) 3",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1403": {
+    "desc": "Terminal access device (TAD) 4",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1404": {
+    "desc": "Terminal access device (TAD) 5",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1405": {
+    "desc": "Terminal access device (TAD) 6",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1406": {
+    "desc": "Terminal access device (TAD) 7",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1407": {
+    "desc": "Terminal access device (TAD) 8",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1410": {
+    "desc": "Terminal access device (TAD) 9",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1411": {
+    "desc": "Terminal access device (TAD) 10",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1412": {
+    "desc": "Terminal access device (TAD) 11",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1413": {
+    "desc": "Terminal access device (TAD) 12",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1414": {
+    "desc": "Terminal access device (TAD) 13",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1415": {
+    "desc": "Terminal access device (TAD) 14",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1416": {
+    "desc": "Terminal access device (TAD) 15",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1417": {
+    "desc": "Terminal access device (TAD) 16",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1420": {
+    "desc": "Terminal access device (TAD) 17",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1421": {
+    "desc": "Terminal access device (TAD) 18",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1422": {
+    "desc": "Terminal access device (TAD) 19",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1423": {
+    "desc": "Terminal access device (TAD) 20",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1424": {
+    "desc": "Terminal access device (TAD) 21",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1425": {
+    "desc": "Terminal access device (TAD) 22",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1426": {
+    "desc": "Terminal access device (TAD) 23",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1427": {
+    "desc": "Terminal access device (TAD) 24",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1430": {
+    "desc": "Terminal access device (TAD) 25",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1431": {
+    "desc": "Terminal access device (TAD) 26",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1432": {
+    "desc": "Terminal access device (TAD) 27",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1433": {
+    "desc": "Terminal access device (TAD) 28",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1434": {
+    "desc": "Terminal access device (TAD) 29",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1435": {
+    "desc": "Terminal access device (TAD) 30",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1436": {
+    "desc": "Terminal access device (TAD) 31",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1437": {
+    "desc": "Terminal access device (TAD) 32",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1440": {
+    "desc": "Terminal access device (TAD) 33",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1441": {
+    "desc": "Terminal access device (TAD) 34",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1442": {
+    "desc": "Terminal access device (TAD) 35",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1443": {
+    "desc": "Terminal access device (TAD) 36",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1444": {
+    "desc": "Terminal access device (TAD) 37",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1445": {
+    "desc": "Terminal access device (TAD) 38",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1446": {
+    "desc": "Terminal access device (TAD) 39",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1447": {
+    "desc": "Terminal access device (TAD) 40",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1450": {
+    "desc": "Terminal access device (TAD) 41",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1451": {
+    "desc": "Terminal access device (TAD) 42",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1452": {
+    "desc": "Terminal access device (TAD) 43",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1453": {
+    "desc": "Terminal access device (TAD) 44",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1454": {
+    "desc": "Terminal access device (TAD) 45",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1455": {
+    "desc": "Terminal access device (TAD) 46",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1456": {
+    "desc": "Terminal access device (TAD) 47",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1457": {
+    "desc": "Terminal access device (TAD) 48",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1460": {
+    "desc": "Terminal access device (TAD) 49",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1461": {
+    "desc": "Terminal access device (TAD) 50",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1462": {
+    "desc": "Terminal access device (TAD) 51",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1463": {
+    "desc": "Terminal access device (TAD) 52",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1464": {
+    "desc": "Terminal access device (TAD) 53",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1465": {
+    "desc": "Terminal access device (TAD) 54",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1466": {
+    "desc": "Terminal access device (TAD) 55",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1467": {
+    "desc": "Terminal access device (TAD) 56",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1470": {
+    "desc": "Terminal access device (TAD) 57",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1471": {
+    "desc": "Terminal access device (TAD) 58",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1472": {
+    "desc": "Terminal access device (TAD) 59",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1473": {
+    "desc": "Terminal access device (TAD) 60",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1474": {
+    "desc": "Terminal access device (TAD) 61",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1475": {
+    "desc": "Terminal access device (TAD) 62",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1476": {
+    "desc": "Terminal access device (TAD) 63",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1477": {
+    "desc": "Terminal access device (TAD) 64",
+    "group": "D1400",
+    "cat": "tad"
+  },
+  "1500": {
+    "desc": "Terminal access device (TAD) 65",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1501": {
+    "desc": "Terminal access device (TAD) 66",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1502": {
+    "desc": "Terminal access device (TAD) 67",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1503": {
+    "desc": "Terminal access device (TAD) 68",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1504": {
+    "desc": "Terminal access device (TAD) 69",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1505": {
+    "desc": "Terminal access device (TAD) 70",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1506": {
+    "desc": "Terminal access device (TAD) 71",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1507": {
+    "desc": "Terminal access device (TAD) 72",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1510": {
+    "desc": "Terminal access device (TAD) 73",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1511": {
+    "desc": "Terminal access device (TAD) 74",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1512": {
+    "desc": "Terminal access device (TAD) 75",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1513": {
+    "desc": "Terminal access device (TAD) 76",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1514": {
+    "desc": "Terminal access device (TAD) 77",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1515": {
+    "desc": "Terminal access device (TAD) 78",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1516": {
+    "desc": "Terminal access device (TAD) 79",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1517": {
+    "desc": "Terminal access device (TAD) 80",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1520": {
+    "desc": "Terminal access device (TAD) 81",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1521": {
+    "desc": "Terminal access device (TAD) 82",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1522": {
+    "desc": "Terminal access device (TAD) 83",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1523": {
+    "desc": "Terminal access device (TAD) 84",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1524": {
+    "desc": "Terminal access device (TAD) 85",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1525": {
+    "desc": "Terminal access device (TAD) 86",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1526": {
+    "desc": "Terminal access device (TAD) 87",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1527": {
+    "desc": "Terminal access device (TAD) 88",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1530": {
+    "desc": "Terminal access device (TAD) 89",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1531": {
+    "desc": "Terminal access device (TAD) 90",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1532": {
+    "desc": "Terminal access device (TAD) 91",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1533": {
+    "desc": "Terminal access device (TAD) 92",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1534": {
+    "desc": "Terminal access device (TAD) 93",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1535": {
+    "desc": "Terminal access device (TAD) 94",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1536": {
+    "desc": "Terminal access device (TAD) 95",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1537": {
+    "desc": "Terminal access device (TAD) 96",
+    "group": "D1500",
+    "cat": "tad"
+  },
+  "1540": {
+    "desc": "Telefix terminal 1",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1541": {
+    "desc": "Telefix terminal 2",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1542": {
+    "desc": "Telefix terminal 3",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1543": {
+    "desc": "Telefix terminal 4",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1544": {
+    "desc": "Telefix terminal 5",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1545": {
+    "desc": "Telefix terminal 6",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1546": {
+    "desc": "Telefix terminal 7",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1547": {
+    "desc": "Telefix terminal 8",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1550": {
+    "desc": "Telefix terminal 9",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1551": {
+    "desc": "Telefix terminal 10",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1552": {
+    "desc": "Telefix terminal 11",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1553": {
+    "desc": "Telefix terminal 12",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1554": {
+    "desc": "Telefix terminal 13",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1555": {
+    "desc": "Telefix terminal 14",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1556": {
+    "desc": "Telefix terminal 15",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1557": {
+    "desc": "Telefix terminal 16",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1560": {
+    "desc": "Telefix background terminal 1",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1561": {
+    "desc": "Telefix background terminal 2",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1562": {
+    "desc": "Telefix background terminal 3",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1563": {
+    "desc": "Telefix background terminal 4",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1564": {
+    "desc": "Telefix background terminal 5",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1565": {
+    "desc": "Telefix background terminal 6",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1566": {
+    "desc": "Telefix background terminal 7",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1567": {
+    "desc": "Telefix background terminal 8",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1570": {
+    "desc": "Telefix background terminal 9",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1571": {
+    "desc": "Telefix background terminal 10",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1572": {
+    "desc": "Telefix background terminal 11",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1573": {
+    "desc": "Telefix background terminal 12",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1574": {
+    "desc": "Telefix background terminal 13",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1575": {
+    "desc": "Telefix background terminal 14",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1576": {
+    "desc": "Telefix background terminal 15",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1577": {
+    "desc": "Telefix background terminal 16",
+    "group": "D1500",
+    "cat": "terminal"
+  },
+  "1600": {
+    "desc": "DMA device buffer header semaphore, header 0",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1601": {
+    "desc": "DMA device buffer header semaphore, header 1",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1602": {
+    "desc": "DMA device buffer header semaphore, header 2",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1603": {
+    "desc": "DMA device buffer header semaphore, header 3",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1604": {
+    "desc": "DMA device buffer header semaphore, header 4",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1605": {
+    "desc": "DMA device buffer header semaphore, header 5",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1606": {
+    "desc": "DMA device buffer header semaphore, header 6",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1607": {
+    "desc": "DMA device buffer header semaphore, header 7",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1610": {
+    "desc": "DMA device buffer header semaphore, header 10",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1611": {
+    "desc": "DMA device buffer header semaphore, header 11",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1612": {
+    "desc": "DMA device buffer header semaphore, header 12",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1613": {
+    "desc": "DMA device buffer header semaphore, header 13",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1614": {
+    "desc": "DMA device buffer header semaphore, header 14",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1615": {
+    "desc": "DMA device buffer header semaphore, header 15",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1616": {
+    "desc": "DMA device buffer header semaphore, header 16",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1617": {
+    "desc": "DMA device buffer header semaphore, header 17",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1620": {
+    "desc": "DMA device buffer header semaphore, header 20",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1621": {
+    "desc": "DMA device buffer header semaphore, header 21",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1622": {
+    "desc": "DMA device buffer header semaphore, header 22",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1623": {
+    "desc": "DMA device buffer header semaphore, header 23",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1624": {
+    "desc": "DMA device buffer header semaphore, header 24",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1625": {
+    "desc": "DMA device buffer header semaphore, header 25",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1626": {
+    "desc": "DMA device buffer header semaphore, header 26",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1627": {
+    "desc": "DMA device buffer header semaphore, header 27",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1630": {
+    "desc": "DMA device buffer header semaphore, header 30",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1631": {
+    "desc": "DMA device buffer header semaphore, header 31",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1632": {
+    "desc": "DMA device buffer header semaphore, header 32",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1633": {
+    "desc": "DMA device buffer header semaphore, header 33",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1634": {
+    "desc": "DMA device buffer header semaphore, header 34",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1635": {
+    "desc": "DMA device buffer header semaphore, header 35",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1636": {
+    "desc": "DMA device buffer header semaphore, header 36",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1637": {
+    "desc": "DMA device buffer header semaphore, header 37",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1640": {
+    "desc": "DMA device buffer header semaphore, header 40",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1641": {
+    "desc": "DMA device buffer header semaphore, header 41",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1642": {
+    "desc": "DMA device buffer header semaphore, header 42",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1643": {
+    "desc": "DMA device buffer header semaphore, header 43",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1644": {
+    "desc": "DMA device buffer header semaphore, header 44",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1645": {
+    "desc": "DMA device buffer header semaphore, header 45",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1646": {
+    "desc": "DMA device buffer header semaphore, header 46",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1647": {
+    "desc": "DMA device buffer header semaphore, header 47",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1650": {
+    "desc": "DMA device buffer header semaphore, header 50",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1651": {
+    "desc": "DMA device buffer header semaphore, header 51",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1652": {
+    "desc": "DMA device buffer header semaphore, header 52",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1653": {
+    "desc": "DMA device buffer header semaphore, header 53",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1654": {
+    "desc": "DMA device buffer header semaphore, header 54",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1655": {
+    "desc": "DMA device buffer header semaphore, header 55",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1656": {
+    "desc": "DMA device buffer header semaphore, header 56",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1657": {
+    "desc": "DMA device buffer header semaphore, header 57",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1660": {
+    "desc": "DMA device buffer header semaphore, header 60",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1661": {
+    "desc": "DMA device buffer header semaphore, header 61",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1662": {
+    "desc": "DMA device buffer header semaphore, header 62",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1663": {
+    "desc": "DMA device buffer header semaphore, header 63",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1664": {
+    "desc": "DMA device buffer header semaphore, header 64",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1665": {
+    "desc": "DMA device buffer header semaphore, header 65",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1666": {
+    "desc": "DMA device buffer header semaphore, header 66",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1667": {
+    "desc": "DMA device buffer header semaphore, header 67",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1670": {
+    "desc": "DMA device buffer header semaphore, header 70",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1671": {
+    "desc": "DMA device buffer header semaphore, header 71",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1672": {
+    "desc": "DMA device buffer header semaphore, header 72",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1673": {
+    "desc": "DMA device buffer header semaphore, header 73",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1674": {
+    "desc": "DMA device buffer header semaphore, header 74",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1675": {
+    "desc": "DMA device buffer header semaphore, header 75",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1676": {
+    "desc": "DMA device buffer header semaphore, header 76",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1677": {
+    "desc": "DMA device buffer header semaphore, header 77",
+    "group": "D1600",
+    "cat": "semaphore"
+  },
+  "1700": {
+    "desc": "PIOC number 1",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1701": {
+    "desc": "PIOC number 2",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1702": {
+    "desc": "PIOC number 3",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1703": {
+    "desc": "PIOC number 4",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1704": {
+    "desc": "PIOC number 5",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1705": {
+    "desc": "PIOC number 6",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1706": {
+    "desc": "PIOC number 7",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1707": {
+    "desc": "PIOC number 8",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1710": {
+    "desc": "PIOC number 9",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1711": {
+    "desc": "PIOC number 10",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1712": {
+    "desc": "PIOC number 11",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1713": {
+    "desc": "PIOC number 12",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1714": {
+    "desc": "PIOC number 13",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1715": {
+    "desc": "PIOC number 14",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1716": {
+    "desc": "PIOC number 15",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1717": {
+    "desc": "PIOC number 16 / virtual disk driver 1",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1720": {
+    "desc": "Virtual disk driver 3",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1721": {
+    "desc": "Virtual disk driver 4",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1722": {
+    "desc": "Spooling device 13, queue semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1723": {
+    "desc": "Spooling device 13, I/O semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1724": {
+    "desc": "Spooling device 14, queue semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1725": {
+    "desc": "Spooling device 14, I/O semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1726": {
+    "desc": "Spooling device 15, queue semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1727": {
+    "desc": "Spooling device 15, I/O semaphore",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1730": {
+    "desc": "COSMOS file access, DF data field",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1731": {
+    "desc": "COSMOS Spooling, peripheral device",
+    "group": "D1700",
+    "cat": "spooling"
+  },
+  "1732": {
+    "desc": "Winchester disk ctrl 1, unit 0, directory semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1733": {
+    "desc": "Winchester disk ctrl 1, unit 0, bit file semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1734": {
+    "desc": "Winchester disk ctrl 1, unit 1, directory semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1735": {
+    "desc": "Winchester disk ctrl 1, unit 1, bit file semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1736": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1737": {
+    "desc": "Winchester disk ctrl 2, unit 0, directory semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1740": {
+    "desc": "Winchester disk ctrl 2, unit 0, bit file semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1741": {
+    "desc": "Winchester disk ctrl 2, unit 1, directory semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1742": {
+    "desc": "Winchester disk ctrl 2, unit 1, bit file semaphore",
+    "group": "D1700",
+    "cat": "disk"
+  },
+  "1743": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1744": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1745": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1746": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1747": {
+    "desc": "Not used",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1750": {
+    "desc": "SIBAS number 0",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1751": {
+    "desc": "SIBAS number 1",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1752": {
+    "desc": "SIBAS number 2",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1753": {
+    "desc": "SIBAS number 3",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1754": {
+    "desc": "SIBAS number 4",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1755": {
+    "desc": "SIBAS number 5",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1756": {
+    "desc": "SIBAS number 6",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1757": {
+    "desc": "SIBAS number 7",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1760": {
+    "desc": "SIBAS number 8",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1761": {
+    "desc": "SIBAS number 9",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1762": {
+    "desc": "SIBAS number 10",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1763": {
+    "desc": "SIBAS number 11",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1764": {
+    "desc": "SIBAS number 12",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1765": {
+    "desc": "SIBAS number 13",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1766": {
+    "desc": "SIBAS number 14",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1767": {
+    "desc": "SIBAS number 15",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1770": {
+    "desc": "SIBAS number 16",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1771": {
+    "desc": "SIBAS number 17",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1772": {
+    "desc": "SIBAS number 18",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1773": {
+    "desc": "SIBAS number 19",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1774": {
+    "desc": "SIBAS number 20",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1775": {
+    "desc": "SIBAS number 21",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1776": {
+    "desc": "SIBAS number 22",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "1777": {
+    "desc": "SIBAS number 23",
+    "group": "D1700",
+    "cat": "system"
+  },
+  "2000": {
+    "desc": "Terminal 65",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2001": {
+    "desc": "Terminal 66",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2002": {
+    "desc": "Terminal 67",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2003": {
+    "desc": "Terminal 68",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2004": {
+    "desc": "Terminal 69",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2005": {
+    "desc": "Terminal 70",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2006": {
+    "desc": "Terminal 71",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2007": {
+    "desc": "Terminal 72",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2010": {
+    "desc": "Terminal 73",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2011": {
+    "desc": "Terminal 74",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2012": {
+    "desc": "Terminal 75",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2013": {
+    "desc": "Terminal 76",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2014": {
+    "desc": "Terminal 77",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2015": {
+    "desc": "Terminal 78",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2016": {
+    "desc": "Terminal 79",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2017": {
+    "desc": "Terminal 80",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2020": {
+    "desc": "Terminal 81",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2021": {
+    "desc": "Terminal 82",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2022": {
+    "desc": "Terminal 83",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2023": {
+    "desc": "Terminal 84",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2024": {
+    "desc": "Terminal 85",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2025": {
+    "desc": "Terminal 86",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2026": {
+    "desc": "Terminal 87",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2027": {
+    "desc": "Terminal 88",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2030": {
+    "desc": "Terminal 89",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2031": {
+    "desc": "Terminal 90",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2032": {
+    "desc": "Terminal 91",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2033": {
+    "desc": "Terminal 92",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2034": {
+    "desc": "Terminal 93",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2035": {
+    "desc": "Terminal 94",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2036": {
+    "desc": "Terminal 95",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2037": {
+    "desc": "Terminal 96",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2040": {
+    "desc": "Terminal 97",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2041": {
+    "desc": "Terminal 98",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2042": {
+    "desc": "Terminal 99",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2043": {
+    "desc": "Terminal 100",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2044": {
+    "desc": "Terminal 101",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2045": {
+    "desc": "Terminal 102",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2046": {
+    "desc": "Terminal 103",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2047": {
+    "desc": "Terminal 104",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2050": {
+    "desc": "Terminal 105",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2051": {
+    "desc": "Terminal 106",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2052": {
+    "desc": "Terminal 107",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2053": {
+    "desc": "Terminal 108",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2054": {
+    "desc": "Terminal 109",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2055": {
+    "desc": "Terminal 110",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2056": {
+    "desc": "Terminal 111",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2057": {
+    "desc": "Terminal 112",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2060": {
+    "desc": "Terminal 113",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2061": {
+    "desc": "Terminal 114",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2062": {
+    "desc": "Terminal 115",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2063": {
+    "desc": "Terminal 116",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2064": {
+    "desc": "Terminal 117",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2065": {
+    "desc": "Terminal 118",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2066": {
+    "desc": "Terminal 119",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2067": {
+    "desc": "Terminal 120",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2070": {
+    "desc": "Terminal 121",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2071": {
+    "desc": "Terminal 122",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2072": {
+    "desc": "Terminal 123",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2073": {
+    "desc": "Terminal 124",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2074": {
+    "desc": "Terminal 125",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2075": {
+    "desc": "Terminal 126",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2076": {
+    "desc": "Terminal 127",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2077": {
+    "desc": "Terminal 128",
+    "group": "D2000",
+    "cat": "terminal"
+  },
+  "2100": {
+    "desc": "Universal DMA / Vicom interface 1",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2101": {
+    "desc": "Universal DMA / Vicom interface 2",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2102": {
+    "desc": "Universal DMA / Vicom interface 3",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2103": {
+    "desc": "Universal DMA / Vicom interface 4",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2104": {
+    "desc": "Universal DMA / Vicom interface 5",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2105": {
+    "desc": "Universal DMA / Vicom interface 6",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2106": {
+    "desc": "Universal DMA / Vicom interface 7",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2107": {
+    "desc": "Universal DMA / Vicom interface 8",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2110": {
+    "desc": "Universal DMA / Vicom interface 9",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2111": {
+    "desc": "Universal DMA / Vicom interface 10",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2112": {
+    "desc": "Universal DMA / Vicom interface 11",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2113": {
+    "desc": "Universal DMA / Vicom interface 12",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2114": {
+    "desc": "Universal DMA / Vicom interface 13",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2115": {
+    "desc": "Universal DMA / Vicom interface 14",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2116": {
+    "desc": "Universal DMA / Vicom interface 15",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2117": {
+    "desc": "Universal DMA / Vicom interface 16",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2120": {
+    "desc": "GPIB interface number 0",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2121": {
+    "desc": "GPIB interface number 1",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2122": {
+    "desc": "GPIB interface number 2",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2123": {
+    "desc": "GPIB interface number 3",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2124": {
+    "desc": "GPIB interface number 4",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2125": {
+    "desc": "GPIB interface number 5",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2126": {
+    "desc": "GPIB interface number 6",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2127": {
+    "desc": "GPIB interface number 7",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2130": {
+    "desc": "Spooling device 16, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2131": {
+    "desc": "Spooling device 16, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2132": {
+    "desc": "Spooling device 17, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2133": {
+    "desc": "Spooling device 17, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2134": {
+    "desc": "Spooling device 18, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2135": {
+    "desc": "Spooling device 18, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2136": {
+    "desc": "Spooling device 19, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2137": {
+    "desc": "Spooling device 19, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2140": {
+    "desc": "Spooling device 20, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2141": {
+    "desc": "Spooling device 20, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2142": {
+    "desc": "Spooling device 21, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2143": {
+    "desc": "Spooling device 21, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2144": {
+    "desc": "Spooling device 22, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2145": {
+    "desc": "Spooling device 22, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2146": {
+    "desc": "Spooling device 23, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2147": {
+    "desc": "Spooling device 23, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2150": {
+    "desc": "Spooling device 24, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2151": {
+    "desc": "Spooling device 24, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2152": {
+    "desc": "Spooling device 25, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2153": {
+    "desc": "Spooling device 25, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2154": {
+    "desc": "Spooling device 26, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2155": {
+    "desc": "Spooling device 26, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2156": {
+    "desc": "Spooling device 27, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2157": {
+    "desc": "Spooling device 27, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2160": {
+    "desc": "Spooling device 28, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2161": {
+    "desc": "Spooling device 28, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2162": {
+    "desc": "Spooling device 29, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2163": {
+    "desc": "Spooling device 29, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2164": {
+    "desc": "Spooling device 30, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2165": {
+    "desc": "Spooling device 30, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2166": {
+    "desc": "COSMOS Spooling, queue semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2167": {
+    "desc": "COSMOS Spooling, I/O semaphore",
+    "group": "D2100",
+    "cat": "spooling"
+  },
+  "2170": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2171": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2172": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2173": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2174": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2175": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2176": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2177": {
+    "desc": "Not used",
+    "group": "D2100",
+    "cat": "system"
+  },
+  "2200": {
+    "desc": "Disk access log data field",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2201": {
+    "desc": "Disk access log buffer semaphore",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2202": {
+    "desc": "SCSI adaptor number 1",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2203": {
+    "desc": "SCSI adaptor number 2",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2204": {
+    "desc": "SCSI adaptor number 3",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2205": {
+    "desc": "SCSI adaptor number 4",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2206": {
+    "desc": "SCSI streamer tape drive 1",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2207": {
+    "desc": "SCSI streamer tape drive 2",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2210": {
+    "desc": "SCSI magnetic disk drive 1",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2211": {
+    "desc": "SCSI magnetic disk drive 2",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2212": {
+    "desc": "SCSI magnetic disk drive 3",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2213": {
+    "desc": "SCSI magnetic disk drive 4",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2214": {
+    "desc": "SCSI magnetic disk drive 5",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2215": {
+    "desc": "SCSI magnetic disk drive 6",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2216": {
+    "desc": "SCSI magnetic disk drive 7",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2217": {
+    "desc": "SCSI magnetic disk drive 8",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2220": {
+    "desc": "SCSI magnetic disk drive 9",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2221": {
+    "desc": "SCSI magnetic disk drive 10",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2222": {
+    "desc": "SCSI magnetic disk drive 11",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2223": {
+    "desc": "SCSI magnetic disk drive 12",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2224": {
+    "desc": "SCSI magnetic disk drive 13",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2225": {
+    "desc": "SCSI magnetic disk drive 14",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2226": {
+    "desc": "SCSI streamer tape 1, I/O data field",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2227": {
+    "desc": "SCSI streamer tape 2, I/O data field",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2230": {
+    "desc": "SCSI streamer tape 1, DF data field",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2231": {
+    "desc": "SCSI streamer tape 2, DF data field",
+    "group": "D2200",
+    "cat": "tape"
+  },
+  "2232": {
+    "desc": "SCSI optical disk drive 1",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2233": {
+    "desc": "SCSI optical disk drive 2",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2234": {
+    "desc": "SCSI optical disk drive 3",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2235": {
+    "desc": "SCSI optical disk drive 4",
+    "group": "D2200",
+    "cat": "disk"
+  },
+  "2236": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2237": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2240": {
+    "desc": "Ethernet interface 1",
+    "group": "D2200",
+    "cat": "network"
+  },
+  "2241": {
+    "desc": "Ethernet interface 2",
+    "group": "D2200",
+    "cat": "network"
+  },
+  "2242": {
+    "desc": "Ethernet interface 3",
+    "group": "D2200",
+    "cat": "network"
+  },
+  "2243": {
+    "desc": "Ethernet interface 4",
+    "group": "D2200",
+    "cat": "network"
+  },
+  "2244": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2245": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2246": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2247": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2250": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2251": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2252": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2253": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2254": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2255": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2256": {
+    "desc": "Not used",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2257": {
+    "desc": "Domino allocation semaphore",
+    "group": "D2200",
+    "cat": "semaphore"
+  },
+  "2260": {
+    "desc": "BDIO pool 1",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2261": {
+    "desc": "BDIO pool 2",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2262": {
+    "desc": "BDIO pool 3",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2263": {
+    "desc": "BDIO pool 4",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2264": {
+    "desc": "BDIO pool 5",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2265": {
+    "desc": "BDIO pool 6",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2266": {
+    "desc": "BDIO pool 7",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2267": {
+    "desc": "BDIO pool 8",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2270": {
+    "desc": "BDIO pool 9",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2271": {
+    "desc": "BDIO pool 10",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2272": {
+    "desc": "BDIO pool 11",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2273": {
+    "desc": "BDIO pool 12",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2274": {
+    "desc": "BDIO pool 13",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2275": {
+    "desc": "BDIO pool 14",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2276": {
+    "desc": "BDIO pool 15",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2277": {
+    "desc": "BDIO pool 16",
+    "group": "D2200",
+    "cat": "system"
+  },
+  "2300": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2301": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2302": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2303": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2304": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2305": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2306": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2307": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2310": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2311": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2312": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2313": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2314": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2315": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2316": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2317": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2320": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2321": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2322": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2323": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2324": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2325": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2326": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2327": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2330": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2331": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2332": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2333": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2334": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2335": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2336": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2337": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2340": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2341": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2342": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2343": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2344": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2345": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2346": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2347": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2350": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2351": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2352": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2353": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2354": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2355": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2356": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2357": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2360": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2361": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2362": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2363": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2364": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2365": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2366": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2367": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2370": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2371": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2372": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2373": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2374": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2375": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2376": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2377": {
+    "desc": "User-defined logical device number",
+    "group": "D2300",
+    "cat": "user"
+  },
+  "2400": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2401": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2402": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2403": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2404": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2405": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2406": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2407": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2410": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2411": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2412": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2413": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2414": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2415": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2416": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2417": {
+    "desc": "Octobus unit 0 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2420": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2421": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2422": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2423": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2424": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2425": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2426": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2427": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2430": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2431": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2432": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2433": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2434": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2435": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2436": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2437": {
+    "desc": "Octobus unit 1 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2440": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2441": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2442": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2443": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2444": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2445": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2446": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2447": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2450": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2451": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2452": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2453": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2454": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2455": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2456": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2457": {
+    "desc": "Octobus unit 2 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2460": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2461": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2462": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2463": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2464": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2465": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2466": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2467": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2470": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2471": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2472": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2473": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2474": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2475": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2476": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2477": {
+    "desc": "Octobus unit 3 (J/K-version compatible)",
+    "group": "D2400",
+    "cat": "system"
+  },
+  "2500": {
+    "desc": "Directory entry 0, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2501": {
+    "desc": "Directory entry 0, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2502": {
+    "desc": "Directory entry 1, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2503": {
+    "desc": "Directory entry 1, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2504": {
+    "desc": "Directory entry 2, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2505": {
+    "desc": "Directory entry 2, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2506": {
+    "desc": "Directory entry 3, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2507": {
+    "desc": "Directory entry 3, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2510": {
+    "desc": "Directory entry 4, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2511": {
+    "desc": "Directory entry 4, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2512": {
+    "desc": "Directory entry 5, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2513": {
+    "desc": "Directory entry 5, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2514": {
+    "desc": "Directory entry 6, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2515": {
+    "desc": "Directory entry 6, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2516": {
+    "desc": "Directory entry 7, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2517": {
+    "desc": "Directory entry 7, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2520": {
+    "desc": "Directory entry 8, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2521": {
+    "desc": "Directory entry 8, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2522": {
+    "desc": "Directory entry 9, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2523": {
+    "desc": "Directory entry 9, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2524": {
+    "desc": "Directory entry 10, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2525": {
+    "desc": "Directory entry 10, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2526": {
+    "desc": "Directory entry 11, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2527": {
+    "desc": "Directory entry 11, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2530": {
+    "desc": "Directory entry 12, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2531": {
+    "desc": "Directory entry 12, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2532": {
+    "desc": "Directory entry 13, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2533": {
+    "desc": "Directory entry 13, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2534": {
+    "desc": "Directory entry 14, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2535": {
+    "desc": "Directory entry 14, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2536": {
+    "desc": "Directory entry 15, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2537": {
+    "desc": "Directory entry 15, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2540": {
+    "desc": "Directory entry 16, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2541": {
+    "desc": "Directory entry 16, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2542": {
+    "desc": "Directory entry 17, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2543": {
+    "desc": "Directory entry 17, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2544": {
+    "desc": "Directory entry 18, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2545": {
+    "desc": "Directory entry 18, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2546": {
+    "desc": "Directory entry 19, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2547": {
+    "desc": "Directory entry 19, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2550": {
+    "desc": "Directory entry 20, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2551": {
+    "desc": "Directory entry 20, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2552": {
+    "desc": "Directory entry 21, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2553": {
+    "desc": "Directory entry 21, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2554": {
+    "desc": "Directory entry 22, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2555": {
+    "desc": "Directory entry 22, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2556": {
+    "desc": "Directory entry 23, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2557": {
+    "desc": "Directory entry 23, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2560": {
+    "desc": "Directory entry 24, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2561": {
+    "desc": "Directory entry 24, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2562": {
+    "desc": "Directory entry 25, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2563": {
+    "desc": "Directory entry 25, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2564": {
+    "desc": "Directory entry 26, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2565": {
+    "desc": "Directory entry 26, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2566": {
+    "desc": "Directory entry 27, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2567": {
+    "desc": "Directory entry 27, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2570": {
+    "desc": "Directory entry 28, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2571": {
+    "desc": "Directory entry 28, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2572": {
+    "desc": "Directory entry 29, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2573": {
+    "desc": "Directory entry 29, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2574": {
+    "desc": "Directory entry 30, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2575": {
+    "desc": "Directory entry 30, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2576": {
+    "desc": "Directory entry 31, directory semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2577": {
+    "desc": "Directory entry 31, bit file semaphore",
+    "group": "D2500",
+    "cat": "semaphore"
+  },
+  "2600": {
+    "desc": "Directory entry 32, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2601": {
+    "desc": "Directory entry 32, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2602": {
+    "desc": "Directory entry 33, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2603": {
+    "desc": "Directory entry 33, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2604": {
+    "desc": "Directory entry 34, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2605": {
+    "desc": "Directory entry 34, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2606": {
+    "desc": "Directory entry 35, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2607": {
+    "desc": "Directory entry 35, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2610": {
+    "desc": "Directory entry 36, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2611": {
+    "desc": "Directory entry 36, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2612": {
+    "desc": "Directory entry 37, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2613": {
+    "desc": "Directory entry 37, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2614": {
+    "desc": "Directory entry 38, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2615": {
+    "desc": "Directory entry 38, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2616": {
+    "desc": "Directory entry 39, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2617": {
+    "desc": "Directory entry 39, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2620": {
+    "desc": "Directory entry 40, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2621": {
+    "desc": "Directory entry 40, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2622": {
+    "desc": "Directory entry 41, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2623": {
+    "desc": "Directory entry 41, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2624": {
+    "desc": "Directory entry 42, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2625": {
+    "desc": "Directory entry 42, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2626": {
+    "desc": "Directory entry 43, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2627": {
+    "desc": "Directory entry 43, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2630": {
+    "desc": "Directory entry 44, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2631": {
+    "desc": "Directory entry 44, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2632": {
+    "desc": "Directory entry 45, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2633": {
+    "desc": "Directory entry 45, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2634": {
+    "desc": "Directory entry 46, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2635": {
+    "desc": "Directory entry 46, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2636": {
+    "desc": "Directory entry 47, directory semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2637": {
+    "desc": "Directory entry 47, bit file semaphore",
+    "group": "D2600",
+    "cat": "semaphore"
+  },
+  "2640": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2641": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2642": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2643": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2644": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2645": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2646": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2647": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2650": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2651": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2652": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2653": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2654": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2655": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2656": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2657": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2660": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2661": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2662": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2663": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2664": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2665": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2666": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2667": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2670": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2671": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2672": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2673": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2674": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2675": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2676": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2677": {
+    "desc": "Not used",
+    "group": "D2600",
+    "cat": "system"
+  },
+  "2700": {
+    "desc": "Terminal 129",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2701": {
+    "desc": "Terminal 130",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2702": {
+    "desc": "Terminal 131",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2703": {
+    "desc": "Terminal 132",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2704": {
+    "desc": "Terminal 133",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2705": {
+    "desc": "Terminal 134",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2706": {
+    "desc": "Terminal 135",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2707": {
+    "desc": "Terminal 136",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2710": {
+    "desc": "Terminal 137",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2711": {
+    "desc": "Terminal 138",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2712": {
+    "desc": "Terminal 139",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2713": {
+    "desc": "Terminal 140",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2714": {
+    "desc": "Terminal 141",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2715": {
+    "desc": "Terminal 142",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2716": {
+    "desc": "Terminal 143",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2717": {
+    "desc": "Terminal 144",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2720": {
+    "desc": "Terminal 145",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2721": {
+    "desc": "Terminal 146",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2722": {
+    "desc": "Terminal 147",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2723": {
+    "desc": "Terminal 148",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2724": {
+    "desc": "Terminal 149",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2725": {
+    "desc": "Terminal 150",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2726": {
+    "desc": "Terminal 151",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2727": {
+    "desc": "Terminal 152",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2730": {
+    "desc": "Terminal 153",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2731": {
+    "desc": "Terminal 154",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2732": {
+    "desc": "Terminal 155",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2733": {
+    "desc": "Terminal 156",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2734": {
+    "desc": "Terminal 157",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2735": {
+    "desc": "Terminal 158",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2736": {
+    "desc": "Terminal 159",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2737": {
+    "desc": "Terminal 160",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2740": {
+    "desc": "Terminal 161",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2741": {
+    "desc": "Terminal 162",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2742": {
+    "desc": "Terminal 163",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2743": {
+    "desc": "Terminal 164",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2744": {
+    "desc": "Terminal 165",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2745": {
+    "desc": "Terminal 166",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2746": {
+    "desc": "Terminal 167",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2747": {
+    "desc": "Terminal 168",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2750": {
+    "desc": "Terminal 169",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2751": {
+    "desc": "Terminal 170",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2752": {
+    "desc": "Terminal 171",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2753": {
+    "desc": "Terminal 172",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2754": {
+    "desc": "Terminal 173",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2755": {
+    "desc": "Terminal 174",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2756": {
+    "desc": "Terminal 175",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2757": {
+    "desc": "Terminal 176",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2760": {
+    "desc": "Terminal 177",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2761": {
+    "desc": "Terminal 178",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2762": {
+    "desc": "Terminal 179",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2763": {
+    "desc": "Terminal 180",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2764": {
+    "desc": "Terminal 181",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2765": {
+    "desc": "Terminal 182",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2766": {
+    "desc": "Terminal 183",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2767": {
+    "desc": "Terminal 184",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2770": {
+    "desc": "Terminal 185",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2771": {
+    "desc": "Terminal 186",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2772": {
+    "desc": "Terminal 187",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2773": {
+    "desc": "Terminal 188",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2774": {
+    "desc": "Terminal 189",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2775": {
+    "desc": "Terminal 190",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2776": {
+    "desc": "Terminal 191",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "2777": {
+    "desc": "Terminal 192",
+    "group": "D2700",
+    "cat": "terminal"
+  },
+  "3000": {
+    "desc": "Terminal 193",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3001": {
+    "desc": "Terminal 194",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3002": {
+    "desc": "Terminal 195",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3003": {
+    "desc": "Terminal 196",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3004": {
+    "desc": "Terminal 197",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3005": {
+    "desc": "Terminal 198",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3006": {
+    "desc": "Terminal 199",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3007": {
+    "desc": "Terminal 200",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3010": {
+    "desc": "Terminal 201",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3011": {
+    "desc": "Terminal 202",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3012": {
+    "desc": "Terminal 203",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3013": {
+    "desc": "Terminal 204",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3014": {
+    "desc": "Terminal 205",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3015": {
+    "desc": "Terminal 206",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3016": {
+    "desc": "Terminal 207",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3017": {
+    "desc": "Terminal 208",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3020": {
+    "desc": "Terminal 209",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3021": {
+    "desc": "Terminal 210",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3022": {
+    "desc": "Terminal 211",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3023": {
+    "desc": "Terminal 212",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3024": {
+    "desc": "Terminal 213",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3025": {
+    "desc": "Terminal 214",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3026": {
+    "desc": "Terminal 215",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3027": {
+    "desc": "Terminal 216",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3030": {
+    "desc": "Terminal 217",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3031": {
+    "desc": "Terminal 218",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3032": {
+    "desc": "Terminal 219",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3033": {
+    "desc": "Terminal 220",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3034": {
+    "desc": "Terminal 221",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3035": {
+    "desc": "Terminal 222",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3036": {
+    "desc": "Terminal 223",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3037": {
+    "desc": "Terminal 224",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3040": {
+    "desc": "Terminal 225",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3041": {
+    "desc": "Terminal 226",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3042": {
+    "desc": "Terminal 227",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3043": {
+    "desc": "Terminal 228",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3044": {
+    "desc": "Terminal 229",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3045": {
+    "desc": "Terminal 230",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3046": {
+    "desc": "Terminal 231",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3047": {
+    "desc": "Terminal 232",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3050": {
+    "desc": "Terminal 233",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3051": {
+    "desc": "Terminal 234",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3052": {
+    "desc": "Terminal 235",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3053": {
+    "desc": "Terminal 236",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3054": {
+    "desc": "Terminal 237",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3055": {
+    "desc": "Terminal 238",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3056": {
+    "desc": "Terminal 239",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3057": {
+    "desc": "Terminal 240",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3060": {
+    "desc": "Terminal 241",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3061": {
+    "desc": "Terminal 242",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3062": {
+    "desc": "Terminal 243",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3063": {
+    "desc": "Terminal 244",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3064": {
+    "desc": "Terminal 245",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3065": {
+    "desc": "Terminal 246",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3066": {
+    "desc": "Terminal 247",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3067": {
+    "desc": "Terminal 248",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3070": {
+    "desc": "Terminal 249",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3071": {
+    "desc": "Terminal 250",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3072": {
+    "desc": "Terminal 251",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3073": {
+    "desc": "Terminal 252",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3074": {
+    "desc": "Terminal 253",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3075": {
+    "desc": "Terminal 254",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3076": {
+    "desc": "Terminal 255",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3077": {
+    "desc": "Terminal 256",
+    "group": "D3000",
+    "cat": "terminal"
+  },
+  "3100": {
+    "desc": "Batch process 11, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3101": {
+    "desc": "Batch process 11, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3102": {
+    "desc": "Batch process 12, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3103": {
+    "desc": "Batch process 12, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3104": {
+    "desc": "Batch process 13, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3105": {
+    "desc": "Batch process 13, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3106": {
+    "desc": "Batch process 14, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3107": {
+    "desc": "Batch process 14, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3110": {
+    "desc": "Batch process 15, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3111": {
+    "desc": "Batch process 15, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3112": {
+    "desc": "Batch process 16, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3113": {
+    "desc": "Batch process 16, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3114": {
+    "desc": "Batch process 17, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3115": {
+    "desc": "Batch process 17, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3116": {
+    "desc": "Batch process 18, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3117": {
+    "desc": "Batch process 18, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3120": {
+    "desc": "Batch process 19, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3121": {
+    "desc": "Batch process 19, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3122": {
+    "desc": "Batch process 20, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3123": {
+    "desc": "Batch process 20, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3124": {
+    "desc": "Batch process 21, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3125": {
+    "desc": "Batch process 21, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3126": {
+    "desc": "Batch process 22, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3127": {
+    "desc": "Batch process 22, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3130": {
+    "desc": "Batch process 23, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3131": {
+    "desc": "Batch process 23, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3132": {
+    "desc": "Batch process 24, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3133": {
+    "desc": "Batch process 24, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3134": {
+    "desc": "Batch process 25, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3135": {
+    "desc": "Batch process 25, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3136": {
+    "desc": "Batch process 26, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3137": {
+    "desc": "Batch process 26, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3140": {
+    "desc": "Batch process 27, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3141": {
+    "desc": "Batch process 27, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3142": {
+    "desc": "Batch process 28, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3143": {
+    "desc": "Batch process 28, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3144": {
+    "desc": "Batch process 29, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3145": {
+    "desc": "Batch process 29, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3146": {
+    "desc": "Batch process 30, data field",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3147": {
+    "desc": "Batch process 30, internal device",
+    "group": "D3100",
+    "cat": "batch"
+  },
+  "3150": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3151": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3152": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3153": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3154": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3155": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3156": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3157": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3160": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3161": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3162": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3163": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3164": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3165": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3166": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3167": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3170": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3171": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3172": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3173": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3174": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3175": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3176": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3177": {
+    "desc": "Not used",
+    "group": "D3100",
+    "cat": "system"
+  },
+  "3200": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3201": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3202": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3203": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3204": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3205": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3206": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3207": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3210": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3211": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3212": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3213": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3214": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3215": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3216": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3217": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3220": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3221": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3222": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3223": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3224": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3225": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3226": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3227": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3230": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3231": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3232": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3233": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3234": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3235": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3236": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3237": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3240": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3241": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3242": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3243": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3244": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3245": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3246": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3247": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3250": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3251": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3252": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3253": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3254": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3255": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3256": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3257": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3260": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3261": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3262": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3263": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3264": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3265": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3266": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3267": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3270": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3271": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3272": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3273": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3274": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3275": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3276": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3277": {
+    "desc": "Used for remote open files",
+    "group": "(none)",
+    "cat": "file"
+  },
+  "3300": {
+    "desc": "Batch process 1, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3301": {
+    "desc": "Batch process 2, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3302": {
+    "desc": "Batch process 3, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3303": {
+    "desc": "Batch process 4, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3304": {
+    "desc": "Batch process 5, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3305": {
+    "desc": "Batch process 6, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3306": {
+    "desc": "Batch process 7, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3307": {
+    "desc": "Batch process 8, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3310": {
+    "desc": "Batch process 9, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3311": {
+    "desc": "Batch process 10, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3312": {
+    "desc": "Batch process 11, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3313": {
+    "desc": "Batch process 12, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3314": {
+    "desc": "Batch process 13, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3315": {
+    "desc": "Batch process 14, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3316": {
+    "desc": "Batch process 15, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3317": {
+    "desc": "Batch process 16, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3320": {
+    "desc": "Batch process 17, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3321": {
+    "desc": "Batch process 18, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3322": {
+    "desc": "Batch process 19, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3323": {
+    "desc": "Batch process 20, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3324": {
+    "desc": "Batch process 21, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3325": {
+    "desc": "Batch process 22, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3326": {
+    "desc": "Batch process 23, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3327": {
+    "desc": "Batch process 24, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3330": {
+    "desc": "Batch process 25, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3331": {
+    "desc": "Batch process 26, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3332": {
+    "desc": "Batch process 27, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3333": {
+    "desc": "Batch process 28, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3334": {
+    "desc": "Batch process 29, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3335": {
+    "desc": "Batch process 30, extra batch queue device",
+    "group": "D3300",
+    "cat": "batch"
+  },
+  "3336": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3337": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3340": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3341": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3342": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3343": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3344": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3345": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3346": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3347": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3350": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3351": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3352": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3353": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3354": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3355": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3356": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3357": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3360": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3361": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3362": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3363": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3364": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3365": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3366": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3367": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3370": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3371": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3372": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3373": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3374": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3375": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3376": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  },
+  "3377": {
+    "desc": "Not used",
+    "group": "D3300",
+    "cat": "system"
+  }
+}
