@@ -225,6 +225,7 @@ ushort GetPTShadowAddress(uint pageTable, uint VPN, PageTableMode ptm);
 void PT_Write(uint address, ushort value);
 ushort PT_Read(uint address);
 uint GetPageTableEntry(uint pageTable, uint VPN, PageTableMode ptm);
+uint GetPageTableEntryForDebugger(uint pageTable, uint VPN, PageTableMode ptm);
 bool UpdatePageTableEntry(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
 uint SetPageUsed(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);
 uint SetPageWritten(uint pageTable, uint VPN, PageTableMode ptm, uint PTe);

@@ -247,6 +247,51 @@ uint GetPageTableEntry(uint pageTable, uint VPN,PageTableMode ptm)
     return PTe;
 }
 
+// Get page table entry for debugger/inspector use.
+//
+// GetPageTableEntry() checks STS_SEXI to decide shadow RAM format. STS_SEXI
+// reflects the SEXI flag of the currently executing interrupt level, so when
+// SEXI is off, PT 4-15 return 0. This is correct for normal CPU operation.
+//
+// The JS debugger however needs to read any page table at any time, including
+// DPIT (PT#7) for SINTRAN kernel inspection. When the CPU is paused, the
+// current level may not have SEXI set, even though SINTRAN loaded entries
+// into PT 4-15 while running at a level with SEXI enabled. The shadow RAM
+// content is still valid - the hardware format (MMS1=4PT/16-bit vs
+// MMS2=16PT/32-bit) is fixed and does not depend on the runtime SEXI state.
+//
+// This function uses mmsType instead of STS_SEXI so the debugger can always
+// read all page tables regardless of which level happens to be active.
+uint GetPageTableEntryForDebugger(uint pageTable, uint VPN, PageTableMode ptm)
+{
+    if (!pt.shadowRam) return 0;
+    if (pageTable >= 16) return 0;
+
+    uint PTe = 0;
+
+    if (mmsType == MMS2)
+    {
+        // MMS2 hardware: always 32-bit PTEs in extended 16PT area
+        uint offset = SHADOW_RAM_EXTENDED_MODE_16PT - pt.shadowRamAddress;
+        uint pageTableAddress = ((pageTable << 6) | VPN) << 1;
+        pageTableAddress += offset;
+        PTe = (uint)(pt.shadowRam[pageTableAddress] << 16 | pt.shadowRam[pageTableAddress + 1]);
+    }
+    else
+    {
+        // MMS1 hardware: only 4 page tables, 16-bit PTEs
+        if (pageTable <= 3)
+        {
+            uint offset = SHADOW_RAM_NORMAL_MODE_4PT - pt.shadowRamAddress;
+            uint pageTableAddress = (pageTable << 6) | VPN;
+            pageTableAddress += offset;
+            PTe = ConvertFrom16BitPTE(pt.shadowRam[pageTableAddress]);
+        }
+    }
+
+    return PTe;
+}
+
 // Update page table entry
 bool UpdatePageTableEntry(uint pageTable, uint VPN, PageTableMode ptm, uint PTe)
 {
