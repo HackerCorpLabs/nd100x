@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
 #include <errno.h>
 
 #include "machine_types.h"
@@ -221,7 +222,9 @@ void mount_floppy(const char *imageFile, int unit)
     const char *floppy_img = imageFile ? imageFile : "FLOPPY.IMG";
     
     // if file exists  mount it
-    if (access(floppy_img, F_OK) != -1) {
+    FILE *ftmp = fopen(floppy_img, "rb");
+    if (ftmp) {
+        fclose(ftmp);
         mount_drive(DRIVE_FLOPPY, unit, "md5-unknown", "Boot Floppy", "Boot floppy image", floppy_img);
     }
 }
@@ -235,7 +238,9 @@ void mount_smd(const char *imageFile, int unit)
     const char *smd_img = imageFile ? imageFile : path;
     
     // if file exists  mount it
-    if (access(smd_img, F_OK) != -1) {
+    FILE *ftmp2 = fopen(smd_img, "rb");
+    if (ftmp2) {
+        fclose(ftmp2);
         if (unit ==0)
         {
             mount_drive(DRIVE_SMD, unit, "md5-unknown", "Boot SMD", "Boot SMD image", smd_img);
@@ -268,7 +273,7 @@ void autoMountDrives()
 
 }
 
- void program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
+ int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
  {
      int bootAddress;
      int result;
@@ -282,7 +287,7 @@ void autoMountDrives()
          {
              printf("Error loading BP file '%s'\n", imageFile);
 #ifdef __EMSCRIPTEN__
-             return;
+             return -1;
 #else
              exit(1);
 #endif
@@ -295,7 +300,7 @@ void autoMountDrives()
          {
              printf("Error loading BPUN file '%s'\n", imageFile);
 #ifdef __EMSCRIPTEN__
-             return;
+             return -1;
 #else
              exit(1);
 #endif
@@ -308,7 +313,7 @@ void autoMountDrives()
         {
             printf("Error loading AOUT file '%s'\n", imageFile);
 #ifdef __EMSCRIPTEN__
-            return;
+            return -1;
 #else
             exit(1);
 #endif
@@ -324,7 +329,7 @@ void autoMountDrives()
          {
              printf("Error loading BPUN file\n");
 #ifdef __EMSCRIPTEN__
-             return;
+             return -1;
 #else
              exit(1);
 #endif
@@ -353,7 +358,7 @@ void autoMountDrives()
          {
              printf("Error booting from SMD device\n");
 #ifdef __EMSCRIPTEN__
-             return;
+             return -1;
 #else
              exit(10);
 #endif
@@ -363,6 +368,7 @@ void autoMountDrives()
      }
 
      autoMountDrives();
+     return 0;
  }
  
  /** DEVICE MOUNTING */
