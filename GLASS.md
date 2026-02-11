@@ -54,7 +54,7 @@ flowchart TB
         CSS1["styles.css<br/>Glass effects, layout"]
         CSS2["themes.css<br/>5 theme overrides"]
 
-        subgraph JS["JavaScript Modules (21 files)"]
+        subgraph JS["JavaScript Modules 21 files"]
             direction LR
             INIT["module-init.js"]
             TERM["terminal.js"]
@@ -86,24 +86,18 @@ flowchart TB
     WASMBIN -->|"handleTerminalOutput(id, char)"| TERM
     TERM --> XTERM
 
-    style HTML fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000
-    style CSS1 fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000
-    style CSS2 fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000
-    style JS fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style INIT fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style TERM fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style EMU fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style TOOL fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style DBG fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000
-    style DISASM fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000
-    style BP fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000
-    style SINT fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
-    style THEME fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style MORE fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#000
-    style XTERM fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000
-    style TASKBAR fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000
-    style WASMJS fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000
-    style WASMBIN fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000
+    classDef wasm fill:#2196F3,stroke:#1565C0,stroke-width:2px,color:#fff
+    classDef jsmod fill:#009688,stroke:#00695C,stroke-width:2px,color:#fff
+    classDef debugger fill:#FFA726,stroke:#F57C00,stroke-width:2px,color:#000
+    classDef sintran fill:#9C27B0,stroke:#7B1FA2,stroke-width:2px,color:#fff
+    classDef terminal fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
+
+    class HTML,CSS1,CSS2 wasm
+    class INIT,TERM,EMU,TOOL,THEME,MORE jsmod
+    class DBG,DISASM,BP debugger
+    class SINT sintran
+    class XTERM,TASKBAR terminal
+    class WASMJS,WASMBIN wasm
 ```
 
 ---
@@ -130,18 +124,18 @@ The WASM binary and the UI assets are combined at build time, not at runtime. Th
 
 ```mermaid
 sequenceDiagram
-    box rgb(227,242,253) Browser and WASM
+    box SkyBlue Browser and WASM
         participant B as Browser
         participant WM as nd100wasm.js
     end
-    box rgb(224,247,250) JavaScript Modules
+    box LightSeaGreen JavaScript Modules
         participant MI as module-init.js
         participant TM as theme-manager.js
         participant T as terminal.js
         participant E as emulation.js
         participant TB as toolbar.js
     end
-    box rgb(255,243,224) User
+    box SandyBrown User
         participant U as User
     end
 
@@ -608,17 +602,17 @@ Program names are NOT stored in SINTRAN memory. `sintran-rt-names.js` provides r
 
 ```mermaid
 sequenceDiagram
-    box rgb(224,247,250) JavaScript
+    box LightSeaGreen JavaScript
         participant JS as JavaScript
     end
-    box rgb(227,242,253) WASM Core
+    box SkyBlue WASM Core
         participant WASM as WASM Module
         participant CPU as CPU Core
     end
-    box rgb(255,243,224) Debugger
+    box SandyBrown Debugger
         participant DBG as Debugger API
     end
-    box rgb(232,245,233) Hardware
+    box MediumSeaGreen Hardware
         participant DEV as Devices
     end
 
