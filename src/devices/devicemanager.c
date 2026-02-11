@@ -36,7 +36,7 @@
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 
-#define INITIAL_DEVICE_CAPACITY 16
+#define INITIAL_DEVICE_CAPACITY 32
 
 //#define LOG_DEVICE_NOT_FOUND
 
@@ -327,6 +327,17 @@ Device *DeviceManager_GetDeviceByAddress(uint32_t address)
     }
 
     return NULL;
+}
+
+int DeviceManager_GetDeviceCount(void)
+{
+    return deviceManager.deviceCount;
+}
+
+Device *DeviceManager_GetDeviceByIndex(int index)
+{
+    if (index < 0 || index >= deviceManager.deviceCount) return NULL;
+    return deviceManager.devices[index].device;
 }
 
 // Loads boot code from disk to memory. Returns the boot address, or -1 if error

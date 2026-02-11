@@ -45,6 +45,8 @@ void DeviceManager_Write(uint32_t address, uint16_t value);
 int DeviceManager_Ident(uint16_t level);
 uint16_t DeviceManager_Tick(void);
 Device *DeviceManager_GetDeviceByAddress(uint32_t address);
+int DeviceManager_GetDeviceCount(void);
+Device *DeviceManager_GetDeviceByIndex(int index);
 int DeviceManager_Boot(uint16_t device_id);
 
 /* /home/ronny/repos/nd100x/src/devices/panel/panel.c */
