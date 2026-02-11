@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // floppy-browser.js - Floppy browser modal, search, products, mount
 
 let floppyDatabase = [];

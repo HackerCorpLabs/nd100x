@@ -135,6 +135,18 @@ make sanitize
 - Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
 - Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
 
+## Glass Web UI
+
+The emulator includes a glassmorphism browser frontend (the "Glass UI") that runs the full ND-100 emulator in your browser. The live version at **https://nd100x.hackercorp.no/** has been upgraded to use this layout.
+
+Build and run locally:
+```bash
+make wasm-glass-run
+```
+
+Features include draggable/resizable floating windows, an xterm.js VT100 terminal, a full CPU debugger with breakpoints and disassembly, SINTRAN III operating system inspection tools, a hardware page table viewer, and 5 switchable color themes.
+
+The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 21 JS modules, 1 JSON data file). For the full architecture reference, see [GLASS.md](GLASS.md).
 
 ## Updating Git submodules
 
@@ -282,7 +294,7 @@ See the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information
 ## TODO
 
 - Refactor IO access to request BLOCKs from Machine instead of direct file access
-  - Opens up for running WASM in the browser
+  - Opens up for running WASM in the browser with better performance/less memory usage.
 - OPCOM implementation
   - Emulation of OPCOM for memory inspection when CPU is in STOP mode.
   - Currently STOP mode exits the emulator 

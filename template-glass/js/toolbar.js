@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // toolbar.js - Toolbar menus, button wiring, window management, draggable helper
 
 // =========================================================
@@ -1013,6 +1020,9 @@ windowManager.register('config-window', 'Config');
       }
     }
   } catch(e) {}
+  // Remove early-restore style tag - toolbar.js now owns all positions/visibility
+  var earlyStyle = document.getElementById('early-restore');
+  if (earlyStyle) earlyStyle.remove();
 })();
 
 // Periodically update taskbar to reflect visible windows

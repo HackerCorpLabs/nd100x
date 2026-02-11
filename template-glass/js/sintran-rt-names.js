@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // sintran-rt-names.js - RT program name lookup tables
 // Source: SINTRAN III NPL symbol tables (SYMBOL-2-LIST.SYMB.TXT)
 // Verified against: K03, L07, M06 symbol tables and live SINTRAN L07 execution

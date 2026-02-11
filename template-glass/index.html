@@ -21,6 +21,66 @@
   <link rel="stylesheet" href="css/themes.css">
 </head>
 <body>
+  <!-- Early state restore: apply saved visibility and positions BEFORE first paint -->
+  <script>
+  (function() {
+    try {
+      var css = '';
+
+      // Restore window visibility - hide windows the user previously closed
+      var vis = JSON.parse(localStorage.getItem('window-visibility') || '{}');
+      for (var id in vis) {
+        if (!vis[id]) {
+          css += '#' + id + '{display:none!important}';
+        }
+      }
+
+      // Restore terminal position - prevent jump from CSS default to saved position
+      var termPos = JSON.parse(localStorage.getItem('term-pos'));
+      if (termPos && termPos.left) {
+        var tl = Math.max(0, parseInt(termPos.left) || 0);
+        var tt = Math.max(49, parseInt(termPos.top) || 0);
+        css += '#terminal-window{left:' + tl + 'px;top:' + tt + 'px;bottom:auto;transform:none}';
+        if (termPos.width) css += '#terminal-window{width:' + termPos.width + '}';
+        if (termPos.height) css += '#terminal-window{height:' + termPos.height + '}';
+      }
+
+      // Restore all glass window positions
+      var posKeys = {
+        'machine-window': 'machine-pos',
+        'cpu-load-window': 'cpu-load-pos',
+        'debugger-window': 'dbg-pos',
+        'disasm-window': 'disasm-pos',
+        'breakpoints-window': 'breakpoints-pos',
+        'help-window': 'help-window-pos',
+        'floppy-modal': 'floppy-browser-pos',
+        'sysinfo-window': 'sysinfo-pos',
+        'process-list-window': 'proc-list-pos',
+        'queue-viewer-window': 'queue-viewer-pos',
+        'segment-table-window': 'segment-table-pos',
+        'io-devices-window': 'io-devices-pos',
+        'page-table-window': 'page-table-pos',
+        'config-window': 'config-pos'
+      };
+      for (var wid in posKeys) {
+        var pos = JSON.parse(localStorage.getItem(posKeys[wid]));
+        if (pos && pos.left && pos.top) {
+          var l = Math.max(0, parseInt(pos.left) || 0);
+          var t = Math.max(49, parseInt(pos.top) || 0);
+          css += '#' + wid + '{left:' + l + 'px;top:' + t + 'px;bottom:auto;right:auto;transform:none}';
+        }
+      }
+
+      if (css) {
+        var s = document.createElement('style');
+        s.id = 'early-restore';
+        s.textContent = css;
+        document.head.appendChild(s);
+      }
+    } catch(e) {}
+  })();
+  </script>
+
   <!-- Animated background orbs -->
   <div class="bg-effects">
     <div class="bg-orb bg-orb-1"></div>
@@ -112,9 +172,9 @@
   </div>
 
   <!-- =========================================
-       MACHINE INFO WINDOW (visible by default)
+       MACHINE INFO WINDOW (hidden by default)
        ========================================= -->
-  <div id="machine-window" class="glass-window" style="display: flex;">
+  <div id="machine-window" class="glass-window" style="display: none;">
     <div class="glass-window-header" id="machine-window-header">
       <span class="glass-window-title">Machine Info</span>
       <button class="glass-window-close" id="machine-window-close">
@@ -197,6 +257,12 @@
       <p class="about-title">nd100x</p>
       <p class="about-description">
         Open-source ND-100 emulator with complete CPU opcode set, memory paging/protection, and emulated peripherals for running original software.
+      </p>
+      <p class="about-description" style="font-size:11px;opacity:0.7;margin-top:12px;">
+        SPDX-License-Identifier: MIT<br>
+        Copyright &copy; 1985&ndash;2026 Ronny Hansen<br>
+        HackerCorp Labs<br>
+        Emulating yesterday's technology with today's code
       </p>
       <a href="https://github.com/HackerCorpLabs/nd100x" target="_blank" rel="noopener noreferrer" class="about-link">View on GitHub</a>
     </div>

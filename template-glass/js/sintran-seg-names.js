@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // sintran-seg-names.js - System segment name lookup table
 // Source: sintran-system-segments.json (SINTRAN III Release Information)
 // System segments 2-93 (002-135 octal)
