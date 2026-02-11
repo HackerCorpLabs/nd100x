@@ -124,20 +124,14 @@ The WASM binary and the UI assets are combined at build time, not at runtime. Th
 
 ```mermaid
 sequenceDiagram
-    box SkyBlue Browser and WASM
-        participant B as Browser
-        participant WM as nd100wasm.js
-    end
-    box LightSeaGreen JavaScript Modules
-        participant MI as module-init.js
-        participant TM as theme-manager.js
-        participant T as terminal.js
-        participant E as emulation.js
-        participant TB as toolbar.js
-    end
-    box SandyBrown User
-        participant U as User
-    end
+    participant B as Browser
+    participant MI as module-init.js
+    participant WM as nd100wasm.js
+    participant TM as theme-manager.js
+    participant T as terminal.js
+    participant E as emulation.js
+    participant TB as toolbar.js
+    participant U as User
 
     B->>MI: Load first (script tag line 9)
     Note over MI: Define global Module object<br/>with locateFile, print, printErr,<br/>onRuntimeInitialized callback
@@ -602,19 +596,11 @@ Program names are NOT stored in SINTRAN memory. `sintran-rt-names.js` provides r
 
 ```mermaid
 sequenceDiagram
-    box LightSeaGreen JavaScript
-        participant JS as JavaScript
-    end
-    box SkyBlue WASM Core
-        participant WASM as WASM Module
-        participant CPU as CPU Core
-    end
-    box SandyBrown Debugger
-        participant DBG as Debugger API
-    end
-    box MediumSeaGreen Hardware
-        participant DEV as Devices
-    end
+    participant JS as JavaScript
+    participant WASM as WASM Module
+    participant CPU as CPU Core
+    participant DBG as Debugger API
+    participant DEV as Devices
 
     Note over JS,DEV: Initialization
     JS->>WASM: Module._Init()
