@@ -13,6 +13,13 @@ let activeTerminalId = 1;
 const RAW_MODE = true;
 let isInitialized = false;
 
+// Track floating terminal windows for cleanup
+var floatingTerminalWindows = {};
+var floatingTerminalCount = 0;
+
+// Map identCode -> display name (e.g. "5 (TERMINAL 5/ TET12)")
+var terminalDisplayNames = {};
+
 // Per-terminal settings: { [identCode]: { fontFamily, colorTheme } }
 var terminalSettings = {};
 
@@ -28,6 +35,13 @@ const colorThemes = {
   blue:       { background: 'transparent', foreground: '#00BFFF', cursor: '#00BFFF' },
   paperwhite: { background: '#f0f0f5', foreground: '#222222', cursor: '#222222' }
 };
+
+// Check if float mode is enabled (default: true for new users)
+function isFloatMode() {
+  var val = localStorage.getItem('terminal-float-mode');
+  if (val === null) return true;
+  return val === 'true';
+}
 
 // Function to measure the actual character cell size for a given font and size
 function measureCharSize(fontFamily, fontSize) {
@@ -74,23 +88,219 @@ function loadTerminalSettings() {
 // Load settings on startup
 loadTerminalSettings();
 
-// Function to create a terminal container and tab
-function createTerminal(identCode, name) {
-  const container = document.createElement('div');
-  container.id = `terminal-container-${identCode}`;
-  container.className = 'terminal-container';
-  const tabs = document.querySelector('.terminal-tabs');
-  if (tabs.nextSibling) {
-    tabs.parentNode.insertBefore(container, tabs.nextSibling);
-  } else {
-    tabs.parentNode.appendChild(container);
+// Build the font select dropdown HTML for floating terminal headers
+function buildFontSelectHTML(identCode) {
+  var settings = getTerminalSettings(identCode);
+  var opts = [
+    { val: "monospace", label: "Monospace" },
+    { val: "'VT323', monospace", label: "VT323" },
+    { val: "'Fira Mono', monospace", label: "Fira Mono" },
+    { val: "'IBM Plex Mono', monospace", label: "IBM Plex" },
+    { val: "'Cascadia Mono', monospace", label: "Cascadia" },
+    { val: "'Source Code Pro', monospace", label: "Source Code" }
+  ];
+  var html = '<select class="term-header-select" title="Font">';
+  opts.forEach(function(o) {
+    var sel = (o.val === settings.fontFamily) ? ' selected' : '';
+    html += '<option value="' + o.val + '"' + sel + '>' + o.label + '</option>';
+  });
+  html += '</select>';
+  return html;
+}
+
+// Build the color select dropdown HTML for floating terminal headers
+function buildColorSelectHTML(identCode) {
+  var settings = getTerminalSettings(identCode);
+  var opts = [
+    { val: "green", label: "Green" },
+    { val: "amber", label: "Amber" },
+    { val: "white", label: "White" },
+    { val: "blue", label: "Blue" },
+    { val: "paperwhite", label: "Paper" }
+  ];
+  var html = '<select class="term-header-select" title="Color">';
+  opts.forEach(function(o) {
+    var sel = (o.val === settings.colorTheme) ? ' selected' : '';
+    html += '<option value="' + o.val + '"' + sel + '>' + o.label + '</option>';
+  });
+  html += '</select>';
+  return html;
+}
+
+// Create a floating glass window for a terminal
+function createFloatingTerminalWindow(identCode, name) {
+  var winId = 'float-term-' + identCode;
+
+  // Create the glass window
+  var win = document.createElement('div');
+  win.id = winId;
+  win.className = 'glass-window';
+  win.style.display = 'none';
+  win.style.width = '700px';
+  win.style.height = '460px';
+  win.style.minWidth = '400px';
+  win.style.minHeight = '250px';
+  win.style.flexDirection = 'column';
+
+  // Stagger position using sequential counter (not identCode which can be large)
+  var offset = floatingTerminalCount * 30;
+  floatingTerminalCount++;
+  win.style.top = (120 + offset) + 'px';
+  win.style.left = (100 + offset) + 'px';
+
+  // Header
+  var header = document.createElement('div');
+  header.className = 'glass-window-header';
+  header.id = winId + '-header';
+  header.innerHTML =
+    '<span class="glass-window-title">Terminal ' + name + '</span>' +
+    '<div class="float-term-header-controls">' +
+      buildFontSelectHTML(identCode) +
+      buildColorSelectHTML(identCode) +
+      '<button class="glass-window-close" id="' + winId + '-close">' +
+        '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
+        '<line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>' +
+      '</button>' +
+    '</div>';
+
+  // Resize handle
+  var resizeHandle = document.createElement('div');
+  resizeHandle.className = 'glass-resize-handle';
+  resizeHandle.id = winId + '-resize';
+  resizeHandle.innerHTML =
+    '<svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
+    '<line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/></svg>';
+
+  // Body
+  var body = document.createElement('div');
+  body.className = 'float-terminal-body';
+
+  // Terminal container inside the body
+  var container = document.createElement('div');
+  container.id = 'terminal-container-' + identCode;
+  container.className = 'terminal-container active';
+  body.appendChild(container);
+
+  win.appendChild(header);
+  win.appendChild(resizeHandle);
+  win.appendChild(body);
+  document.body.appendChild(win);
+
+  // Close button - hide window, set carrier missing, update submenu
+  document.getElementById(winId + '-close').addEventListener('click', function() {
+    closeWindow(winId);
+    // Signal carrier loss to SINTRAN so it disconnects the user
+    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
+      Module._SetTerminalCarrier(1, identCode);
+    }
+    updateTerminalSubmenu();
+  });
+
+  // Font/color selects in the floating header
+  var selects = header.querySelectorAll('.term-header-select');
+  var fontSel = selects[0];
+  var colorSel = selects[1];
+
+  fontSel.addEventListener('change', function(e) {
+    var s = getTerminalSettings(identCode);
+    s.fontFamily = e.target.value;
+    saveTerminalSettings();
+    applySettingsToTerminal(identCode);
+  });
+
+  colorSel.addEventListener('change', function(e) {
+    var s = getTerminalSettings(identCode);
+    s.colorTheme = e.target.value;
+    saveTerminalSettings();
+    applySettingsToTerminal(identCode);
+  });
+
+  // Click to focus - set activeTerminalId
+  win.addEventListener('mousedown', function() {
+    activeTerminalId = identCode;
+    // Update main terminal header selects to reflect this terminal
+    var mainFont = document.getElementById('font-family-select');
+    var mainColor = document.getElementById('color-theme-select');
+    var settings = getTerminalSettings(identCode);
+    if (mainFont) mainFont.value = settings.fontFamily;
+    if (mainColor) mainColor.value = settings.colorTheme;
+  });
+
+  // Make draggable and resizable
+  makeDraggable(win, header, 'float-term-' + identCode + '-pos');
+  makeResizable(win, resizeHandle, 'float-term-' + identCode + '-size', 400, 250);
+
+  // Register with window manager
+  windowManager.register(winId, 'Term ' + name);
+
+  // Restore visibility (default to hidden, only show if explicitly opened)
+  try {
+    var vis = JSON.parse(localStorage.getItem('window-visibility') || '{}');
+    if (vis[winId] === true) {
+      win.style.display = 'flex';
+    } else {
+      win.style.display = 'none';
+    }
+  } catch(e) {
+    win.style.display = 'none';
   }
 
-  const tab = document.createElement('div');
-  tab.className = 'terminal-tab';
-  tab.dataset.terminal = identCode;
-  tab.textContent = name;
-  document.querySelector('.terminal-tabs').appendChild(tab);
+  // Track for cleanup
+  floatingTerminalWindows[identCode] = win;
+
+  return container;
+}
+
+// Remove all floating terminal windows from DOM
+function cleanupFloatingTerminals() {
+  Object.keys(floatingTerminalWindows).forEach(function(id) {
+    var win = floatingTerminalWindows[id];
+    if (win && win.parentNode) {
+      win.parentNode.removeChild(win);
+    }
+  });
+  floatingTerminalWindows = {};
+}
+
+// Create a terminal: either as a tab or floating window
+function createTerminal(identCode, name) {
+  // Store display name for menu use
+  terminalDisplayNames[identCode] = name;
+
+  var useFloat = (identCode !== 1) && isFloatMode();
+  var container;
+
+  if (useFloat) {
+    // Create floating window
+    container = createFloatingTerminalWindow(identCode, name);
+  } else {
+    // Create as tab in the terminal-window
+    container = document.createElement('div');
+    container.id = 'terminal-container-' + identCode;
+    container.className = 'terminal-container';
+    var tabs = document.querySelector('.terminal-tabs');
+    if (tabs.nextSibling) {
+      tabs.parentNode.insertBefore(container, tabs.nextSibling);
+    } else {
+      tabs.parentNode.appendChild(container);
+    }
+
+    var tab = document.createElement('div');
+    tab.className = 'terminal-tab';
+    tab.dataset.terminal = identCode;
+    tab.textContent = name;
+    document.querySelector('.terminal-tabs').appendChild(tab);
+
+    tab.addEventListener('click', function() {
+      switchTerminal(identCode);
+    });
+
+    // Click on the container itself also claims focus (needed in float mode
+    // where tabs may be hidden, and for general click-to-focus behavior)
+    container.addEventListener('mousedown', function() {
+      activeTerminalId = identCode;
+    });
+  }
 
   // Get this terminal's settings
   var settings = getTerminalSettings(identCode);
@@ -109,8 +319,8 @@ function createTerminal(identCode, name) {
     return Math.max(10, Math.min(24, Math.min(maxForWidth, maxForHeight)));
   }
 
-  let fontSize = getResponsiveFontSize();
-  const term = new Terminal({
+  var fontSize = getResponsiveFontSize();
+  var term = new Terminal({
     cursorBlink: true,
     fontSize: fontSize,
     fontFamily: settings.fontFamily,
@@ -119,7 +329,7 @@ function createTerminal(identCode, name) {
     theme: colorThemes[settings.colorTheme]
   });
 
-  const fitAddon = new FitAddon.FitAddon();
+  var fitAddon = new FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(container);
   fitAddon.fit();
@@ -134,27 +344,34 @@ function createTerminal(identCode, name) {
   }
   window.addEventListener('resize', resizeTerminal);
 
+  // For floating windows, also resize when the window is resized via handle
+  if (useFloat) {
+    var floatWin = floatingTerminalWindows[identCode];
+    if (floatWin) {
+      var observer = new ResizeObserver(function() { resizeTerminal(); });
+      observer.observe(floatWin);
+    }
+  }
+
   terminals[identCode] = {
-    term,
-    fitAddon,
-    container,
-    resizeTerminal
+    term: term,
+    fitAddon: fitAddon,
+    container: container,
+    resizeTerminal: resizeTerminal
   };
 
-  console.log(`Terminal ${identCode} (${name}) created.`);
+  console.log('Terminal ' + identCode + ' (' + name + ') created' + (useFloat ? ' [floating]' : ' [tab]'));
   terminalContainers[identCode] = container;
 
-  tab.addEventListener('click', () => {
-    switchTerminal(identCode);
-  });
-
-  term.onKey(({ key, domEvent }) => {
+  term.onKey(function(ev) {
+    var key = ev.key;
+    var domEvent = ev.domEvent;
     if (identCode !== activeTerminalId) return;
-    const charCode = key.charCodeAt(0);
+    var charCode = key.charCodeAt(0);
 
     if (RAW_MODE) {
       if (domEvent.ctrlKey && charCode >= 65 && charCode <= 90) {
-        const ctrlCode = charCode - 64;
+        var ctrlCode = charCode - 64;
         sendKey(ctrlCode);
       } else if (charCode === 10) {
         sendKey(13);
@@ -168,17 +385,17 @@ function createTerminal(identCode, name) {
     }
   });
 
-  term.writeln(`ND100X Emulator - ${name}`);
-  term.writeln('----------------------------------');
-
   setTimeout(resizeTerminal, 0);
 }
 
 // Function to initialize all available terminals
 function initializeTerminals() {
+  // Clean up existing floating terminal windows
+  cleanupFloatingTerminals();
+
   if (!Module || !Module._GetTerminalAddress) {
     document.querySelector('.terminal-tabs').innerHTML = '';
-    document.querySelectorAll('.terminal-container').forEach(el => el.remove());
+    document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
     createTerminal(1, '1');
 
     if (terminals[1]) {
@@ -186,48 +403,183 @@ function initializeTerminals() {
     }
 
     switchTerminal(1);
+    updateTerminalSubmenu();
     return;
   }
 
-  document.querySelectorAll('.terminal-container').forEach(el => el.remove());
+  // Remove tab-based containers from main terminal window
+  document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
   document.querySelector('.terminal-tabs').innerHTML = '';
-  Object.keys(terminals).forEach(identCode => {
+
+  // Dispose all existing xterm instances
+  Object.keys(terminals).forEach(function(identCode) {
     terminals[identCode].term.dispose();
   });
   terminals = {};
   terminalContainers = {};
+  terminalDisplayNames = {};
+  floatingTerminalCount = 0;
 
   createTerminal(1, '1');
 
   if (isInitialized) {
-    for (let i = 0; i < 16; i++) {
-      const address = Module._GetTerminalAddress(i);
+    for (var i = 0; i < 16; i++) {
+      var address = Module._GetTerminalAddress(i);
       if (address !== -1) {
-        const identCode = Module._GetTerminalIdentCode(i);
+        var identCode = Module._GetTerminalIdentCode(i);
         if (identCode !== -1 && identCode !== 1) {
-          createTerminal(identCode, identCode.toString(8));
+          // Use SINTRAN logical device number as display name
+          var logDev = Module._GetTerminalLogicalDevice(i);
+          var displayName = (logDev !== -1) ? logDev.toString() : identCode.toString();
+          createTerminal(identCode, displayName);
         }
       }
     }
   }
 
+  // In float mode, hide tab bar if only console exists
+  var tabs = document.querySelector('.terminal-tabs');
+  var tabCount = tabs ? tabs.children.length : 0;
+  if (isFloatMode() && tabCount <= 1) {
+    tabs.style.display = 'none';
+  } else {
+    tabs.style.display = '';
+  }
+
+  // Ensure clicking anywhere on the main terminal window reclaims focus for console
+  var termWin = document.getElementById('terminal-window');
+  if (termWin && !termWin._floatFocusWired) {
+    termWin.addEventListener('mousedown', function() {
+      // Set active to whichever tab-based terminal is currently shown
+      var activeTab = document.querySelector('.terminal-tab.active');
+      if (activeTab) {
+        activeTerminalId = parseInt(activeTab.dataset.terminal);
+      } else {
+        activeTerminalId = 1;
+      }
+    });
+    termWin._floatFocusWired = true;
+  }
+
   switchTerminal(1);
+  updateTerminalSubmenu();
+}
+
+// Update the View > Terminal submenu
+function updateTerminalSubmenu() {
+  var submenu = document.getElementById('terminal-submenu');
+  if (!submenu) return;
+
+  submenu.innerHTML = '';
+
+  var hasAdditional = false;
+  var floatMode = isFloatMode();
+
+  // Collect non-console terminals
+  Object.keys(terminals).forEach(function(id) {
+    var identCode = parseInt(id);
+    if (identCode === 1) return;
+    hasAdditional = true;
+
+    var item = document.createElement('button');
+    item.className = 'toolbar-menu-item';
+    var decName = terminalDisplayNames[identCode] || identCode.toString();
+
+    if (floatMode) {
+      // In float mode: show/hide the floating window
+      var winId = 'float-term-' + identCode;
+      var win = document.getElementById(winId);
+      var visible = win && win.style.display !== 'none';
+      item.innerHTML = '<span class="submenu-check">' + (visible ? '&#10003;' : '') + '</span>Terminal ' + decName;
+      item.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+      item.addEventListener('click', (function(ic) {
+        return function(e) {
+          e.stopPropagation();
+          toggleFloatingTerminal(ic);
+          document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+        };
+      })(identCode));
+    } else {
+      // In tab mode: switch to that tab
+      item.innerHTML = '<span class="submenu-check">' + (activeTerminalId === identCode ? '&#10003;' : '') + '</span>Terminal ' + decName;
+      item.addEventListener('click', (function(ic) {
+        return function() {
+          switchTerminal(ic);
+          document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+        };
+      })(identCode));
+    }
+
+    submenu.appendChild(item);
+  });
+
+  if (!hasAdditional) {
+    var empty = document.createElement('div');
+    empty.className = 'toolbar-menu-item disabled';
+    empty.id = 'terminal-submenu-empty';
+    empty.textContent = 'No additional terminals';
+    submenu.appendChild(empty);
+  }
+}
+
+// Toggle a floating terminal window's visibility
+function toggleFloatingTerminal(identCode) {
+  var winId = 'float-term-' + identCode;
+  var win = document.getElementById(winId);
+  if (!win) return;
+
+  if (win.style.display === 'none') {
+    openWindow(winId);
+    // Restore carrier when reopening
+    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
+      Module._SetTerminalCarrier(0, identCode);
+    }
+    activeTerminalId = identCode;
+    // Defer focus so it runs after menu-click mousedown bubbles through
+    // other registered windows (which would steal z-order)
+    setTimeout(function() {
+      windowManager.focus(winId);
+      windowManager.updateTaskbar();
+      if (terminals[identCode]) {
+        terminals[identCode].term.focus();
+        terminals[identCode].resizeTerminal();
+      }
+    }, 50);
+  } else {
+    closeWindow(winId);
+    // Signal carrier loss when closing
+    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
+      Module._SetTerminalCarrier(1, identCode);
+    }
+  }
+  updateTerminalSubmenu();
+}
+
+// Live switch between float and tab modes
+function switchTerminalMode() {
+  if (!isInitialized) return;
+  initializeTerminals();
+  registerTerminalCallbacks();
 }
 
 // Make terminals responsive to window resize
-window.addEventListener('resize', () => {
-  Object.values(terminals).forEach(terminal => {
+window.addEventListener('resize', function() {
+  Object.values(terminals).forEach(function(terminal) {
     terminal.resizeTerminal();
   });
 });
 
 function switchTerminal(identCode) {
-  document.querySelectorAll('.terminal-tab').forEach(tab => {
+  document.querySelectorAll('.terminal-tab').forEach(function(tab) {
     tab.classList.toggle('active', parseInt(tab.dataset.terminal) === identCode);
   });
 
-  Object.keys(terminalContainers).forEach(termId => {
-    terminalContainers[termId].classList.toggle('active', parseInt(termId) === identCode);
+  Object.keys(terminalContainers).forEach(function(termId) {
+    // Only toggle tab-based containers (inside terminal-window-body)
+    var cont = terminalContainers[termId];
+    if (cont.closest('#terminal-window-body')) {
+      cont.classList.toggle('active', parseInt(termId) === identCode);
+    }
   });
 
   activeTerminalId = identCode;
@@ -255,7 +607,7 @@ function registerTerminalCallbacks() {
       return false;
     }
 
-    console.log(`Found ${Object.keys(terminals).length} terminals ready for input/output`);
+    console.log('Found ' + Object.keys(terminals).length + ' terminals ready for input/output');
 
     if (typeof Module._TerminalOutputToJS !== 'undefined' &&
         typeof Module._SetJSTerminalOutputHandler !== 'undefined') {
@@ -276,8 +628,8 @@ function registerTerminalCallbacks() {
         return handleTerminalOutput(identCode, charCode);
       }, 'iii');
 
-      Object.keys(terminals).forEach(identCode => {
-        console.log(`Registering legacy callback for terminal with identCode ${identCode}`);
+      Object.keys(terminals).forEach(function(identCode) {
+        console.log('Registering legacy callback for terminal with identCode ' + identCode);
         if (Module._SetTerminalOutputCallback) {
           Module._SetTerminalOutputCallback(parseInt(identCode), singleCallback);
         }
@@ -304,11 +656,11 @@ function sendKey(keyCode) {
 
   try {
     if (!terminals[activeTerminalId]) {
-      console.error(`Terminal with identCode ${activeTerminalId} not found`);
+      console.error('Terminal with identCode ' + activeTerminalId + ' not found');
       return false;
     }
 
-    const result = Module._SendKeyToTerminal(activeTerminalId, keyCode);
+    var result = Module._SendKeyToTerminal(activeTerminalId, keyCode);
     if (result !== 1) {
       console.error("Failed to send key to terminal with identCode", activeTerminalId);
       return false;
@@ -330,7 +682,7 @@ function applySettingsToTerminal(identCode) {
   t.term.options.theme = { ...colorThemes[settings.colorTheme], background: '#0a0e1c' };
   t.term.refresh(0, t.term.rows - 1);
 
-  setTimeout(() => {
+  setTimeout(function() {
     t.term.options.theme = colorThemes[settings.colorTheme];
     t.resizeTerminal();
   }, 50);
@@ -351,6 +703,12 @@ function initializeDropdowns() {
 
   if (fontSelect) fontSelect.value = settings.fontFamily;
   if (colorSelect) colorSelect.value = settings.colorTheme;
+
+  // Initialize the float terminals config toggle
+  var floatToggle = document.getElementById('config-float-terminals');
+  if (floatToggle) {
+    floatToggle.checked = isFloatMode();
+  }
 }
 
 if (document.readyState === 'loading') {

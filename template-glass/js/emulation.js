@@ -255,13 +255,13 @@ function executeInstructionBatch() {
   }
 }
 
-function startEmulation() {
+function startEmulation(bootDevice) {
   if (emulationRunning) return;
 
   emulationRunning = true;
   document.getElementById('status').textContent = 'Emulation running...';
   resetCpuLoad();
-  terminals[activeTerminalId].term.writeln('\r\nEmulation started');
+  terminals[activeTerminalId].term.writeln('\r\nBooting from ' + (bootDevice || 'unknown'));
 
   if (!hasEverStartedEmulation) {
     showLoadingOverlay();

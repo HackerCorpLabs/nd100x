@@ -686,9 +686,9 @@
      -------------------------------------------------- */
   if (typeof startEmulation === 'function') {
     var origStart = startEmulation;
-    window.startEmulation = startEmulation = function() {
+    window.startEmulation = startEmulation = function(bootDevice) {
       if (active) return;
-      origStart();
+      origStart(bootDevice);
       syncState();
     };
   }

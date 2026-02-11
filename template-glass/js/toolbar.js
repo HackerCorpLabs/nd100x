@@ -388,6 +388,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // =========================================================
+// Config: Float terminals toggle
+// =========================================================
+(function() {
+  var toggle = document.getElementById('config-float-terminals');
+  if (!toggle) return;
+
+  // Initialize state
+  toggle.checked = (localStorage.getItem('terminal-float-mode') === 'true');
+
+  toggle.addEventListener('change', function() {
+    localStorage.setItem('terminal-float-mode', toggle.checked ? 'true' : 'false');
+    // Live switch mode if system is initialized
+    if (typeof switchTerminalMode === 'function') {
+      switchTerminalMode();
+    }
+  });
+})();
+
+// =========================================================
 // SINTRAN menu handlers - debug windows
 // =========================================================
 document.getElementById('menu-process-list').addEventListener('click', function() {
@@ -603,7 +622,7 @@ function performBoot(bootType) {
   document.getElementById('boot-select').disabled = true;
   bootBtn.disabled = true;
 
-  startEmulation();
+  startEmulation(bootNames[bootType] || 'unknown');
 }
 
 document.getElementById('toolbar-boot').addEventListener('click', function() {
@@ -994,7 +1013,7 @@ windowManager.register('cpu-load-window', 'CPU Load');
 windowManager.register('about-window', 'About');
 windowManager.register('floppy-modal', 'Floppy Library');
 windowManager.register('help-window', 'SINTRAN Help');
-windowManager.register('terminal-window', 'Terminal');
+windowManager.register('terminal-window', 'Console');
 windowManager.register('debugger-window', 'Debugger');
 windowManager.register('disasm-window', 'Disassembly');
 windowManager.register('breakpoints-window', 'Breakpoints');

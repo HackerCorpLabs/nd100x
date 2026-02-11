@@ -34,9 +34,9 @@
 static const DeviceDefinition deviceDefinitions[] = {
     // Group 1 (starts at offset 0)
     {0300, 01, 01, "CONSOLE TERMINAL - TERMINAL 1"},
-    {0310, 05, 011, "TERMINAL 2/ TET15"},    // Something wrong with the defintion. Need to check
-    {0320, 06, 042, "TERMINAL 3/ TET14"},    // Something wrong with the defintion. Need to check
-    {0330, 07, 043, "TERMINAL 4/ TET15"},    // Something wrong with the defintion. Need to check  
+    {0310, 0121, 011, "TERMINAL 2/ TET15"},
+    {0320, 0122, 042, "TERMINAL 3/ TET14"},
+    {0330, 0123, 043, "TERMINAL 4/ TET13"},
     {0340, 044, 044, "TERMINAL 5/ TET12"},
     {0350, 045, 045, "TERMINAL 6/ TET11"},
     {0360, 046, 046, "TERMINAL 7/ TET10"},

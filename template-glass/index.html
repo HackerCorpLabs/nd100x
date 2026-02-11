@@ -108,6 +108,14 @@
           <button class="toolbar-menu-item" id="menu-cpu-load-graph">CPU Load</button>
           <button class="toolbar-menu-item" id="menu-floppy-library">Floppy Library</button>
           <div class="toolbar-menu-separator"></div>
+          <div class="toolbar-menu-item has-submenu" id="menu-terminal-submenu">
+            Terminals
+            <svg class="submenu-arrow" width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="3,2 7,5 3,8"/></svg>
+            <div class="toolbar-submenu" id="terminal-submenu">
+              <div class="toolbar-menu-item disabled" id="terminal-submenu-empty">No additional terminals</div>
+            </div>
+          </div>
+          <div class="toolbar-menu-separator"></div>
           <button class="toolbar-menu-item" id="menu-debugger">Debugger</button>
           <button class="toolbar-menu-item" id="menu-disassembly">Disassembly</button>
           <button class="toolbar-menu-item" id="menu-breakpoints">Breakpoints</button>
@@ -322,6 +330,14 @@
           <span class="theme-card-label">Synthwave</span>
         </button>
       </div>
+      <div class="config-section-title" style="margin-top:16px">Terminal</div>
+      <div class="config-option">
+        <label class="config-toggle">
+          <input type="checkbox" id="config-float-terminals">
+          <span class="config-toggle-slider"></span>
+        </label>
+        <span class="config-toggle-label">Open additional terminals in separate windows</span>
+      </div>
     </div>
   </div>
 
@@ -330,22 +346,22 @@
        ========================================= -->
   <div id="terminal-window" class="terminal-window">
     <div class="terminal-window-header" id="terminal-window-header">
-      <span class="terminal-window-title">Terminal (VT100) - Push ESC to wake up SINTRAN</span>
+      <span class="terminal-window-title">Console (VT100) - Push ESC to wake up SINTRAN</span>
       <div class="terminal-window-controls">
         <select id="font-family-select" class="term-header-select" title="Font">
           <option value="monospace" selected>Monospace</option>
-          <option value="'VT323', monospace">VT323 (Retro)</option>
+          <option value="'VT323', monospace">VT323</option>
           <option value="'Fira Mono', monospace">Fira Mono</option>
-          <option value="'IBM Plex Mono', monospace">IBM Plex Mono</option>
-          <option value="'Cascadia Mono', monospace">Cascadia Mono</option>
-          <option value="'Source Code Pro', monospace">Source Code Pro</option>
+          <option value="'IBM Plex Mono', monospace">IBM Plex</option>
+          <option value="'Cascadia Mono', monospace">Cascadia</option>
+          <option value="'Source Code Pro', monospace">Source Code</option>
         </select>
         <select id="color-theme-select" class="term-header-select" title="Color Theme">
-          <option value="green" selected>Green (P1)</option>
-          <option value="amber">Amber (P3)</option>
-          <option value="white">White (P4)</option>
+          <option value="green" selected>Green</option>
+          <option value="amber">Amber</option>
+          <option value="white">White</option>
           <option value="blue">Blue</option>
-          <option value="paperwhite">Paper-White</option>
+          <option value="paperwhite">Paper</option>
         </select>
         <button class="terminal-window-btn" id="term-maximize" title="Maximize">
           <svg id="term-maximize-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

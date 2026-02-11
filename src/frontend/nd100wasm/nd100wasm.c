@@ -156,24 +156,22 @@ EMSCRIPTEN_EXPORT void Init(void)
     machine_init(0);
 #endif
 
-    // Initialize terminal references - we'll start with console (index 0)
-    terminals[0] = DeviceManager_GetDeviceByAddress(0300); // Console
-    if (!terminals[0]) {
-        printf("Warning: Console terminal device not found!\n");
+    // Add terminals 5-8 (Group 1) and 9-11 (Group 9)
+    // Console (thumbwheel 0) is already added by DeviceManager_AddAllDevices
+    // Total: 8 terminals (console + 7)
+    for (uint8_t tw = 5; tw <= 11; tw++) {
+        DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, tw);
     }
 
-    // Add other terminals!!
-    //     {0340, 044, 044, "TERMINAL 5/ TET12"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
-    terminals[1]  = DeviceManager_GetDeviceByAddress(0340);
-
-    // {0350, 045, 045, "TERMINAL 6/ TET11"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 6);
-    terminals[2] = DeviceManager_GetDeviceByAddress(0350);
-
-    // {0360, 046, 046, "TERMINAL 7/ TET10"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
-    terminals[3] = DeviceManager_GetDeviceByAddress(0360);
+    // Populate terminals[] by scanning device manager for all terminal devices
+    int termIdx = 0;
+    int devCount = DeviceManager_GetDeviceCount();
+    for (int i = 0; i < devCount && termIdx < MAX_TERMINALS; i++) {
+        Device *dev = DeviceManager_GetDeviceByIndex(i);
+        if (dev && dev->type == DEVICE_TYPE_TERMINAL) {
+            terminals[termIdx++] = dev;
+        }
+    }
 
     // Set up character device output handler for the console terminal
     for (int i = 0; i < MAX_TERMINALS; i++) {
@@ -279,6 +277,63 @@ EMSCRIPTEN_EXPORT int GetTerminalIdentCode(int terminalId)
         return -1;
     }
     return terminals[terminalId]->identCode;
+}
+
+// Get the device name of a terminal by ID (returns pointer to C string)
+EMSCRIPTEN_EXPORT const char* GetTerminalName(int terminalId)
+{
+    if (terminalId < 0 || terminalId >= MAX_TERMINALS || !terminals[terminalId]) {
+        return NULL;
+    }
+    return terminals[terminalId]->memoryName;
+}
+
+// Get the SINTRAN logical device number of a terminal by ID
+EMSCRIPTEN_EXPORT int GetTerminalLogicalDevice(int terminalId)
+{
+    if (terminalId < 0 || terminalId >= MAX_TERMINALS || !terminals[terminalId]) {
+        return -1;
+    }
+    return terminals[terminalId]->logicalDevice;
+}
+
+// Set or clear carrier status on a terminal.
+// flag=1: carrier missing (closing window / hanging up)
+//   - sets carrierMissing bit and enqueues a space so SINTRAN detects it
+// flag=0: carrier present (reopening window / reconnecting)
+//   - clears carrierMissing bit
+EMSCRIPTEN_EXPORT int SetTerminalCarrier(int flag, int identCode)
+{
+    Device* terminal = NULL;
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i] && terminals[i]->identCode == identCode) {
+            terminal = terminals[i];
+            break;
+        }
+    }
+
+    if (!terminal || !terminal->deviceData) {
+        printf("Error: Terminal with IdentCode %d not found\n", identCode);
+        return 0;
+    }
+
+    TerminalData *data = (TerminalData *)terminal->deviceData;
+
+    if (flag) {
+        // Carrier missing - terminal window closed
+        data->noCarrier = true;
+        data->inputStatus.bits.carrierMissing = 1;
+        // Enqueue a space so SINTRAN will poll the status and notice carrier loss
+        Terminal_QueueKeyCode(terminal, ' ');
+        printf("Terminal %d: carrier missing\n", identCode);
+    } else {
+        // Carrier present - terminal window reopened
+        data->noCarrier = false;
+        data->inputStatus.bits.carrierMissing = 0;
+        printf("Terminal %d: carrier restored\n", identCode);
+    }
+
+    return 1;
 }
 
 // Setup with configuration
