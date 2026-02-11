@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // disassembly.js - Standalone Disassembly Glass Window
 // Renders the same disassembly data as the debugger's Disasm tab
 // in a separate, draggable/resizable glass window.

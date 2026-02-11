@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // sintran-devices.js - I/O Device Inspector
 // 4-phase discovery: symbol enumeration, BRESL chains, MQUEU chain, merge.
 // GDEVTY classification from TYPRI bits. R/W pair merging. Tabbed category view.

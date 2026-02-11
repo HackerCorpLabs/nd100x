@@ -753,9 +753,8 @@ body {
 /* Floating terminal window */
 .terminal-window {
   position: fixed;
-  bottom: 52px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 60px;
+  left: 10px;
   width: 860px;
   height: 650px;
   background: rgba(12, 16, 35, 0.88);

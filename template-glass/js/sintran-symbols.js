@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // sintran-symbols.js - Shared symbol table and memory read helpers for SINTRAN III
 // Provides addresses, structure offsets, and utility functions used by all
 // SINTRAN debug windows (processes, queues, segments, devices).

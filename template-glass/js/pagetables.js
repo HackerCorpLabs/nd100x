@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // pagetables.js - ND-100 Hardware Page Table Inspector
 // Displays raw PIT entries from shadow RAM with decoded flags and physical addresses
 

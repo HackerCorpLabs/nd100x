@@ -1,3 +1,10 @@
+//
+// SPDX-License-Identifier: MIT
+// Copyright (c) 1985-2026 Ronny Hansen
+// HackerCorp Labs — https://github.com/HackerCorpLabs
+// Emulating yesterday's technology with today's code
+//
+
 // sintran-segments.js - Segment Table Viewer
 // Displays SINTRAN III segment table entries with flags and cross-references
 // Algorithm from SINTRAN-STRUCTURES.md Section 6.17:
