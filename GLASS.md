@@ -47,6 +47,7 @@ The UI runs entirely in the browser. The emulator core is compiled to WebAssembl
 ## Architecture Overview
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#2196F3', 'primaryTextColor':'#fff', 'primaryBorderColor':'#1565C0', 'lineColor':'#90A4AE', 'textColor':'#263238', 'background':'#FAFAFA', 'mainBkg':'#FAFAFA', 'clusterBkg':'#ECEFF1', 'clusterBorder':'#90A4AE'}}}%%
 flowchart TB
     subgraph Browser
         direction TB
@@ -123,6 +124,7 @@ The WASM binary and the UI assets are combined at build time, not at runtime. Th
 ## Boot Sequence
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'actorBkg':'#2196F3', 'actorTextColor':'#fff', 'actorBorder':'#1565C0', 'actorLineColor':'#90A4AE', 'signalColor':'#263238', 'signalTextColor':'#263238', 'labelBoxBkgColor':'#E3F2FD', 'labelTextColor':'#263238', 'loopTextColor':'#263238', 'noteBkgColor':'#FFF8E1', 'noteTextColor':'#263238', 'noteBorderColor':'#F57C00', 'activationBkgColor':'#E0F7FA', 'activationBorderColor':'#00838F', 'sequenceNumberColor':'#fff'}}}%%
 sequenceDiagram
     participant B as Browser
     participant MI as module-init.js
@@ -595,6 +597,7 @@ Program names are NOT stored in SINTRAN memory. `sintran-rt-names.js` provides r
 ## Data Flow: C to JS
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'actorBkg':'#2196F3', 'actorTextColor':'#fff', 'actorBorder':'#1565C0', 'actorLineColor':'#90A4AE', 'signalColor':'#263238', 'signalTextColor':'#263238', 'labelBoxBkgColor':'#E3F2FD', 'labelTextColor':'#263238', 'loopTextColor':'#263238', 'noteBkgColor':'#FFF8E1', 'noteTextColor':'#263238', 'noteBorderColor':'#F57C00', 'activationBkgColor':'#E0F7FA', 'activationBorderColor':'#00838F', 'sequenceNumberColor':'#fff'}}}%%
 sequenceDiagram
     participant JS as JavaScript
     participant WASM as WASM Module
