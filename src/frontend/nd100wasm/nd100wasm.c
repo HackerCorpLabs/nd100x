@@ -137,15 +137,17 @@ static void WasmTerminalOutputHandler(Device *device, char c)
     }    
 }
 
-// Initialize the system
-EMSCRIPTEN_EXPORT void Init(int boot_smd)
+// Initialize the system (hardware only, no boot)
+EMSCRIPTEN_EXPORT void Init(void)
 {
+    printf("ND100X WASM build: %s %s\n", __DATE__, __TIME__);
+
     // Only initialize once
     if (initialized) {
         printf("Already initialized.\n");
         return;
     }
-    
+
 #ifdef WITH_DEBUGGER
     // Initialize machine with debugger enabled
     machine_init(1);
@@ -158,7 +160,7 @@ EMSCRIPTEN_EXPORT void Init(int boot_smd)
     terminals[0] = DeviceManager_GetDeviceByAddress(0300); // Console
     if (!terminals[0]) {
         printf("Warning: Console terminal device not found!\n");
-    } 
+    }
 
     // Add other terminals!!
     //     {0340, 044, 044, "TERMINAL 5/ TET12"},
@@ -171,28 +173,66 @@ EMSCRIPTEN_EXPORT void Init(int boot_smd)
 
     // {0360, 046, 046, "TERMINAL 7/ TET10"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
-    terminals[3] = DeviceManager_GetDeviceByAddress(0360);    
+    terminals[3] = DeviceManager_GetDeviceByAddress(0360);
 
     // Set up character device output handler for the console terminal
     for (int i = 0; i < MAX_TERMINALS; i++) {
         if (terminals[i]) {
-            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);            
+            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);
         }
     }
-    
-    // Load boot program (hardcoded for now)
-    if (boot_smd)
-    {
-        program_load(BOOT_SMD, "SMD0.IMG", 1);
-    }
-    else
-    {
-        program_load(BOOT_FLOPPY, "FLOPPY.IMG", 1);
-    }
-    
-    gPC = STARTADDR; // Default start address
 
     initialized = 1;
+}
+
+// Boot the system (load boot sector and set PC)
+// boot_type: 0=FLOPPY, 1=SMD, 2=BPUN
+// Returns: start address (PC) on success, -1 on failure
+EMSCRIPTEN_EXPORT int Boot(int boot_type)
+{
+    if (!initialized) {
+        printf("Error: System not initialized. Call Init() first.\n");
+        return -1;
+    }
+
+    // Pre-mount drives so they are available for I/O regardless of boot choice.
+    // autoMountDrives() inside program_load() will skip already-mounted drives.
+
+    // Mount floppy unit 0 - try both MEMFS paths
+    if (!isMounted(DRIVE_FLOPPY, 0)) {
+        mount_floppy("/FLOPPY0.IMG", 0);
+    }
+    if (!isMounted(DRIVE_FLOPPY, 0)) {
+        mount_floppy("FLOPPY0.IMG", 0);
+    }
+
+    // Mount SMD drives
+    if (!isMounted(DRIVE_SMD, 0)) {
+        mount_smd("SMD0.IMG", 0);
+    }
+    mount_smd(NULL, 1);
+    mount_smd(NULL, 2);
+    mount_smd(NULL, 3);
+
+    int rc;
+    switch (boot_type) {
+    case 1: // SMD
+        rc = program_load(BOOT_SMD, "SMD0.IMG", 1);
+        break;
+    case 2: // BPUN
+        rc = program_load(BOOT_BPUN, "BPUN_UPLOAD.IMG", 1);
+        break;
+    default: // FLOPPY (0)
+        rc = program_load(BOOT_FLOPPY, "FLOPPY0.IMG", 1);
+        break;
+    }
+
+    if (rc < 0) {
+        return -1;
+    }
+
+    gPC = STARTADDR;
+    return (int)gPC;
 }
 
 // Send a key to a specific terminal device
@@ -266,6 +306,12 @@ EMSCRIPTEN_EXPORT void Stop()
     //machine_stop();
 }
 
+// Check if machine has been initialized
+EMSCRIPTEN_EXPORT int IsInitialized(void)
+{
+    return initialized;
+}
+
 // Remount a floppy drive (close old FILE*, re-open from MEMFS)
 // Unit N uses "/FLOPPYN.IMG" (absolute path for MEMFS compatibility)
 EMSCRIPTEN_EXPORT int RemountFloppy(int unit)
@@ -278,9 +324,11 @@ EMSCRIPTEN_EXPORT int RemountFloppy(int unit)
     sprintf(filename, "/FLOPPY%d.IMG", unit);
 
     // Check file exists before attempting mount
-    if (access(filename, F_OK) != 0) {
+    FILE *ftmp = fopen(filename, "rb");
+    if (!ftmp) {
         return -1;
     }
+    fclose(ftmp);
 
     // Unmount existing if mounted
     if (isMounted(DRIVE_FLOPPY, unit)) {
@@ -506,6 +554,21 @@ EMSCRIPTEN_EXPORT int Dbg_GetSTS(void)    { return (int)gSTSr; }
 EMSCRIPTEN_EXPORT int Dbg_GetPIL(void)    { return (int)gPIL; }
 EMSCRIPTEN_EXPORT int Dbg_GetEA(void)     { return (int)gEA; }
 
+// --- Register Write (current runlevel) ---
+
+EMSCRIPTEN_EXPORT void Dbg_SetPC(int val)   { gPC  = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegA(int val)  { gA   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegD(int val)  { gD   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegB(int val)  { gB   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegT(int val)  { gT   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegL(int val)  { gL   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetRegX(int val)  { gX   = (ushort)(val & 0xFFFF); }
+EMSCRIPTEN_EXPORT void Dbg_SetSTS(int val)   {
+    /* STS MSB is shared, LSB is per-level */
+    gReg->reg_STS = (ushort)(val & 0xFF00);
+    gReg->reg[gPIL][_STS] = (ushort)(val & 0x00FF);
+}
+
 // --- Register access for any runlevel ---
 
 EMSCRIPTEN_EXPORT int Dbg_GetRegAtLevel(int level, int regIndex)
@@ -576,9 +639,43 @@ EMSCRIPTEN_EXPORT int Dbg_ReadMemory(int addr)
     return (int)MemoryRead((ushort)(addr & 0xFFFF), false);
 }
 
+// --- Bulk Memory Read (for SINTRAN data structure inspection) ---
+
+static uint16_t mem_block_buffer[4096];
+
+EMSCRIPTEN_EXPORT int Dbg_ReadMemoryBlock(int startAddr, int count)
+{
+    if (count <= 0 || count > 4096) count = 4096;
+    for (int i = 0; i < count; i++) {
+        mem_block_buffer[i] = MemoryRead((ushort)((startAddr + i) & 0xFFFF), false);
+    }
+    return (int)(uintptr_t)mem_block_buffer;
+}
+
 EMSCRIPTEN_EXPORT void Dbg_WriteMemory(int addr, int val)
 {
     MemoryWrite((ushort)val, (ushort)(addr & 0xFFFF), false, 2);
+}
+
+// --- Physical Memory Dump (raw physical memory, bypasses MMS) ---
+
+EMSCRIPTEN_EXPORT int Dbg_DumpPhysicalMemory(int wordCount)
+{
+    if (wordCount <= 0 || wordCount > (int)(sizeof(VolatileMemory) / sizeof(ushort)))
+        wordCount = 256 * 1024;
+
+    FILE *f = fopen("/nd100_physmem.bin", "wb");
+    if (!f) return -1;
+
+    for (int i = 0; i < wordCount; i++) {
+        ushort w = VolatileMemory.n_Array[i];
+        unsigned char hi = (w >> 8) & 0xFF;
+        unsigned char lo = w & 0xFF;
+        fputc(hi, f);
+        fputc(lo, f);
+    }
+    fclose(f);
+    return 0;
 }
 
 // --- Breakpoints ---
@@ -704,8 +801,8 @@ EMSCRIPTEN_EXPORT const char* Dbg_GetLevelInfo(void)
     for (int lev = 0; lev < 16; lev++) {
         ushort pcr = gReg->reg_PCR[lev];
         int ring = pcr & 0x03;
-        int pt = (pcr >> 10) & 0x0F;
-        int apt = (pcr >> 6) & 0x0F;
+        int pt = (pcr >> 11) & 0x0F;
+        int apt = (pcr >> 7) & 0x0F;
         ushort p_reg = gReg->reg[lev][_P];
         ushort sts_lsb = gReg->reg[lev][_STS] & 0xFF;
 
@@ -749,6 +846,56 @@ EMSCRIPTEN_EXPORT const char* Dbg_GetVariables(int scopeId) { (void)scopeId; ret
 EMSCRIPTEN_EXPORT const char* Dbg_GetThreads(void) { return "[]"; }
 EMSCRIPTEN_EXPORT const char* Dbg_GetStackTrace(void) { return "[]"; }
 #endif
+
+// --- Physical Memory Access (bypasses MMS, direct array read) ---
+
+EMSCRIPTEN_EXPORT int Dbg_ReadPhysicalMemory(int physAddr)
+{
+    if (physAddr < 0 || physAddr >= (int)ND_Memsize)
+        return 0;
+    return (int)VolatileMemory.n_Array[physAddr];
+}
+
+static uint16_t phys_block_buffer[4096];
+
+EMSCRIPTEN_EXPORT int Dbg_ReadPhysicalMemoryBlock(int startAddr, int count)
+{
+    if (count <= 0 || count > 4096) count = 4096;
+    int maxAddr = (int)ND_Memsize;
+    for (int i = 0; i < count; i++) {
+        int addr = startAddr + i;
+        if (addr >= 0 && addr < maxAddr)
+            phys_block_buffer[i] = VolatileMemory.n_Array[addr];
+        else
+            phys_block_buffer[i] = 0;
+    }
+    return (int)(uintptr_t)phys_block_buffer;
+}
+
+// --- Page Table Access ---
+
+EMSCRIPTEN_EXPORT int Dbg_GetPageTableCount(void)
+{
+    /* MMS1 = 4 page tables, MMS2 = 16 page tables */
+    return (mmsType == MMS1) ? 4 : 16;
+}
+
+EMSCRIPTEN_EXPORT int Dbg_GetPageTableEntryRaw(int pageTable, int vpn)
+{
+    if (pageTable < 0 || pageTable >= 16) return 0;
+    if (vpn < 0 || vpn >= 64) return 0;
+
+    /* Use debugger reader which checks mmsType instead of STS_SEXI,
+       so we can read all 16 page tables even when paused at a level without SEXI. */
+    PageTableMode ptm = (mmsType == MMS2) ? Sixteen : Four;
+    uint pte = GetPageTableEntryForDebugger((uint)pageTable, (uint)vpn, ptm);
+    return (int)pte;
+}
+
+EMSCRIPTEN_EXPORT int Dbg_GetExtendedMode(void)
+{
+    return STS_SEXI ? 1 : 0;
+}
 
 // Main function for both Emscripten and non-Emscripten builds
 int main(int argc, char *argv[])
