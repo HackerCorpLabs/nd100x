@@ -335,6 +335,16 @@ function createTerminal(identCode, name) {
   fitAddon.fit();
 
   function resizeTerminal() {
+    // Clamp parent window to viewport if it overflows (shrink only, never auto-grow)
+    var win = useFloat ? floatingTerminalWindows[identCode]
+                       : document.getElementById('terminal-window');
+    if (win && !win.classList.contains('maximized')) {
+      var maxW = window.innerWidth - 20;
+      var maxH = window.innerHeight - 60;
+      if (win.offsetWidth > maxW) win.style.width = maxW + 'px';
+      if (win.offsetHeight > maxH) win.style.height = maxH + 'px';
+    }
+
     var newFont = getResponsiveFontSize();
     if (term.options.fontSize !== newFont) {
       term.options.fontSize = newFont;
@@ -344,13 +354,12 @@ function createTerminal(identCode, name) {
   }
   window.addEventListener('resize', resizeTerminal);
 
-  // For floating windows, also resize when the window is resized via handle
-  if (useFloat) {
-    var floatWin = floatingTerminalWindows[identCode];
-    if (floatWin) {
-      var observer = new ResizeObserver(function() { resizeTerminal(); });
-      observer.observe(floatWin);
-    }
+  // Observe parent window for size changes (resize handle, zoom CSS vars, etc.)
+  var observeWin = useFloat ? floatingTerminalWindows[identCode]
+                            : document.getElementById('terminal-window');
+  if (observeWin) {
+    var observer = new ResizeObserver(function() { resizeTerminal(); });
+    observer.observe(observeWin);
   }
 
   terminals[identCode] = {

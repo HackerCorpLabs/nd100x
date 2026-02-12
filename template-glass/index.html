@@ -19,6 +19,24 @@
   <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/themes.css">
+  <!-- Auto-zoom for low-resolution displays -->
+  <script>
+  (function() {
+    var dw = 1280, dh = 800;
+    function applyZoom() {
+      var nz = Math.max(0.5, Math.min(1, Math.min(
+        window.innerWidth / dw, window.innerHeight / dh)));
+      document.documentElement.style.zoom = nz;
+      window._uiZoom = nz;
+    }
+    applyZoom();
+    var tid;
+    window.addEventListener('resize', function() {
+      clearTimeout(tid);
+      tid = setTimeout(applyZoom, 100);
+    });
+  })();
+  </script>
 </head>
 <body>
   <!-- Early state restore: apply saved visibility and positions BEFORE first paint -->
@@ -376,6 +394,10 @@
     <div class="terminal-window-body" id="terminal-window-body">
       <div class="terminal-tabs"></div>
       <!-- Terminal containers created dynamically by JS -->
+    </div>
+    <div class="glass-resize-handle" id="terminal-window-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/></svg>
     </div>
   </div>
 

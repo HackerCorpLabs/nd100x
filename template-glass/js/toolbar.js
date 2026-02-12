@@ -953,7 +953,12 @@ function copyTableToClipboard(containerId, windowTitle) {
   });
 }
 
-// Apply resize to Floppy Library and Help windows
+// Apply resize to terminal, floppy library, and help windows
+makeResizable(
+  document.getElementById('terminal-window'),
+  document.getElementById('terminal-window-resize'),
+  'term-size', 500, 350
+);
 makeResizable(
   document.getElementById('floppy-modal'),
   document.getElementById('floppy-modal-resize'),
