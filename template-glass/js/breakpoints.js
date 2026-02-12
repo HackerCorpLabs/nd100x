@@ -27,7 +27,7 @@
   }
 
   function wasmReady() {
-    return typeof Module !== 'undefined' && Module && Module.calledRun;
+    return typeof emu !== 'undefined' && emu && emu.isReady();
   }
 
   function escapeHtml(str) {
@@ -80,7 +80,7 @@
   /* --- Render breakpoint lists --- */
 
   function render() {
-    if (Module && Module._IsInitialized && !Module._IsInitialized()) return;
+    if (emu && !emu.isInitialized()) return;
     renderExecBreakpoints();
     renderWatchpoints();
   }
@@ -92,61 +92,65 @@
     var breakpoints = window.dbgBreakpoints || new Set();
 
     /* Also gather from C-side list if available */
-    var cBpMap = {};
-    if (wasmReady() && Module._Dbg_GetBreakpointList) {
-      var ptr = Module._Dbg_GetBreakpointList();
-      if (ptr) {
-        var raw = Module.UTF8ToString(ptr).trim();
-        if (raw.length > 0) {
-          raw.split('\n').forEach(function(line) {
-            var parts = line.split(' ');
-            if (parts.length >= 3) {
-              var addr = parseInt(parts[0], 10);
-              var type = parseInt(parts[1], 10);
-              var hits = parseInt(parts[2], 10);
-              /* Skip temporary breakpoints (type 4) */
-              if (type !== 4) {
-                cBpMap[addr] = { type: type, hits: hits };
-              }
+    var bpPromise = Promise.resolve('');
+    if (wasmReady()) {
+      try {
+        bpPromise = Promise.resolve(emu.getBreakpointList());
+      } catch(e) { /* ignore */ }
+    }
+
+    bpPromise.then(function(rawStr) {
+      var cBpMap = {};
+      var raw = (rawStr || '').trim();
+      if (raw.length > 0) {
+        raw.split('\n').forEach(function(line) {
+          var parts = line.split(' ');
+          if (parts.length >= 3) {
+            var addr = parseInt(parts[0], 10);
+            var type = parseInt(parts[1], 10);
+            var hits = parseInt(parts[2], 10);
+            /* Skip temporary breakpoints (type 4) */
+            if (type !== 4) {
+              cBpMap[addr] = { type: type, hits: hits };
             }
-          });
+          }
+        });
+      }
+
+      /* Merge JS set and C list */
+      var allAddrs = new Set();
+      breakpoints.forEach(function(a) { allAddrs.add(a); });
+      Object.keys(cBpMap).forEach(function(a) { allAddrs.add(parseInt(a, 10)); });
+
+      if (allAddrs.size === 0) {
+        execList.innerHTML = '<div class="bp-empty">No execution breakpoints set</div>';
+        return;
+      }
+
+      var sorted = Array.from(allAddrs).sort(function(a, b) { return a - b; });
+      var html = '';
+      sorted.forEach(function(addr) {
+        var info = cBpMap[addr] || { type: 0, hits: 0 };
+        var typeName = bpTypeNames[info.type] || 'User';
+        html += '<div class="bp-item" data-addr="' + addr + '">';
+        html += '<span class="bp-item-dot exec"></span>';
+        html += '<span class="bp-item-addr">' + oct(addr) + '</span>';
+        html += '<span class="bp-item-type">' + escapeHtml(typeName) + '</span>';
+        if (info.hits > 0) {
+          html += '<span class="bp-item-hits">hits: ' + info.hits + '</span>';
         }
-      }
-    }
+        html += '<button class="bp-item-remove" data-addr="' + addr + '" data-kind="exec">x</button>';
+        html += '</div>';
+      });
+      execList.innerHTML = html;
 
-    /* Merge JS set and C list */
-    var allAddrs = new Set();
-    breakpoints.forEach(function(a) { allAddrs.add(a); });
-    Object.keys(cBpMap).forEach(function(a) { allAddrs.add(parseInt(a, 10)); });
-
-    if (allAddrs.size === 0) {
-      execList.innerHTML = '<div class="bp-empty">No execution breakpoints set</div>';
-      return;
-    }
-
-    var sorted = Array.from(allAddrs).sort(function(a, b) { return a - b; });
-    var html = '';
-    sorted.forEach(function(addr) {
-      var info = cBpMap[addr] || { type: 0, hits: 0 };
-      var typeName = bpTypeNames[info.type] || 'User';
-      html += '<div class="bp-item" data-addr="' + addr + '">';
-      html += '<span class="bp-item-dot exec"></span>';
-      html += '<span class="bp-item-addr">' + oct(addr) + '</span>';
-      html += '<span class="bp-item-type">' + escapeHtml(typeName) + '</span>';
-      if (info.hits > 0) {
-        html += '<span class="bp-item-hits">hits: ' + info.hits + '</span>';
-      }
-      html += '<button class="bp-item-remove" data-addr="' + addr + '" data-kind="exec">x</button>';
-      html += '</div>';
-    });
-    execList.innerHTML = html;
-
-    /* Attach remove handlers */
-    execList.querySelectorAll('.bp-item-remove').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var addr = parseInt(btn.getAttribute('data-addr'), 10);
-        removeExecBreakpoint(addr);
+      /* Attach remove handlers */
+      execList.querySelectorAll('.bp-item-remove').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var addr = parseInt(btn.getAttribute('data-addr'), 10);
+          removeExecBreakpoint(addr);
+        });
       });
     });
   }
@@ -157,40 +161,49 @@
       return;
     }
 
-    if (!Module._Dbg_GetWatchpointCount) {
-      watchList.innerHTML = '<div class="bp-empty">Watchpoints not available</div>';
-      return;
-    }
+    Promise.resolve(emu.getWatchpointCount()).then(function(count) {
+      if (count === 0) {
+        watchList.innerHTML = '<div class="bp-empty">No watchpoints set</div>';
+        return;
+      }
 
-    var count = Module._Dbg_GetWatchpointCount();
-    if (count === 0) {
-      watchList.innerHTML = '<div class="bp-empty">No watchpoints set</div>';
-      return;
-    }
+      // Collect addr+type for each watchpoint
+      var promises = [];
+      for (var i = 0; i < count; i++) {
+        (function(idx) {
+          promises.push(Promise.all([
+            Promise.resolve(emu.getWatchpointAddr(idx)),
+            Promise.resolve(emu.getWatchpointType(idx))
+          ]));
+        })(i);
+      }
 
-    var html = '';
-    for (var i = 0; i < count; i++) {
-      var addr = Module._Dbg_GetWatchpointAddr(i);
-      var type = Module._Dbg_GetWatchpointType(i);
-      if (addr < 0) continue;
-      var typeName = watchTypeNames[type] || 'Unknown';
-      html += '<div class="bp-item" data-addr="' + addr + '">';
-      html += '<span class="bp-item-dot watch"></span>';
-      html += '<span class="bp-item-addr">' + oct(addr) + '</span>';
-      html += '<span class="bp-item-type">' + escapeHtml(typeName) + '</span>';
-      html += '<button class="bp-item-remove" data-addr="' + addr + '" data-kind="watch">x</button>';
-      html += '</div>';
-    }
-    watchList.innerHTML = html;
+      Promise.all(promises).then(function(wps) {
+        var html = '';
+        wps.forEach(function(wp) {
+          var addr = wp[0];
+          var type = wp[1];
+          if (addr < 0) return;
+          var typeName = watchTypeNames[type] || 'Unknown';
+          html += '<div class="bp-item" data-addr="' + addr + '">';
+          html += '<span class="bp-item-dot watch"></span>';
+          html += '<span class="bp-item-addr">' + oct(addr) + '</span>';
+          html += '<span class="bp-item-type">' + escapeHtml(typeName) + '</span>';
+          html += '<button class="bp-item-remove" data-addr="' + addr + '" data-kind="watch">x</button>';
+          html += '</div>';
+        });
+        watchList.innerHTML = html;
 
-    /* Attach remove handlers */
-    watchList.querySelectorAll('.bp-item-remove').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var addr = parseInt(btn.getAttribute('data-addr'), 10);
-        removeWatchpoint(addr);
-      });
-    });
+        /* Attach remove handlers */
+        watchList.querySelectorAll('.bp-item-remove').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var addr = parseInt(btn.getAttribute('data-addr'), 10);
+            removeWatchpoint(addr);
+          });
+        });
+      }); // end Promise.all(promises).then
+    }); // end Promise.resolve(getWatchpointCount).then
   }
 
   /* --- Add / Remove --- */
@@ -211,7 +224,7 @@
 
     if (type === 'exec') {
       /* Execution breakpoint */
-      if (Module._Dbg_AddBreakpoint) Module._Dbg_AddBreakpoint(addr);
+      emu.addBreakpoint(addr);
       var breakpoints = window.dbgBreakpoints || new Set();
       breakpoints.add(addr);
       /* Sync disassembly views */
@@ -223,7 +236,7 @@
       var watchType = 3;
       if (type === 'read') watchType = 1;
       else if (type === 'write') watchType = 2;
-      if (Module._Dbg_AddWatchpoint) Module._Dbg_AddWatchpoint(addr, watchType);
+      emu.addWatchpoint(addr, watchType);
     }
 
     addrInput.value = '';
@@ -232,7 +245,7 @@
 
   function removeExecBreakpoint(addr) {
     if (!wasmReady()) return;
-    if (Module._Dbg_RemoveBreakpoint) Module._Dbg_RemoveBreakpoint(addr);
+    emu.removeBreakpoint(addr);
     var breakpoints = window.dbgBreakpoints;
     if (breakpoints) breakpoints.delete(addr);
     /* Sync disassembly views */
@@ -244,7 +257,7 @@
 
   function removeWatchpoint(addr) {
     if (!wasmReady()) return;
-    if (Module._Dbg_RemoveWatchpoint) Module._Dbg_RemoveWatchpoint(addr);
+    emu.removeWatchpoint(addr);
     render();
   }
 

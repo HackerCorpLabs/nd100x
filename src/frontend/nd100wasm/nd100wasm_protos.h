@@ -2,6 +2,8 @@
 /* /home/ronny/repos/nd100x/src/frontend/nd100wasm/nd100wasm.c */
 EMSCRIPTEN_EXPORT void TerminalOutputToJS(int identCode, char c);
 EMSCRIPTEN_EXPORT void SetJSTerminalOutputHandler(int enable);
+EMSCRIPTEN_EXPORT void EnableTerminalRingBuffer(int enable);
+EMSCRIPTEN_EXPORT int PollTerminalOutput(void);
 EMSCRIPTEN_EXPORT void Init(void);
 EMSCRIPTEN_EXPORT int Boot(int boot_type);
 EMSCRIPTEN_EXPORT int SendKeyToTerminal(int identCode, int keyCode);

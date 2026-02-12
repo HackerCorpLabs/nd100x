@@ -220,8 +220,8 @@
     var sym = window.sintranSymbols;
     if (!sym) return 'RT #' + rtNum;
 
-    // Get RT table base
-    var rtInfo = sym.discoverRtTable();
+    // Get RT table base (sync - uses cache populated by async discoverRtTable)
+    var rtInfo = sym.discoverRtTableSync();
     if (rtInfo.base === 0) return 'RT #' + rtNum;
 
     // Compute the RT-Description address for this slot
@@ -268,7 +268,7 @@
     if (!bg) return null;
     var sym = window.sintranSymbols;
     if (!sym) return null;
-    var rtInfo = sym.discoverRtTable();
+    var rtInfo = sym.discoverRtTableSync();
     if (rtInfo.base === 0) return null;
     var rtAddr = rtInfo.base + rtNum * RT_ENTRY_SIZE;
     if (bg.firstBakAddr !== null && rtAddr >= bg.firstBakAddr && rtAddr <= bg.lastBakAddr) {

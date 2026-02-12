@@ -351,23 +351,21 @@ async function mountFloppy() {
       position += chunks[i].length;
     }
 
-    if (typeof Module !== 'undefined' && Module.FS) {
+    if (typeof emu !== 'undefined' && emu.fsAvailable()) {
       // Write to unit-specific filename: FLOPPY0.IMG, FLOPPY1.IMG, etc.
       var floppyFileName = '/FLOPPY' + unitNum + '.IMG';
-      Module.FS.writeFile(floppyFileName, floppyImageData);
+      emu.fsWriteFile(floppyFileName, floppyImageData);
 
       try {
-        Module.FS.chmod(floppyFileName, 0o666);
+        emu.fsChmod(floppyFileName, 0o666);
       } catch (e) {
         // chmod not critical on MEMFS
       }
 
       // Tell the C side to close old FILE* and re-open from MEMFS
-      if (Module._RemountFloppy) {
-        var result = Module._RemountFloppy(unitNum);
-        if (result !== 0) {
-          throw new Error('Failed to mount floppy on unit ' + unitNum);
-        }
+      var result = emu.remountFloppy(unitNum);
+      if (result !== 0) {
+        throw new Error('Failed to mount floppy on unit ' + unitNum);
       }
 
       currentMountedFloppy = floppyData;
@@ -418,14 +416,14 @@ function updateFloppyDriveButtons(driveNum) {
 
 // Floppy drive eject handlers
 document.getElementById('floppy-drive-1-eject').addEventListener('click', function() {
-  if (Module._UnmountFloppy) Module._UnmountFloppy(0);
+  emu.unmountFloppy(0);
   currentMountedFloppy = null;
   document.getElementById('floppy-drive-1-name').textContent = 'Empty';
   updateFloppyDriveButtons(1);
 });
 
 document.getElementById('floppy-drive-2-eject').addEventListener('click', function() {
-  if (Module._UnmountFloppy) Module._UnmountFloppy(1);
+  emu.unmountFloppy(1);
   document.getElementById('floppy-drive-2-name').textContent = 'Empty';
   updateFloppyDriveButtons(2);
 });

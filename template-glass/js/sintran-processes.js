@@ -105,91 +105,98 @@
   // Data reading
   // =========================================================
 
+  // Returns Promise<Array>
   function readProcessList() {
     // Invalidate cache so we get fresh values
     sym.invalidateRtCache();
 
-    var rtInfo = sym.discoverRtTable();
-    var tableBase = rtInfo.base;
-    var rtCount = rtInfo.count;
+    return sym.discoverRtTable().then(function(rtInfo) {
+      var tableBase = rtInfo.base;
+      var rtCount = rtInfo.count;
+      if (tableBase === 0 || rtCount === 0) return [];
 
-    if (tableBase === 0 || rtCount === 0) return [];
+      // Bulk read entire RT table + current running process + exec queue head
+      return Promise.all([
+        sym.readBlock(tableBase, rtCount * RT.SIZE),
+        sym.readWord(FX.RTREF),
+        buildExecQueueSet()
+      ]).then(function(results) {
+        var tableData = results[0];
+        var rtrefVal = results[1];
+        var execSet = results[2];
 
-    // Bulk read entire RT table
-    var tableData = sym.readBlock(tableBase, rtCount * RT.SIZE);
-    if (tableData.length === 0) return [];
+        if (tableData.length === 0) return [];
 
-    // Read current running process
-    var rtrefVal = sym.readWord(FX.RTREF);
+        var processes = [];
+        for (var i = 0; i < rtCount; i++) {
+          var base = i * RT.SIZE;
+          var statu = tableData[base + RT.STATU];
 
-    // Build execution queue set for "Ready" detection
-    var execSet = buildExecQueueSet();
+          // Only show USED entries
+          if (!sym.testBit(statu, SB.USED)) continue;
 
-    var processes = [];
-    for (var i = 0; i < rtCount; i++) {
-      var base = i * RT.SIZE;
-      var statu = tableData[base + RT.STATU];
+          var rtAddr = tableBase + base;
+          var entry = {
+            rtNum: i,
+            rtAddr: rtAddr,
+            tlink:  tableData[base + RT.TLINK],
+            statu:  statu,
+            inpri:  tableData[base + RT.INPRI],
+            prity:  tableData[base + RT.PRITY],
+            dtim1:  tableData[base + RT.DTIM1],
+            dtim2:  tableData[base + RT.DTIM2],
+            dtin1:  tableData[base + RT.DTIN1],
+            dtin2:  tableData[base + RT.DTIN2],
+            stadr:  tableData[base + RT.STADR],
+            segm1:  tableData[base + RT.SEGM1],
+            segm2:  tableData[base + RT.SEGM2],
+            wlink:  tableData[base + RT.WLINK],
+            act1s:  tableData[base + RT.ACT1S],
+            act2s:  tableData[base + RT.ACT2S],
+            inipr:  tableData[base + RT.INIPR],
+            actpr:  tableData[base + RT.ACTPR],
+            bresl:  tableData[base + RT.BRESL],
+            rsegm:  tableData[base + RT.RSEGM],
+            bufwi:  tableData[base + RT.BUFWI],
+            trmwi:  tableData[base + RT.TRMWI],
+            n5win:  tableData[base + RT.N5WIN],
+            rtdlg:  tableData[base + RT.RTDLG],
+            isCurrent: (rtAddr === rtrefVal),
+            name: ''
+          };
 
-      // Only show USED entries
-      if (!sym.testBit(statu, SB.USED)) continue;
+          // Derive state
+          entry.state = deriveState(entry, rtrefVal, execSet);
+          entry.name = (typeof window.resolveProcessName === 'function')
+            ? window.resolveProcessName(i) : 'RT #' + i;
 
-      var rtAddr = tableBase + base;
-      var entry = {
-        rtNum: i,
-        rtAddr: rtAddr,
-        tlink:  tableData[base + RT.TLINK],
-        statu:  statu,
-        inpri:  tableData[base + RT.INPRI],
-        prity:  tableData[base + RT.PRITY],
-        dtim1:  tableData[base + RT.DTIM1],
-        dtim2:  tableData[base + RT.DTIM2],
-        dtin1:  tableData[base + RT.DTIN1],
-        dtin2:  tableData[base + RT.DTIN2],
-        stadr:  tableData[base + RT.STADR],
-        segm1:  tableData[base + RT.SEGM1],
-        segm2:  tableData[base + RT.SEGM2],
-        wlink:  tableData[base + RT.WLINK],
-        act1s:  tableData[base + RT.ACT1S],
-        act2s:  tableData[base + RT.ACT2S],
-        inipr:  tableData[base + RT.INIPR],
-        actpr:  tableData[base + RT.ACTPR],
-        bresl:  tableData[base + RT.BRESL],
-        rsegm:  tableData[base + RT.RSEGM],
-        bufwi:  tableData[base + RT.BUFWI],
-        trmwi:  tableData[base + RT.TRMWI],
-        n5win:  tableData[base + RT.N5WIN],
-        rtdlg:  tableData[base + RT.RTDLG],
-        isCurrent: (rtAddr === rtrefVal),
-        name: ''
-      };
+          processes.push(entry);
+        }
 
-      // Derive state
-      entry.state = deriveState(entry, rtrefVal, execSet);
-      entry.name = (typeof window.resolveProcessName === 'function')
-        ? window.resolveProcessName(i) : 'RT #' + i;
-
-      processes.push(entry);
-    }
-
-    return processes;
+        return processes;
+      });
+    });
   }
 
+  // Returns Promise<Object> (set of addresses in exec queue)
   function buildExecQueueSet() {
-    var set = {};
-    var head = sym.readWord(FX.BEXQU);
-    if (head === 0) return set;
+    return sym.readWord(FX.BEXQU).then(function(head) {
+      if (head === 0) return {};
 
-    var first = head;
-    var count = 0;
-    var addr = head;
-    do {
-      set[addr] = true;
-      addr = sym.readWord(addr + RT.WLINK);
-      count++;
-      if (count > 50) break;
-    } while (addr !== 0 && addr !== first);
+      var set = {};
+      var first = head;
 
-    return set;
+      function walkExec(addr, count) {
+        if (addr === 0 || count > 50) return Promise.resolve(set);
+        set[addr] = true;
+        return sym.readWord(addr + RT.WLINK).then(function(next) {
+          if (next === first) return set;
+          return walkExec(next, count + 1);
+        });
+      }
+
+      return walkExec(head, 0);
+    });
   }
 
   function deriveState(entry, rtrefVal, execSet) {
@@ -361,84 +368,105 @@
     }
     html += '</div></div>';
 
+    // Build remaining sections asynchronously (registers + reservation chain)
+    var asyncHtml = Promise.resolve('');
+
     // Saved registers (via RTDLG pointer)
     if (proc.rtdlg !== 0) {
-      html += '<div class="proc-detail-section"><div class="proc-detail-section-title">Saved Registers</div>';
-      var regData = sym.readBlock(proc.rtdlg, 16);
-      if (regData.length >= 8) {
-        var regNames = ['P', 'X', 'T', 'A', 'D', 'L', 'S', 'B'];
-        html += '<div class="proc-regs-grid">';
-        for (var r = 0; r < 8; r++) {
-          var rTip = REG_TIPS[regNames[r]] || '';
-          html += '<div class="proc-reg" title="' + escAttr(rTip) + '"><span class="proc-reg-name">' + regNames[r] +
-            '</span><span class="proc-reg-value">' + sym.toOctal(regData[r]) + '</span></div>';
-        }
-        html += '</div>';
-
-        // Page bitmap (8 words = 128 bits)
-        if (regData.length >= 16) {
-          var bitmapTip = 'Page Bitmap - 128 bits tracking which virtual pages this process has modified.\n' +
-            'Each bit corresponds to one of the 128 logical pages (64 per PIT).\n' +
-            'A set bit (1) means the page was written to and must be saved on swap-out.\n' +
-            'Used by the segment manager to know which pages are dirty.';
-          html += '<div class="proc-detail-section-title" style="margin-top:6px;" title="' + escAttr(bitmapTip) + '">Page Bitmap</div>';
-          var setBits = 0;
-          html += '<div class="proc-bitmap-grid">';
-          for (var bw = 8; bw <= 15; bw++) {
-            for (var bn = 0; bn < 16; bn++) {
-              var pageNum = (bw - 8) * 16 + bn;
-              var dirty = !!(regData[bw] & (1 << bn));
-              if (dirty) setBits++;
-              var boxTip = 'Page ' + pageNum + (dirty ? ' - modified (dirty)' : ' - clean');
-              html += '<span class="bm-box' + (dirty ? ' bm-set' : '') + '" title="' + escAttr(boxTip) + '"></span>';
-            }
+      asyncHtml = sym.readBlock(proc.rtdlg, 16).then(function(regData) {
+        var rhtml = '';
+        if (regData.length >= 8) {
+          rhtml += '<div class="proc-detail-section"><div class="proc-detail-section-title">Saved Registers</div>';
+          var regNames = ['P', 'X', 'T', 'A', 'D', 'L', 'S', 'B'];
+          rhtml += '<div class="proc-regs-grid">';
+          for (var r = 0; r < 8; r++) {
+            var rTip = REG_TIPS[regNames[r]] || '';
+            rhtml += '<div class="proc-reg" title="' + escAttr(rTip) + '"><span class="proc-reg-name">' + regNames[r] +
+              '</span><span class="proc-reg-value">' + sym.toOctal(regData[r]) + '</span></div>';
           }
-          html += '</div>';
-          html += '<div class="proc-bitmap-summary">' + setBits + ' of 128 pages dirty</div>';
+          rhtml += '</div>';
+
+          // Page bitmap (8 words = 128 bits)
+          if (regData.length >= 16) {
+            var bitmapTip = 'Page Bitmap - 128 bits tracking which virtual pages this process has modified.\n' +
+              'Each bit corresponds to one of the 128 logical pages (64 per PIT).\n' +
+              'A set bit (1) means the page was written to and must be saved on swap-out.\n' +
+              'Used by the segment manager to know which pages are dirty.';
+            rhtml += '<div class="proc-detail-section-title" style="margin-top:6px;" title="' + escAttr(bitmapTip) + '">Page Bitmap</div>';
+            var setBits = 0;
+            rhtml += '<div class="proc-bitmap-grid">';
+            for (var bw = 8; bw <= 15; bw++) {
+              for (var bn = 0; bn < 16; bn++) {
+                var pageNum = (bw - 8) * 16 + bn;
+                var dirty = !!(regData[bw] & (1 << bn));
+                if (dirty) setBits++;
+                var boxTip = 'Page ' + pageNum + (dirty ? ' - modified (dirty)' : ' - clean');
+                rhtml += '<span class="bm-box' + (dirty ? ' bm-set' : '') + '" title="' + escAttr(boxTip) + '"></span>';
+              }
+            }
+            rhtml += '</div>';
+            rhtml += '<div class="proc-bitmap-summary">' + setBits + ' of 128 pages dirty</div>';
+          }
+          rhtml += '</div>';
         }
-      }
-      html += '</div>';
+        return rhtml;
+      });
     }
 
-    // Reservation chain
+    // Reservation chain (after registers)
     if (proc.bresl !== 0) {
-      var resChainTip = 'Reservation Chain - I/O devices reserved by this process.\n' +
-        'When a program opens a device (terminal, disk, tape, etc.),\n' +
-        'the device\'s I/O datafield is linked into this chain via BRESL.\n' +
-        'The chain is circular and returns to the owning RT program.\n' +
-        'A reserved device cannot be used by other programs until released.';
-      html += '<div class="proc-detail-section"><div class="proc-detail-section-title" title="' + escAttr(resChainTip) + '">Reservation Chain</div>';
-      html += '<div class="proc-res-chain">';
-      var resAddr = proc.bresl;
-      var resCount = 0;
-      var visited = {};
-      // The chain is CIRCULAR back to the owning RT-Description.
-      // Pre-mark the RT-Desc address range so we stop when the chain loops back.
-      var rtInfo = sym.discoverRtTable();
-      while (resAddr !== 0 && resAddr !== 0xFFFF && resCount < 20 && !visited[resAddr]) {
-        // Stop if chain loops back into RT table area (circular termination)
-        if (rtInfo.base > 0 && resAddr >= rtInfo.base &&
-            resAddr < rtInfo.base + rtInfo.count * RT.SIZE) break;
-        visited[resAddr] = true;
-        var istat = sym.readWord(resAddr + sym.IO_DF.ISTAT);
-        var rtres = sym.readWord(resAddr + sym.IO_DF.RTRES);
-        var devName = identifyDevice(resAddr, istat);
-        var resTip = 'I/O Datafield at ' + sym.toOctal(resAddr) + '\n' +
-          'Device: ' + devName + '\n' +
-          'ISTAT: ' + sym.toOctal(istat) + '\n' +
-          'Owner RT: ' + sym.toOctal(rtres) + '\n' +
-          'This device is reserved (locked) by this RT program.';
-        html += '<div class="proc-res-item" title="' + escAttr(resTip) + '">' +
-          '<span class="proc-res-addr">' + sym.toOctal(resAddr) + '</span>' +
-          '<span class="proc-res-type">' + devName + '</span>' +
-          '</div>';
-        resAddr = sym.readWord(resAddr + sym.IO_DF.RESLI);
-        resCount++;
-      }
-      html += '</div></div>';
+      asyncHtml = asyncHtml.then(function(prevHtml) {
+        var rtInfo = sym.discoverRtTableSync();
+        var resChainTip = 'Reservation Chain - I/O devices reserved by this process.\n' +
+          'When a program opens a device (terminal, disk, tape, etc.),\n' +
+          'the device\'s I/O datafield is linked into this chain via BRESL.\n' +
+          'The chain is circular and returns to the owning RT program.\n' +
+          'A reserved device cannot be used by other programs until released.';
+        var chtml = '<div class="proc-detail-section"><div class="proc-detail-section-title" title="' + escAttr(resChainTip) + '">Reservation Chain</div>';
+        chtml += '<div class="proc-res-chain">';
+
+        function walkResChain(addr, count, visited) {
+          if (addr === 0 || addr === 0xFFFF || count >= 20 || visited[addr]) {
+            return Promise.resolve('');
+          }
+          // Stop if chain loops back into RT table area
+          if (rtInfo.base > 0 && addr >= rtInfo.base &&
+              addr < rtInfo.base + rtInfo.count * RT.SIZE) {
+            return Promise.resolve('');
+          }
+          visited[addr] = true;
+          return Promise.all([
+            sym.readWord(addr + sym.IO_DF.ISTAT),
+            sym.readWord(addr + sym.IO_DF.RTRES),
+            sym.readWord(addr + sym.IO_DF.RESLI)
+          ]).then(function(vals) {
+            var istat = vals[0], rtres = vals[1], nextAddr = vals[2];
+            var devName = identifyDevice(addr, istat);
+            var resTip = 'I/O Datafield at ' + sym.toOctal(addr) + '\n' +
+              'Device: ' + devName + '\n' +
+              'ISTAT: ' + sym.toOctal(istat) + '\n' +
+              'Owner RT: ' + sym.toOctal(rtres) + '\n' +
+              'This device is reserved (locked) by this RT program.';
+            var itemHtml = '<div class="proc-res-item" title="' + escAttr(resTip) + '">' +
+              '<span class="proc-res-addr">' + sym.toOctal(addr) + '</span>' +
+              '<span class="proc-res-type">' + devName + '</span>' +
+              '</div>';
+            return walkResChain(nextAddr, count + 1, visited).then(function(rest) {
+              return itemHtml + rest;
+            });
+          });
+        }
+
+        return walkResChain(proc.bresl, 0, {}).then(function(chainItems) {
+          chtml += chainItems + '</div></div>';
+          return prevHtml + chtml;
+        });
+      });
     }
 
-    detail.innerHTML = html;
+    asyncHtml.then(function(extraHtml) {
+      detail.innerHTML = html + extraHtml;
+    });
   }
 
   // Identify device by ISTAT bits and known datafield address ranges.
@@ -503,9 +531,11 @@
 
   function refreshProcessList() {
     if (!sintranState || !sintranState.detected) return;
-    lastProcesses = readProcessList();
-    var filtered = applyFilter(lastProcesses);
-    renderProcessList(filtered);
+    readProcessList().then(function(processes) {
+      lastProcesses = processes;
+      var filtered = applyFilter(processes);
+      renderProcessList(filtered);
+    });
   }
 
   function startAutoRefresh() {

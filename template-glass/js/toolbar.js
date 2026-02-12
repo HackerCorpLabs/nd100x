@@ -407,6 +407,25 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 
 // =========================================================
+// Config: Worker mode toggle
+// =========================================================
+(function() {
+  var toggle = document.getElementById('config-worker-mode');
+  if (!toggle) return;
+
+  // Initialize from localStorage (same key used by USE_WORKER detection)
+  toggle.checked = (localStorage.getItem('nd100x-worker') === 'true');
+
+  toggle.addEventListener('change', function() {
+    localStorage.setItem('nd100x-worker', toggle.checked ? 'true' : 'false');
+    // Worker mode requires page reload to take effect
+    if (confirm('Worker mode change requires a page reload. Reload now?')) {
+      location.reload();
+    }
+  });
+})();
+
+// =========================================================
 // SINTRAN menu handlers - debug windows
 // =========================================================
 document.getElementById('menu-process-list').addEventListener('click', function() {
@@ -497,15 +516,15 @@ document.getElementById('page-table-copy').addEventListener('click', function() 
 
 document.getElementById('menu-dump-memory').addEventListener('click', function() {
   document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
-  if (typeof Module === 'undefined' || typeof Module._Dbg_DumpPhysicalMemory !== 'function') {
+  if (typeof emu === 'undefined' || !emu.isReady()) {
     alert('Emulator not ready');
     return;
   }
   // C writes 256K words big-endian to /nd100_physmem.bin in MEMFS
-  var rc = Module._Dbg_DumpPhysicalMemory(256 * 1024);
+  var rc = emu.dumpPhysicalMemory(256 * 1024);
   if (rc !== 0) { alert('Memory dump failed'); return; }
   // Read file from MEMFS and trigger browser download
-  var data = Module.FS.readFile('/nd100_physmem.bin');
+  var data = emu.fsReadFile('/nd100_physmem.bin');
   var blob = new Blob([data], { type: 'application/octet-stream' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -516,7 +535,7 @@ document.getElementById('menu-dump-memory').addEventListener('click', function()
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   // Clean up MEMFS
-  try { Module.FS.unlink('/nd100_physmem.bin'); } catch(e) {}
+  try { emu.fsUnlink('/nd100_physmem.bin'); } catch(e) {}
 });
 
 // =========================================================
@@ -538,45 +557,63 @@ document.getElementById('cpu-load-window-close').addEventListener('click', funct
 // =========================================================
 let isInitializedBtn = false;
 
+function completePowerOn(btn) {
+  isInitialized = true;
+  initializeTerminals();
+  if (registerTerminalCallbacks()) {
+    console.log("Terminal callbacks registered successfully");
+  } else {
+    console.error("Failed to register terminal callbacks");
+  }
+
+  // Enable boot device selector and boot button
+  document.getElementById('boot-select').disabled = false;
+  document.getElementById('toolbar-boot').disabled = false;
+
+  // Update machine info status
+  var machStatus = document.getElementById('machine-status');
+  if (machStatus) machStatus.textContent = 'Initialized';
+
+  // Update execution mode display
+  var execMode = document.getElementById('machine-exec-mode');
+  if (execMode) execMode.textContent = (typeof USE_WORKER !== 'undefined' && USE_WORKER) ? 'Web Worker' : 'Direct';
+
+  // Update status
+  document.getElementById('status').textContent = 'Initialized';
+
+  // Update power button appearance
+  btn.classList.add('initialized');
+  btn.title = 'Power off';
+  isInitializedBtn = true;
+
+  // Start SINTRAN detection polling
+  if (typeof sintranStartDetection === 'function') sintranStartDetection();
+}
+
 document.getElementById('toolbar-power').addEventListener('click', function() {
   var btn = this;
   if (!isInitializedBtn) {
     // --- POWER ON (hardware init only, no boot) ---
     console.log("Calling Init");
-    Module._Init();
-    isInitialized = true;
-    initializeTerminals();
-    if (registerTerminalCallbacks()) {
-      console.log("Terminal callbacks registered successfully");
+
+    if (emu.isWorkerMode()) {
+      // Worker mode: init is async, terminal info arrives via callback
+      emu.onInitialized = function(msg) {
+        completePowerOn(btn);
+      };
+      emu.init();
     } else {
-      console.error("Failed to register terminal callbacks");
+      // Direct mode: synchronous
+      emu.init();
+      completePowerOn(btn);
     }
-
-    // Enable boot device selector and boot button
-    document.getElementById('boot-select').disabled = false;
-    document.getElementById('toolbar-boot').disabled = false;
-
-    // Update machine info status
-    var machStatus = document.getElementById('machine-status');
-    if (machStatus) machStatus.textContent = 'Initialized';
-
-    // Update status
-    document.getElementById('status').textContent = 'Initialized';
-
-    // Update power button appearance
-    btn.classList.add('initialized');
-    btn.title = 'Power off';
-    isInitializedBtn = true;
-
-    // Start SINTRAN detection polling
-    if (typeof sintranStartDetection === 'function') sintranStartDetection();
   } else {
     // --- POWER OFF (triggers page reload to reset all state) ---
     console.log("Powering off");
     if (typeof emulationRunning !== 'undefined' && emulationRunning) {
       stopEmulation();
     }
-    if (Module && Module._Stop) Module._Stop();
+    if (emu) emu.stop();
 
     btn.classList.remove('initialized');
     btn.title = 'Power on';
@@ -602,7 +639,33 @@ function performBoot(bootType) {
   var bootNames = ['FLOPPY', 'SMD', 'BPUN'];
 
   console.log("Booting type " + (bootNames[bootType] || bootType));
-  var result = Module._Boot(bootType);
+
+  if (emu.isWorkerMode()) {
+    // Worker mode: boot is async, result arrives via callback
+    emu.onBooted = function(msg) {
+      if (msg.result < 0) {
+        document.getElementById('status').textContent = 'Boot failed';
+        terminals[activeTerminalId].term.writeln(
+          '\r\n\x1b[31mBoot failed - could not load from ' +
+          (bootNames[bootType] || 'unknown') + '.\x1b[0m' +
+          '\r\n\x1b[33mCheck that the image file exists and is valid.\x1b[0m'
+        );
+        return;
+      }
+
+      var pc = emu.getPC();
+      console.log("Boot OK - P set to " + pc.toString(8).padStart(6, '0'));
+
+      document.getElementById('boot-select').disabled = true;
+      bootBtn.disabled = true;
+      startEmulation(bootNames[bootType] || 'unknown');
+    };
+    emu.boot(bootType);
+    return;
+  }
+
+  // Direct mode: synchronous
+  var result = emu.boot(bootType);
 
   // Boot() returns PC on success, -1 on failure
   if (result < 0) {
@@ -615,7 +678,7 @@ function performBoot(bootType) {
     return;  // Leave boot button enabled for retry
   }
 
-  var pc = Module._Dbg_GetPC();
+  var pc = emu.getPC();
   console.log("Boot OK - P set to " + pc.toString(8).padStart(6, '0'));
 
   // Disable boot controls (no re-boot without power cycle)
@@ -670,11 +733,19 @@ document.getElementById('bpun-file-input').addEventListener('change', function(e
   reader.onload = function(ev) {
     var data = new Uint8Array(ev.target.result);
     // Write uploaded BPUN to MEMFS
-    Module.FS.writeFile('/BPUN_UPLOAD.IMG', data);
+    if (emu.isWorkerMode()) {
+      emu.workerLoadDisk('/BPUN_UPLOAD.IMG', ev.target.result);
+    } else {
+      emu.fsWriteFile('/BPUN_UPLOAD.IMG', data);
+    }
     console.log("BPUN file uploaded: " + file.name + " (" + data.length + " bytes)");
 
-    // Boot as BPUN (type 2)
-    performBoot(2);
+    // Small delay in Worker mode to let the file transfer complete
+    if (emu.isWorkerMode()) {
+      setTimeout(function() { performBoot(2); }, 100);
+    } else {
+      performBoot(2);
+    }
   };
   reader.readAsArrayBuffer(file);
 
