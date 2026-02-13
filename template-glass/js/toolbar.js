@@ -391,19 +391,38 @@ document.addEventListener('DOMContentLoaded', function() {
 // Config: Float terminals toggle
 // =========================================================
 (function() {
-  var toggle = document.getElementById('config-float-terminals');
-  if (!toggle) return;
+  var groupToggle = document.getElementById('config-group-terminals');
+  var popoutToggle = document.getElementById('config-auto-popout');
+  var popoutRow = document.getElementById('config-auto-popout-row');
+  if (!groupToggle) return;
 
-  // Initialize state
-  toggle.checked = (localStorage.getItem('terminal-float-mode') === 'true');
+  function updatePopoutState() {
+    var grouped = groupToggle.checked;
+    if (popoutRow) popoutRow.style.opacity = grouped ? '0.4' : '1';
+    if (popoutToggle) popoutToggle.disabled = grouped;
+  }
 
-  toggle.addEventListener('change', function() {
-    localStorage.setItem('terminal-float-mode', toggle.checked ? 'true' : 'false');
-    // Live switch mode if system is initialized
+  // Initialize state - "Group" ON means float-mode OFF (inverted)
+  groupToggle.checked = (localStorage.getItem('terminal-float-mode') === 'false');
+  if (popoutToggle) {
+    popoutToggle.checked = (localStorage.getItem('terminal-auto-popout') === 'true');
+  }
+  updatePopoutState();
+
+  groupToggle.addEventListener('change', function() {
+    // Inverted: group ON = float OFF
+    localStorage.setItem('terminal-float-mode', groupToggle.checked ? 'false' : 'true');
+    updatePopoutState();
     if (typeof switchTerminalMode === 'function') {
       switchTerminalMode();
     }
   });
+
+  if (popoutToggle) {
+    popoutToggle.addEventListener('change', function() {
+      localStorage.setItem('terminal-auto-popout', popoutToggle.checked ? 'true' : 'false');
+    });
+  }
 })();
 
 // =========================================================
@@ -795,7 +814,8 @@ document.getElementById('color-theme-select').addEventListener('change', functio
       localStorage.setItem('term-pos', JSON.stringify({
         left: termWin.style.left,
         top: termWin.style.top,
-        width: termWin.style.width
+        width: termWin.style.width,
+        height: termWin.style.height
       }));
     } catch(e) {}
   }
@@ -816,7 +836,7 @@ document.getElementById('color-theme-select').addEventListener('change', functio
           var w = parseInt(pos.width) || 860;
           termWin.style.width = Math.min(w, window.innerWidth - 20) + 'px';
         }
-        // Height is always computed by CSS (zoom-aware calc), never restored
+        if (pos.height) termWin.style.height = pos.height;
       }
     } catch(e) {}
   }
@@ -1042,9 +1062,6 @@ makeResizable(
   document.getElementById('terminal-window-resize'),
   'term-size', 500, 350
 );
-// Terminal window height is always computed by CSS (zoom-aware calc).
-// Clear any saved inline height so the CSS rule takes effect.
-document.getElementById('terminal-window').style.height = '';
 makeResizable(
   document.getElementById('floppy-modal'),
   document.getElementById('floppy-modal-resize'),

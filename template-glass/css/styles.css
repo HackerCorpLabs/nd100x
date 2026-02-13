@@ -740,7 +740,7 @@ body {
   display: flex;
   flex: 1;
 }
-.xterm { width: 100% !important; height: 100% !important; }
+.xterm { width: 100% !important; }
 .xterm-viewport { scrollbar-color: rgba(120, 130, 170, 0.3) transparent; }
 .xterm-screen { }
 .xterm-viewport::-webkit-scrollbar {
@@ -761,13 +761,16 @@ body {
 }
 
 /* Floating terminal window */
+/* Counter-zoom: terminal windows render at native pixel resolution
+   regardless of page CSS zoom, matching pop-out window behaviour.
+   --ui-zoom is set by the auto-zoom script in index.html. */
 .terminal-window {
   position: fixed;
   top: 60px;
   left: 10px;
   width: 860px;
-  height: calc(100vh / var(--ui-zoom, 1) - 100px);
-  max-height: 1200px;
+  height: 650px;
+  zoom: calc(1 / var(--ui-zoom, 1));
   background: rgba(12, 16, 35, 0.88);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -785,8 +788,8 @@ body {
   top: 49px !important;
   left: 0 !important;
   bottom: auto;
-  width: 100vw !important;
-  height: calc(100vh - 49px) !important;
+  width: calc(100vw * var(--ui-zoom, 1)) !important;
+  height: calc((100vh - 49px) * var(--ui-zoom, 1)) !important;
   border-radius: 0;
   transform: none;
 }
@@ -2535,6 +2538,11 @@ button:disabled {
   font-size: 12px;
   color: rgba(200, 210, 230, 0.8);
   line-height: 1.3;
+}
+
+/* Counter-zoom floating terminal windows (same as .terminal-window) */
+[id^="float-term-"] {
+  zoom: calc(1 / var(--ui-zoom, 1));
 }
 
 /* =========================================
