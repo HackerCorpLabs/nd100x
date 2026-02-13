@@ -49,6 +49,16 @@ mkptypes:
 	$(MAKE) -C tools/mkptypes
 
 # Build targets
+# Compile TypeScript terminal sources (if tsc available, else use pre-compiled JS)
+.PHONY: ts-compile
+ts-compile:
+	@if npx tsc --version >/dev/null 2>&1; then \
+		echo "Compiling TypeScript terminal modules..."; \
+		npx tsc -p template-glass/ts/tsconfig.json; \
+	else \
+		echo "TypeScript not available, using pre-compiled JS files."; \
+	fi
+
 .PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help
 
 debug: check-deps mkptypes
@@ -85,7 +95,7 @@ wasm: check-deps mkptypes
 	@echo "  python3 -m http.server"
 	@echo "Then open http://localhost:8000/index.html in your browser."
 
-wasm-glass: check-deps mkptypes
+wasm-glass: check-deps mkptypes ts-compile
 	@echo "Building WebAssembly version (glassmorphism UI)..."
 	@command -v emcmake >/dev/null 2>&1 || { echo "Error: emcmake not found. Please install and activate Emscripten SDK."; exit 1; }
 	@mkdir -p $(BUILD_DIR_WASM_GLASS)
@@ -94,6 +104,7 @@ wasm-glass: check-deps mkptypes
 	@echo "Copying glassmorphism UI and shared assets to build directory..."
 	@mkdir -p $(BUILD_DIR_WASM_GLASS)/bin
 	@cp template-glass/index.html $(BUILD_DIR_WASM_GLASS)/bin/index.html
+	@cp template-glass/terminal-popout.html $(BUILD_DIR_WASM_GLASS)/bin/terminal-popout.html 2>/dev/null || true
 	@cp -r template-glass/css $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/js $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/data $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
@@ -101,7 +112,7 @@ wasm-glass: check-deps mkptypes
 	@cp -r template/floppies $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
-	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in index.html
+	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in HTML files
 	@BUILD_TS=$$(date +%s); \
 	sed -i \
 	  -e "s|src=\"js/|src=\"js/|g" \
@@ -110,6 +121,11 @@ wasm-glass: check-deps mkptypes
 	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \
 	  $(BUILD_DIR_WASM_GLASS)/bin/index.html; \
+	sed -i \
+	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
+	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \
+	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \
+	  $(BUILD_DIR_WASM_GLASS)/bin/terminal-popout.html; \
 	echo "Cache-bust: v=$$BUILD_TS"
 	@echo ""
 	@echo "WebAssembly build (glassmorphism UI) completed successfully!"

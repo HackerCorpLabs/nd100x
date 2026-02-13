@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "none",
+    "outDir": "../js",
+    "strict": false,
+    "noEmitOnError": true,
+    "lib": ["ES2017", "DOM", "DOM.Iterable"],
+    "sourceMap": false,
+    "declaration": false,
+    "removeComments": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": [
+    "types.d.ts",
+    "terminal-core.ts",
+    "terminal-manager.ts",
+    "terminal-bridge.ts",
+    "terminal-popout-app.ts"
+  ]
+}
