@@ -795,8 +795,7 @@ document.getElementById('color-theme-select').addEventListener('change', functio
       localStorage.setItem('term-pos', JSON.stringify({
         left: termWin.style.left,
         top: termWin.style.top,
-        width: termWin.style.width,
-        height: termWin.style.height
+        width: termWin.style.width
       }));
     } catch(e) {}
   }
@@ -813,10 +812,23 @@ document.getElementById('color-theme-select').addEventListener('change', functio
           termWin.style.bottom = 'auto';
           termWin.style.transform = 'none';
         }
-        if (pos.width) termWin.style.width = pos.width;
-        if (pos.height) termWin.style.height = pos.height;
+        if (pos.width) {
+          var w = parseInt(pos.width) || 860;
+          termWin.style.width = Math.min(w, window.innerWidth - 20) + 'px';
+        }
+        // Height is always computed by CSS (zoom-aware calc), never restored
       }
     } catch(e) {}
+  }
+
+  // Pop-out button for main terminal (pops out the active tab-based terminal)
+  var termPopoutBtn = document.getElementById('term-popout');
+  if (termPopoutBtn) {
+    termPopoutBtn.addEventListener('click', function() {
+      if (typeof window.popOutTerminal === 'function' && typeof activeTerminalId !== 'undefined') {
+        window.popOutTerminal(activeTerminalId);
+      }
+    });
   }
 
   // Use makeDraggable for terminal (but we handle maximize separately)
@@ -1030,6 +1042,9 @@ makeResizable(
   document.getElementById('terminal-window-resize'),
   'term-size', 500, 350
 );
+// Terminal window height is always computed by CSS (zoom-aware calc).
+// Clear any saved inline height so the CSS rule takes effect.
+document.getElementById('terminal-window').style.height = '';
 makeResizable(
   document.getElementById('floppy-modal'),
   document.getElementById('floppy-modal-resize'),

@@ -52,6 +52,21 @@ var terminals = {};
 
 // Function to handle terminal output from C/WASM
 function handleTerminalOutput(identCode, charCode) {
+  // Route output to pop-out window if terminal is popped out
+  if (typeof window.isPoppedOut === 'function' && window.isPoppedOut(identCode)) {
+    window.bufferPopoutOutput(identCode, charCode);
+
+    // Still handle loading overlay hide logic
+    if (loadingOverlayVisible && !hasReceivedTerminalOutput) {
+      hasReceivedTerminalOutput = true;
+      hasEverStartedEmulation = true;
+      setTimeout(() => {
+        hideLoadingOverlay();
+      }, 500);
+    }
+    return 1;
+  }
+
   if (terminals[identCode] && terminals[identCode].term) {
     terminals[identCode].term.write(String.fromCharCode(charCode));
 
