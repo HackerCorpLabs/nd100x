@@ -54,10 +54,11 @@ flowchart TB
         CSS1["styles.css<br/>Glass effects, layout"]
         CSS2["themes.css<br/>5 theme overrides"]
 
-        subgraph JS["JavaScript Modules 21 files"]
+        subgraph JS["JavaScript Modules 24 files"]
             direction LR
             INIT["module-init.js"]
-            TERM["terminal.js"]
+            TCORE["terminal-core.js"]
+            TMGR["terminal-manager.js"]
             EMU["emulation.js"]
             TOOL["toolbar.js"]
             DBG["debugger.js"]
@@ -65,7 +66,7 @@ flowchart TB
             BP["breakpoints.js"]
             SINT["sintran.js"]
             THEME["theme-manager.js"]
-            MORE["+ 12 more modules"]
+            MORE["+ 14 more modules"]
         end
 
         XTERM["xterm.js v5.1.0<br/>Terminal rendering"]
@@ -83,8 +84,8 @@ flowchart TB
     EMU -->|"Module._Step(N)"| WASMBIN
     DBG -->|"Module._Dbg_*()"| WASMBIN
     SINT -->|"Module._Dbg_ReadMemory()"| WASMBIN
-    WASMBIN -->|"handleTerminalOutput(id, char)"| TERM
-    TERM --> XTERM
+    WASMBIN -->|"handleTerminalOutput(id, char)"| TMGR
+    TMGR --> XTERM
 
     classDef wasm fill:#2196F3,stroke:#1565C0,stroke-width:2px,color:#fff
     classDef jsmod fill:#009688,stroke:#00695C,stroke-width:2px,color:#fff
@@ -93,7 +94,7 @@ flowchart TB
     classDef terminal fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
 
     class HTML,CSS1,CSS2 wasm
-    class INIT,TERM,EMU,TOOL,THEME,MORE jsmod
+    class INIT,TCORE,TMGR,EMU,TOOL,THEME,MORE jsmod
     class DBG,DISASM,BP debugger
     class SINT sintran
     class XTERM,TASKBAR terminal
@@ -106,13 +107,15 @@ flowchart TB
 
 `make wasm-glass` performs the following steps:
 
-1. **Emscripten compile**: `emcmake cmake` builds the C codebase into `build_wasm_glass/bin/nd100wasm.js` + `nd100wasm.wasm` with `DEBUGGER_ENABLED=ON` and 74 exported `Dbg_*` functions.
-2. **Copy UI assets**: The Makefile copies the entire `template-glass/` tree into `build_wasm_glass/bin/`:
+1. **TypeScript compile**: `npx tsc -p template-glass/ts/tsconfig.json` compiles terminal TypeScript sources to `template-glass/js/`. 4 TS files produce 4 JS files (terminal-core, terminal-manager, terminal-bridge, terminal-popout-app). Compiled JS is checked into git so devs without TypeScript can build.
+2. **Emscripten compile**: `emcmake cmake` builds the C codebase into `build_wasm_glass/bin/nd100wasm.js` + `nd100wasm.wasm` with `DEBUGGER_ENABLED=ON` and 74 exported `Dbg_*` functions.
+3. **Copy UI assets**: The Makefile copies the entire `template-glass/` tree into `build_wasm_glass/bin/`:
    - `index.html` (entry point)
+   - `terminal-popout.html` (pop-out terminal window)
    - `css/styles.css`, `css/themes.css`
-   - `js/*.js` (21 modules)
+   - `js/*.js` (24 modules, 4 compiled from TypeScript)
    - `data/logical-device-numbers.json`
-3. **Serve** (optional): `make wasm-glass-run` starts `python3 -m http.server 8000` in the build output directory.
+4. **Serve** (optional): `make wasm-glass-run` starts `python3 -m http.server 8000` in the build output directory.
 
 The WASM binary and the UI assets are combined at build time, not at runtime. The browser loads `index.html` which references all JS/CSS files and the Emscripten-generated `nd100wasm.js` loader.
 
@@ -128,7 +131,8 @@ sequenceDiagram
     participant MI as module-init.js
     participant WM as nd100wasm.js
     participant TM as theme-manager.js
-    participant T as terminal.js
+    participant TC as terminal-core.js
+    participant TM as terminal-manager.js
     participant E as emulation.js
     participant TB as toolbar.js
     participant U as User
@@ -141,14 +145,15 @@ sequenceDiagram
     MI->>MI: setupTerminalOutputHandler()
     MI->>MI: initializeSystem()
     MI->>MI: loadDiskImages() fetch SMD0.IMG via XHR
-    MI->>T: initializeTerminals()
+    MI->>TM: initializeTerminals()
+    B->>TC: Load color themes, font options, factory functions
     B->>TM: Apply saved theme from localStorage
     B->>TB: Wire toolbar buttons and menus
     Note over U: User clicks Power button
     U->>TB: toolbar-power click
     TB->>WM: Module._Init()
     Note over TB: Enable boot selector and boot button<br/>Start SINTRAN detection polling
-    TB->>T: initializeTerminals()
+    TB->>TM: initializeTerminals()
     Note over U: User clicks Boot button
     U->>TB: toolbar-boot click
     TB->>WM: Module._Boot(type)
@@ -173,25 +178,27 @@ Scripts load in this exact order (from `index.html`):
 | 3 | xterm-addon-fit (CDN) | Terminal auto-fit addon |
 | 4 | `nd100wasm.js` | Emscripten-generated WASM loader |
 | 5 | `js/theme-manager.js` | Theme load/save/apply |
-| 6 | `js/terminal.js` | xterm.js terminal creation and keyboard input |
-| 7 | `js/emulation.js` | Main execution loop, CPU load sampling |
-| 8 | `js/toolbar.js` | Window management, buttons, menus, dragging |
-| 9 | `js/floppy-browser.js` | Floppy image library browser |
-| 10 | `js/help-window.js` | SINTRAN command help with search |
-| 11 | `js/debugger.js` | Debugger panel (registers, memory, flags, stepping) |
-| 12 | `js/disassembly.js` | Standalone disassembly window |
-| 13 | `js/breakpoints.js` | Breakpoint/watchpoint manager |
-| 14 | `js/sintran.js` | OS detection polling and system info |
-| 15 | `js/sintran-symbols.js` | Shared symbol tables and memory helpers |
-| 16 | `js/sintran-rt-names.js` | RT program name reverse lookup |
-| 17 | `js/sintran-processes.js` | Process list and detail windows |
-| 18 | `js/sintran-queues.js` | Execution, time, monitor queue viewer |
-| 19 | `js/sintran-seg-names.js` | System segment name lookup |
-| 20 | `js/sintran-segments.js` | Segment table viewer |
-| 21 | `js/sintran-dev-names.js` | Device address-to-name tables |
-| 22 | `js/sintran-devices.js` | I/O device inspector (4-phase discovery) |
-| 23 | `js/pagetables.js` | Hardware page table inspector |
-| 24 | `js/cpu-load-graph.js` | CPU load graph (scrolling 60s history) |
+| 6 | `js/terminal-core.js` | Color themes, font scaling, terminal factory, keyboard handler (compiled from TS) |
+| 7 | `js/terminal-manager.js` | Terminal creation, tabs, floating windows, settings (compiled from TS) |
+| 8 | `js/terminal-bridge.js` | Pop-out terminal BroadcastChannel bridge (compiled from TS) |
+| 9 | `js/emulation.js` | Main execution loop, CPU load sampling |
+| 10 | `js/toolbar.js` | Window management, buttons, menus, dragging |
+| 11 | `js/floppy-browser.js` | Floppy image library browser |
+| 12 | `js/help-window.js` | SINTRAN command help with search |
+| 13 | `js/debugger.js` | Debugger panel (registers, memory, flags, stepping) |
+| 14 | `js/disassembly.js` | Standalone disassembly window |
+| 15 | `js/breakpoints.js` | Breakpoint/watchpoint manager |
+| 16 | `js/sintran.js` | OS detection polling and system info |
+| 17 | `js/sintran-symbols.js` | Shared symbol tables and memory helpers |
+| 18 | `js/sintran-rt-names.js` | RT program name reverse lookup |
+| 19 | `js/sintran-processes.js` | Process list and detail windows |
+| 20 | `js/sintran-queues.js` | Execution, time, monitor queue viewer |
+| 21 | `js/sintran-seg-names.js` | System segment name lookup |
+| 22 | `js/sintran-segments.js` | Segment table viewer |
+| 23 | `js/sintran-dev-names.js` | Device address-to-name tables |
+| 24 | `js/sintran-devices.js` | I/O device inspector (4-phase discovery) |
+| 25 | `js/pagetables.js` | Hardware page table inspector |
+| 26 | `js/cpu-load-graph.js` | CPU load graph (scrolling 60s history) |
 
 ### Two-Phase Init/Boot
 
@@ -351,7 +358,9 @@ The taskbar also contains the CPU load mini-graph canvas (80x24px) and a setting
 |--------|------|----------------|------------|
 | Init | `module-init.js` | WASM `Module` object, disk loading, terminal output callback | `Module`, `terminals`, `loadDiskImage()`, `handleTerminalOutput()` |
 | Theme | `theme-manager.js` | 5 themes, localStorage persistence | `window.setTheme()`, `window.getTheme()` |
-| Terminal | `terminal.js` | xterm.js setup, keyboard input, font/color selection | `createTerminal()`, `sendKey()` |
+| Terminal Core | `terminal-core.js` (from `ts/terminal-core.ts`) | Color themes, font options, terminal factory, font scaling, keyboard handler, settings | `createScaledTerminal()`, `fitTerminalScaled()`, `setupTerminalKeyHandler()`, `getTerminalSettings()`, `getOpaqueTheme()`, `terminalColorThemes`, `terminalFontOptions`, `terminalColorOptions` |
+| Terminal Manager | `terminal-manager.js` (from `ts/terminal-manager.ts`) | Terminal creation, tabs, floating windows, settings UI, active terminal tracking | `initializeTerminals()`, `createTerminal()`, `sendKey()`, `switchTerminal()`, `switchTerminalMode()`, `updateTerminalSubmenu()` |
+| Terminal Bridge | `terminal-bridge.js` (from `ts/terminal-bridge.ts`) | Pop-out terminal BroadcastChannel bridge, output buffering | `window.popOutTerminal()`, `window.popInTerminal()`, `window.isPoppedOut()`, `window.bufferPopoutOutput()`, `window.broadcastThemeChange()` |
 | Emulation | `emulation.js` | Main execution loop, CPU load sampling, level bars | `startEmulation()`, `stopEmulation()`, `createLevelBars()` |
 | Toolbar | `toolbar.js` | Window management, drag/resize, menus, power/boot buttons | `makeDraggable()`, `makeResizable()`, `windowManager` |
 | Floppy Browser | `floppy-browser.js` | Floppy image library, search, product filter, mount | `openFloppyBrowser()`, `closeFloppyBrowser()` |
@@ -415,42 +424,60 @@ The toolbar is a sticky bar at the top of the viewport containing:
 
 ## Terminal Integration
 
+### TypeScript Architecture
+
+Terminal code is written in TypeScript (`template-glass/ts/`) and compiled to JavaScript (`template-glass/js/`). Three modules work together:
+
+- **`terminal-core.ts`** - Single source of truth for color themes, font options, terminal factory, font scaling, keyboard handler, and settings management. Used by both the main page and pop-out windows.
+- **`terminal-manager.ts`** - Main page terminal orchestration: console terminal, floating windows, tab switching, settings UI.
+- **`terminal-bridge.ts`** - BroadcastChannel bridge for pop-out terminal windows.
+- **`terminal-popout-app.ts`** - Pop-out window application (loaded in `terminal-popout.html`).
+
 ### xterm.js Setup
 
-The terminal uses xterm.js v5.1.0 loaded from CDN, with the fit addon for responsive sizing.
+The terminal uses xterm.js v5.1.0 loaded from CDN, with the FitAddon for responsive sizing and CanvasAddon for precise rendering at all font sizes.
 
-**Terminal creation** (`terminal.js` - `createTerminal()`):
+**Terminal creation** (`terminal-manager.ts` - `createTerminal()`):
 - Creates a DOM container `terminal-container-{identCode}`
 - Creates a tab button for multi-terminal switching
-- Configures xterm.js with: `cursorBlink: true`, `rows: 24`, `cols: 80`
+- Calls `createScaledTerminal()` from `terminal-core.ts` which:
+  - Creates xterm.js instance with `cursorBlink: true`, `rows: 24`, `cols: 80`
+  - Loads CanvasAddon (with fallback) and FitAddon
+  - Attaches ResizeObserver for automatic refitting
+  - Runs 3-phase font scaling via `fitTerminalScaled()`
 - Stores reference in global `terminals[identCode]` object
 
 ### Responsive Font Sizing
 
-Font size is computed dynamically to fit 80x24 characters within the terminal container:
-1. Measure actual character cell dimensions at reference size (16px)
-2. Calculate maximum font size that fits 80 columns and 24 rows
-3. Clamp between 10px and 24px
+Font size is computed dynamically by `fitTerminalScaled()` in `terminal-core.ts` using a 3-phase CSS zoom-aware algorithm:
+
+1. **Phase 1 (Binary search)**: Create a DOM `<span>` with the target font, measure character width via `getBoundingClientRect()` (zoomed-aware). Binary search for the largest font size that fits 80 columns and 24 rows within the container.
+2. **Phase 2 (proposeDimensions verification)**: Call xterm's `proposeDimensions()` to verify the fit. **Skipped under CSS zoom** because proposeDimensions mixes unzoomed container metrics with zoomed cell metrics.
+3. **Phase 3 (Clipping check)**: Verify the terminal doesn't extend beyond screen height. Reduce font size if clipped.
 
 ### Keyboard Input Flow
 
 ```
-User keypress -> xterm.js onKey handler -> sendKey(keyCode)
-  -> Module._SendKeyToTerminal(activeTerminalId, keyCode)
+User keypress -> setupTerminalKeyHandler() -> sendCallback(keyCode)
+  -> sendKey() -> Module._SendKeyToTerminal(activeTerminalId, keyCode)
     -> C terminal device handler
 ```
 
+The keyboard handler is created by `setupTerminalKeyHandler(term, sendCallback, isActiveCheck?)` in `terminal-core.ts`. The same factory is used for main page terminals (sends via `emu.sendKey`) and pop-out terminals (sends via `channel.postMessage`).
+
 Special handling:
+- **RAW_MODE**: All printable and control characters sent as-is
 - **Ctrl+A..Z**: Mapped to control codes 1-26
 - **LF (10)**: Converted to CR (13)
 - **Backspace (8/127)**: Echo `\b \b` locally
 
 ### Font & Color Options
 
-Fonts (selectable via `#font-family-select`):
-`monospace`, `VT323`, `Fira Mono`, `IBM Plex Mono`, `Cascadia Mono`, `Source Code Pro`
+Canonical lists defined once in `terminal-core.ts` and exported as `window.terminalFontOptions` and `window.terminalColorOptions`. HTML select elements are built dynamically via `buildFontSelectHTML()` and `buildColorSelectHTML()`.
 
-Color themes (selectable via `#color-theme-select`):
+Fonts: `monospace`, `VT323`, `Fira Mono`, `IBM Plex Mono`, `Cascadia Mono`, `Source Code Pro`
+
+Color themes (defined once in `terminalColorThemes`):
 
 | Theme | Foreground | Background |
 |-------|------------|------------|
@@ -460,7 +487,9 @@ Color themes (selectable via `#color-theme-select`):
 | Blue | `#00BFFF` | transparent |
 | Paperwhite | `#222222` | `#f0f0f5` |
 
-Settings are persisted in localStorage key `terminal-settings`.
+Pop-out windows use `getOpaqueTheme()` which replaces transparent backgrounds with solid equivalents.
+
+Settings are persisted in localStorage key `terminal-settings` via `getTerminalSettings()` and `saveTerminalSettings()` from `terminal-core.ts`.
 
 ---
 

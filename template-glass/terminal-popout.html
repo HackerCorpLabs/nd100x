@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ND100X Terminal</title>
+
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-canvas@0.3.0/lib/xterm-addon-canvas.min.js"></script>
+
+  <!-- Retro fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&family=Courier+Prime:wght@400;700&family=Share+Tech+Mono&family=Anonymous+Pro:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Shared styles for theme support -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/themes.css">
+
+  <!-- Shared terminal core logic (factory, themes, settings, keyboard) -->
+  <script src="js/terminal-core.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      background: #0a0e1c;
+      display: flex;
+      flex-direction: column;
+    }
+    .popout-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 10px;
+      background: rgba(0, 105, 92, 0.25);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      flex-shrink: 0;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+    .popout-header-title {
+      font-weight: 700;
+      font-size: 12px;
+      color: rgba(180, 230, 225, 0.95);
+      letter-spacing: 0.5px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 8px;
+    }
+    .popout-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .popout-header-controls select {
+      font-size: 10px;
+      padding: 2px 4px;
+      max-width: 100px;
+      background: rgba(15, 20, 40, 0.6);
+      color: #c8d0e0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      cursor: pointer;
+    }
+    .popout-header-controls select option {
+      background: #0c1023;
+      color: #c8d0e0;
+    }
+    .popout-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(200, 210, 230, 0.6);
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 0;
+      min-width: 24px;
+      transition: all 0.2s;
+    }
+    .popout-btn:hover {
+      background: rgba(100, 130, 255, 0.3);
+      color: #fff;
+    }
+    .popout-btn-restore:hover {
+      background: rgba(0, 200, 180, 0.25);
+      color: rgba(0, 220, 200, 0.95);
+    }
+    #popout-terminal {
+      flex: 1;
+      overflow: hidden;
+    }
+    #popout-terminal .xterm {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    #disconnected-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #disconnected-overlay.visible {
+      display: flex;
+    }
+    .disconnected-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.6;
+    }
+    .disconnected-text {
+      color: rgba(200, 210, 230, 0.8);
+      font-size: 16px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    .disconnected-subtext {
+      color: rgba(160, 175, 210, 0.5);
+      font-size: 12px;
+      margin-top: 8px;
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    }
+    /* Light theme overrides */
+    body[data-theme="light"] { background: #e8ecf4; }
+    body[data-theme="light"] .popout-header { background: rgba(50, 100, 200, 0.08); border-bottom-color: rgba(0, 0, 0, 0.06); }
+    body[data-theme="light"] .popout-header-title { color: rgba(30, 60, 120, 0.9); }
+    body[data-theme="light"] .popout-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.08); color: rgba(60, 70, 90, 0.6); }
+    body[data-theme="light"] .popout-btn:hover { background: rgba(50, 100, 200, 0.12); color: rgba(50, 100, 200, 0.9); }
+    body[data-theme="light"] .popout-header-controls select { background: rgba(255, 255, 255, 0.6); border-color: rgba(0, 0, 0, 0.1); color: #333; }
+    body[data-theme="light"] .popout-header-controls select option { background: #fff; color: #333; }
+    /* Amber theme overrides */
+    body[data-theme="amber"] { background: #0a0800; }
+    body[data-theme="amber"] .popout-header { background: rgba(255, 176, 0, 0.08); border-bottom-color: rgba(255, 176, 0, 0.1); }
+    body[data-theme="amber"] .popout-header-title { color: rgba(255, 176, 0, 0.9); }
+    body[data-theme="amber"] .popout-btn { background: rgba(255, 176, 0, 0.06); border-color: rgba(255, 176, 0, 0.12); color: rgba(255, 176, 0, 0.5); }
+    body[data-theme="amber"] .popout-btn:hover { background: rgba(255, 176, 0, 0.2); color: rgba(255, 176, 0, 0.95); }
+    body[data-theme="amber"] .popout-header-controls select { background: rgba(20, 16, 5, 0.6); border-color: rgba(255, 176, 0, 0.15); color: rgba(255, 176, 0, 0.8); }
+    body[data-theme="amber"] .popout-header-controls select option { background: #0a0800; color: rgba(255, 176, 0, 0.8); }
+    /* Nord theme overrides */
+    body[data-theme="nord"] { background: #2e3440; }
+    body[data-theme="nord"] .popout-header { background: rgba(136, 192, 208, 0.1); border-bottom-color: rgba(136, 192, 208, 0.08); }
+    body[data-theme="nord"] .popout-header-title { color: rgba(216, 222, 233, 0.9); }
+    body[data-theme="nord"] .popout-btn { background: rgba(136, 192, 208, 0.06); border-color: rgba(136, 192, 208, 0.1); color: rgba(216, 222, 233, 0.5); }
+    body[data-theme="nord"] .popout-btn:hover { background: rgba(136, 192, 208, 0.18); color: rgba(136, 192, 208, 0.95); }
+    body[data-theme="nord"] .popout-header-controls select { background: rgba(46, 52, 64, 0.6); border-color: rgba(136, 192, 208, 0.12); color: #d8dee9; }
+    body[data-theme="nord"] .popout-header-controls select option { background: #2e3440; color: #d8dee9; }
+    /* Synthwave theme overrides */
+    body[data-theme="synthwave"] { background: #1a0a2e; }
+    body[data-theme="synthwave"] .popout-header { background: rgba(255, 50, 150, 0.08); border-bottom-color: rgba(255, 50, 150, 0.1); }
+    body[data-theme="synthwave"] .popout-header-title { color: rgba(224, 208, 255, 0.9); }
+    body[data-theme="synthwave"] .popout-btn { background: rgba(255, 50, 150, 0.06); border-color: rgba(255, 50, 150, 0.12); color: rgba(224, 208, 255, 0.5); }
+    body[data-theme="synthwave"] .popout-btn:hover { background: rgba(255, 50, 150, 0.2); color: rgba(255, 50, 150, 0.95); }
+    body[data-theme="synthwave"] .popout-header-controls select { background: rgba(26, 10, 46, 0.6); border-color: rgba(255, 50, 150, 0.15); color: #e0d0ff; }
+    body[data-theme="synthwave"] .popout-header-controls select option { background: #1a0a2e; color: #e0d0ff; }
+  </style>
+</head>
+<body>
+  <!-- Header bar with controls -->
+  <div class="popout-header">
+    <span class="popout-header-title" id="popout-title">Terminal</span>
+    <div class="popout-header-controls">
+      <span class="term-font-size-badge" id="popout-fontsize">16px</span>
+      <select id="popout-font-select" title="Font"></select>
+      <select id="popout-color-select" title="Color Theme"></select>
+      <button class="popout-btn" id="popout-maximize" title="Maximize">
+        <svg id="popout-maximize-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9,1 13,1 13,5"/>
+          <line x1="13" y1="1" x2="8" y2="6"/>
+          <polyline points="5,13 1,13 1,9"/>
+          <line x1="1" y1="13" x2="6" y2="8"/>
+        </svg>
+      </button>
+      <button class="popout-btn popout-btn-restore" id="popout-restore" title="Restore to main tab">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="1" width="12" height="12" rx="2"/>
+          <polyline points="9,5 7,7 5,5"/>
+          <line x1="7" y1="3" x2="7" y2="7"/>
+          <line x1="4" y1="10" x2="10" y2="10"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div id="popout-terminal"></div>
+
+  <!-- Disconnected overlay -->
+  <div id="disconnected-overlay">
+    <div class="disconnected-icon">&#x26A0;</div>
+    <div class="disconnected-text">Disconnected</div>
+    <div class="disconnected-subtext">Main emulator tab was closed or reloaded</div>
+  </div>
+
+  <!-- Pop-out terminal application (compiled from ts/terminal-popout-app.ts) -->
+  <script src="js/terminal-popout-app.js"></script>
+</body>
+</html>
