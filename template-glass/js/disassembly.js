@@ -27,11 +27,11 @@
   }
 
   function wasmReady() {
-    return typeof Module !== 'undefined' && Module && Module.calledRun && Module._Dbg_GetPC;
+    return typeof emu !== 'undefined' && emu && emu.isReady();
   }
 
   function wasmCall(fnName) {
-    return typeof Module !== 'undefined' && Module && typeof Module[fnName] === 'function';
+    return wasmReady();
   }
 
   /* --- Window show / hide --- */
@@ -65,13 +65,14 @@
   /* --- Render disassembly --- */
 
   function renderDisasm() {
-    if (!view || !wasmReady() || !wasmCall('_Dbg_Disassemble')) return;
-    if (!Module._IsInitialized || !Module._IsInitialized()) return;
+    if (!view || !wasmReady()) return;
+    if (!emu.isInitialized()) return;
 
     var breakpoints = window.dbgBreakpoints || new Set();
-    var pc = Module._Dbg_GetPC();
-    var ptr = Module._Dbg_Disassemble((pc - 10) & 0xFFFF, 30);
-    var lines = Module.UTF8ToString(ptr).trim().split('\n');
+    var pc = emu.getPC();
+
+    Promise.resolve(emu.disassemble((pc - 10) & 0xFFFF, 30)).then(function(raw) {
+    var lines = (raw || '').trim().split('\n');
 
     var html = '';
     lines.forEach(function(line) {
@@ -103,10 +104,10 @@
         if (isNaN(addr)) return;
         if (breakpoints.has(addr)) {
           breakpoints.delete(addr);
-          if (Module._Dbg_RemoveBreakpoint) Module._Dbg_RemoveBreakpoint(addr);
+          emu.removeBreakpoint(addr);
         } else {
           breakpoints.add(addr);
-          if (Module._Dbg_AddBreakpoint) Module._Dbg_AddBreakpoint(addr);
+          emu.addBreakpoint(addr);
         }
         renderDisasm();
         /* Keep debugger tab in sync */
@@ -115,6 +116,7 @@
         }
       });
     });
+    }); // end Promise.resolve(emu.disassemble...).then
   }
 
   /* --- Expose for toolbar.js --- */

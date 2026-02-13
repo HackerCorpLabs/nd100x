@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ND100X WASM Emulator</title>
 
+  <!-- Mode detection: Worker mode is opt-in via ?worker=1 or localStorage -->
+  <script>
+  var USE_WORKER = (typeof Worker !== 'undefined') &&
+    (new URLSearchParams(location.search).get('worker') === '1' ||
+     localStorage.getItem('nd100x-worker') === 'true');
+  </script>
+
   <!-- Module config must load before nd100wasm.js -->
   <script src="js/module-init.js"></script>
 
@@ -213,6 +220,10 @@
         <span class="machine-info-value" id="machine-status">Not initialized</span>
       </div>
       <div class="machine-info-row">
+        <span class="machine-info-label">Execution</span>
+        <span class="machine-info-value" id="machine-exec-mode">-</span>
+      </div>
+      <div class="machine-info-row">
         <span class="machine-info-label">CPU Load</span>
         <span class="machine-info-value" id="machine-cpu-load">-</span>
       </div>
@@ -347,6 +358,14 @@
           </div>
           <span class="theme-card-label">Synthwave</span>
         </button>
+      </div>
+      <div class="config-section-title" style="margin-top:16px">Emulation</div>
+      <div class="config-option">
+        <label class="config-toggle">
+          <input type="checkbox" id="config-worker-mode">
+          <span class="config-toggle-slider"></span>
+        </label>
+        <span class="config-toggle-label">Background execution (Web Worker)</span>
       </div>
       <div class="config-section-title" style="margin-top:16px">Terminal</div>
       <div class="config-option">
@@ -874,8 +893,16 @@
     </div>
   </div>
 
-  <!-- Load Emscripten-generated JS after Module is defined -->
-  <script src="nd100wasm.js"></script>
+  <!-- Proxy layer: wraps Module._* so all JS uses emu.* instead -->
+  <!-- In Worker mode, emu-proxy-worker.js loads instead (Worker loads nd100wasm.js) -->
+  <script>
+  if (USE_WORKER) {
+    document.write('<script src="js/emu-proxy-worker.js"><\/script>');
+  } else {
+    document.write('<script src="js/emu-proxy.js"><\/script>');
+    document.write('<script src="nd100wasm.js"><\/script>');
+  }
+  </script>
 
   <!-- Application JS modules -->
   <script src="js/theme-manager.js"></script>

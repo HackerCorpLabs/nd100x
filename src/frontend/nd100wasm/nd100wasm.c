@@ -78,6 +78,21 @@ static int dbg_paused = 0;
 #define MAX_TERMINALS 16
 static Device* terminals[MAX_TERMINALS] = {NULL};
 
+// =========================================================
+// Terminal output ring buffer
+// Replaces EM_ASM char-by-char callbacks with a pollable buffer.
+// JS calls GetTerminalOutputCount() + reads HEAPU16 directly.
+// Each entry: (identCode << 8) | (charCode & 0xFF)
+// =========================================================
+#define TERM_BUF_SIZE 8192
+static struct {
+    uint16_t entries[TERM_BUF_SIZE];
+    volatile int writePos;
+    volatile int readPos;
+} termOutputBuf = { .writePos = 0, .readPos = 0 };
+
+static int use_ring_buffer = 0;
+
 // Define a function pointer type for terminal output callbacks
 typedef void (*TerminalOutputCallback)(int terminalId, char c);
 
@@ -103,28 +118,69 @@ EMSCRIPTEN_EXPORT void SetJSTerminalOutputHandler(int enable) {
     printf("JavaScript terminal handler %s\n", enable ? "enabled" : "disabled");
 }
 
+// Enable or disable the ring buffer for terminal output
+// When enabled, WasmTerminalOutputHandler writes to the ring buffer
+// instead of calling EM_ASM. JS polls the buffer after each Step().
+EMSCRIPTEN_EXPORT void EnableTerminalRingBuffer(int enable) {
+    use_ring_buffer = enable;
+    if (enable) {
+        // Reset buffer positions
+        termOutputBuf.writePos = 0;
+        termOutputBuf.readPos = 0;
+    }
+    printf("Terminal ring buffer %s\n", enable ? "enabled" : "disabled");
+}
+
+// Poll next terminal output entry from the ring buffer.
+// Returns packed (identCode << 8 | charCode), or -1 if empty.
+// JS calls this in a loop after each Step() until it returns -1.
+EMSCRIPTEN_EXPORT int PollTerminalOutput(void) {
+    if (termOutputBuf.readPos == termOutputBuf.writePos) return -1;
+    uint16_t entry = termOutputBuf.entries[termOutputBuf.readPos];
+    termOutputBuf.readPos = (termOutputBuf.readPos + 1) % TERM_BUF_SIZE;
+    return (int)entry;
+}
+
+// Write a character to the ring buffer (called from WasmTerminalOutputHandler)
+static void bufferTerminalOutput(int identCode, char c) {
+    int next = (termOutputBuf.writePos + 1) % TERM_BUF_SIZE;
+    if (next != termOutputBuf.readPos) {
+        // Pack identCode (high byte) and char (low byte) into one uint16_t
+        termOutputBuf.entries[termOutputBuf.writePos] =
+            (uint16_t)(((identCode & 0xFF) << 8) | (c & 0xFF));
+        termOutputBuf.writePos = next;
+    }
+    // If buffer is full, silently drop the character
+}
+
 // Character device output handler for terminals
-static void WasmTerminalOutputHandler(Device *device, char c) 
+static void WasmTerminalOutputHandler(Device *device, char c)
 {
     if (!device)
         return;
-          
+
+    if (use_ring_buffer) {
+        // Ring buffer mode: write to buffer, JS polls after Step()
+        bufferTerminalOutput(device->identCode, c);
+        return;
+    }
+
     if (js_terminal_handler_enabled) {
         // Use JavaScript handler - direct call to JS without function pointers
         TerminalOutputToJS(device->identCode, c);
         return;
     }
-    
+
     // Traditional callback approach (with function pointers)
-    // Find terminal ID in our array by identCode reference    
+    // Find terminal ID in our array by identCode reference
     for (int i = 0; i < MAX_TERMINALS; i++) {
         Device *term = terminals[i];
 
         if (term)
         {
-            if (term->identCode == device->identCode && term->deviceClass == device->deviceClass) {                
+            if (term->identCode == device->identCode && term->deviceClass == device->deviceClass) {
                 if (terminalOutputCallbacks[i])
-                {                                  
+                {
                     terminalOutputCallbacks[i](term->identCode , c);
                 }
                 else
@@ -134,13 +190,14 @@ static void WasmTerminalOutputHandler(Device *device, char c)
                 break;
             }
         }
-    }    
+    }
 }
 
 // Initialize the system (hardware only, no boot)
 EMSCRIPTEN_EXPORT void Init(void)
 {
     printf("ND100X WASM build: %s %s\n", __DATE__, __TIME__);
+    printf("[Phase 1] Terminal ring buffer ready (%d entries)\n", TERM_BUF_SIZE);
 
     // Only initialize once
     if (initialized) {

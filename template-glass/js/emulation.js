@@ -69,9 +69,9 @@ let cpuLoadIoniSeen = false;         // have we ever seen IONI=1?
 var levelLastHit = new Array(16).fill(0);
 
 function sampleCpuLoad() {
-  if (!Module || !Module._Dbg_GetPIL) return;
+  if (!emu || !emu.isReady()) return;
 
-  var pil = Module._Dbg_GetPIL();
+  var pil = emu.getPIL();
   cpuLoadSamples[cpuLoadIndex] = (pil !== 0) ? 1 : 0;
   cpuLoadIndex = (cpuLoadIndex + 1) % CPU_LOAD_WINDOW;
   levelLastHit[pil] = Date.now();
@@ -84,7 +84,7 @@ function sampleCpuLoad() {
 
 function updateCpuLoadDisplay() {
   // Check IONI (bit 15 of STS)
-  var sts = Module._Dbg_GetSTS ? Module._Dbg_GetSTS() : 0;
+  var sts = emu.isReady() ? emu.getSTS() : 0;
   var ioni = (sts >> 15) & 1;
 
   if (!ioni) {
@@ -194,12 +194,40 @@ function handleLoadingKeys(event) {
   }
 }
 
+function handleBreakpointHit() {
+  emulationRunning = false;
+  continuousStepMode = false;
+  if (loopId !== null) {
+    cancelAnimationFrame(loopId);
+    loopId = null;
+  }
+  resetCpuLoad();
+  if (loadingOverlayVisible) hideLoadingOverlay();
+
+  var reason = emu.getStopReason();
+  /* 2=BREAKPOINT, 8=DATA_BREAKPOINT */
+  if (reason === 8) {
+    document.getElementById('status').textContent = 'Watchpoint hit';
+  } else {
+    document.getElementById('status').textContent = 'Breakpoint hit';
+  }
+
+  /* Activate debugger window */
+  if (typeof window.dbgActivateBreakpoint === 'function') {
+    window.dbgActivateBreakpoint();
+  }
+  /* Refresh breakpoints window */
+  if (typeof window.bpRefresh === 'function') {
+    window.bpRefresh();
+  }
+}
+
 function executeInstructionBatch() {
   if (!emulationRunning && !continuousStepMode) {
     return;
   }
 
-  if (!Module || !Module._Step) {
+  if (!emu || !emu.isReady()) {
     console.error("Step function not available");
     return;
   }
@@ -209,38 +237,41 @@ function executeInstructionBatch() {
        0=CPU_UNKNOWN_STATE, 1=CPU_RUNNING, 2=CPU_BREAKPOINT,
        3=CPU_PAUSED, 4=CPU_STOPPED, 5=CPU_SHUTDOWN */
 
-    Module._Step(instructionsPerFrame);
+    if (emu.isWorkerMode()) {
+      // Worker runs autonomously. Main thread just samples cached state.
+      sampleCpuLoad();
+      var mode = emu.getRunMode();
+      if (mode === 2) { /* CPU_BREAKPOINT */
+        handleBreakpointHit();
+        return;
+      }
+      /* Refresh debugger window from RAF loop (~4x/sec) */
+      if (cpuLoadFrameCount % CPU_LOAD_DOM_INTERVAL === 0 &&
+          typeof window.dbgRefreshIfVisible === 'function') {
+        window.dbgRefreshIfVisible();
+      }
+      if (emulationRunning || continuousStepMode) {
+        loopId = requestAnimationFrame(executeInstructionBatch);
+      }
+      return;
+    }
+
+    // Direct mode: existing code
+    emu.step(instructionsPerFrame);
+    emu.flushTerminalOutput();
     sampleCpuLoad();
 
+    /* Refresh debugger window directly from RAF loop (~4x/sec) */
+    if (cpuLoadFrameCount % CPU_LOAD_DOM_INTERVAL === 0 &&
+        typeof window.dbgRefreshIfVisible === 'function') {
+      window.dbgRefreshIfVisible();
+    }
+
     /* Check if CPU hit a breakpoint or watchpoint during execution */
-    if (Module._Dbg_GetRunMode) {
-      var mode = Module._Dbg_GetRunMode();
+    {
+      var mode = emu.getRunMode();
       if (mode === 2) { /* CPU_BREAKPOINT */
-        emulationRunning = false;
-        continuousStepMode = false;
-        if (loopId !== null) {
-          cancelAnimationFrame(loopId);
-          loopId = null;
-        }
-        resetCpuLoad();
-        if (loadingOverlayVisible) hideLoadingOverlay();
-
-        var reason = Module._Dbg_GetStopReason ? Module._Dbg_GetStopReason() : 0;
-        /* 2=BREAKPOINT, 8=DATA_BREAKPOINT */
-        if (reason === 8) {
-          document.getElementById('status').textContent = 'Watchpoint hit';
-        } else {
-          document.getElementById('status').textContent = 'Breakpoint hit';
-        }
-
-        /* Activate debugger window */
-        if (typeof window.dbgActivateBreakpoint === 'function') {
-          window.dbgActivateBreakpoint();
-        }
-        /* Refresh breakpoints window */
-        if (typeof window.bpRefresh === 'function') {
-          window.bpRefresh();
-        }
+        handleBreakpointHit();
         return;
       }
     }
@@ -269,6 +300,11 @@ function startEmulation(bootDevice) {
     hasReceivedTerminalOutput = false;
   }
 
+  // In Worker mode, tell the Worker to start its autonomous loop
+  if (emu.isWorkerMode()) {
+    emu.workerStart();
+  }
+
   loopId = requestAnimationFrame(executeInstructionBatch);
 }
 
@@ -283,6 +319,11 @@ function stopEmulation() {
     loopId = null;
   }
 
+  // In Worker mode, tell the Worker to stop its loop
+  if (emu.isWorkerMode()) {
+    emu.workerStop();
+  }
+
   document.getElementById('status').textContent = 'Emulation stopped';
   terminals[activeTerminalId].term.writeln('\r\nEmulation stopped');
   resetCpuLoad();
@@ -290,4 +331,30 @@ function stopEmulation() {
   if (loadingOverlayVisible) {
     hideLoadingOverlay();
   }
+}
+
+// =========================================================
+// Worker mode callbacks
+// =========================================================
+if (typeof USE_WORKER !== 'undefined' && USE_WORKER) {
+  // Wire up breakpoint callback from Worker
+  // (set after emu-proxy-worker.js creates window.emu)
+  window.addEventListener('DOMContentLoaded', function() {
+    if (emu && emu.isWorkerMode()) {
+      emu.onBreakpoint = function(msg) {
+        handleBreakpointHit();
+      };
+      emu.onStopped = function(msg) {
+        emulationRunning = false;
+        continuousStepMode = false;
+        if (loopId !== null) {
+          cancelAnimationFrame(loopId);
+          loopId = null;
+        }
+        resetCpuLoad();
+        document.getElementById('status').textContent = 'Emulation stopped';
+        if (loadingOverlayVisible) hideLoadingOverlay();
+      };
+    }
+  });
 }

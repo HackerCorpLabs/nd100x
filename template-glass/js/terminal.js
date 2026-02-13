@@ -190,8 +190,8 @@ function createFloatingTerminalWindow(identCode, name) {
   document.getElementById(winId + '-close').addEventListener('click', function() {
     closeWindow(winId);
     // Signal carrier loss to SINTRAN so it disconnects the user
-    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
-      Module._SetTerminalCarrier(1, identCode);
+    if (typeof emu !== 'undefined') {
+      emu.setTerminalCarrier(1, identCode);
     }
     updateTerminalSubmenu();
   });
@@ -402,7 +402,7 @@ function initializeTerminals() {
   // Clean up existing floating terminal windows
   cleanupFloatingTerminals();
 
-  if (!Module || !Module._GetTerminalAddress) {
+  if (!emu || !emu.isReady()) {
     document.querySelector('.terminal-tabs').innerHTML = '';
     document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
     createTerminal(1, '1');
@@ -433,12 +433,12 @@ function initializeTerminals() {
 
   if (isInitialized) {
     for (var i = 0; i < 16; i++) {
-      var address = Module._GetTerminalAddress(i);
+      var address = emu.getTerminalAddress(i);
       if (address !== -1) {
-        var identCode = Module._GetTerminalIdentCode(i);
+        var identCode = emu.getTerminalIdentCode(i);
         if (identCode !== -1 && identCode !== 1) {
           // Use SINTRAN logical device number as display name
-          var logDev = Module._GetTerminalLogicalDevice(i);
+          var logDev = emu.getTerminalLogicalDevice(i);
           var displayName = (logDev !== -1) ? logDev.toString() : identCode.toString();
           createTerminal(identCode, displayName);
         }
@@ -540,8 +540,8 @@ function toggleFloatingTerminal(identCode) {
   if (win.style.display === 'none') {
     openWindow(winId);
     // Restore carrier when reopening
-    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
-      Module._SetTerminalCarrier(0, identCode);
+    if (typeof emu !== 'undefined') {
+      emu.setTerminalCarrier(0, identCode);
     }
     activeTerminalId = identCode;
     // Defer focus so it runs after menu-click mousedown bubbles through
@@ -557,8 +557,8 @@ function toggleFloatingTerminal(identCode) {
   } else {
     closeWindow(winId);
     // Signal carrier loss when closing
-    if (typeof Module !== 'undefined' && Module._SetTerminalCarrier) {
-      Module._SetTerminalCarrier(1, identCode);
+    if (typeof emu !== 'undefined') {
+      emu.setTerminalCarrier(1, identCode);
     }
   }
   updateTerminalSubmenu();
@@ -603,8 +603,8 @@ function switchTerminal(identCode) {
 
 // Function to register terminal callbacks
 function registerTerminalCallbacks() {
-  if (!Module) {
-    console.error("Module not ready for terminal callback registration");
+  if (!emu) {
+    console.error("Emu proxy not ready for terminal callback registration");
     return false;
   }
 
@@ -618,29 +618,28 @@ function registerTerminalCallbacks() {
 
     console.log('Found ' + Object.keys(terminals).length + ' terminals ready for input/output');
 
-    if (typeof Module._TerminalOutputToJS !== 'undefined' &&
-        typeof Module._SetJSTerminalOutputHandler !== 'undefined') {
+    if (emu.hasJSTerminalHandler()) {
       console.log("Using modern direct JS terminal output handler");
       return true;
     }
 
     console.log("Using legacy terminal callback approach with function pointers");
 
-    if (typeof Module.addFunction === 'undefined') {
+    if (!emu.hasAddFunction()) {
       console.error("addFunction not available");
       return false;
     }
 
     var singleCallback;
     try {
-      singleCallback = Module.addFunction(function(identCode, charCode) {
+      singleCallback = emu.addFunction(function(identCode, charCode) {
         return handleTerminalOutput(identCode, charCode);
       }, 'iii');
 
       Object.keys(terminals).forEach(function(identCode) {
         console.log('Registering legacy callback for terminal with identCode ' + identCode);
-        if (Module._SetTerminalOutputCallback) {
-          Module._SetTerminalOutputCallback(parseInt(identCode), singleCallback);
+        if (emu.hasSetTerminalOutputCallback()) {
+          emu.setTerminalOutputCallback(parseInt(identCode), singleCallback);
         }
       });
 
@@ -658,7 +657,7 @@ function registerTerminalCallbacks() {
 
 // Function to send a key to the currently active terminal
 function sendKey(keyCode) {
-  if (!Module || !Module._SendKeyToTerminal) {
+  if (!emu) {
     console.error("SendKeyToTerminal not available");
     return false;
   }
@@ -669,7 +668,7 @@ function sendKey(keyCode) {
       return false;
     }
 
-    var result = Module._SendKeyToTerminal(activeTerminalId, keyCode);
+    var result = emu.sendKey(activeTerminalId, keyCode);
     if (result !== 1) {
       console.error("Failed to send key to terminal with identCode", activeTerminalId);
       return false;

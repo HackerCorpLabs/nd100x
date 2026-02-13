@@ -122,117 +122,150 @@
   // 4-Phase Device Discovery
   // =========================================================
 
+  // Returns Promise<Array>
   function discoverDevices() {
     var deviceMap = {};  // keyed by DF address
 
     // Phase 1: Symbol enumeration (primary, most reliable)
+    var phase1;
     if (window.sintranDevNames && window.sintranDevNames.getAllKnownDevices) {
       var known = window.sintranDevNames.getAllKnownDevices();
-      for (var k = 0; k < known.length; k++) {
-        var dev = known[k];
-        var header = sym.readBlock(dev.addr, 7);
-        var isZero = true;
-        for (var z = 0; z < 7; z++) {
-          if (header[z] !== 0) { isZero = false; break; }
+      var headerPromises = known.map(function(dev) {
+        return sym.readBlock(dev.addr, 7).then(function(header) {
+          return { dev: dev, header: header };
+        });
+      });
+      phase1 = Promise.all(headerPromises).then(function(results) {
+        for (var k = 0; k < results.length; k++) {
+          var dev = results[k].dev;
+          var header = results[k].header;
+          var isZero = true;
+          for (var z = 0; z < 7; z++) {
+            if (header[z] !== 0) { isZero = false; break; }
+          }
+          deviceMap[dev.addr] = {
+            dfAddr: dev.addr,
+            name: dev.name,
+            cat: dev.cat,
+            desc: dev.desc,
+            pairAddr: dev.pairAddr,
+            resli: header[DF.RESLI],
+            rtres: header[DF.RTRES],
+            bwlin: header[DF.BWLIN],
+            typri: header[DF.TYPRI],
+            istat: header[DF.ISTAT],
+            mlink: header[DF.MLINK],
+            mfunc: header[DF.MFUNC],
+            active: !isZero,
+            sources: ['Symbol']
+          };
         }
-        deviceMap[dev.addr] = {
-          dfAddr: dev.addr,
-          name: dev.name,
-          cat: dev.cat,
-          desc: dev.desc,
-          pairAddr: dev.pairAddr,
-          resli: header[DF.RESLI],
-          rtres: header[DF.RTRES],
-          bwlin: header[DF.BWLIN],
-          typri: header[DF.TYPRI],
-          istat: header[DF.ISTAT],
-          mlink: header[DF.MLINK],
-          mfunc: header[DF.MFUNC],
-          active: !isZero,
-          sources: ['Symbol']
-        };
-      }
+      });
+    } else {
+      phase1 = Promise.resolve();
     }
 
-    // Phase 2: Walk each used RT-Desc's reservation chain (BRESL -> RESLI)
-    var rtInfo = sym.discoverRtTable();
-    if (rtInfo.base !== 0 && rtInfo.count > 0) {
+    return phase1.then(function() {
+      // Phase 2: Walk each used RT-Desc's reservation chain (BRESL -> RESLI)
+      var rtInfo = sym.discoverRtTableSync();
+      if (rtInfo.base === 0 || rtInfo.count === 0) return;
+
       var vSym = sym.getVersionSymbols();
       var fbpr = vSym ? vSym.FBPR : 0;
       var lbpr = vSym ? vSym.LBPR : 0;
-      var tableData = sym.readBlock(rtInfo.base, rtInfo.count * RT.SIZE);
 
-      for (var i = 0; i < rtInfo.count; i++) {
-        var base = i * RT.SIZE;
-        var statu = tableData[base + RT.STATU];
-        if (!sym.testBit(statu, sym.STATU_BITS.USED)) continue;
+      return sym.readBlock(rtInfo.base, rtInfo.count * RT.SIZE).then(function(tableData) {
+        // Collect all BRESL chain heads
+        var chains = [];
+        for (var i = 0; i < rtInfo.count; i++) {
+          var base = i * RT.SIZE;
+          var statu = tableData[base + RT.STATU];
+          if (!sym.testBit(statu, sym.STATU_BITS.USED)) continue;
+          var bresl = tableData[base + RT.BRESL];
+          if (bresl === 0 || bresl === 0xFFFF) continue;
+          chains.push({
+            ownerName: resolveOwner(rtInfo.base + i * RT.SIZE),
+            startAddr: bresl
+          });
+        }
 
-        var bresl = tableData[base + RT.BRESL];
-        if (bresl === 0 || bresl === 0xFFFF) continue;
+        // Walk each chain sequentially
+        var p = Promise.resolve();
+        chains.forEach(function(chain) {
+          p = p.then(function() {
+            return walkResChain(chain.startAddr, chain.ownerName, rtInfo, fbpr, lbpr, deviceMap);
+          });
+        });
+        return p;
+      });
+    }).then(function() {
+      // Phase 3: Walk Monitor Queue (MQUEU -> MLINK chain)
+      return sym.readWord(FX.MQUEU).then(function(mqHead) {
+        if (mqHead === 0 || mqHead === 0xFFFF) return;
 
-        var ownerName = resolveOwner(rtInfo.base + i * RT.SIZE);
-        var resAddr = bresl;
-        var resCount = 0;
-        var resVisited = {};
-        while (resAddr !== 0 && resAddr !== 0xFFFF && resCount < 50 && !resVisited[resAddr]) {
-          resVisited[resAddr] = true;
+        function walkMon(addr, count, visited) {
+          if (addr === 0 || addr === 0xFFFF || count >= 100 || visited[addr]) return Promise.resolve();
+          visited[addr] = true;
+          enrichIfKnown(deviceMap, addr, 'MQUEU', null);
+          return sym.readWord(addr + DF.MLINK).then(function(next) {
+            return walkMon(next, count + 1, visited);
+          });
+        }
 
-          // Stop if address is in RT table range (circular chain back to owner)
-          if (resAddr >= rtInfo.base && resAddr < rtInfo.base + rtInfo.count * RT.SIZE) break;
-          // Stop if address is in background program range
-          if (fbpr && lbpr && resAddr >= fbpr && resAddr < lbpr) break;
-
-          enrichIfKnown(deviceMap, resAddr, 'BRESL', ownerName);
-          resAddr = sym.readWord(resAddr + DF.RESLI);
-          resCount++;
+        return walkMon(mqHead, 0, {});
+      });
+    }).then(function() {
+      // Build logical device number reverse map
+      return buildDynamicLogDevNoMap().then(function(dynResult) {
+        if (dynResult.ok) {
+          cachedLogDevMap = dynResult.map;
+          logDevMapSource = 'dynamic';
+        } else {
+          cachedLogDevMap = buildHardcodedLogDevNoMap(deviceMap);
+          logDevMapSource = 'hardcoded';
+        }
+      });
+    }).then(function() {
+      // Phase 4: Merge and convert to array
+      var devices = [];
+      for (var addr in deviceMap) {
+        if (deviceMap.hasOwnProperty(addr)) {
+          var d = deviceMap[addr];
+          var gdevty = classifyDevice(d.typri);
+          d.devType = d.cat || gdevty;
+          d.attrs = collectAttrs(d.typri);
+          d.ownerStr = d.ownerStr || resolveOwner(d.rtres);
+          d.waitStr = resolveWaiter(d.bwlin, d.dfAddr);
+          d.logDevNo = getLogDevNo(d.dfAddr);
+          devices.push(d);
         }
       }
-    }
+      devices.sort(function(a, b) { return a.dfAddr - b.dfAddr; });
+      return devices;
+    });
+  }
 
-    // Phase 3: Walk Monitor Queue (MQUEU -> MLINK chain)
-    var mqHead = sym.readWord(FX.MQUEU);
-    if (mqHead !== 0 && mqHead !== 0xFFFF) {
-      var mAddr = mqHead;
-      var mCount = 0;
-      var mVisited = {};
-      while (mAddr !== 0 && mAddr !== 0xFFFF && mCount < 100 && !mVisited[mAddr]) {
-        mVisited[mAddr] = true;
-        enrichIfKnown(deviceMap, mAddr, 'MQUEU', null);
-        mAddr = sym.readWord(mAddr + DF.MLINK);
-        mCount++;
+  // Walk a reservation chain (BRESL -> RESLI) recursively
+  function walkResChain(addr, ownerName, rtInfo, fbpr, lbpr, deviceMap) {
+    function step(resAddr, count, visited) {
+      if (resAddr === 0 || resAddr === 0xFFFF || count >= 50 || visited[resAddr]) {
+        return Promise.resolve();
       }
-    }
-
-    // Build logical device number reverse map (dfAddr -> devno)
-    // Try dynamic LOGDBANK reading first, fall back to hardcoded name table
-    var dynResult = buildDynamicLogDevNoMap();
-    if (dynResult.ok) {
-      cachedLogDevMap = dynResult.map;
-      logDevMapSource = 'dynamic';
-    } else {
-      cachedLogDevMap = buildHardcodedLogDevNoMap(deviceMap);
-      logDevMapSource = 'hardcoded';
-    }
-
-    // Phase 4: Merge and convert to array
-    var devices = [];
-    for (var addr in deviceMap) {
-      if (deviceMap.hasOwnProperty(addr)) {
-        var d = deviceMap[addr];
-        // Use GDEVTY classification from TYPRI bits
-        var gdevty = classifyDevice(d.typri);
-        // Prefer symbol-derived category when available (more accurate than
-        // GDEVTY for block devices which have 5BAD bit set but are not TADs)
-        d.devType = d.cat || gdevty;
-        d.attrs = collectAttrs(d.typri);
-        d.ownerStr = d.ownerStr || resolveOwner(d.rtres);
-        d.waitStr = resolveWaiter(d.bwlin, d.dfAddr);
-        d.logDevNo = getLogDevNo(d.dfAddr);
-        devices.push(d);
+      // Stop if address is in RT table range (circular chain back to owner)
+      if (resAddr >= rtInfo.base && resAddr < rtInfo.base + rtInfo.count * RT.SIZE) {
+        return Promise.resolve();
       }
+      // Stop if address is in background program range
+      if (fbpr && lbpr && resAddr >= fbpr && resAddr < lbpr) {
+        return Promise.resolve();
+      }
+      visited[resAddr] = true;
+      enrichIfKnown(deviceMap, resAddr, 'BRESL', ownerName);
+      return sym.readWord(resAddr + DF.RESLI).then(function(next) {
+        return step(next, count + 1, visited);
+      });
     }
-    devices.sort(function(a, b) { return a.dfAddr - b.dfAddr; });
-    return devices;
+    return step(addr, 0, {});
   }
 
   // Enrich-only: Phase 2/3 chain walks only add owner info to devices already
@@ -351,118 +384,101 @@
   //   Step 2: CNVRT[32] at DPIT logical 0o4327 -> bank-relative group offsets
   //   Step 3: physical_addr = bankBase + CNVRT[group] -> count + entry pairs
   // Returns {map, ok} where map is dfAddr -> logical device number.
+  // Returns Promise<{map, ok}>
   function buildDynamicLogDevNoMap() {
     var result = { map: {}, ok: false };
+    var LGTFPHPAGE_ADDR = 0o170223;
 
-    // ---------------------------------------------------------------
-    // Step 1: Read LGTFPHPAGE - DIRECT physical read at 0o170223, NO DPIT!
-    // This is NOT a kernel logical address. It lives in the physical page
-    // allocation table written during OPPSTART when PIT#0 was active.
-    // ---------------------------------------------------------------
-    var LGTFPHPAGE_ADDR = 0o170223;  // = 61587 decimal, physical word address
-    var lgtfphpage = sym.readWordPhysical(LGTFPHPAGE_ADDR);
-
-    if (lgtfphpage === 0 || lgtfphpage === 0xFFFF) {
-      if (!logDevDiagDone) console.log('[LogDev] LGTFPHPAGE is zero or FFFF (LDNT not allocated)');
-      logDevDiagDone = true;
-      return result;
-    }
-
-    // Sanity: page number must be within ND-100 max (16MW = 16384 pages)
-    if (lgtfphpage > 16384) {
-      if (!logDevDiagDone) console.log('[LogDev] LGTFPHPAGE=' + lgtfphpage + ' exceeds max (16384 pages)');
-      logDevDiagDone = true;
-      return result;
-    }
-
-    // Compute bank base address. CNVRT values are offsets relative to the
-    // start of the 64KW bank containing the LDNT, NOT relative to the table.
-    var tablePhysStart = lgtfphpage * 1024;
-    var bank = Math.floor(tablePhysStart / 65536);
-    var bankBase = bank * 65536;
-
-    // ---------------------------------------------------------------
-    // Step 2: Read CNVRT[32] via DPIT (kernel logical address 004327 octal)
-    // ---------------------------------------------------------------
-    var CNVRT_COUNT = 32;
-    var cnvrt = sym.readBlock(FX.CNVRT, CNVRT_COUNT);
-    if (!cnvrt || cnvrt.length === 0) {
-      if (!logDevDiagDone) console.log('[LogDev] Failed to read CNVRT array via DPIT');
-      logDevDiagDone = true;
-      return result;
-    }
-
-    // Validation: CNVRT[26] (RDLNO reserved group, 32oct) must be 0.
-    // Note: CNVRT[1] is NOT necessarily zero - it can have valid device entries.
-    if (cnvrt[26] !== 0) {
-      if (!logDevDiagDone) {
-        console.log('[LogDev] CNVRT validation FAILED: CNVRT[26]=' + sym.toOctal(cnvrt[26]) +
-          ' (expected 0, RDLNO reserved group)');
+    // Step 1: Read LGTFPHPAGE
+    return sym.readWordPhysical(LGTFPHPAGE_ADDR).then(function(lgtfphpage) {
+      if (lgtfphpage === 0 || lgtfphpage === 0xFFFF) {
+        if (!logDevDiagDone) console.log('[LogDev] LGTFPHPAGE is zero or FFFF (LDNT not allocated)');
         logDevDiagDone = true;
+        return result;
       }
-      return result;
-    }
-
-    // Cross-check: bankBase + cnvrt[0] should equal tablePhysStart
-    if (cnvrt[0] !== 0 && (bankBase + cnvrt[0]) !== tablePhysStart) {
-      if (!logDevDiagDone) {
-        console.log('[LogDev] Cross-check warning: bankBase(' + bankBase + ')+CNVRT[0](' +
-          cnvrt[0] + ')=' + (bankBase + cnvrt[0]) + ' != tablePhysStart(' + tablePhysStart + ')');
+      if (lgtfphpage > 16384) {
+        if (!logDevDiagDone) console.log('[LogDev] LGTFPHPAGE=' + lgtfphpage + ' exceeds max (16384 pages)');
+        logDevDiagDone = true;
+        return result;
       }
-    }
 
-    // ---------------------------------------------------------------
-    // Step 3: Read device entries - DIRECT physical reads
-    // ---------------------------------------------------------------
-    var map = {};
-    var totalEntries = 0;
+      var tablePhysStart = lgtfphpage * 1024;
+      var bank = Math.floor(tablePhysStart / 65536);
+      var bankBase = bank * 65536;
 
-    for (var groupIndex = 0; groupIndex < CNVRT_COUNT; groupIndex++) {
-      var offset = cnvrt[groupIndex];
-      if (offset === 0) continue;
-
-      var groupPhys = bankBase + offset;
-
-      // First word = count of entries in this group
-      var count = sym.readWordPhysical(groupPhys);
-      if (count === 0 || count > 512) continue;
-
-      // Read count + 2-word entries in one bulk read
-      var groupData = sym.readBlockPhysical(groupPhys, 1 + count * 2);
-
-      // Each entry is 2 words: (datafield_addr, second_word)
-      for (var entryIndex = 0; entryIndex < count; entryIndex++) {
-        var word0 = groupData[1 + entryIndex * 2];       // input/primary datafield
-        var word1 = groupData[1 + entryIndex * 2 + 1];   // output/secondary datafield
-        var logDevNo = groupIndex * 64 + entryIndex;
-
-        if (word0 !== 0) {
-          map[word0] = logDevNo;
-          totalEntries++;
+      // Step 2: Read CNVRT[32] via DPIT
+      var CNVRT_COUNT = 32;
+      return sym.readBlock(FX.CNVRT, CNVRT_COUNT).then(function(cnvrt) {
+        if (!cnvrt || cnvrt.length === 0) {
+          if (!logDevDiagDone) console.log('[LogDev] Failed to read CNVRT array via DPIT');
+          logDevDiagDone = true;
+          return result;
         }
-        if (word1 !== 0 && word1 !== word0) {
-          map[word1] = logDevNo;
-          totalEntries++;
+
+        if (cnvrt[26] !== 0) {
+          if (!logDevDiagDone) {
+            console.log('[LogDev] CNVRT validation FAILED: CNVRT[26]=' + sym.toOctal(cnvrt[26]) +
+              ' (expected 0, RDLNO reserved group)');
+            logDevDiagDone = true;
+          }
+          return result;
         }
-      }
-    }
 
-    // A healthy SINTRAN system should have at least 10 device entries
-    if (totalEntries < 5) {
-      if (!logDevDiagDone) console.log('[LogDev] Too few entries (' + totalEntries + '), dynamic map may be invalid');
-      logDevDiagDone = true;
-      return result;
-    }
+        if (cnvrt[0] !== 0 && (bankBase + cnvrt[0]) !== tablePhysStart) {
+          if (!logDevDiagDone) {
+            console.log('[LogDev] Cross-check warning: bankBase(' + bankBase + ')+CNVRT[0](' +
+              cnvrt[0] + ')=' + (bankBase + cnvrt[0]) + ' != tablePhysStart(' + tablePhysStart + ')');
+          }
+        }
 
-    if (!logDevDiagDone) {
-      console.log('[LogDev] Dynamic LOGDBANK map: ' + totalEntries + ' entries, LGTFPHPAGE=' +
-        sym.toOctal(lgtfphpage) + ' (page ' + lgtfphpage + '), bankBase=' + bankBase);
-      logDevDiagDone = true;
-    }
+        // Step 3: Read device entries for each group sequentially
+        var map = {};
+        var totalEntries = 0;
 
-    result.map = map;
-    result.ok = true;
-    return result;
+        // Collect non-zero groups
+        var groups = [];
+        for (var gi = 0; gi < CNVRT_COUNT; gi++) {
+          if (cnvrt[gi] !== 0) groups.push({ index: gi, physAddr: bankBase + cnvrt[gi] });
+        }
+
+        // Read each group (chain sequentially to build map)
+        var p = Promise.resolve();
+        groups.forEach(function(grp) {
+          p = p.then(function() {
+            return sym.readWordPhysical(grp.physAddr).then(function(count) {
+              if (count === 0 || count > 512) return;
+              return sym.readBlockPhysical(grp.physAddr, 1 + count * 2).then(function(groupData) {
+                for (var ei = 0; ei < count; ei++) {
+                  var word0 = groupData[1 + ei * 2];
+                  var word1 = groupData[1 + ei * 2 + 1];
+                  var logDevNo = grp.index * 64 + ei;
+                  if (word0 !== 0) { map[word0] = logDevNo; totalEntries++; }
+                  if (word1 !== 0 && word1 !== word0) { map[word1] = logDevNo; totalEntries++; }
+                }
+              });
+            });
+          });
+        });
+
+        return p.then(function() {
+          if (totalEntries < 5) {
+            if (!logDevDiagDone) console.log('[LogDev] Too few entries (' + totalEntries + '), dynamic map may be invalid');
+            logDevDiagDone = true;
+            return result;
+          }
+
+          if (!logDevDiagDone) {
+            console.log('[LogDev] Dynamic LOGDBANK map: ' + totalEntries + ' entries, LGTFPHPAGE=' +
+              sym.toOctal(lgtfphpage) + ' (page ' + lgtfphpage + '), bankBase=' + bankBase);
+            logDevDiagDone = true;
+          }
+
+          result.map = map;
+          result.ok = true;
+          return result;
+        });
+      });
+    });
   }
 
   // Fallback: build map from hardcoded name-to-devno table.
@@ -494,7 +510,7 @@
 
   function resolveOwner(rtres) {
     if (!rtres || rtres === 0) return '-';
-    var rtNum = sym.rtAddrToNumber(rtres);
+    var rtNum = sym.rtAddrToNumberSync(rtres);
     if (rtNum >= 0 && typeof window.resolveProcessName === 'function') {
       return window.resolveProcessName(rtNum);
     }
@@ -508,7 +524,7 @@
   function resolveWaiter(bwlin, dfAddr) {
     if (!bwlin || bwlin === 0) return '-';
     if (dfAddr && bwlin === dfAddr) return '-';  // self-pointer sentinel
-    var rtNum = sym.rtAddrToNumber(bwlin);
+    var rtNum = sym.rtAddrToNumberSync(bwlin);
     if (rtNum >= 0 && typeof window.resolveProcessName === 'function') {
       return window.resolveProcessName(rtNum);
     }
@@ -991,8 +1007,12 @@
   function refreshDevices() {
     if (!sintranState || !sintranState.detected) return;
     sym.invalidateRtCache();
-    var devices = discoverDevices();
-    renderDeviceTable(devices);
+    // Populate RT table cache first, then discover devices
+    sym.discoverRtTable().then(function() {
+      return discoverDevices();
+    }).then(function(devices) {
+      renderDeviceTable(devices);
+    });
   }
 
   function startAutoRefresh() {

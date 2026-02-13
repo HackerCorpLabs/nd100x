@@ -24,113 +24,122 @@
   // Execution Queue (circular, linked via WLINK)
   // =========================================================
 
+  // Returns Promise<Array>
   function readExecQueue() {
-    var head = sym.readWord(FX.BEXQU);
-    if (head === 0 || head === 0xFFFF) return [];
+    return sym.readWord(FX.BEXQU).then(function(head) {
+      if (head === 0 || head === 0xFFFF) return [];
 
-    // Get RT table range for WLINK validation
-    var rtInfo = sym.discoverRtTable();
+      var rtInfo = sym.discoverRtTableSync();
+      var entries = [];
+      var first = head;
 
-    var entries = [];
-    var first = head;
-    var addr = head;
-    var count = 0;
+      function walkExec(addr, count) {
+        if (addr === 0 || addr === 0xFFFF || count > 50) return Promise.resolve(entries);
+        // Validate WLINK is within RT table range
+        if (count > 0 && rtInfo.base > 0 &&
+            (addr < rtInfo.base || addr >= rtInfo.base + rtInfo.count * RT.SIZE)) {
+          return Promise.resolve(entries);
+        }
+        return sym.readBlock(addr, RT.SIZE).then(function(rtData) {
+          if (rtData.length < RT.SIZE) return entries;
 
-    do {
-      var rtData = sym.readBlock(addr, RT.SIZE);
-      if (rtData.length < RT.SIZE) break;
+          var rtNum = resolveRtNumber(addr);
+          entries.push({
+            rtAddr: addr,
+            rtNum: rtNum,
+            name: resolveNameFromAddr(addr, rtNum),
+            prity: rtData[RT.PRITY],
+            statu: rtData[RT.STATU]
+          });
 
-      var rtNum = resolveRtNumber(addr);
-      entries.push({
-        rtAddr: addr,
-        rtNum: rtNum,
-        name: resolveNameFromAddr(addr, rtNum),
-        prity: rtData[RT.PRITY],
-        statu: rtData[RT.STATU]
-      });
-
-      addr = rtData[RT.WLINK];
-      count++;
-      if (count > 50) break;
-      // Validate WLINK is within RT table range
-      if (rtInfo.base > 0 && (addr < rtInfo.base || addr >= rtInfo.base + rtInfo.count * RT.SIZE)) {
-        break;
+          var next = rtData[RT.WLINK];
+          if (next === first) return entries;
+          return walkExec(next, count + 1);
+        });
       }
-    } while (addr !== 0 && addr !== 0xFFFF && addr !== first);
 
-    return entries;
+      return walkExec(head, 0);
+    });
   }
 
   // =========================================================
   // Time Queue (linear, linked via TLINK, stops at 0)
   // =========================================================
 
+  // Returns Promise<Array>
   function readTimeQueue() {
-    var head = sym.readWord(FX.BTIMQ);
-    if (head === 0) return [];
+    return sym.readWord(FX.BTIMQ).then(function(head) {
+      if (head === 0) return [];
 
-    var entries = [];
-    var addr = head;
-    var count = 0;
-    var visited = {};
+      var entries = [];
+      var visited = {};
 
-    while (addr !== 0 && addr !== 0xFFFF && count < 100 && !visited[addr]) {
-      visited[addr] = true;
-      var rtData = sym.readBlock(addr, RT.SIZE);
-      if (rtData.length < RT.SIZE) break;
+      function walkTime(addr, count) {
+        if (addr === 0 || addr === 0xFFFF || count >= 100 || visited[addr]) {
+          return Promise.resolve(entries);
+        }
+        visited[addr] = true;
+        return sym.readBlock(addr, RT.SIZE).then(function(rtData) {
+          if (rtData.length < RT.SIZE) return entries;
 
-      var rtNum = resolveRtNumber(addr);
-      var delayTime = (rtData[RT.DTIM1] << 16) | rtData[RT.DTIM2];
-      var interval = (rtData[RT.DTIN1] << 16) | rtData[RT.DTIN2];
+          var rtNum = resolveRtNumber(addr);
+          var delayTime = (rtData[RT.DTIM1] << 16) | rtData[RT.DTIM2];
+          var interval = (rtData[RT.DTIN1] << 16) | rtData[RT.DTIN2];
 
-      entries.push({
-        rtAddr: addr,
-        rtNum: rtNum,
-        name: resolveNameFromAddr(addr, rtNum),
-        delayTime: delayTime,
-        interval: interval
-      });
+          entries.push({
+            rtAddr: addr,
+            rtNum: rtNum,
+            name: resolveNameFromAddr(addr, rtNum),
+            delayTime: delayTime,
+            interval: interval
+          });
 
-      addr = rtData[RT.TLINK];
-      count++;
-    }
+          return walkTime(rtData[RT.TLINK], count + 1);
+        });
+      }
 
-    return entries;
+      return walkTime(head, 0);
+    });
   }
 
   // =========================================================
   // Monitor Queue (linear, linked via MLINK in I/O datafields)
   // =========================================================
 
+  // Returns Promise<Array>
   function readMonitorQueue() {
-    var head = sym.readWord(FX.MQUEU);
-    if (head === 0 || head === 0xFFFF) return [];
+    return sym.readWord(FX.MQUEU).then(function(head) {
+      if (head === 0 || head === 0xFFFF) return [];
 
-    var entries = [];
-    var addr = head;
-    var count = 0;
-    var visited = {};
+      var entries = [];
+      var visited = {};
 
-    while (addr !== 0 && addr !== 0xFFFF && count < 50 && !visited[addr]) {
-      visited[addr] = true;
+      function walkMon(addr, count) {
+        if (addr === 0 || addr === 0xFFFF || count >= 50 || visited[addr]) {
+          return Promise.resolve(entries);
+        }
+        visited[addr] = true;
 
-      var rtres = sym.readWord(addr + DF.RTRES);
-      var mfunc = sym.readWord(addr + DF.MFUNC);
-      var istat = sym.readWord(addr + DF.ISTAT);
+        return Promise.all([
+          sym.readWord(addr + DF.RTRES),
+          sym.readWord(addr + DF.MFUNC),
+          sym.readWord(addr + DF.ISTAT),
+          sym.readWord(addr + DF.MLINK)
+        ]).then(function(vals) {
+          entries.push({
+            dfAddr: addr,
+            rtres: vals[0],
+            mfunc: vals[1],
+            istat: vals[2],
+            devType: decodeDeviceType(vals[2])
+          });
 
-      entries.push({
-        dfAddr: addr,
-        rtres: rtres,
-        mfunc: mfunc,
-        istat: istat,
-        devType: decodeDeviceType(istat)
-      });
+          return walkMon(vals[3], count + 1);
+        });
+      }
 
-      addr = sym.readWord(addr + DF.MLINK);
-      count++;
-    }
-
-    return entries;
+      return walkMon(head, 0);
+    });
   }
 
   // =========================================================
@@ -138,7 +147,7 @@
   // =========================================================
 
   function resolveRtNumber(rtAddr) {
-    return sym.rtAddrToNumber(rtAddr);
+    return sym.rtAddrToNumberSync(rtAddr);
   }
 
   function resolveNameFromAddr(rtAddr, rtNum) {
@@ -295,13 +304,16 @@
     if (!sintranState || !sintranState.detected) return;
     sym.invalidateRtCache();
 
-    if (activeTab === 'exec') {
-      renderExecQueue(readExecQueue());
-    } else if (activeTab === 'time') {
-      renderTimeQueue(readTimeQueue());
-    } else if (activeTab === 'mon') {
-      renderMonitorQueue(readMonitorQueue());
-    }
+    // Need to discover RT table first (populates sync cache for resolveRtNumber)
+    sym.discoverRtTable().then(function() {
+      if (activeTab === 'exec') {
+        readExecQueue().then(renderExecQueue);
+      } else if (activeTab === 'time') {
+        readTimeQueue().then(renderTimeQueue);
+      } else if (activeTab === 'mon') {
+        readMonitorQueue().then(renderMonitorQueue);
+      }
+    });
   }
 
   function startAutoRefresh() {

@@ -160,7 +160,7 @@ function sintranStopDetection() {
 }
 
 function sintranCheckVersion() {
-  if (!Module || !Module._Dbg_ReadMemory) return;
+  if (!emu || !emu.isReady()) return;
   if (typeof emulationRunning === 'undefined' || !emulationRunning) return;
 
   try {
@@ -168,15 +168,17 @@ function sintranCheckVersion() {
     // This works because the CPU's active PIT maps SYSEVAL correctly
     // once SINTRAN has initialized. DPIT is NOT needed here - it's
     // only for kernel data structures (RT tables, queues, segments).
-    var sinver = Module._Dbg_ReadMemory(SYSEVAL.SINVER0) & 0xFFFF;
-    var letter = extractVersionLetter(sinver);
-    if (letter !== '') {
-      sintranState.detected = true;
-      sintranState.versionLetter = letter;
-      sintranState.osType = extractOsType(sinver);
-      sintranStopDetection();
-      sintranOnDetected();
-    }
+    Promise.resolve(emu.readMemory(SYSEVAL.SINVER0)).then(function(raw) {
+      var sinver = raw & 0xFFFF;
+      var letter = extractVersionLetter(sinver);
+      if (letter !== '') {
+        sintranState.detected = true;
+        sintranState.versionLetter = letter;
+        sintranState.osType = extractOsType(sinver);
+        sintranStopDetection();
+        sintranOnDetected();
+      }
+    });
   } catch (e) {
     // Not ready yet, keep polling
   }
@@ -203,92 +205,75 @@ function sintranGetOsString() {
 // =========================================================
 // Read SYSEVAL table
 // =========================================================
+// Returns Promise<object|null>
 function sintranReadSyseval() {
-  if (!Module || !Module._Dbg_ReadMemory) return null;
+  if (!emu || !emu.isReady()) return Promise.resolve(null);
 
   // Use DPIT-translated reads when available (post-detection)
   var sym = window.sintranSymbols;
-  var read = (sym && sym.readWordDPIT) ? sym.readWordDPIT : function(addr) { return Module._Dbg_ReadMemory(addr) & 0xFFFF; };
+  var read = (sym && sym.readWordDPIT) ? sym.readWordDPIT
+    : function(addr) { return Promise.resolve(emu.readMemory(addr)).then(function(v) { return v & 0xFFFF; }); };
 
-  var sysno    = read(SYSEVAL.SYSNO);
-  var hwinfo0  = read(SYSEVAL.HWINFO0);
-  var hwinfo1  = read(SYSEVAL.HWINFO1);
-  var hwinfo2  = read(SYSEVAL.HWINFO2);
-  var sinver0  = read(SYSEVAL.SINVER0);
-  var revlev   = read(SYSEVAL.REVLEV);
-  var minutes  = read(SYSEVAL.GENDAT0);
-  var hours    = read(SYSEVAL.GENDAT1);
-  var day      = read(SYSEVAL.GENDAT2);
-  var month    = read(SYSEVAL.GENDAT3);
-  var year     = read(SYSEVAL.GENDAT4);
+  var addrs = [
+    SYSEVAL.SYSNO, SYSEVAL.HWINFO0, SYSEVAL.HWINFO1, SYSEVAL.HWINFO2,
+    SYSEVAL.SINVER0, SYSEVAL.REVLEV,
+    SYSEVAL.GENDAT0, SYSEVAL.GENDAT1, SYSEVAL.GENDAT2, SYSEVAL.GENDAT3, SYSEVAL.GENDAT4,
+    SYSEVAL.UNAFLAG
+  ];
 
-  // UNAFLAG changes at runtime (SET-AVAILABLE / SET-UNAVAILABLE).
-  // Must read through DPIT #7 like all kernel data on page 2.
-  var unaflag  = read(SYSEVAL.UNAFLAG);
+  return Promise.all(addrs.map(function(a) { return read(a); })).then(function(vals) {
+    var sysno = vals[0], hwinfo0 = vals[1], hwinfo1 = vals[2], hwinfo2 = vals[3];
+    var sinver0 = vals[4], revlev = vals[5];
+    var minutes = vals[6], hours = vals[7], day = vals[8], month = vals[9], year = vals[10];
+    var unaflag = vals[11];
 
-  // CPU identification from HWINFO(0)
-  var cpuType = extractCpuType(hwinfo0);
-  var instrSet = extractInstrSet(hwinfo0);
+    var cpuType = extractCpuType(hwinfo0);
+    var instrSet = extractInstrSet(hwinfo0);
+    var osType = extractOsType(sinver0);
+    var versionLetter = extractVersionLetter(sinver0);
 
-  // OS identification from SINVER(0)
-  var osType = extractOsType(sinver0);
-  var versionLetter = extractVersionLetter(sinver0);
+    var cpuName = cpuTypeNames[cpuType];
+    if (cpuName === undefined) cpuName = 'Unknown (' + cpuType + ')';
 
-  var cpuName = cpuTypeNames[cpuType];
-  if (cpuName === undefined) cpuName = 'Unknown (' + cpuType + ')';
+    var instrName = instrSetNames[instrSet];
+    if (instrName === undefined) instrName = 'Unknown (' + instrSet + ')';
 
-  var instrName = instrSetNames[instrSet];
-  if (instrName === undefined) instrName = 'Unknown (' + instrSet + ')';
+    var osName = osTypeNames[osType];
+    if (osName === undefined) osName = '';
+    if (osName !== '') osName = osName + ' ';
+    var osString = 'SINTRAN III ' + osName + 'version ' + versionLetter;
 
-  var osName = osTypeNames[osType];
-  if (osName === undefined) osName = '';
-  if (osName !== '') osName = osName + ' ';
-  var osString = 'SINTRAN III ' + osName + 'version ' + versionLetter;
+    var genDate = '';
+    if (minutes >= 0 && minutes <= 59 &&
+        hours >= 0 && hours <= 23 &&
+        day >= 1 && day <= 31 &&
+        month >= 1 && month <= 12 &&
+        year >= 1950 && year <= 2100) {
+      var hh = hours < 10 ? '0' + hours : '' + hours;
+      var mi = minutes < 10 ? '0' + minutes : '' + minutes;
+      var mName = monthNames[month] || ('Month ' + month);
+      genDate = hh + '.' + mi + '.00 ' + day + ' ' + mName + ' ' + year;
+    } else {
+      genDate = 'N/A';
+    }
 
-  // GENDAT(0-4): 5 separate 16-bit integers (min/hr/day/month/year).
-  // Pre-set in binary by system generation tool, never written at runtime.
-  // Verified: values decode as simple integers via DPIT #7 translation.
-  // Format matches SINTRAN boot banner: "GENERATED: HH.MM.00 DD MONTH YYYY"
-  var genDate = '';
-  if (minutes >= 0 && minutes <= 59 &&
-      hours >= 0 && hours <= 23 &&
-      day >= 1 && day <= 31 &&
-      month >= 1 && month <= 12 &&
-      year >= 1950 && year <= 2100) {
-    var hh = hours < 10 ? '0' + hours : '' + hours;
-    var mi = minutes < 10 ? '0' + minutes : '' + minutes;
-    var mName = monthNames[month] || ('Month ' + month);
-    genDate = hh + '.' + mi + '.00 ' + day + ' ' + mName + ' ' + year;
-  } else {
-    genDate = 'N/A';
-  }
+    var available = (unaflag & 0x8000) !== 0 ? 'Unavailable' : 'Available';
+    var patchStr = (revlev & 0xFFFF).toString(8) + 'B';
+    var sysnoStr = '' + (sysno & 0xFFFF);
+    var sysTypeStr = '' + (hwinfo2 & 0xFFFF);
 
-  // System availability: UNAFLAG at 004107 octal.
-  // Negative (bit 15 set) = system unavailable.
-  // Zero = system available (SET-AVAILABLE has been run).
-  // Source: RP-P2-MONCALLS.NPL:2427
-  var available = (unaflag & 0x8000) !== 0 ? 'Unavailable' : 'Available';
-
-  // Patch level: SINTRAN convention uses "B" suffix for octal numbers.
-  // REVLEV is pre-set by gen tool, never written at runtime.
-  var patchStr = (revlev & 0xFFFF).toString(8) + 'B';
-
-  // System Number and System Type: display as decimal integers.
-  // Both from GCPUNR/PROM (or pre-set gen tool values if no PROM).
-  var sysnoStr = '' + (sysno & 0xFFFF);
-  var sysTypeStr = '' + (hwinfo2 & 0xFFFF);
-
-  return {
-    sysno: sysnoStr,
-    cpuType: cpuName,
-    instrSet: instrName,
-    microprogVersion: hwinfo1,
-    systemType: sysTypeStr,
-    osString: osString,
-    patchLevel: patchStr,
-    genDate: genDate,
-    available: available
-  };
+    return {
+      sysno: sysnoStr,
+      cpuType: cpuName,
+      instrSet: instrName,
+      microprogVersion: hwinfo1,
+      systemType: sysTypeStr,
+      osString: osString,
+      patchLevel: patchStr,
+      genDate: genDate,
+      available: available
+    };
+  });
 }
 
 // =========================================================
@@ -308,9 +293,10 @@ function sintranCloseSysInfo() {
 }
 
 function sintranRefreshSysInfo() {
-  var data = sintranReadSyseval();
-  if (!data) return;
-  sintranRenderSysinfo(data);
+  sintranReadSyseval().then(function(data) {
+    if (!data) return;
+    sintranRenderSysinfo(data);
+  });
 }
 
 function sintranRenderSysinfo(data) {
@@ -341,32 +327,33 @@ function sintranRenderSysinfo(data) {
 }
 
 function sintranCopySysInfo() {
-  var data = sintranReadSyseval();
-  if (!data) return;
+  sintranReadSyseval().then(function(data) {
+    if (!data) return;
 
-  var rows = [
-    ['Operating System',  data.osString],
-    ['System Status',     data.available],
-    ['CPU Type',          data.cpuType],
-    ['Instruction Set',   data.instrSet],
-    ['Microprog Version', toOctal(data.microprogVersion)],
-    ['Generation Date',   data.genDate],
-    ['Revision',          data.patchLevel],
-    ['System Number',     data.sysno],
-    ['System Type',       data.systemType]
-  ];
+    var rows = [
+      ['Operating System',  data.osString],
+      ['System Status',     data.available],
+      ['CPU Type',          data.cpuType],
+      ['Instruction Set',   data.instrSet],
+      ['Microprog Version', toOctal(data.microprogVersion)],
+      ['Generation Date',   data.genDate],
+      ['Revision',          data.patchLevel],
+      ['System Number',     data.sysno],
+      ['System Type',       data.systemType]
+    ];
 
-  var md = '| Field | Value |\n|---|---|\n';
-  for (var i = 0; i < rows.length; i++) {
-    md += '| ' + rows[i][0] + ' | ' + rows[i][1] + ' |\n';
-  }
-
-  navigator.clipboard.writeText(md).then(function() {
-    var btn = document.getElementById('sysinfo-copy');
-    if (btn) {
-      btn.classList.add('copied');
-      setTimeout(function() { btn.classList.remove('copied'); }, 1200);
+    var md = '| Field | Value |\n|---|---|\n';
+    for (var i = 0; i < rows.length; i++) {
+      md += '| ' + rows[i][0] + ' | ' + rows[i][1] + ' |\n';
     }
+
+    navigator.clipboard.writeText(md).then(function() {
+      var btn = document.getElementById('sysinfo-copy');
+      if (btn) {
+        btn.classList.add('copied');
+        setTimeout(function() { btn.classList.remove('copied'); }, 1200);
+      }
+    });
   });
 }
 

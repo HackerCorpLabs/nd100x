@@ -68,24 +68,24 @@
 
   /* Register setter mapping (key = short name used in dbg-r-<key> IDs) */
   var regSetters = {
-    p:   '_Dbg_SetPC',
-    a:   '_Dbg_SetRegA',
-    d:   '_Dbg_SetRegD',
-    b:   '_Dbg_SetRegB',
-    t:   '_Dbg_SetRegT',
-    l:   '_Dbg_SetRegL',
-    x:   '_Dbg_SetRegX',
-    sts: '_Dbg_SetSTS'
+    p:   'setPC',
+    a:   'setRegA',
+    d:   'setRegD',
+    b:   'setRegB',
+    t:   'setRegT',
+    l:   'setRegL',
+    x:   'setRegX',
+    sts: 'setSTS'
     /* ea is read-only */
   };
   var activeEdit = null; /* regKey currently being edited, or null */
 
   function wasmReady() {
-    return Module && Module.calledRun && Module._Dbg_GetPC;
+    return emu && emu.isReady();
   }
 
   function wasmCall(fnName) {
-    return Module && typeof Module[fnName] === 'function';
+    return emu && emu.isReady();
   }
 
   function formatCount(n) {
@@ -139,8 +139,8 @@
     if (input) {
       var newVal = parseOctal(input.value.trim());
       var setterName = regSetters[regKey];
-      if (setterName && Module[setterName]) {
-        Module[setterName](newVal & 0xFFFF);
+      if (setterName && emu[setterName]) {
+        emu[setterName](newVal & 0xFFFF);
       }
     }
     activeEdit = null;
@@ -256,24 +256,50 @@
 
   function syncFromCpu() {
     if (!active) return;
-    if (wasmReady() && Module._Dbg_IsPaused) {
-      try { paused = !!Module._Dbg_IsPaused(); } catch(e) {}
+    if (wasmReady()) {
+      try { paused = !!emu.isPaused(); } catch(e) {}
     }
   }
 
+  /* Map old WASM function names to emu proxy methods */
+  var stepMethodMap = {
+    '_Dbg_StepOne':  'stepOne',
+    '_Dbg_StepOver': 'stepOver',
+    '_Dbg_StepOut':  'stepOut'
+  };
+
   function doStep(wasmFn, count) {
-    if (!wasmCall(wasmFn)) return;
+    if (!wasmReady()) return;
+    var method = stepMethodMap[wasmFn];
+    if (!method || !emu[method]) return;
     takeControl();
     paused = true;
+
+    if (emu.isWorkerMode()) {
+      // Worker mode: step is async via postMessage
+      emu.onStepDone = function(msg) {
+        syncFromCpu();
+        syncState();
+        refreshView();
+        emu.onStepDone = null;
+      };
+      // stepOne/stepOver/stepOut return Promises in Worker mode
+      emu[method]();
+      syncState();
+      return;
+    }
+
+    // Direct mode: synchronous
     if (count && count > 1) {
       for (var i = 0; i < count; i++) {
-        Module[wasmFn]();
+        emu[method]();
         // Stop early if we landed on a user breakpoint
-        if (breakpoints.has(Module._Dbg_GetPC())) break;
+        if (breakpoints.has(emu.getPC())) break;
       }
     } else {
-      Module[wasmFn]();
+      emu[method]();
     }
+    emu.flushTerminalOutput();
     syncFromCpu();
     syncState();
     refreshView();
@@ -296,19 +322,29 @@
   });
 
   document.getElementById('dbg-run').addEventListener('click', function() {
-    if (!wasmCall('_Dbg_SetPaused')) return;
+    if (!wasmReady()) return;
     takeControl();
     paused = false;
-    Module._Dbg_SetPaused(0);
+    emu.setPaused(0);
     syncState();
-    startExecLoop();
+    if (emu.isWorkerMode()) {
+      // Worker mode: tell Worker to start autonomous loop
+      emu.workerStart();
+    } else {
+      startExecLoop();
+    }
   });
 
   document.getElementById('dbg-pause').addEventListener('click', function() {
-    if (!wasmCall('_Dbg_SetPaused')) return;
+    if (!wasmReady()) return;
     takeControl();
     paused = true;
-    Module._Dbg_SetPaused(1);
+    emu.setPaused(1);
+    if (emu.isWorkerMode()) {
+      // Worker mode: stop Worker's autonomous loop and request a fresh snapshot
+      emu.workerStop();
+      emu.requestSnapshot();
+    }
     stopExecLoop();
     syncState();
     refreshView();
@@ -323,12 +359,33 @@
     if (execLoopId) { cancelAnimationFrame(execLoopId); execLoopId = null; }
   }
 
+  var execFrameCount = 0;
   function execFrame() {
-    if (paused || !wasmCall('_Dbg_RunWithBreakpoints')) {
+    if (paused || !wasmReady()) {
       execLoopId = null;
       return;
     }
-    var remaining = Module._Dbg_RunWithBreakpoints(10000);
+
+    if (emu.isWorkerMode()) {
+      // Worker runs autonomously - just check cached state
+      var mode = emu.getRunMode();
+      if (mode === 2 || mode === 3 || mode === 4 || mode === 5) {
+        syncFromCpu();
+        paused = true;
+        stopExecLoop();
+        syncState();
+        refreshView();
+        return;
+      }
+      execFrameCount++;
+      if (execFrameCount % 15 === 0) refreshView();
+      execLoopId = requestAnimationFrame(execFrame);
+      return;
+    }
+
+    // Direct mode
+    var remaining = emu.runWithBreakpoints(10000);
+    emu.flushTerminalOutput();
     if (remaining > 0) {
       syncFromCpu();
       paused = true;
@@ -337,6 +394,8 @@
       refreshView();
       return;
     }
+    execFrameCount++;
+    if (execFrameCount % 15 === 0) refreshView();
     execLoopId = requestAnimationFrame(execFrame);
   }
 
@@ -359,12 +418,12 @@
      -------------------------------------------------- */
   function refreshView() {
     if (!wasmReady()) return;
-    if (!Module._IsInitialized || !Module._IsInitialized()) return;
-    try { Module._Dbg_GetPC(); } catch(e) { return; }
+    if (!emu.isInitialized()) return;
+    try { emu.getPC(); } catch(e) { return; }
 
-    renderRegisters();
-    renderFlags();
-    renderInstrCount();
+    try { renderRegisters(); } catch(e) { /* prevent cascade */ }
+    try { renderFlags(); } catch(e) { /* prevent cascade */ }
+    try { renderInstrCount(); } catch(e) { /* prevent cascade */ }
 
     var tab = document.querySelector('.debugger-tab.active');
     if (!tab) return;
@@ -375,19 +434,19 @@
       'sysregs':   renderSystemRegs
     };
     var fn = tabRenderers[tab.getAttribute('data-tab')];
-    if (fn) fn();
+    if (fn) try { fn(); } catch(e) { /* prevent cascade */ }
   }
 
   function renderRegisters() {
     var regs = {
-      sts: Module._Dbg_GetSTS(), p: Module._Dbg_GetPC(),
-      a: Module._Dbg_GetRegA(),  d: Module._Dbg_GetRegD(),
-      b: Module._Dbg_GetRegB(),  l: Module._Dbg_GetRegL(),
-      t: Module._Dbg_GetRegT(),  x: Module._Dbg_GetRegX(),
-      ea: Module._Dbg_GetEA()
+      sts: emu.getSTS(), p: emu.getPC(),
+      a: emu.getRegA(),  d: emu.getRegD(),
+      b: emu.getRegB(),  l: emu.getRegL(),
+      t: emu.getRegT(),  x: emu.getRegX(),
+      ea: emu.getEA()
     };
 
-    document.getElementById('dbg-pil-display').textContent = Module._Dbg_GetPIL();
+    document.getElementById('dbg-pil-display').textContent = emu.getPIL();
 
     ['sts','p','a','d','b','l','t','x','ea'].forEach(function(r) {
       var el = document.getElementById('dbg-r-' + r);
@@ -410,7 +469,7 @@
   }
 
   function renderFlags() {
-    var sts = Module._Dbg_GetSTS();
+    var sts = emu.getSTS();
 
     [['dbg-f-ptm',0],['dbg-f-tg',1],['dbg-f-k',2],['dbg-f-z',3],
      ['dbg-f-q',4],['dbg-f-o',5],['dbg-f-c',6],['dbg-f-m',7]
@@ -424,139 +483,160 @@
     document.getElementById('dbg-f-poni').classList.toggle('active', ((sts >> 14) & 1) === 1);
     document.getElementById('dbg-f-ioni').classList.toggle('active', ((sts >> 15) & 1) === 1);
 
-    document.getElementById('dbg-f-pil').textContent = 'PIL: ' + Module._Dbg_GetPIL();
+    document.getElementById('dbg-f-pil').textContent = 'PIL: ' + emu.getPIL();
   }
 
   function renderInstrCount() {
-    if (!Module._Dbg_GetInstrCount) return;
+    if (!wasmReady()) return;
     document.getElementById('dbg-instr-count').textContent =
-      'IC: ' + formatCount(Module._Dbg_GetInstrCount());
+      'IC: ' + formatCount(emu.getInstrCount());
   }
 
   /* renderDisassembly removed - now handled by standalone disassembly.js window */
 
   function renderVariables() {
     var view = document.getElementById('dbg-variables-view');
-    if (!view || !Module.ccall) return;
+    if (!view || !wasmReady()) return;
 
-    var scopes = safeJsonCall('Dbg_GetScopes', []);
-    if (!scopes) {
-      view.innerHTML = '<div style="color:rgba(160,175,210,0.5);padding:8px">Scopes not available</div>';
-      return;
-    }
+    safeJsonCall('Dbg_GetScopes', []).then(function(scopes) {
+      if (!scopes) {
+        view.innerHTML = '<div style="color:rgba(160,175,210,0.5);padding:8px">Scopes not available</div>';
+        return;
+      }
 
-    var html = '';
-    scopes.forEach(function(scope) {
-      var sid = scope.variablesReference;
-      var expanded = expandedScopes[sid] || false;
+      var html = '';
+      scopes.forEach(function(scope) {
+        var sid = scope.variablesReference;
+        var expanded = expandedScopes[sid] || false;
 
-      html += '<div class="var-scope">';
-      html += '<div class="var-scope-header" data-scope-id="' + sid + '">';
-      html += '<span class="var-scope-arrow' + (expanded ? ' expanded' : '') + '">&#9654;</span>';
-      html += '<span>' + escapeHtml(scope.name) + '</span>';
-      html += '</div>';
-      html += '<div class="var-scope-body' + (expanded ? ' expanded' : '') + '" id="var-scope-body-' + sid + '">';
-      if (expanded) html += buildVariablesHtml(sid);
-      html += '</div></div>';
-    });
-    view.innerHTML = html;
+        html += '<div class="var-scope">';
+        html += '<div class="var-scope-header" data-scope-id="' + sid + '">';
+        html += '<span class="var-scope-arrow' + (expanded ? ' expanded' : '') + '">&#9654;</span>';
+        html += '<span>' + escapeHtml(scope.name) + '</span>';
+        html += '</div>';
+        html += '<div class="var-scope-body' + (expanded ? ' expanded' : '') + '" id="var-scope-body-' + sid + '">';
+        html += '</div></div>';
+      });
+      view.innerHTML = html;
 
-    view.querySelectorAll('.var-scope-header').forEach(function(hdr) {
-      hdr.addEventListener('click', function() {
-        var sid = parseInt(hdr.getAttribute('data-scope-id'));
-        expandedScopes[sid] = !expandedScopes[sid];
-        hdr.querySelector('.var-scope-arrow').classList.toggle('expanded', expandedScopes[sid]);
-        var body = document.getElementById('var-scope-body-' + sid);
-        body.classList.toggle('expanded', expandedScopes[sid]);
-        body.innerHTML = expandedScopes[sid] ? buildVariablesHtml(sid) : '';
+      // Fill expanded scopes async
+      scopes.forEach(function(scope) {
+        var sid = scope.variablesReference;
+        if (expandedScopes[sid]) {
+          buildVariablesHtml(sid).then(function(innerHtml) {
+            var body = document.getElementById('var-scope-body-' + sid);
+            if (body) body.innerHTML = innerHtml;
+          });
+        }
+      });
+
+      view.querySelectorAll('.var-scope-header').forEach(function(hdr) {
+        hdr.addEventListener('click', function() {
+          var sid = parseInt(hdr.getAttribute('data-scope-id'));
+          expandedScopes[sid] = !expandedScopes[sid];
+          hdr.querySelector('.var-scope-arrow').classList.toggle('expanded', expandedScopes[sid]);
+          var body = document.getElementById('var-scope-body-' + sid);
+          body.classList.toggle('expanded', expandedScopes[sid]);
+          if (expandedScopes[sid]) {
+            buildVariablesHtml(sid).then(function(innerHtml) {
+              body.innerHTML = innerHtml;
+            });
+          } else {
+            body.innerHTML = '';
+          }
+        });
       });
     });
   }
 
   function buildVariablesHtml(scopeId) {
-    var vars = safeJsonCall('Dbg_GetVariables', ['number'], [scopeId]);
-    if (!vars) return '';
-    if (!prevVariables[scopeId]) prevVariables[scopeId] = {};
+    return safeJsonCall('Dbg_GetVariables', ['number'], [scopeId]).then(function(vars) {
+      if (!vars) return '';
+      if (!prevVariables[scopeId]) prevVariables[scopeId] = {};
 
-    var html = '';
-    vars.forEach(function(v) {
-      var changed = prevVariables[scopeId][v.name] !== undefined &&
-                    prevVariables[scopeId][v.name] !== v.value;
-      html += '<div class="var-item">';
-      html += '<span class="var-name">' + escapeHtml(v.name) + '</span>';
-      html += '<span class="var-value' + (changed ? ' changed' : '') + '">' + escapeHtml(v.value) + '</span>';
-      html += '<span class="var-type">' + escapeHtml(v.type || '') + '</span>';
-      html += '</div>';
-      prevVariables[scopeId][v.name] = v.value;
+      var html = '';
+      vars.forEach(function(v) {
+        var changed = prevVariables[scopeId][v.name] !== undefined &&
+                      prevVariables[scopeId][v.name] !== v.value;
+        html += '<div class="var-item">';
+        html += '<span class="var-name">' + escapeHtml(v.name) + '</span>';
+        html += '<span class="var-value' + (changed ? ' changed' : '') + '">' + escapeHtml(v.value) + '</span>';
+        html += '<span class="var-type">' + escapeHtml(v.type || '') + '</span>';
+        html += '</div>';
+        prevVariables[scopeId][v.name] = v.value;
+      });
+      return html;
     });
-    return html;
   }
 
   function safeJsonCall(name, argTypes, argValues) {
     try {
-      var json = Module.ccall(name, 'string', argTypes || [], argValues || []);
-      return json ? JSON.parse(json) : null;
-    } catch(e) { return null; }
+      var result = emu.ccall(name, 'string', argTypes || [], argValues || []);
+      return Promise.resolve(result).then(function(json) {
+        return json ? JSON.parse(json) : null;
+      });
+    } catch(e) { return Promise.resolve(null); }
   }
 
   function renderStackTrace() {
     var view = document.getElementById('dbg-stacktrace-view');
-    if (!view || !Module.ccall) return;
+    if (!view || !wasmReady()) return;
 
-    var frames = safeJsonCall('Dbg_GetStackTrace', []);
-    if (!frames || frames.length === 0) {
-      view.innerHTML = '<div style="color:rgba(160,175,210,0.5);padding:8px">No stack frames</div>';
-      return;
-    }
+    safeJsonCall('Dbg_GetStackTrace', []).then(function(frames) {
+      if (!frames || frames.length === 0) {
+        view.innerHTML = '<div style="color:rgba(160,175,210,0.5);padding:8px">No stack frames</div>';
+        return;
+      }
 
-    var html = '';
-    frames.forEach(function(frame, idx) {
-      html += '<div class="stack-frame' + (idx === 0 ? ' current' : '') + '" data-addr="' + frame.id + '">';
-      html += '<span class="stack-addr">' + escapeHtml(frame.instructionPointerReference || '') + '</span>';
-      html += '<span class="stack-name">' + escapeHtml(frame.name || 'unknown') + '</span>';
-      if (frame.source) html += '<span class="stack-source">' + escapeHtml(frame.source) + '</span>';
-      html += '</div>';
-    });
-    view.innerHTML = html;
+      var html = '';
+      frames.forEach(function(frame, idx) {
+        html += '<div class="stack-frame' + (idx === 0 ? ' current' : '') + '" data-addr="' + frame.id + '">';
+        html += '<span class="stack-addr">' + escapeHtml(frame.instructionPointerReference || '') + '</span>';
+        html += '<span class="stack-name">' + escapeHtml(frame.name || 'unknown') + '</span>';
+        if (frame.source) html += '<span class="stack-source">' + escapeHtml(frame.source) + '</span>';
+        html += '</div>';
+      });
+      view.innerHTML = html;
 
-    view.querySelectorAll('.stack-frame').forEach(function(el) {
-      el.addEventListener('click', function() {
-        var addr = parseInt(el.getAttribute('data-addr'));
-        if (isNaN(addr)) return;
-        if (typeof window.disasmShowWindow === 'function') window.disasmShowWindow();
+      view.querySelectorAll('.stack-frame').forEach(function(el) {
+        el.addEventListener('click', function() {
+          var addr = parseInt(el.getAttribute('data-addr'));
+          if (isNaN(addr)) return;
+          if (typeof window.disasmShowWindow === 'function') window.disasmShowWindow();
+        });
       });
     });
   }
 
   function renderLevels() {
     var grid = document.getElementById('dbg-levels-grid');
-    if (!wasmCall('_Dbg_GetLevelInfo')) return;
+    if (!wasmReady()) return;
 
-    var pil = Module._Dbg_GetPIL();
+    var pil = emu.getPIL();
     document.getElementById('dbg-level-pil').textContent = pil;
-    if (Module._Dbg_GetPVL) {
-      document.getElementById('dbg-level-pvl').textContent = oct(Module._Dbg_GetPVL());
-    }
+    document.getElementById('dbg-level-pvl').textContent = oct(emu.getPVL());
 
-    var lines = Module.UTF8ToString(Module._Dbg_GetLevelInfo()).trim().split('\n');
-    var html = '';
-    lines.forEach(function(line) {
-      var parts = line.split(/\s+/);
-      if (parts.length < 6) return;
-      var lev = parseInt(parts[0]);
-      html += '<div class="level-item' + (lev === pil ? ' current-level' : '') + '">';
-      html += '<span class="level-num" title="Interrupt level (0-15)">' + lev + '</span>';
-      html += '<span class="level-pc" title="Program counter - next instruction address">P:' + parts[1] + '</span>';
-      html += '<span class="level-sts" title="Status register low byte (STS LSB) - condition flags">S:' + parts[2] + '</span>';
-      html += '<span class="level-info">';
-      html += '<span title="Protection ring (0=kernel, 1-2=system, 3=user)">' + escapeHtml(parts[3]) + '</span> ';
-      html += '<span title="Normal Page Table - used for instruction fetch">' + escapeHtml(parts[4]) + '</span> ';
-      html += '<span title="Alternative Page Table - used for data access">' + escapeHtml(parts[5]) + '</span>';
-      html += '</span>';
-      html += '<span class="level-desc">' + (levelDesc[lev] || '') + '</span>';
-      html += '</div>';
+    Promise.resolve(emu.getLevelInfo()).then(function(raw) {
+      var lines = (raw || '').trim().split('\n');
+      var html = '';
+      lines.forEach(function(line) {
+        var parts = line.split(/\s+/);
+        if (parts.length < 6) return;
+        var lev = parseInt(parts[0]);
+        html += '<div class="level-item' + (lev === pil ? ' current-level' : '') + '">';
+        html += '<span class="level-num" title="Interrupt level (0-15)">' + lev + '</span>';
+        html += '<span class="level-pc" title="Program counter - next instruction address">P:' + parts[1] + '</span>';
+        html += '<span class="level-sts" title="Status register low byte (STS LSB) - condition flags">S:' + parts[2] + '</span>';
+        html += '<span class="level-info">';
+        html += '<span title="Protection ring (0=kernel, 1-2=system, 3=user)">' + escapeHtml(parts[3]) + '</span> ';
+        html += '<span title="Normal Page Table - used for instruction fetch">' + escapeHtml(parts[4]) + '</span> ';
+        html += '<span title="Alternative Page Table - used for data access">' + escapeHtml(parts[5]) + '</span>';
+        html += '</span>';
+        html += '<span class="level-desc">' + (levelDesc[lev] || '') + '</span>';
+        html += '</div>';
+      });
+      grid.innerHTML = html;
     });
-    grid.innerHTML = html;
   }
 
   function renderSystemRegs() {
@@ -566,7 +646,7 @@
     function renderRegList(regs) {
       var html = '';
       regs.forEach(function(r) {
-        var val = Module[r.fn] ? Module[r.fn]() : 0;
+        var val = emu[r.fn] ? emu[r.fn]() : 0;
         html += '<div class="sysreg-item"><span class="sysreg-name">' + r.name +
                 '</span><span class="sysreg-value">' + oct(val) + '</span></div>';
       });
@@ -574,27 +654,25 @@
     }
 
     roGrid.innerHTML = renderRegList([
-      { name: 'PANS', fn: '_Dbg_GetPANS' }, { name: 'OPR',  fn: '_Dbg_GetOPR' },
-      { name: 'PGS',  fn: '_Dbg_GetPGS' },  { name: 'PVL',  fn: '_Dbg_GetPVL' },
-      { name: 'IIC',  fn: '_Dbg_GetIIC' },   { name: 'IID',  fn: '_Dbg_GetIID' },
-      { name: 'PID',  fn: '_Dbg_GetPID' },   { name: 'PIE',  fn: '_Dbg_GetPIE' },
-      { name: 'CSR',  fn: '_Dbg_GetCSR' },   { name: 'ALD',  fn: '_Dbg_GetALD' },
-      { name: 'PES',  fn: '_Dbg_GetPES' },   { name: 'PGC',  fn: '_Dbg_GetPGC' },
-      { name: 'PEA',  fn: '_Dbg_GetPEA' }
+      { name: 'PANS', fn: 'getPANS' }, { name: 'OPR',  fn: 'getOPR' },
+      { name: 'PGS',  fn: 'getPGS' },  { name: 'PVL',  fn: 'getPVL' },
+      { name: 'IIC',  fn: 'getIIC' },   { name: 'IID',  fn: 'getIID' },
+      { name: 'PID',  fn: 'getPID' },   { name: 'PIE',  fn: 'getPIE' },
+      { name: 'CSR',  fn: 'getCSR' },   { name: 'ALD',  fn: 'getALD' },
+      { name: 'PES',  fn: 'getPES' },   { name: 'PGC',  fn: 'getPGC' },
+      { name: 'PEA',  fn: 'getPEA' }
     ]);
 
     var woHtml = renderRegList([
-      { name: 'PANC', fn: '_Dbg_GetPANC' }, { name: 'LMP',  fn: '_Dbg_GetLMP' },
-      { name: 'IIE',  fn: '_Dbg_GetIIE' },  { name: 'CCL',  fn: '_Dbg_GetCCL' },
-      { name: 'LCIL', fn: '_Dbg_GetLCIL' }, { name: 'UCIL', fn: '_Dbg_GetUCIL' },
-      { name: 'ECCR', fn: '_Dbg_GetECCR' }
+      { name: 'PANC', fn: 'getPANC' }, { name: 'LMP',  fn: 'getLMP' },
+      { name: 'IIE',  fn: 'getIIE' },  { name: 'CCL',  fn: 'getCCL' },
+      { name: 'LCIL', fn: 'getLCIL' }, { name: 'UCIL', fn: 'getUCIL' },
+      { name: 'ECCR', fn: 'getECCR' }
     ]);
 
-    if (Module._Dbg_GetPCR) {
-      var pil = Module._Dbg_GetPIL ? Module._Dbg_GetPIL() : 0;
-      woHtml += '<div class="sysreg-item"><span class="sysreg-name">PCR[' + pil +
-                ']</span><span class="sysreg-value">' + oct(Module._Dbg_GetPCR(pil)) + '</span></div>';
-    }
+    var pil = emu.getPIL();
+    woHtml += '<div class="sysreg-item"><span class="sysreg-name">PCR[' + pil +
+              ']</span><span class="sysreg-value">' + oct(emu.getPCR(pil)) + '</span></div>';
     woGrid.innerHTML = woHtml;
   }
 
@@ -645,13 +723,13 @@
 
   function toggleBreakpointAtPC() {
     if (!wasmReady()) return;
-    var pc = Module._Dbg_GetPC();
+    var pc = emu.getPC();
     if (breakpoints.has(pc)) {
       breakpoints.delete(pc);
-      if (Module._Dbg_RemoveBreakpoint) Module._Dbg_RemoveBreakpoint(pc);
+      emu.removeBreakpoint(pc);
     } else {
       breakpoints.add(pc);
-      if (Module._Dbg_AddBreakpoint) Module._Dbg_AddBreakpoint(pc);
+      emu.addBreakpoint(pc);
     }
     if (typeof window.dbgRefreshDisasm === 'function') window.dbgRefreshDisasm();
   }
@@ -665,20 +743,23 @@
   });
 
   function renderMemoryDump() {
-    if (!wasmCall('_Dbg_ReadMemory')) return;
+    if (!wasmReady()) return;
     var addr  = parseOctal(document.getElementById('dbg-mem-addr').value.trim());
     var count = Math.min(parseInt(document.getElementById('dbg-mem-count').value.trim()) || 64, 256);
 
-    var text = '';
-    for (var i = 0; i < count; i += 8) {
-      var lineAddr = (addr + i) & 0xFFFF;
-      text += oct(lineAddr) + ':';
-      for (var j = 0; j < 8 && (i + j) < count; j++) {
-        text += ' ' + oct(Module._Dbg_ReadMemory((lineAddr + j) & 0xFFFF));
+    Promise.resolve(emu.readMemoryBlock(addr, count)).then(function(values) {
+      var text = '';
+      for (var i = 0; i < count; i += 8) {
+        var lineAddr = (addr + i) & 0xFFFF;
+        text += oct(lineAddr) + ':';
+        for (var j = 0; j < 8 && (i + j) < count; j++) {
+          var val = (values && values[i + j] !== undefined) ? values[i + j] : 0;
+          text += ' ' + oct(val);
+        }
+        text += '\n';
       }
-      text += '\n';
-    }
-    document.getElementById('dbg-mem-dump').textContent = text;
+      document.getElementById('dbg-mem-dump').textContent = text;
+    });
   }
 
   /* --------------------------------------------------
@@ -698,7 +779,7 @@
     window.stopEmulation = stopEmulation = function() {
       if (active) {
         paused = true;
-        if (wasmCall('_Dbg_SetPaused')) Module._Dbg_SetPaused(1);
+        if (wasmReady()) emu.setPaused(1);
         stopExecLoop();
         active = false;
       }
@@ -712,6 +793,11 @@
      12. Init
      -------------------------------------------------- */
   window.dbgRefreshDisasm = function() {}; /* standalone disassembly window handles its own rendering */
+
+  /* Called by emulation.js RAF loop to ensure debugger updates while running */
+  window.dbgRefreshIfVisible = function() {
+    if (visible) refreshView();
+  };
 
   /* Called by emulation.js when a breakpoint is hit during normal execution */
   window.dbgActivateBreakpoint = function() {

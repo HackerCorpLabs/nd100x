@@ -64,92 +64,97 @@
   // Data reading - Section 6.17 algorithm
   // =========================================================
 
+  // Returns Promise<Array>
   function readSegmentTable() {
     // Step 1: Read root pointers via DPIT
-    var sgmax = sym.readWord(FX.SGMAX);
-    var segtb = sym.readWord(FX.SEGTB);
-    var segst = sym.readWord(FX.SEGST);
+    return Promise.all([sym.readWord(FX.SGMAX), sym.readWord(FX.SEGTB), sym.readWord(FX.SEGST)])
+    .then(function(vals) {
+      var sgmax = vals[0], segtb = vals[1], segst = vals[2];
 
-    if (sgmax === 0 || sgmax > 4096) return [];
+      if (sgmax === 0 || sgmax > 4096) return [];
 
-    // Step 2: Compute physical base address
-    // SEGTB is the bank number, SEGST is offset within that bank
-    // Physical word address = (SEGTB << 16) + SEGST
-    var physBase = (segtb << 16) + segst;
+      // Step 2: Compute physical base address
+      var physBase = (segtb << 16) + segst;
 
-    // Step 3: Read all segment entries via physical memory
-    var segments = [];
-    for (var segNum = 0; segNum <= sgmax; segNum++) {
-      var entryAddr = physBase + segNum * SE.SIZE;
-      var data = sym.readBlockPhysical(entryAddr, SE.SIZE);
-      if (data.length < SE.SIZE) continue;
+      // Step 3: Read all segment entries via physical memory
+      // Read entire block at once for efficiency
+      var totalWords = (sgmax + 1) * SE.SIZE;
+      return sym.readBlockPhysical(physBase, totalWords).then(function(allData) {
+        var segments = [];
+        for (var segNum = 0; segNum <= sgmax; segNum++) {
+          var offset = segNum * SE.SIZE;
+          if (offset + SE.SIZE > allData.length) continue;
 
-      // Step 4: Skip all-zero entries (unused segments)
-      var allZero = true;
-      for (var w = 0; w < SE.SIZE; w++) {
-        if (data[w] !== 0) { allZero = false; break; }
-      }
-      if (allZero) continue;
+          // Step 4: Skip all-zero entries (unused segments)
+          var allZero = true;
+          for (var w = 0; w < SE.SIZE; w++) {
+            if (allData[offset + w] !== 0) { allZero = false; break; }
+          }
+          if (allZero) continue;
 
-      segments.push({
-        segNum: segNum,
-        segli:  data[SE.SEGLI],
-        prese:  data[SE.PRESE],
-        logad:  data[SE.LOGAD],
-        segle:  data[SE.SEGLE],
-        madr:   data[SE.MADR],
-        flag:   data[SE.FLAG],
-        sgsta:  data[SE.SGSTA],
-        bpagl:  data[SE.BPAGL],
-        usedBy: []
+          segments.push({
+            segNum: segNum,
+            segli:  allData[offset + SE.SEGLI],
+            prese:  allData[offset + SE.PRESE],
+            logad:  allData[offset + SE.LOGAD],
+            segle:  allData[offset + SE.SEGLE],
+            madr:   allData[offset + SE.MADR],
+            flag:   allData[offset + SE.FLAG],
+            sgsta:  allData[offset + SE.SGSTA],
+            bpagl:  allData[offset + SE.BPAGL],
+            usedBy: []
+          });
+        }
+
+        // Step 5: Cross-reference with RT descriptions
+        return crossReferenceSegments(segments).then(function() {
+          return segments;
+        });
       });
-    }
-
-    // Step 5: Cross-reference with RT descriptions
-    crossReferenceSegments(segments);
-
-    return segments;
+    });
   }
 
+  // Returns Promise<void>
   function crossReferenceSegments(segments) {
-    var rtInfo = sym.discoverRtTable();
-    if (rtInfo.base === 0 || rtInfo.count === 0) return;
+    return sym.discoverRtTable().then(function(rtInfo) {
+      if (rtInfo.base === 0 || rtInfo.count === 0) return;
 
-    var rtCount = rtInfo.count;
-    var tableData = sym.readBlock(rtInfo.base, rtCount * RT.SIZE);
-    if (tableData.length === 0) return;
+      var rtCount = rtInfo.count;
+      return sym.readBlock(rtInfo.base, rtCount * RT.SIZE).then(function(tableData) {
+        if (tableData.length === 0) return;
 
-    // Build a map of segment NUMBER to segment entry for fast lookup
-    var segByNum = {};
-    for (var s = 0; s < segments.length; s++) {
-      segByNum[segments[s].segNum] = segments[s];
-    }
+        // Build a map of segment NUMBER to segment entry for fast lookup
+        var segByNum = {};
+        for (var s = 0; s < segments.length; s++) {
+          segByNum[segments[s].segNum] = segments[s];
+        }
 
-    for (var i = 0; i < rtCount; i++) {
-      var base = i * RT.SIZE;
-      var statu = tableData[base + RT.STATU];
-      if (!sym.testBit(statu, sym.STATU_BITS.USED)) continue;
+        for (var i = 0; i < rtCount; i++) {
+          var base = i * RT.SIZE;
+          var statu = tableData[base + RT.STATU];
+          if (!sym.testBit(statu, sym.STATU_BITS.USED)) continue;
 
-      // RT SEGM1/SEGM2/ACT1S/ACT2S contain segment NUMBERS
-      // (not addresses - the segment number indexes into the segment table)
-      var segFields = [
-        tableData[base + RT.SEGM1],
-        tableData[base + RT.SEGM2],
-        tableData[base + RT.ACT1S],
-        tableData[base + RT.ACT2S]
-      ];
+          // RT SEGM1/SEGM2/ACT1S/ACT2S contain segment NUMBERS
+          var segFields = [
+            tableData[base + RT.SEGM1],
+            tableData[base + RT.SEGM2],
+            tableData[base + RT.ACT1S],
+            tableData[base + RT.ACT2S]
+          ];
 
-      for (var f = 0; f < segFields.length; f++) {
-        var segNum = segFields[f];
-        if (segNum !== 0 && segByNum[segNum]) {
-          var label = (typeof window.resolveProcessName === 'function')
-            ? window.resolveProcessName(i) : 'RT #' + i;
-          if (segByNum[segNum].usedBy.indexOf(label) === -1) {
-            segByNum[segNum].usedBy.push(label);
+          for (var f = 0; f < segFields.length; f++) {
+            var segNum = segFields[f];
+            if (segNum !== 0 && segByNum[segNum]) {
+              var label = (typeof window.resolveProcessName === 'function')
+                ? window.resolveProcessName(i) : 'RT #' + i;
+              if (segByNum[segNum].usedBy.indexOf(label) === -1) {
+                segByNum[segNum].usedBy.push(label);
+              }
+            }
           }
         }
-      }
-    }
+      }); // end readBlock.then
+    }); // end discoverRtTable.then
   }
 
   // =========================================================
@@ -294,8 +299,10 @@
   function refreshSegments() {
     if (!sintranState || !sintranState.detected) return;
     sym.invalidateRtCache();
-    lastSegments = readSegmentTable();
-    renderSegmentTable(lastSegments);
+    readSegmentTable().then(function(segments) {
+      lastSegments = segments;
+      renderSegmentTable(segments);
+    });
   }
 
   function startAutoRefresh() {

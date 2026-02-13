@@ -84,10 +84,10 @@
     var map = {};
     for (var i = 0; i < ptCount; i++) map[i] = [];
 
-    if (!Module || !Module._Dbg_GetPCR) return map;
+    if (!emu || !emu.isReady()) return map;
 
     for (var level = 0; level < 16; level++) {
-      var pcr = Module._Dbg_GetPCR(level);
+      var pcr = emu.getPCR(level);
       var ptNum = (pcr >>> 10) & 0x0F;
       if (map[ptNum]) {
         map[ptNum].push(level);
@@ -104,15 +104,15 @@
     var ptInfo = document.getElementById('pt-info');
     if (!body) return;
 
-    if (!Module || !Module._Dbg_GetPageTableCount) {
+    if (!emu || !emu.isReady()) {
       body.innerHTML = '<div style="padding:12px;color:rgba(160,175,210,0.5);font-style:italic;">Emulator not ready</div>';
       return;
     }
 
     var ptSelect = document.getElementById('pt-select');
     var ptNum = parseInt(ptSelect.value) || 0;
-    var ptCount = Module._Dbg_GetPageTableCount();
-    var extended = Module._Dbg_GetExtendedMode();
+    var ptCount = emu.getPageTableCount();
+    var extended = emu.getExtendedMode();
 
     // Show runlevel mapping
     var pcrMap = getPCRMapping(ptCount);
@@ -126,15 +126,14 @@
       ptInfo.textContent += ' | Mode: ' + (extended ? 'Extended (SEXI)' : 'Normal');
     }
 
-    // Build table rows
+    // Build table rows (batch read all 64 entries at once)
+    Promise.resolve(emu.getPageTableMap(ptNum)).then(function(entries) {
     var html = '<table class="proc-table pt-data-table"><thead><tr>' +
       '<th>VPN</th><th>Word 0 (flags)</th><th>Word 1 (PPN)</th><th>Decoded</th>' +
       '</tr></thead><tbody>';
 
     for (var vpn = 0; vpn < 64; vpn++) {
-      var pte = Module._Dbg_GetPageTableEntryRaw(ptNum, vpn);
-      // Force unsigned 32-bit
-      pte = pte >>> 0;
+      var pte = (entries[vpn] || 0) >>> 0;
 
       var word0 = (pte >>> 16) & 0xFFFF;
       var word1 = pte & 0xFFFF;
@@ -153,6 +152,7 @@
 
     html += '</tbody></table>';
     body.innerHTML = html;
+    }); // end Promise.resolve(getPageTableMap).then
   }
 
   // =========================================================
@@ -163,8 +163,8 @@
     if (!ptSelect) return;
 
     var count = 16; // default
-    if (Module && Module._Dbg_GetPageTableCount) {
-      count = Module._Dbg_GetPageTableCount();
+    if (emu && emu.isReady()) {
+      count = emu.getPageTableCount();
     }
 
     var currentVal = parseInt(ptSelect.value) || 0;

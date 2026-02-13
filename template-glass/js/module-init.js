@@ -9,30 +9,42 @@
 // This must be loaded BEFORE nd100wasm.js
 
 // Define the Module configuration object before loading any Emscripten code
-// Extract cache-bust version from nd100wasm.js script tag (if present)
-var _wasmCacheBust = (function() {
-  var scripts = document.querySelectorAll('script[src*="nd100wasm.js"]');
-  if (scripts.length > 0) {
-    var m = scripts[0].src.match(/\?v=(\d+)/);
-    if (m) return '?v=' + m[1];
-  }
-  return '';
-})();
+// In Worker mode, Module lives in the Worker - we skip this.
+if (typeof USE_WORKER === 'undefined' || !USE_WORKER) {
+  // Extract cache-bust version from nd100wasm.js script tag (if present)
+  var _wasmCacheBust = (function() {
+    var scripts = document.querySelectorAll('script[src*="nd100wasm.js"]');
+    if (scripts.length > 0) {
+      var m = scripts[0].src.match(/\?v=(\d+)/);
+      if (m) return '?v=' + m[1];
+    }
+    return '';
+  })();
 
-var Module = {
-  locateFile: function(path) {
-    // Append cache-bust query string to .wasm file
-    if (path.endsWith('.wasm')) return path + _wasmCacheBust;
-    return path;
-  },
-  print: function(text) { console.log(text); },
-  printErr: function(text) { console.error(text); },
-  onRuntimeInitialized: function() {
-    console.log("WASM Runtime Initialized");
-    // Set up the JavaScript handler for terminal output
-    setupTerminalOutputHandler();
-    initializeSystem();
-  }
+  var Module = {
+    locateFile: function(path) {
+      // Append cache-bust query string to .wasm file
+      if (path.endsWith('.wasm')) return path + _wasmCacheBust;
+      return path;
+    },
+    print: function(text) { console.log(text); },
+    printErr: function(text) { console.error(text); },
+    onRuntimeInitialized: function() {
+      console.log("WASM Runtime Initialized");
+      console.log("Execution mode: Direct (main thread)");
+      // Set up the JavaScript handler for terminal output
+      setupTerminalOutputHandler();
+      initializeSystem();
+    }
+  };
+}
+
+// Called by emu-proxy-worker.js when Worker WASM is ready
+window.onWorkerReady = function() {
+  console.log("WASM Runtime Initialized");
+  console.log("Execution mode: Web Worker (background thread)");
+  setupTerminalOutputHandler();
+  initializeSystem();
 };
 
 // Global object to store terminal references
@@ -64,15 +76,24 @@ window.handleTerminalOutputFromC = function(identCode, charCode) {
 
 // Setup the terminal output handler by exposing our JS function to C
 function setupTerminalOutputHandler() {
-  if (typeof Module._TerminalOutputToJS === 'undefined' ||
-      typeof Module._SetJSTerminalOutputHandler === 'undefined') {
-    console.warn("Using legacy terminal output handler - new JS handler functions not found in WASM module");
+  // Prefer ring buffer mode: C writes to a buffer, JS polls after each Step().
+  // This eliminates EM_ASM calls and is required for future Web Worker mode.
+  if (emu && emu.hasRingBuffer()) {
+    if (emu.enableRingBuffer()) {
+      console.log("[Phase 1] Terminal ring buffer enabled - C writes to buffer, JS polls after Step()");
+      console.log("[Phase 1] EM_ASM terminal callbacks eliminated");
+      return true;
+    }
+  }
+
+  // Fallback: EM_ASM callback (legacy path)
+  if (!emu || !emu.hasJSTerminalHandler()) {
+    console.warn("[Phase 1] FALLBACK: Using legacy terminal output handler - ring buffer not available");
     return false;
   }
 
-  console.log("Setting up JavaScript terminal output handler...");
-  Module._SetJSTerminalOutputHandler(1);
-  console.log("JavaScript terminal output handler registered successfully");
+  console.log("[Phase 1] FALLBACK: Using EM_ASM terminal callbacks (ring buffer not available)");
+  emu.setJSTerminalOutputHandler(1);
   return true;
 }
 
@@ -143,9 +164,17 @@ function loadDiskImage(url, memfsPath) {
         return;
       }
 
-      // Write to MEMFS
+      // In Worker mode, transfer ArrayBuffer to Worker
+      if (typeof USE_WORKER !== 'undefined' && USE_WORKER) {
+        emu.workerLoadDisk(memfsPath, buf);
+        console.log(url + ' -> ' + memfsPath + ' (' + formatBytes(buf.byteLength) + ') OK [Worker]');
+        resolve(true);
+        return;
+      }
+
+      // Write to MEMFS (direct mode)
       try {
-        Module.FS.writeFile(memfsPath, new Uint8Array(buf));
+        emu.fsWriteFile(memfsPath, new Uint8Array(buf));
       } catch (e) {
         console.error(url + ': FS.writeFile failed: ' + e.message);
         resolve(false);
@@ -153,11 +182,11 @@ function loadDiskImage(url, memfsPath) {
       }
 
       // Set permissions
-      try { Module.FS.chmod(memfsPath, 0o666); } catch (e) { /* ignore */ }
+      try { emu.fsChmod(memfsPath, 0o666); } catch (e) { /* ignore */ }
 
       // Verify readback
       try {
-        var stat = Module.FS.stat(memfsPath);
+        var stat = emu.fsStat(memfsPath);
         if (stat.size !== buf.byteLength) {
           console.error(url + ': MEMFS size mismatch (wrote ' + buf.byteLength +
             ', got ' + stat.size + ')');
@@ -191,7 +220,7 @@ function loadDiskImage(url, memfsPath) {
 
 // Function to load the disk images
 function loadDiskImages() {
-  if (typeof Module.FS === 'undefined') {
+  if (!emu || !emu.fsAvailable()) {
     console.error("ERROR: Module.FS is not available!");
     var statusElement = document.getElementById('status');
     if (statusElement) {
