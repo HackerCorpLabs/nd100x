@@ -31,12 +31,16 @@ var terminalDisplayNames = {};
 // Defaults
 var defaultFontFamily = "monospace";
 var defaultColorTheme = "green";
-// Check if float mode is enabled (default: true for new users)
+// Check if float mode is enabled (default: true — "Group" toggle OFF)
 function isFloatMode() {
     var val = localStorage.getItem('terminal-float-mode');
     if (val === null)
         return true;
     return val === 'true';
+}
+// Check if auto pop-out is enabled (default: false)
+function isAutoPopout() {
+    return localStorage.getItem('terminal-auto-popout') === 'true';
 }
 // ---- Floating terminal window creation ----
 function createFloatingTerminalWindow(identCode, name) {
@@ -230,6 +234,14 @@ function createTerminal(identCode, name) {
         return identCode === activeTerminalId;
     });
     setTimeout(resizeTerminal, 0);
+    // Auto pop-out floating terminals if enabled (skip console terminal)
+    if (useFloat && isAutoPopout() && identCode !== 1) {
+        setTimeout(function () {
+            if (typeof window.popOutTerminal === 'function') {
+                window.popOutTerminal(identCode);
+            }
+        }, 300);
+    }
 }
 // ---- Initialize all available terminals ----
 function initializeTerminals() {

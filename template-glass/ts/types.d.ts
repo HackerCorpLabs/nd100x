@@ -24,6 +24,7 @@ declare class Terminal {
   refresh(start: number, end: number): void;
   focus(): void;
   dispose(): void;
+  resize(cols: number, rows: number): void;
   onKey(handler: (ev: { key: string; domEvent: KeyboardEvent }) => void): void;
   clearTextureAtlas?(): void;
 }

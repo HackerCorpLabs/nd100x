@@ -187,6 +187,16 @@
         var clientW = el.parentElement.clientWidth;
         var zoomRatio = (clientW > 0) ? containerW / clientW : 1;
         var hasZoom = Math.abs(zoomRatio - 1) > 0.01;
+        // Detect zoom mismatch: container may be counter-zoomed (effective zoom ~1.0)
+        // while the measurement span in document.body is at page zoom.
+        // When this happens, span BCR needs scaling to match container BCR coordinates.
+        var pageZoom = parseFloat(document.documentElement.style.zoom) || 1;
+        var spanScale = 1;
+        if (!hasZoom && Math.abs(pageZoom - 1) > 0.01) {
+            // Container is counter-zoomed (BCR/clientWidth ≈ 1) but page has zoom.
+            // Span measurements (BCR) are at pageZoom; scale to native resolution.
+            spanScale = 1 / pageZoom;
+        }
         var fontFamily = term.options.fontFamily || 'monospace';
         // Phase 1: Binary search using DOM span measurement (fast estimate).
         var low = MIN_FONT;
@@ -194,8 +204,8 @@
         var bestSize = MIN_FONT;
         while (low <= high) {
             var mid = Math.floor((low + high) / 2);
-            var cellW = measureCellWidth(fontFamily, mid);
-            var lineH = measureLineHeight(fontFamily, mid);
+            var cellW = measureCellWidth(fontFamily, mid) * spanScale;
+            var lineH = measureLineHeight(fontFamily, mid) * spanScale;
             var cols = Math.floor(containerW / cellW);
             var rows = Math.floor(containerH / lineH);
             if (cols >= TARGET_COLS && rows >= TARGET_ROWS) {
@@ -222,6 +232,11 @@
                 proposed = fitAddon.proposeDimensions();
             }
         }
+        // Compute correct cols/rows from binary search measurements (zoom-safe)
+        var bsCellW = measureCellWidth(fontFamily, bestSize) * spanScale;
+        var bsLineH = measureLineHeight(fontFamily, bestSize) * spanScale;
+        var bsCols = Math.floor(containerW / bsCellW);
+        var bsRows = Math.min(Math.floor(containerH / bsLineH), TARGET_ROWS);
         // Apply final font size
         term.options.fontSize = bestSize;
         if (typeof term.clearTextureAtlas === 'function') {
@@ -241,6 +256,27 @@
                 }
                 void el.offsetHeight;
                 fitAddon.fit();
+                // Recompute after font change
+                bsCellW = measureCellWidth(fontFamily, bestSize) * spanScale;
+                bsLineH = measureLineHeight(fontFamily, bestSize) * spanScale;
+                bsCols = Math.floor(containerW / bsCellW);
+                bsRows = Math.min(Math.floor(containerH / bsLineH), TARGET_ROWS);
+            }
+        }
+        // Under CSS zoom, fitAddon.fit() uses unzoomed clientWidth which inflates
+        // cols/rows. Force the zoom-correct dimensions from our binary search.
+        if (hasZoom || term.rows > TARGET_ROWS || term.cols !== bsCols) {
+            term.resize(bsCols, bsRows);
+        }
+        // Shrink xterm element to match content so glass bg shows through
+        var xtermScreen = el.querySelector('.xterm-screen');
+        if (xtermScreen) {
+            var renderedH = xtermScreen.getBoundingClientRect().height;
+            if (renderedH < containerH - 5) {
+                el.style.height = renderedH + 'px';
+            }
+            else {
+                el.style.height = '';
             }
         }
         term.refresh(0, term.rows - 1);

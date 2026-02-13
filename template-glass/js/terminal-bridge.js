@@ -242,32 +242,21 @@
             }
             return;
         }
-        // Tab-based case
-        var container = document.getElementById('terminal-container-' + identCode);
-        if (!container)
-            return;
-        var xterm = container.querySelector('.xterm');
-        if (xterm)
-            xterm.style.display = 'none';
-        var indicator = document.createElement('div');
-        indicator.className = 'popout-placeholder';
-        indicator.id = 'popout-placeholder-' + identCode;
-        indicator.innerHTML =
-            '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-                '<polyline points="15,3 21,3 21,9"/>' +
-                '<line x1="21" y1="3" x2="14" y2="10"/>' +
-                '<path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>' +
-                '</svg>' +
-                '<div class="popout-placeholder-text">Popped out</div>';
-        container.appendChild(indicator);
+        // Tab-based console terminal: hide the entire terminal window
+        var termWin = document.getElementById('terminal-window');
+        if (termWin) {
+            if (typeof closeWindow === 'function') {
+                closeWindow('terminal-window');
+            }
+            else {
+                termWin.style.display = 'none';
+            }
+        }
     }
     /**
      * Restore the local terminal when popped back in.
      */
     function restoreLocalTerminal(identCode) {
-        var placeholder = document.getElementById('popout-placeholder-' + identCode);
-        if (placeholder)
-            placeholder.remove();
         var winId = 'float-term-' + identCode;
         var win = document.getElementById(winId);
         if (win) {
@@ -280,12 +269,17 @@
             if (typeof emu !== 'undefined' && emu.setTerminalCarrier) {
                 emu.setTerminalCarrier(0, identCode);
             }
+            return;
         }
-        var container = document.getElementById('terminal-container-' + identCode);
-        if (container) {
-            var xterm = container.querySelector('.xterm');
-            if (xterm)
-                xterm.style.display = '';
+        // Tab-based console terminal: restore the whole window
+        var termWin = document.getElementById('terminal-window');
+        if (termWin) {
+            if (typeof openWindow === 'function') {
+                openWindow('terminal-window');
+            }
+            else {
+                termWin.style.display = 'flex';
+            }
         }
         if (typeof terminals !== 'undefined' && terminals[identCode]) {
             if (typeof window.applySettingsToTerminal === 'function') {
