@@ -41,6 +41,10 @@
     } catch(e) {}
     // Update config window active state if open
     updateConfigCards(name);
+    // Broadcast to pop-out terminal windows
+    if (typeof window.broadcastThemeChange === 'function') {
+      window.broadcastThemeChange(name);
+    }
   }
 
   function updateConfigCards(name) {

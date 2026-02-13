@@ -674,6 +674,16 @@ body {
   background: #1a1e35;
   color: #c8d0e0;
 }
+.term-font-size-badge {
+  font-size: 10px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  color: rgba(180, 200, 230, 0.45);
+  white-space: nowrap;
+  min-width: 30px;
+  text-align: right;
+  letter-spacing: -0.3px;
+  user-select: none;
+}
 
 /* =========================================
    Terminal tabs - inside floating window
@@ -756,7 +766,8 @@ body {
   top: 60px;
   left: 10px;
   width: 860px;
-  height: 650px;
+  height: calc(100vh / var(--ui-zoom, 1) - 100px);
+  max-height: 1200px;
   background: rgba(12, 16, 35, 0.88);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -2553,4 +2564,50 @@ button:disabled {
   font-size: 10px;
   padding: 2px 4px;
   max-width: 100px;
+}
+
+/* =========================================
+   Pop-out terminal button and placeholder
+   ========================================= */
+.glass-window-popout {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(200, 210, 230, 0.6);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 24px;
+  padding: 0;
+  transition: all 0.2s;
+}
+.glass-window-popout:hover {
+  background: rgba(0, 200, 180, 0.25);
+  color: rgba(0, 220, 200, 0.95);
+  transform: none;
+  box-shadow: none;
+}
+#term-popout:hover {
+  background: rgba(0, 200, 180, 0.25);
+  color: rgba(0, 220, 200, 0.95);
+}
+.popout-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 10px;
+  color: rgba(160, 175, 210, 0.4);
+}
+.popout-placeholder svg {
+  opacity: 0.3;
+}
+.popout-placeholder-text {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
 }
