@@ -1,0 +1,13 @@
+{
+  "websocket": {
+    "port": 8765
+  },
+  "terminals": {
+    "port": 5001,
+    "welcome": "ND-100/CX Terminal Server"
+  },
+  "hdlc": [
+    { "name": "HDLC-0", "port": 5010, "enabled": false },
+    { "name": "HDLC-1", "port": 5011, "enabled": false }
+  ]
+}

@@ -384,6 +384,23 @@
         </label>
         <span class="config-toggle-label">Auto pop-out terminal windows</span>
       </div>
+      <div class="config-section-title" style="margin-top:16px" id="config-network-title">Network</div>
+      <div class="config-option" id="config-ws-bridge-row">
+        <label class="config-toggle">
+          <input type="checkbox" id="config-ws-bridge">
+          <span class="config-toggle-slider"></span>
+        </label>
+        <span class="config-toggle-label">WebSocket terminal bridge</span>
+      </div>
+      <div class="config-option" id="config-ws-url-row" style="display:none; margin-left:20px">
+        <span class="config-toggle-label" style="min-width:60px">Gateway URL</span>
+        <input type="text" id="config-ws-url" value="ws://localhost:8765"
+               style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:inherit; padding:4px 8px; font-family:monospace; font-size:12px">
+      </div>
+      <div class="config-option" id="config-ws-status-row" style="display:none; margin-left:20px">
+        <span class="config-toggle-label" style="opacity:0.6">Status:</span>
+        <span id="config-ws-status" style="font-size:12px; opacity:0.7">Disconnected</span>
+      </div>
     </div>
   </div>
 

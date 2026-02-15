@@ -56,14 +56,134 @@ var Module = {
 importScripts('../nd100wasm.js');
 
 // =========================================================
+// WebSocket bridge state (remote terminal gateway)
+// =========================================================
+var _ws = null;              // WebSocket connection to gateway
+var _wsUrl = '';             // For reconnection
+var _wsReconnectTimer = null;
+var _remoteIdentCodes = {};  // identCode -> true (set of remote terminals)
+var _remoteTerminals = [];   // { identCode, name, logicalDevice } for register msg
+
+function wsConnect(url) {
+  if (_ws) {
+    try { _ws.close(); } catch(e) {}
+  }
+  _wsUrl = url;
+  if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+
+  try {
+    _ws = new WebSocket(url);
+  } catch(err) {
+    postMessage({ type: 'ws-status', connected: false, error: err.message });
+    return;
+  }
+
+  _ws.onopen = function() {
+    postMessage({ type: 'ws-status', connected: true, error: null });
+    // Send register message with remote terminal list
+    if (_remoteTerminals.length > 0) {
+      _ws.send(JSON.stringify({ type: 'register', terminals: _remoteTerminals }));
+    }
+  };
+
+  _ws.onmessage = function(ev) {
+    var msg;
+    try { msg = JSON.parse(ev.data); } catch(e) { return; }
+
+    switch (msg.type) {
+      case 'term-input': {
+        // Forward each byte to the terminal device
+        if (msg.data && msg.data.length > 0) {
+          for (var i = 0; i < msg.data.length; i++) {
+            Module._SendKeyToTerminal(msg.identCode, msg.data[i]);
+          }
+        }
+        break;
+      }
+      case 'client-connected': {
+        // Restore carrier on this terminal
+        Module._SetTerminalCarrier(0, msg.identCode);
+        postMessage({
+          type: 'ws-client',
+          action: 'connected',
+          identCode: msg.identCode,
+          clientAddr: msg.clientAddr
+        });
+        break;
+      }
+      case 'client-disconnected': {
+        // Set carrier missing
+        Module._SetTerminalCarrier(1, msg.identCode);
+        postMessage({
+          type: 'ws-client',
+          action: 'disconnected',
+          identCode: msg.identCode
+        });
+        break;
+      }
+    }
+  };
+
+  _ws.onclose = function(ev) {
+    postMessage({ type: 'ws-status', connected: false, error: null });
+    _ws = null;
+    // Auto-reconnect after 3 seconds if we had a URL
+    if (_wsUrl) {
+      _wsReconnectTimer = setTimeout(function() {
+        wsConnect(_wsUrl);
+      }, 3000);
+    }
+  };
+
+  _ws.onerror = function(ev) {
+    postMessage({ type: 'ws-status', connected: false, error: 'WebSocket error' });
+  };
+}
+
+function wsDisconnect() {
+  _wsUrl = '';  // Clear URL to prevent reconnection
+  if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+  if (_ws) {
+    try { _ws.close(); } catch(e) {}
+    _ws = null;
+  }
+  _remoteIdentCodes = {};
+  _remoteTerminals = [];
+  postMessage({ type: 'ws-status', connected: false, error: null });
+}
+
+function wsSend(msg) {
+  if (_ws && _ws.readyState === 1) {
+    _ws.send(JSON.stringify(msg));
+  }
+}
+
+// =========================================================
 // Terminal ring buffer flush
 // =========================================================
 function flushRingBuffer() {
   var output = [];
   if (typeof Module._PollTerminalOutput !== 'function') return output;
   var entry;
+  var wsOutBuf = {};
   while ((entry = Module._PollTerminalOutput()) >= 0) {
-    output.push(entry);  // packed: (identCode << 8) | charCode
+    var ident = (entry >> 8) & 0xFF;
+    if (_remoteIdentCodes[ident]) {
+      if (!wsOutBuf[ident]) wsOutBuf[ident] = [];
+      wsOutBuf[ident].push(entry & 0xFF);
+    } else {
+      output.push(entry);  // packed: (identCode << 8) | charCode
+    }
+  }
+  // Send remote output over WebSocket
+  if (_ws && _ws.readyState === 1) {
+    for (var rid in wsOutBuf) {
+      _ws.send(JSON.stringify({
+        type: 'term-output',
+        identCode: parseInt(rid),
+        data: wsOutBuf[rid]
+      }));
+    }
   }
   return output;
 }
@@ -145,13 +265,23 @@ function runLoop() {
   var runMode = 1;  // CPU_RUNNING
 
   // Execute as many batches as fit in one frame interval
+  var wsOutBuf = {};  // identCode -> [bytes] for batching across all Step batches
+
   while (running) {
     Module._Step(STEPS_PER_BATCH);
 
-    // Drain ring buffer into accumulated output
+    // Drain ring buffer, routing remote output to WebSocket
     var entry;
     while ((entry = Module._PollTerminalOutput()) >= 0) {
-      termOutput.push(entry);
+      var ident = (entry >> 8) & 0xFF;
+      if (_remoteIdentCodes[ident]) {
+        // Remote terminal -> batch for WebSocket
+        if (!wsOutBuf[ident]) wsOutBuf[ident] = [];
+        wsOutBuf[ident].push(entry & 0xFF);
+      } else {
+        // Local terminal -> main thread
+        termOutput.push(entry);
+      }
     }
 
     runMode = Module._Dbg_GetRunMode();
@@ -159,6 +289,17 @@ function runLoop() {
 
     // Yield after frame interval so main thread can process
     if (performance.now() - frameStart >= FRAME_INTERVAL_MS) break;
+  }
+
+  // Send batched remote terminal output over WebSocket (once per frame)
+  if (_ws && _ws.readyState === 1) {
+    for (var rid in wsOutBuf) {
+      _ws.send(JSON.stringify({
+        type: 'term-output',
+        identCode: parseInt(rid),
+        data: wsOutBuf[rid]
+      }));
+    }
   }
 
   // Send one consolidated frame to main thread (includes all CPU registers)
@@ -539,6 +680,49 @@ onmessage = function(e) {
 
     case 'unmountSMD': {
       Module._UnmountSMD(msg.unit);
+      break;
+    }
+
+    // --- WebSocket bridge ---
+    case 'ws-connect': {
+      wsConnect(msg.url);
+      break;
+    }
+
+    case 'ws-disconnect': {
+      wsDisconnect();
+      break;
+    }
+
+    case 'enableRemoteTerminals': {
+      var rtResult = Module._EnableRemoteTerminals();
+      // Build remote terminal list for register message
+      _remoteTerminals = [];
+      _remoteIdentCodes = {};
+      // Remote terminals occupy slots 8-15 (indices after the 8 local ones)
+      for (var rti = 8; rti < 16; rti++) {
+        var rtIdent = Module._GetTerminalIdentCode(rti);
+        if (rtIdent !== -1) {
+          var rtName = '';
+          try {
+            var namePtr = Module._GetTerminalName(rti);
+            if (namePtr) rtName = Module.UTF8ToString(namePtr);
+          } catch(e) {}
+          var rtLogDev = Module._GetTerminalLogicalDevice(rti);
+          _remoteTerminals.push({
+            identCode: rtIdent,
+            name: rtName || ('Terminal ' + rti),
+            logicalDevice: rtLogDev
+          });
+          _remoteIdentCodes[rtIdent] = true;
+        }
+      }
+      postMessage({
+        type: 'enableRemoteTerminalsResult',
+        id: msg.id,
+        count: _remoteTerminals.length,
+        terminals: _remoteTerminals
+      });
       break;
     }
 

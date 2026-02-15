@@ -25,6 +25,7 @@ Comprehensive architecture documentation for the ND100X glassmorphism browser fr
 14. [CSS Architecture](#css-architecture)
 15. [State Persistence](#state-persistence)
 16. [Adding a New Window](#adding-a-new-window)
+17. [WebSocket Terminal Bridge](#websocket-terminal-bridge)
 
 ---
 
@@ -769,6 +770,9 @@ All UI state is persisted to `localStorage`:
 | `term-maximized` | `"0"` or `"1"` | Terminal maximize state |
 | `terminal-settings` | `{identCode: {fontFamily, colorTheme}}` | Per-terminal font/color |
 | `nd100x-theme` | Theme name string | Selected theme |
+| `nd100x-worker` | `"true"` or absent | Web Worker emulation mode |
+| `nd100x-ws-bridge` | `"true"` or absent | WebSocket terminal bridge enabled |
+| `nd100x-ws-url` | URL string | Gateway WebSocket URL (default `ws://localhost:8765`) |
 
 ---
 
@@ -892,3 +896,142 @@ document.getElementById('menu-myfeature').addEventListener('click', function() {
 ### 6. Update Build
 
 No build changes needed - the Makefile copies all `template-glass/js/*.js` files automatically.
+
+---
+
+## WebSocket Terminal Bridge
+
+The WebSocket Terminal Bridge enables remote terminal access to SINTRAN III via TCP clients (PuTTY, telnet, or similar). A Node.js gateway server bridges TCP connections to the WASM emulator running in a Web Worker.
+
+> **Requirement**: Worker mode must be active (`?worker=1` or Config toggle). The bridge is not available in direct mode.
+
+### Architecture
+
+```
+Remote Terminal Client (PuTTY / telnet / raw TCP)
+    | TCP port 5001 (raw bytes after menu selection)
+    |
+Gateway Server (Node.js: tools/nd100-gateway/)
+    | WebSocket port 8765 (JSON messages)
+    |
+Web Worker (emu-worker.js)
+    | direct WASM function calls
+    |
+Terminal Devices in WASM (identCodes 43-50 for remote terminals)
+```
+
+The gateway accepts a single WebSocket connection from the emulator and multiplexes all terminal traffic over it. Multiple TCP clients connect to the same TCP port and select a terminal from a numbered menu.
+
+### Remote Terminal Devices
+
+When the user enables the WebSocket bridge, `EnableRemoteTerminals()` is called in the WASM module. This creates 8 additional terminal devices using thumbwheels 12-19:
+
+| Slot | Thumbwheel | Name | IdentCode (dec) | IdentCode (oct) |
+|------|------------|------|------------------|------------------|
+| 8 | 12 | TERMINAL 12 | 43 | 053 |
+| 9 | 13 | TERMINAL 13 | 44 | 054 |
+| 10 | 14 | TERMINAL 14 | 45 | 055 |
+| 11 | 15 | TERMINAL 15 | 46 | 056 |
+| 12 | 16 | TERMINAL 16 | 47 | 057 |
+| 13 | 17 | TERMINAL 17 | 48 | 060 |
+| 14 | 18 | TERMINAL 18 | 49 | 061 |
+| 15 | 19 | TERMINAL 19 | 50 | 062 |
+
+Slots 0-7 are the local terminals (console + TERMINAL 5-11). Together they fill `MAX_TERMINALS=16` exactly.
+
+### JSON Protocol
+
+All WebSocket messages have a `type` field. Terminal traffic is multiplexed by `identCode`.
+
+**Emulator to Gateway:**
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `register` | `terminals[]` (identCode, name, logicalDevice) | Sent on WS connect; declares available remote terminals |
+| `term-output` | `identCode`, `data[]` | Terminal output bytes (batched per frame) |
+| `carrier` | `identCode`, `missing` | Carrier status change |
+
+**Gateway to Emulator:**
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `term-input` | `identCode`, `data[]` | Keyboard input bytes from TCP client |
+| `client-connected` | `identCode`, `clientAddr` | TCP client connected to terminal |
+| `client-disconnected` | `identCode` | TCP client disconnected |
+
+### Gateway Server
+
+**Location**: `tools/nd100-gateway/`
+
+**Files:**
+- `gateway.js` -- Main server (WebSocket + TCP)
+- `gateway.conf.json` -- Default configuration
+- `package.json` -- Dependencies (ws library)
+- `test-gateway.js` -- 14 unit tests
+
+**Configuration** (`gateway.conf.json`):
+
+```json
+{
+  "websocket": { "port": 8765 },
+  "terminals": { "port": 5001, "welcome": "ND-100/CX Terminal Server" },
+  "hdlc": [
+    { "name": "HDLC-0", "port": 5010, "enabled": false },
+    { "name": "HDLC-1", "port": 5011, "enabled": false }
+  ]
+}
+```
+
+**Running:**
+```bash
+make gateway              # Start gateway with default config
+make gateway-test         # Run 14 unit tests
+make wasm-glass-gateway   # Build Glass UI + start gateway + HTTP server
+```
+
+Custom config: `node tools/nd100-gateway/gateway.js --config path/to/config.json`
+
+**TCP Client Flow:**
+1. Client connects to terminal port (default 5001)
+2. Gateway sends welcome banner + numbered terminal menu
+3. Client sends terminal number (e.g., `1` for first terminal)
+4. Gateway binds the TCP socket to that terminal's identCode
+5. Raw byte pass-through from this point
+6. TCP disconnect sends `client-disconnected` to Worker, which sets carrier missing
+
+### Worker Integration
+
+**Output routing** in `emu-worker.js`:
+
+The Worker's `runLoop()` drains the terminal ring buffer after each `Step()` batch. Each output entry's identCode is checked against `_remoteIdentCodes`:
+- **Remote identCode**: Bytes batched into `wsOutBuf[identCode]` and sent over WebSocket once per frame (~60/sec)
+- **Local identCode**: Sent to main thread via `postMessage` as before
+
+The same routing logic applies to `flushRingBuffer()` (used by boot, step, and debugger handlers).
+
+**Input path**: Gateway sends `term-input` JSON over WebSocket. The Worker calls `Module._SendKeyToTerminal(identCode, byte)` for each byte, routing input directly to the WASM terminal device.
+
+### Glass UI Config
+
+The Config window contains a "Network" section (visible only in Worker mode):
+
+| Element | ID | Purpose |
+|---------|----|---------|
+| Toggle | `config-ws-bridge` | Enable/disable WebSocket terminal bridge |
+| URL input | `config-ws-url` | Gateway WebSocket URL |
+| Status | `config-ws-status` | Connection status (Connected/Disconnected) |
+
+The toggle persists to `localStorage` key `nd100x-ws-bridge`. When enabled, the bridge auto-connects on page load after the emulator is ready (polls `emu.isReady()` every 1 second, up to 30 seconds).
+
+### Testing
+
+Two test suites verify the bridge:
+
+| Suite | File | Tests | Command |
+|-------|------|-------|---------|
+| Gateway unit tests | `tools/nd100-gateway/test-gateway.js` | 14 | `make gateway-test` |
+| Browser integration | `test-gateway-browser.js` | 10 | `node test-gateway-browser.js` |
+
+**Gateway unit tests** verify: server start, WebSocket connect/reject, TCP banner, terminal registration, menu selection, byte forwarding (both directions), disconnect handling, reconnection, and menu refresh.
+
+**Browser integration tests** (Puppeteer) verify the full stack: Worker mode page load, Network config visibility, proxy methods, power-on + remote terminal enablement, gateway registration via TCP menu, terminal selection, TCP-to-WASM input, output path, WebSocket status UI, and disconnect handling.
