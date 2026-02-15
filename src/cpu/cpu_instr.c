@@ -1992,7 +1992,8 @@ void DoWAIT(ushort instr)
 		// If the interrupt system is OFF
 		// The ND-110 stops with the program counter (P register) pointing at the instruction after the WAIT and the front panel RUN indicator is turned off.
 		// To restart the system, type ! on the console terminal
-		printf("\r\nWAIT when IONI is off PIL[%d] PC[%6o] PID[0x%4X] PIE[0x%4X] IONI[%d] PONI[%d] STS_HI[%4X] STS_LO[%4X]\r\n", gPIL, gPC, gPID, gPIE, STS_IONI, STS_PONI, gReg->reg_STS, gReg->reg[gPIL][_STS]);
+		printf("\r\nWAIT when IONI is off PIL[%d] PC[%6o] PID[0x%4X] PIE[0x%4X] IONI[%d] PONI[%d] STS_HI[%4X] STS_LO[%4X] A[%6o]\r\n", gPIL, gPC, gPID, gPIE, STS_IONI, STS_PONI, gReg->reg_STS, gReg->reg[gPIL][_STS], gA);
+		gCpuExitCode = (int)(short)gA;
 		set_cpu_run_mode(CPU_STOPPED);		
 		return;
 	}
@@ -2008,6 +2009,17 @@ void DoWAIT(ushort instr)
 	gPID &= temp;			  /* Give up this level */
 
 	gCHKIT = true; // recalc PK (and do a level switch if needed)
+}
+
+/* HALT (emulator extension)
+ * Opcode 0140200 (USER1 slot 0)
+ * Unconditionally stops the emulator.
+ * A register = process exit code.
+ */
+void ndfunc_halt(ushort operand)
+{
+	gCpuExitCode = (int)(short)gA;
+	set_cpu_run_mode(CPU_STOPPED);
 }
 
 /* LWCS (Privileged)
@@ -3381,6 +3393,7 @@ void Setup_Instructions()
 		Instruction_Add(0140137, &ndfunc_eleav); /* ELEAV */
 	}
 	// Instruction_Add(0140200, 0140277, &illegal_instr); /* USER1 (microcode defined by user or illegal instruction otherwise) */
+	Instruction_Add(0140200, &ndfunc_halt); /* HALT - emulator exit, A=exit code */
 
 	switch (CurrentCPUType)
 	{
