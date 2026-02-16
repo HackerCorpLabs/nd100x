@@ -196,6 +196,23 @@
         }
         break;
 
+      // --- WebSocket bridge status ---
+      case 'ws-status':
+        if (typeof window.onWsStatusChange === 'function') {
+          window.onWsStatusChange(msg.connected, msg.error);
+        }
+        break;
+
+      case 'ws-client':
+        if (typeof window.onWsClientChange === 'function') {
+          window.onWsClientChange(msg.action, msg.identCode, msg.clientAddr);
+        }
+        break;
+
+      case 'enableRemoteTerminalsResult':
+        resolveRequest(msg.id, msg);
+        break;
+
       case 'log':
         if (msg.level === 'error') {
           console.error('[Worker]', msg.text);
@@ -511,6 +528,13 @@
     },
     requestSnapshot: function() {
       postCmd('snapshot');
+    },
+
+    // --- WebSocket bridge ---
+    wsConnect: function(url) { postCmd('ws-connect', { url: url }); },
+    wsDisconnect: function() { postCmd('ws-disconnect'); },
+    enableRemoteTerminals: function() {
+      return postRequest('enableRemoteTerminals', {});
     },
 
     // --- Callback registration ---

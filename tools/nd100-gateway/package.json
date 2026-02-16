@@ -1,0 +1,13 @@
+{
+  "name": "nd100-gateway",
+  "version": "1.0.0",
+  "description": "ND-100/CX Terminal Gateway Server - bridges TCP clients to WASM emulator via WebSocket",
+  "main": "gateway.js",
+  "scripts": {
+    "start": "node gateway.js",
+    "test": "node test-gateway.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

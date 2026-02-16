@@ -210,6 +210,14 @@
       return undefined;
     },
 
+    // --- WebSocket bridge (requires Worker mode) ---
+    wsConnect: function(url) { console.warn('WebSocket bridge requires Worker mode'); },
+    wsDisconnect: function() { },
+    enableRemoteTerminals: function() {
+      console.warn('WebSocket bridge requires Worker mode');
+      return Promise.resolve({ count: 0 });
+    },
+
     // --- Mode flag ---
     isWorkerMode: function() { return false; }
   };

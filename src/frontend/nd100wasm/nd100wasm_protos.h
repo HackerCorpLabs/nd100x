@@ -12,6 +12,8 @@ EMSCRIPTEN_EXPORT int GetTerminalIdentCode(int terminalId);
 EMSCRIPTEN_EXPORT const char *GetTerminalName(int terminalId);
 EMSCRIPTEN_EXPORT int GetTerminalLogicalDevice(int terminalId);
 EMSCRIPTEN_EXPORT int SetTerminalCarrier(int flag, int identCode);
+EMSCRIPTEN_EXPORT int EnableRemoteTerminals(void);
+EMSCRIPTEN_EXPORT int GetTerminalCount(void);
 EMSCRIPTEN_EXPORT void Setup(const char *config);
 EMSCRIPTEN_EXPORT void Step(int steps);
 EMSCRIPTEN_EXPORT void Stop(void);

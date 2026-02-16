@@ -393,6 +393,65 @@ EMSCRIPTEN_EXPORT int SetTerminalCarrier(int flag, int identCode)
     return 1;
 }
 
+// Enable remote terminals (thumbwheels 12-19, TERMINAL 12-19)
+// Creates 8 additional terminal devices for remote access via WebSocket gateway.
+// Safe to call multiple times (no-op after first).
+static int remote_terminals_enabled = 0;
+
+EMSCRIPTEN_EXPORT int EnableRemoteTerminals(void)
+{
+    if (!initialized) {
+        printf("Error: System not initialized. Call Init() first.\n");
+        return -1;
+    }
+
+    if (remote_terminals_enabled) {
+        printf("Remote terminals already enabled.\n");
+        return 0;
+    }
+
+    int added = 0;
+    for (uint8_t tw = 12; tw <= 19; tw++) {
+        DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, tw);
+    }
+
+    // Re-scan device manager to populate any new terminal slots
+    int termIdx = 0;
+    int devCount = DeviceManager_GetDeviceCount();
+    for (int i = 0; i < devCount && termIdx < MAX_TERMINALS; i++) {
+        Device *dev = DeviceManager_GetDeviceByIndex(i);
+        if (dev && dev->type == DEVICE_TYPE_TERMINAL) {
+            if (terminals[termIdx] != dev) {
+                // New terminal discovered
+                if (!terminals[termIdx]) added++;
+                terminals[termIdx] = dev;
+            }
+            termIdx++;
+        }
+    }
+
+    // Set output handler on all terminals (includes new ones)
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i]) {
+            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);
+        }
+    }
+
+    remote_terminals_enabled = 1;
+    printf("Remote terminals enabled: %d new terminals added (total %d)\n", added, termIdx);
+    return added;
+}
+
+// Get the count of currently active terminals
+EMSCRIPTEN_EXPORT int GetTerminalCount(void)
+{
+    int count = 0;
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i]) count++;
+    }
+    return count;
+}
+
 // Setup with configuration
 EMSCRIPTEN_EXPORT void Setup(const char* config)
 {

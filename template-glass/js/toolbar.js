@@ -445,6 +445,122 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 
 // =========================================================
+// Config: WebSocket terminal bridge toggle
+// =========================================================
+(function() {
+  var toggle = document.getElementById('config-ws-bridge');
+  var urlRow = document.getElementById('config-ws-url-row');
+  var statusRow = document.getElementById('config-ws-status-row');
+  var urlInput = document.getElementById('config-ws-url');
+  var statusEl = document.getElementById('config-ws-status');
+  var networkTitle = document.getElementById('config-network-title');
+  var bridgeRow = document.getElementById('config-ws-bridge-row');
+  if (!toggle) return;
+
+  // Hide entire Network section if not in Worker mode
+  var isWorker = (typeof USE_WORKER !== 'undefined' && USE_WORKER);
+  if (!isWorker) {
+    if (networkTitle) networkTitle.style.display = 'none';
+    if (bridgeRow) bridgeRow.style.display = 'none';
+    if (urlRow) urlRow.style.display = 'none';
+    if (statusRow) statusRow.style.display = 'none';
+    return;
+  }
+
+  // Initialize from localStorage
+  var savedEnabled = (localStorage.getItem('nd100x-ws-bridge') === 'true');
+  var savedUrl = localStorage.getItem('nd100x-ws-url') || 'ws://localhost:8765';
+  toggle.checked = savedEnabled;
+  if (urlInput) urlInput.value = savedUrl;
+
+  function updateVisibility() {
+    var on = toggle.checked;
+    if (urlRow) urlRow.style.display = on ? 'flex' : 'none';
+    if (statusRow) statusRow.style.display = on ? 'flex' : 'none';
+  }
+  updateVisibility();
+
+  // WebSocket status callback (called from emu-proxy-worker.js)
+  window.onWsStatusChange = function(connected, error) {
+    if (!statusEl) return;
+    if (connected) {
+      statusEl.textContent = 'Connected';
+      statusEl.style.color = 'var(--accent-color, #00c8b4)';
+    } else {
+      statusEl.textContent = error ? ('Error: ' + error) : 'Disconnected';
+      statusEl.style.color = '';
+    }
+  };
+
+  // Client connection callback
+  window.onWsClientChange = function(action, identCode, clientAddr) {
+    if (action === 'connected') {
+      console.log('[Gateway] Client', clientAddr, 'connected to identCode', identCode);
+    } else {
+      console.log('[Gateway] Client disconnected from identCode', identCode);
+    }
+  };
+
+  function connectBridge() {
+    var url = (urlInput && urlInput.value) ? urlInput.value.trim() : 'ws://localhost:8765';
+    localStorage.setItem('nd100x-ws-bridge', 'true');
+    localStorage.setItem('nd100x-ws-url', url);
+    if (statusEl) {
+      statusEl.textContent = 'Connecting...';
+      statusEl.style.color = '';
+    }
+    // Enable remote terminals first, then connect WebSocket
+    emu.enableRemoteTerminals().then(function(result) {
+      console.log('[Gateway] Remote terminals enabled:', result.count);
+      emu.wsConnect(url);
+    });
+  }
+
+  function disconnectBridge() {
+    localStorage.setItem('nd100x-ws-bridge', 'false');
+    emu.wsDisconnect();
+    if (statusEl) {
+      statusEl.textContent = 'Disconnected';
+      statusEl.style.color = '';
+    }
+  }
+
+  toggle.addEventListener('change', function() {
+    updateVisibility();
+    if (toggle.checked) {
+      connectBridge();
+    } else {
+      disconnectBridge();
+    }
+  });
+
+  // URL input: reconnect on Enter
+  if (urlInput) {
+    urlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && toggle.checked) {
+        disconnectBridge();
+        toggle.checked = true;
+        updateVisibility();
+        connectBridge();
+      }
+    });
+  }
+
+  // Auto-connect on page load if previously enabled and emulator is ready
+  if (savedEnabled) {
+    // Wait for emulator to be initialized before connecting
+    var _autoConnectInterval = setInterval(function() {
+      if (typeof emu !== 'undefined' && emu.isReady && emu.isReady()) {
+        clearInterval(_autoConnectInterval);
+        connectBridge();
+      }
+    }, 1000);
+    // Give up after 30 seconds
+    setTimeout(function() { clearInterval(_autoConnectInterval); }, 30000);
+  }
+})();
+
+// =========================================================
 // SINTRAN menu handlers - debug windows
 // =========================================================
 document.getElementById('menu-process-list').addEventListener('click', function() {

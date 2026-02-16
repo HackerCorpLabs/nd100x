@@ -59,7 +59,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-test wasm-glass-gateway
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
@@ -216,9 +216,28 @@ run: debug
 	$(BUILD_DIR)/bin/nd100x --boot=$(BOOT_TYPE) $$IMAGE_ARG --start=$(START_ADDR) $$VERBOSE_ARG $$DEBUGGER_ARG $$DISASM_ARG
 
 
-runv: debug	
+runv: debug
 	@echo "Running with valgrind.."
 	valgrind --leak-check=full  $(BUILD_DIR)/bin/nd100x -d -v
+
+gateway-install:
+	@echo "Installing gateway dependencies..."
+	cd tools/nd100-gateway && npm install
+
+gateway: gateway-install
+	@echo "Starting ND-100 Terminal Gateway..."
+	node tools/nd100-gateway/gateway.js $(GATEWAY_ARGS)
+
+gateway-test: gateway-install
+	@echo "Running gateway tests..."
+	node tools/nd100-gateway/test-gateway.js
+
+wasm-glass-gateway: wasm-glass gateway-install
+	@echo "Starting glassmorphism WASM build + Terminal Gateway..."
+	@echo "Open http://localhost:8000/index.html?worker=1 in your browser."
+	@echo ""
+	node tools/nd100-gateway/gateway.js &
+	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 -m http.server
 
 
 help:
@@ -237,6 +256,10 @@ help:
 	@echo "                  (Requires compiler at /home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin)"
 	@echo "  dap-tools     - Build with DAP tools (dap_debugger and dap_mock_server)"
 	@echo "                  (Requires libdap)"
+	@echo "  gateway-install - Install gateway server dependencies (npm)"
+	@echo "  gateway       - Start the terminal gateway server"
+	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
+	@echo "  wasm-glass-gateway - Build glass UI + start gateway + HTTP server"
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"
