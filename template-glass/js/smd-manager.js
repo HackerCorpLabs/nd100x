@@ -134,18 +134,35 @@ function smdRefreshInstalledList() {
     return;
   }
 
+  // Build reverse map: fileName -> unit number (or -1 if not assigned)
+  var units = smdStorage.getUnitAssignments();
+  var fileToUnit = {};
+  for (var u = 0; u < 4; u++) {
+    if (units[u]) fileToUnit[units[u]] = u;
+  }
+
   var html = '';
   images.forEach(function(img) {
+    var assignedUnit = (fileToUnit[img.fileName] !== undefined) ? fileToUnit[img.fileName] : -1;
     html += '<div class="smd-image-card">';
     html += '<div class="smd-image-info">';
     html += '<span class="smd-image-name">' + escapeHtml(img.fileName) + '</span>';
-    html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; ' + (img.date || '') + '</span>';
+    html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; ' + (img.date || '');
+    if (assignedUnit >= 0) {
+      html += ' &middot; Unit ' + assignedUnit;
+    }
+    html += '</span>';
     html += '</div>';
     html += '<div class="smd-image-actions">';
     html += '<select class="smd-assign-select" data-file="' + escapeHtml(img.fileName) + '" title="Assign to unit">';
-    html += '<option value="">Assign to...</option>';
-    for (var u = 0; u < 4; u++) {
-      html += '<option value="' + u + '">Unit ' + u + '</option>';
+    if (assignedUnit >= 0) {
+      html += '<option value="">Unit ' + assignedUnit + ' (move...)</option>';
+    } else {
+      html += '<option value="">Assign to...</option>';
+    }
+    for (var u2 = 0; u2 < 4; u2++) {
+      if (u2 === assignedUnit) continue;  // Skip current assignment
+      html += '<option value="' + u2 + '">Unit ' + u2 + '</option>';
     }
     html += '</select>';
     html += '<button class="smd-delete-btn" data-file="' + escapeHtml(img.fileName) + '" title="Delete">Del</button>';
@@ -182,6 +199,16 @@ function smdRefreshInstalledList() {
 
 function smdAssignToUnit(fileName, unit) {
   if (unit < 0 || unit > 3) return;
+
+  // If this file is already assigned to another unit, eject it first
+  // (OPFS SyncAccessHandle is exclusive — only one handle per file)
+  var currentUnits = smdStorage.getUnitAssignments();
+  for (var u = 0; u < 4; u++) {
+    if (u !== unit && currentUnits[u] === fileName) {
+      console.log('[SMD Manager] Ejecting ' + fileName + ' from unit ' + u + ' before reassigning to unit ' + unit);
+      smdEjectUnit(u);
+    }
+  }
 
   smdStorage.setUnitAssignment(unit, fileName);
 
@@ -407,6 +434,164 @@ window.addEventListener('beforeunload', function(e) {
     e.returnValue = 'Disk changes are being saved...';
   }
 });
+
+// =========================================================
+// Remote Images (Gateway)
+// =========================================================
+
+var _gatewayDiskList = null;      // { smd: [...], floppy: [...] }
+var _gatewayMountedUnits = {};    // 'smd-0' -> true, 'floppy-0' -> true
+
+// Called by proxy when disk-list arrives from gateway sub-worker
+window.onDiskList = function(data) {
+  _gatewayDiskList = data;
+  smdRefreshRemoteList();
+};
+
+window.onDiskConnected = function() {
+  console.log('[SMD Manager] Gateway disk I/O connected');
+};
+
+window.onDiskDisconnected = function() {
+  console.log('[SMD Manager] Gateway disk I/O disconnected');
+  _gatewayDiskList = null;
+  _gatewayMountedUnits = {};
+  smdRefreshRemoteList();
+};
+
+function smdRefreshRemoteList() {
+  var container = document.getElementById('smd-remote-list');
+  if (!container) return;
+
+  if (!_gatewayDiskList) {
+    container.innerHTML = '<div class="smd-empty-msg">No gateway connection. Connect via Network settings to access remote disk images.</div>';
+    return;
+  }
+
+  var smdImages = _gatewayDiskList.smd || [];
+  var floppyImages = _gatewayDiskList.floppy || [];
+
+  if (smdImages.length === 0 && floppyImages.length === 0) {
+    container.innerHTML = '<div class="smd-empty-msg">No disk images configured on gateway server.</div>';
+    return;
+  }
+
+  var html = '';
+
+  if (smdImages.length > 0) {
+    html += '<div class="smd-remote-section-title">SMD Images</div>';
+    smdImages.forEach(function(img) {
+      var key = 'smd-' + img.unit;
+      var mounted = _gatewayMountedUnits[key];
+      html += '<div class="smd-image-card">';
+      html += '<div class="smd-image-info">';
+      html += '<span class="smd-image-name">' + escapeHtml(img.name) + '</span>';
+      html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; Gateway unit ' + img.unit + '</span>';
+      html += '</div>';
+      html += '<div class="smd-image-actions">';
+      if (mounted) {
+        html += '<span class="smd-badge-gateway">Gateway</span>';
+        html += '<button class="smd-eject-remote-btn" data-type="smd" data-unit="' + img.unit + '">Eject</button>';
+      } else {
+        html += '<select class="smd-assign-remote-select" data-type="smd" data-remote-unit="' + img.unit + '" data-size="' + img.size + '" title="Mount to unit">';
+        html += '<option value="">Mount to...</option>';
+        for (var u = 0; u < 4; u++) {
+          html += '<option value="' + u + '">Unit ' + u + '</option>';
+        }
+        html += '</select>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+  }
+
+  if (floppyImages.length > 0) {
+    html += '<div class="smd-remote-section-title">Floppy Images</div>';
+    floppyImages.forEach(function(img) {
+      var key = 'floppy-' + img.unit;
+      var mounted = _gatewayMountedUnits[key];
+      html += '<div class="smd-image-card">';
+      html += '<div class="smd-image-info">';
+      html += '<span class="smd-image-name">' + escapeHtml(img.name) + '</span>';
+      html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; Gateway unit ' + img.unit + '</span>';
+      html += '</div>';
+      html += '<div class="smd-image-actions">';
+      if (mounted) {
+        html += '<span class="smd-badge-gateway">Gateway</span>';
+        html += '<button class="smd-eject-remote-btn" data-type="floppy" data-unit="' + img.unit + '">Eject</button>';
+      } else {
+        html += '<button class="smd-mount-remote-btn" data-type="floppy" data-remote-unit="' + img.unit + '" data-size="' + img.size + '">Mount</button>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+  }
+
+  container.innerHTML = html;
+
+  // Wire up mount dropdowns for SMD
+  container.querySelectorAll('.smd-assign-remote-select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      if (this.value !== '') {
+        var localUnit = parseInt(this.value);
+        var remoteUnit = parseInt(this.getAttribute('data-remote-unit'));
+        var size = parseInt(this.getAttribute('data-size'));
+        var driveType = this.getAttribute('data-type');
+        smdMountRemote(driveType, remoteUnit, localUnit, size);
+        this.value = '';
+      }
+    });
+  });
+
+  // Wire up mount buttons for floppy
+  container.querySelectorAll('.smd-mount-remote-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var remoteUnit = parseInt(this.getAttribute('data-remote-unit'));
+      var size = parseInt(this.getAttribute('data-size'));
+      smdMountRemote('floppy', remoteUnit, 0, size);
+    });
+  });
+
+  // Wire up eject buttons
+  container.querySelectorAll('.smd-eject-remote-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var driveType = this.getAttribute('data-type');
+      var unit = parseInt(this.getAttribute('data-unit'));
+      smdEjectRemote(driveType, unit);
+    });
+  });
+}
+
+function smdMountRemote(driveType, remoteUnit, localUnit, imageSize) {
+  if (!emu || !emu.isWorkerMode || !emu.isWorkerMode()) {
+    console.warn('[SMD Manager] Gateway disk mounting requires Worker mode');
+    return;
+  }
+
+  var key = driveType + '-' + remoteUnit;
+  var mountFn = (driveType === 'smd') ? emu.gatewayMountSMD : emu.gatewayMountFloppy;
+
+  mountFn(localUnit, imageSize).then(function(r) {
+    if (r.ok) {
+      _gatewayMountedUnits[key] = true;
+      console.log('[SMD Manager] Gateway ' + driveType + ' unit ' + remoteUnit + ' mounted to local unit ' + localUnit);
+    } else {
+      console.error('[SMD Manager] Gateway mount failed for ' + driveType + ' unit ' + remoteUnit);
+    }
+    smdRefreshRemoteList();
+    smdRefreshUnitDisplay();
+  });
+}
+
+function smdEjectRemote(driveType, unit) {
+  var key = driveType + '-' + unit;
+  var unmountFn = (driveType === 'smd') ? emu.gatewayUnmountSMD : emu.gatewayUnmountFloppy;
+
+  unmountFn(unit);
+  delete _gatewayMountedUnits[key];
+  smdRefreshRemoteList();
+  smdRefreshUnitDisplay();
+}
 
 // Expose for toolbar.js
 window.smdManagerShow = smdManagerShow;
