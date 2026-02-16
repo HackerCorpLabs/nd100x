@@ -205,6 +205,17 @@ var smdStorage = (function() {
   function setUnitAssignment(unit, fileName) {
     if (unit < 0 || unit > 3) return;
     var units = getUnitAssignments();
+
+    // Prevent assigning the same file to multiple units (OPFS SyncAccessHandle is exclusive)
+    if (fileName) {
+      for (var u = 0; u < 4; u++) {
+        if (u !== unit && units[u] === fileName) {
+          console.warn('[SMD Storage] ' + fileName + ' already assigned to unit ' + u + ', clearing it first');
+          units[u] = null;
+        }
+      }
+    }
+
     units[unit] = fileName;
     try {
       localStorage.setItem(UNITS_KEY, JSON.stringify(units));

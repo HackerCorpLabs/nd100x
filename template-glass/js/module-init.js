@@ -358,9 +358,17 @@ function loadDiskImagesPersistent() {
 function mountPersistentUnits() {
   var units = smdStorage.getUnitAssignments();
   var promises = [];
+  var mountedFiles = {};  // Track files already opened (OPFS allows only one SyncAccessHandle per file)
 
   for (var u = 0; u < 4; u++) {
     if (!units[u]) continue;
+
+    // Skip duplicate file assignments - OPFS SyncAccessHandle is exclusive per file
+    if (mountedFiles[units[u]]) {
+      console.warn('[Persist] Unit ' + u + ' skipped: ' + units[u] + ' already mounted on unit ' + mountedFiles[units[u]]);
+      continue;
+    }
+    mountedFiles[units[u]] = u;
 
     (function(unit, fileName) {
       if (emu.isWorkerMode()) {
