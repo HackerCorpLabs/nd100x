@@ -59,7 +59,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-test wasm-glass-gateway
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
@@ -228,6 +228,8 @@ gateway: gateway-install
 	@echo "Starting ND-100 Terminal Gateway..."
 	node tools/nd100-gateway/gateway.js $(GATEWAY_ARGS)
 
+gateway-run: gateway
+
 gateway-test: gateway-install
 	@echo "Running gateway tests..."
 	node tools/nd100-gateway/test-gateway.js
@@ -258,6 +260,7 @@ help:
 	@echo "                  (Requires libdap)"
 	@echo "  gateway-install - Install gateway server dependencies (npm)"
 	@echo "  gateway       - Start the terminal gateway server"
+	@echo "  gateway-run   - Start the terminal gateway server (alias)"
 	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
 	@echo "  wasm-glass-gateway - Build glass UI + start gateway + HTTP server"
 	@echo "  clean         - Remove build directories"
