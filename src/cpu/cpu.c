@@ -89,6 +89,7 @@ struct CpuRegs *gReg = NULL;
 uint64_t  instr_counter = 0;
 ushort STARTADDR = 0;
 int DISASM = 0;
+int gCpuExitCode = 0;
 
 
 

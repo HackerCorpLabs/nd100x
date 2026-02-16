@@ -78,6 +78,8 @@ function wsConnect(url) {
     return;
   }
 
+  _ws.binaryType = 'arraybuffer';
+
   _ws.onopen = function() {
     postMessage({ type: 'ws-status', connected: true, error: null });
     // Send register message with remote terminal list
@@ -87,19 +89,25 @@ function wsConnect(url) {
   };
 
   _ws.onmessage = function(ev) {
+    // Binary frame: [type:1][identCode:1][data:N]
+    // Type 0x01 = term-input
+    if (ev.data instanceof ArrayBuffer) {
+      var buf = new Uint8Array(ev.data);
+      if (buf.length >= 2 && buf[0] === 0x01) {
+        // term-input (binary)
+        var identCode = buf[1];
+        for (var i = 2; i < buf.length; i++) {
+          Module._SendKeyToTerminal(identCode, buf[i]);
+        }
+      }
+      return;
+    }
+
+    // JSON text frame (control messages only)
     var msg;
     try { msg = JSON.parse(ev.data); } catch(e) { return; }
 
     switch (msg.type) {
-      case 'term-input': {
-        // Forward each byte to the terminal device
-        if (msg.data && msg.data.length > 0) {
-          for (var i = 0; i < msg.data.length; i++) {
-            Module._SendKeyToTerminal(msg.identCode, msg.data[i]);
-          }
-        }
-        break;
-      }
       case 'client-connected': {
         // Restore carrier on this terminal
         Module._SetTerminalCarrier(0, msg.identCode);
@@ -175,14 +183,17 @@ function flushRingBuffer() {
       output.push(entry);  // packed: (identCode << 8) | charCode
     }
   }
-  // Send remote output over WebSocket
+  // Send remote output over WebSocket as binary
   if (_ws && _ws.readyState === 1) {
     for (var rid in wsOutBuf) {
-      _ws.send(JSON.stringify({
-        type: 'term-output',
-        identCode: parseInt(rid),
-        data: wsOutBuf[rid]
-      }));
+      var bytes = wsOutBuf[rid];
+      var frame = new Uint8Array(2 + bytes.length);
+      frame[0] = 0x02;  // term-output
+      frame[1] = parseInt(rid) & 0xFF;
+      for (var bi = 0; bi < bytes.length; bi++) {
+        frame[2 + bi] = bytes[bi];
+      }
+      _ws.send(frame.buffer);
     }
   }
   return output;
@@ -291,14 +302,18 @@ function runLoop() {
     if (performance.now() - frameStart >= FRAME_INTERVAL_MS) break;
   }
 
-  // Send batched remote terminal output over WebSocket (once per frame)
+  // Send batched remote terminal output over WebSocket as binary (once per frame)
+  // Binary format: [0x02][identCode][data bytes...]
   if (_ws && _ws.readyState === 1) {
     for (var rid in wsOutBuf) {
-      _ws.send(JSON.stringify({
-        type: 'term-output',
-        identCode: parseInt(rid),
-        data: wsOutBuf[rid]
-      }));
+      var bytes = wsOutBuf[rid];
+      var frame = new Uint8Array(2 + bytes.length);
+      frame[0] = 0x02;  // term-output
+      frame[1] = parseInt(rid) & 0xFF;
+      for (var bi = 0; bi < bytes.length; bi++) {
+        frame[2 + bi] = bytes[bi];
+      }
+      _ws.send(frame.buffer);
     }
   }
 

@@ -93,7 +93,23 @@ wss.on('connection', function(ws, req) {
   emulatorWs = ws;
   log('Emulator connected from', clientIp);
 
-  ws.on('message', function(data) {
+  ws.on('message', function(data, isBinary) {
+    // Binary frame: [type:1][identCode:1][data:N]
+    // Type 0x02 = term-output
+    if (isBinary) {
+      var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      if (buf.length >= 2 && buf[0] === 0x02) {
+        // term-output (binary)
+        var identCode = buf[1];
+        var binding = tcpBindings.get(identCode);
+        if (binding && binding.socket && !binding.socket.destroyed) {
+          binding.socket.write(buf.slice(2));
+        }
+      }
+      return;
+    }
+
+    // JSON text frame (control messages)
     let msg;
     try {
       msg = JSON.parse(data);
@@ -110,15 +126,6 @@ wss.on('connection', function(ws, req) {
         for (const t of registeredTerminals) {
           log('  identCode=' + t.identCode, t.name,
               '(logical device ' + t.logicalDevice + ')');
-        }
-        break;
-      }
-
-      case 'term-output': {
-        const binding = tcpBindings.get(msg.identCode);
-        if (binding && binding.socket && !binding.socket.destroyed) {
-          // Write raw bytes to TCP client
-          binding.socket.write(Buffer.from(msg.data));
         }
         break;
       }
@@ -160,11 +167,29 @@ wss.on('error', function(err) {
 });
 
 // =========================================================
-// Helper: send JSON to emulator
+// Helper: send JSON control message to emulator
 // =========================================================
 function sendToEmulator(msg) {
   if (emulatorWs && emulatorWs.readyState === 1) {
     emulatorWs.send(JSON.stringify(msg));
+    return true;
+  }
+  return false;
+}
+
+// =========================================================
+// Helper: send binary term-input to emulator
+// Format: [0x01][identCode][data bytes...]
+// =========================================================
+function sendTermInput(identCode, bytes) {
+  if (emulatorWs && emulatorWs.readyState === 1) {
+    var frame = Buffer.alloc(2 + bytes.length);
+    frame[0] = 0x01;  // term-input
+    frame[1] = identCode & 0xFF;
+    for (var i = 0; i < bytes.length; i++) {
+      frame[2 + i] = bytes[i];
+    }
+    emulatorWs.send(frame);
     return true;
   }
   return false;
@@ -309,11 +334,7 @@ const tcpServer = net.createServer(function(socket) {
       if (bytes.length > 0) {
         vlog('TCP->WS term-input identCode=' + boundIdentCode +
             ' bytes=[' + bytes.map(b => '0x' + b.toString(16)).join(',') + ']');
-        sendToEmulator({
-          type: 'term-input',
-          identCode: boundIdentCode,
-          data: bytes
-        });
+        sendTermInput(boundIdentCode, bytes);
       }
     }
   });

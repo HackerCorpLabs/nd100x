@@ -464,6 +464,7 @@ extern CpuType CurrentCPUType;
 extern uint64_t  instr_counter ;
 extern ushort STARTADDR;
 extern int DISASM;
+extern int gCpuExitCode;
 
 
 

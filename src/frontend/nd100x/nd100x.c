@@ -297,6 +297,6 @@ int main(int argc, char *argv[])
 	dump_stats();
 	cleanup();
 
-	// exit
-	return(0);
+	// exit with A register value from WAIT instruction
+	return(gCpuExitCode);
 }
