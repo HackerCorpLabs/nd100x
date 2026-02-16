@@ -56,6 +56,65 @@ var Module = {
 importScripts('../nd100wasm.js');
 
 // =========================================================
+// OPFS SyncAccessHandle pool for persistent SMD block I/O
+// =========================================================
+var _opfsHandles = [null, null, null, null];  // SyncAccessHandle per SMD unit
+var _opfsReady = [false, false, false, false];
+
+// Open OPFS file for a unit using SyncAccessHandle (synchronous I/O in Worker)
+async function opfsOpenUnit(unit, fileName) {
+  if (unit < 0 || unit > 3) return false;
+  try {
+    var root = await navigator.storage.getDirectory();
+    var dir = await root.getDirectoryHandle('smd-images', { create: false });
+    var fileHandle = await dir.getFileHandle(fileName);
+    var accessHandle = await fileHandle.createSyncAccessHandle();
+    _opfsHandles[unit] = accessHandle;
+    _opfsReady[unit] = true;
+    postMessage({ type: 'log', level: 'info', text: '[OPFS] Unit ' + unit + ' opened: ' + fileName + ' (' + accessHandle.getSize() + ' bytes)' });
+    return true;
+  } catch (e) {
+    postMessage({ type: 'log', level: 'error', text: '[OPFS] Failed to open unit ' + unit + ': ' + e.message });
+    _opfsHandles[unit] = null;
+    _opfsReady[unit] = false;
+    return false;
+  }
+}
+
+function opfsCloseUnit(unit) {
+  if (unit < 0 || unit > 3) return;
+  if (_opfsHandles[unit]) {
+    try {
+      _opfsHandles[unit].flush();
+      _opfsHandles[unit].close();
+    } catch (e) {}
+    _opfsHandles[unit] = null;
+    _opfsReady[unit] = false;
+  }
+}
+
+// Synchronous block read from OPFS (called from C via EM_JS -> opfsBlockRead)
+function opfsBlockRead(unit, wasmPtr, bytes, offset) {
+  if (!_opfsReady[unit] || !_opfsHandles[unit]) return -1;
+  var dest = new Uint8Array(Module.HEAPU8.buffer, wasmPtr, bytes);
+  var read = _opfsHandles[unit].read(dest, { at: offset });
+  return read;
+}
+
+// Synchronous block write to OPFS (called from C via EM_JS -> opfsBlockWrite)
+function opfsBlockWrite(unit, wasmPtr, bytes, offset) {
+  if (!_opfsReady[unit] || !_opfsHandles[unit]) return -1;
+  var src = new Uint8Array(Module.HEAPU8.buffer, wasmPtr, bytes);
+  var written = _opfsHandles[unit].write(src, { at: offset });
+  return written;
+}
+
+// Check if OPFS is available for a unit
+function opfsIsAvailable(unit) {
+  return _opfsReady[unit] ? 1 : 0;
+}
+
+// =========================================================
 // WebSocket bridge state (remote terminal gateway)
 // =========================================================
 var _ws = null;              // WebSocket connection to gateway
@@ -695,6 +754,28 @@ onmessage = function(e) {
 
     case 'unmountSMD': {
       Module._UnmountSMD(msg.unit);
+      break;
+    }
+
+    // --- OPFS persistent storage ---
+    case 'opfsMountSMD': {
+      // Open OPFS SyncAccessHandle and mount in C as OPFS drive
+      opfsOpenUnit(msg.unit, msg.fileName).then(function(ok) {
+        if (ok) {
+          var size = _opfsHandles[msg.unit].getSize();
+          Module._MountSMDFromOPFS(msg.unit, size);
+          postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: true, size: size });
+        } else {
+          postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: false, size: 0 });
+        }
+      });
+      break;
+    }
+
+    case 'opfsUnmountSMD': {
+      opfsCloseUnit(msg.unit);
+      Module._UnmountSMD(msg.unit);
+      postMessage({ type: 'fsResult', id: msg.id, result: 0 });
       break;
     }
 

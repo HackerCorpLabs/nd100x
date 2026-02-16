@@ -294,6 +294,15 @@ function startEmulation(bootDevice) {
   resetCpuLoad();
   terminals[activeTerminalId].term.writeln('\r\nBooting from ' + (bootDevice || 'unknown'));
 
+  // Mark SMD units dirty for Direct mode auto-save (Worker persists immediately)
+  if (typeof isSmdPersistenceEnabled === 'function' && isSmdPersistenceEnabled() &&
+      typeof smdStorage !== 'undefined' && emu && !emu.isWorkerMode()) {
+    var units = smdStorage.getUnitAssignments();
+    for (var u = 0; u < 4; u++) {
+      if (units[u]) smdStorage.markDirty(u);
+    }
+  }
+
   if (!hasEverStartedEmulation) {
     showLoadingOverlay();
   } else {
@@ -330,6 +339,15 @@ function stopEmulation() {
 
   if (loadingOverlayVisible) {
     hideLoadingOverlay();
+  }
+
+  // Auto-save dirty SMD units to OPFS (Direct mode only)
+  if (typeof isSmdPersistenceEnabled === 'function' && isSmdPersistenceEnabled() &&
+      typeof smdStorage !== 'undefined' && emu && !emu.isWorkerMode()) {
+    var dirtyUnits = smdStorage.getDirtyUnits();
+    dirtyUnits.forEach(function(unit) {
+      if (typeof smdSaveUnit === 'function') smdSaveUnit(unit);
+    });
   }
 }
 

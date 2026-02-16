@@ -213,6 +213,10 @@
         resolveRequest(msg.id, msg);
         break;
 
+      case 'opfsMountResult':
+        resolveRequest(msg.id, msg);
+        break;
+
       case 'log':
         if (msg.level === 'error') {
           console.error('[Worker]', msg.text);
@@ -529,6 +533,21 @@
     requestSnapshot: function() {
       postCmd('snapshot');
     },
+
+    // --- OPFS persistent storage ---
+    opfsMountSMD: function(unit, fileName) {
+      return postRequest('opfsMountSMD', { unit: unit, fileName: fileName });
+    },
+    opfsUnmountSMD: function(unit) {
+      return postRequest('opfsUnmountSMD', { unit: unit });
+    },
+    mountSMDFromBuffer: function(unit, data) {
+      // Not used in Worker mode - Worker uses OPFS directly
+      console.warn('mountSMDFromBuffer not applicable in Worker mode');
+      return Promise.reject(new Error('Use opfsMountSMD in Worker mode'));
+    },
+    getSMDBuffer: function(unit) { return 0; },
+    getSMDBufferSize: function(unit) { return 0; },
 
     // --- WebSocket bridge ---
     wsConnect: function(url) { postCmd('ws-connect', { url: url }); },

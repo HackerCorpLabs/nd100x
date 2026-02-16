@@ -25,6 +25,10 @@
 #include <stdio.h>
 #include <errno.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "machine_types.h"
 #include "machine_protos.h"
 
@@ -566,7 +570,10 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
            unit);
     
     // Clean up data based on type
-    if (drives[unit].is_remote) {
+    if (drives[unit].is_opfs) {
+        // OPFS drives have no FILE* or malloc'd data - nothing to free
+        drives[unit].data.local_file = NULL;
+    } else if (drives[unit].is_remote) {
         // Free downloaded remote data
         if (drives[unit].data.remote_data) {
             free(drives[unit].data.remote_data);
@@ -579,9 +586,10 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
             drives[unit].data.local_file = NULL;
         }
     }
-    
+
     // Clear the drive entry
     drives[unit].is_mounted = false;
+    drives[unit].is_opfs = false;
     drives[unit].md5[0] = '\0';
     drives[unit].name[0] = '\0';
     drives[unit].description[0] = '\0';
@@ -602,6 +610,76 @@ MountedDriveInfo_t* list_mount(DRIVE_TYPE drive_type) {
     }
 }
 
+#ifdef __EMSCRIPTEN__
+/* OPFS block I/O via JavaScript.
+ * In Worker mode, JS calls SyncAccessHandle.read/write directly.
+ * In Direct mode, JS reads/writes an in-memory ArrayBuffer.
+ * These EM_JS functions call into the global opfsBlockRead/Write
+ * which are set up by emu-worker.js or emu-proxy.js.
+ */
+EM_JS(int, opfs_block_read_js, (int unit, uint8_t *buffer, int bytes, int offset), {
+    if (typeof opfsBlockRead === 'function') {
+        return opfsBlockRead(unit, buffer, bytes, offset);
+    }
+    return -1;
+});
+
+EM_JS(int, opfs_block_write_js, (int unit, const uint8_t *buffer, int bytes, int offset), {
+    if (typeof opfsBlockWrite === 'function') {
+        return opfsBlockWrite(unit, buffer, bytes, offset);
+    }
+    return -1;
+});
+
+EM_JS(int, opfs_is_available_js, (int unit), {
+    if (typeof opfsIsAvailable === 'function') {
+        return opfsIsAvailable(unit);
+    }
+    return 0;
+});
+#endif
+
+/* Mount an SMD drive for OPFS mode (no FILE* needed).
+ * The actual I/O goes through JS opfsBlockRead/Write. */
+void mount_drive_opfs(DRIVE_TYPE drive_type, int unit, const char *name,
+                      const char *description, size_t imageSize) {
+    MountedDriveInfo_t* drives = NULL;
+    int max_units = 0;
+
+    if (drive_type == DRIVE_SMD) {
+        drives = smd_drives;
+        max_units = 4;
+    } else if (drive_type == DRIVE_FLOPPY) {
+        drives = floppy_drives;
+        max_units = 3;
+    } else {
+        return;
+    }
+
+    if (unit < 0 || unit >= max_units) return;
+
+    if (!drives) {
+        init_drive_arrays();
+        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        if (!drives) return;
+    }
+
+    drives[unit].is_mounted = true;
+    drives[unit].is_remote = false;
+    drives[unit].is_opfs = true;
+    drives[unit].is_writeprotected = false;
+    drives[unit].data.local_file = NULL;
+    drives[unit].data_size = imageSize;
+    drives[unit].block_size = (drive_type == DRIVE_SMD) ? 1024 : 512;
+
+    strncpy(drives[unit].md5, "opfs", sizeof(drives[unit].md5) - 1);
+    strncpy(drives[unit].name, name, sizeof(drives[unit].name) - 1);
+    drives[unit].name[sizeof(drives[unit].name) - 1] = '\0';
+    strncpy(drives[unit].description, description, sizeof(drives[unit].description) - 1);
+    drives[unit].description[sizeof(drives[unit].description) - 1] = '\0';
+    drives[unit].image_path[0] = '\0';
+}
+
 // Callback-based block READ for block devices
 int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
@@ -615,7 +693,18 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
     size_t offset = (size_t)blockAddress * device->blockSizeBytes;
 
     MountedDriveInfo_t *entry = &drives[unit];
-    if (!entry->is_mounted) return -1; // not mounted    
+    if (!entry->is_mounted) return -1; // not mounted
+
+#ifdef __EMSCRIPTEN__
+    if (entry->is_opfs && opfs_is_available_js(unit)) {
+        int rc = opfs_block_read_js(unit, buffer, (int)bytes, (int)offset);
+        if (rc < 0) return -1;
+        if ((size_t)rc < bytes) {
+            memset(buffer + rc, 0, bytes - rc);
+        }
+        return (int)size;
+    }
+#endif
 
     if (entry->is_remote) {
         if (!entry->data.remote_data) return -1;
@@ -652,7 +741,14 @@ int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint
     size_t offset = (size_t)blockAddress * device->blockSizeBytes;
 
     MountedDriveInfo_t *entry = &drives[unit];
-    if (!entry->is_mounted) return -1; // not mounted        
+    if (!entry->is_mounted) return -1; // not mounted
+
+#ifdef __EMSCRIPTEN__
+    if (entry->is_opfs && opfs_is_available_js(unit)) {
+        int rc = opfs_block_write_js(unit, buffer, (int)bytes, (int)offset);
+        return (rc >= 0) ? (int)size : -1;
+    }
+#endif
 
     if (entry->is_remote) {
         // For remote images in-memory, allow write if buffer exists and fits
@@ -686,9 +782,9 @@ int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_p
 
     *image_size = entry->data_size;
 
-    // Remote files are always NOT write protected (as they are buffered in memory)
+    // OPFS and remote files are always NOT write protected
     // Local files are write protected if we dont have access to write to the file
-    if (entry->is_remote) {
+    if (entry->is_opfs || entry->is_remote) {
         *is_write_protected = false;
     }
     else {
