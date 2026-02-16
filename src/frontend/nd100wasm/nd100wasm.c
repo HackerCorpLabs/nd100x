@@ -382,6 +382,12 @@ EMSCRIPTEN_EXPORT int SetTerminalCarrier(int flag, int identCode)
         data->inputStatus.bits.carrierMissing = 1;
         // Enqueue a space so SINTRAN will poll the status and notice carrier loss
         Terminal_QueueKeyCode(terminal, ' ');
+        // Force an interrupt so SINTRAN wakes up and reads the status register
+        if (data->inputStatus.bits.interruptEnabled) {
+            data->inputStatus.bits.deviceReadyForTransfer = true;
+            data->uartInputBuf = ' ';
+            Device_SetInterruptStatus(terminal, true, 12);
+        }
         printf("Terminal %d: carrier missing\n", identCode);
     } else {
         // Carrier present - terminal window reopened

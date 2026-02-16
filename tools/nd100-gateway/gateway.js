@@ -193,7 +193,8 @@ function buildMenu() {
     const status = inUse ? ' [in use]' : '';
     text += '  ' + num + '. ' + t.name + status + '\r\n';
   }
-  text += '\r\n  Select terminal (1-' + registeredTerminals.length + '): ';
+  text += '\r\n   0. Disconnect\r\n';
+  text += '\r\n  Select terminal (1-' + registeredTerminals.length + ', 0=quit): ';
   return text;
 }
 
@@ -238,6 +239,11 @@ const tcpServer = net.createServer(function(socket) {
       }
 
       const choice = parseInt(line, 10);
+      if (choice === 0) {
+        socket.write('\r\n  Goodbye.\r\n');
+        socket.end();
+        return;
+      }
       if (isNaN(choice) || choice < 1 || choice > registeredTerminals.length) {
         socket.write('\r\n  Invalid selection. Try again.\r\n');
         socket.write(buildMenu());
@@ -271,6 +277,14 @@ const tcpServer = net.createServer(function(socket) {
 
       socket.write('\r\n  Connected to ' + terminal.name + '\r\n\r\n');
 
+      // Send telnet negotiation: character mode, no local echo
+      // IAC WILL ECHO (I'll echo, you don't), IAC WILL SGA, IAC DO SGA
+      socket.write(Buffer.from([
+        255, 251, 1,   // IAC WILL ECHO
+        255, 251, 3,   // IAC WILL SUPPRESS-GO-AHEAD
+        255, 253, 3    // IAC DO SUPPRESS-GO-AHEAD
+      ]));
+
       // Notify emulator
       sendToEmulator({
         type: 'client-connected',
@@ -280,12 +294,27 @@ const tcpServer = net.createServer(function(socket) {
 
     } else {
       // Connected mode: forward raw bytes as term-input
-      const bytes = Array.from(data);
-      sendToEmulator({
-        type: 'term-input',
-        identCode: boundIdentCode,
-        data: bytes
-      });
+      // Strip telnet IAC sequences (0xFF followed by command + option bytes)
+      const raw = Array.from(data);
+      const bytes = [];
+      for (let i = 0; i < raw.length; i++) {
+        if (raw[i] === 255 && i + 2 < raw.length) {
+          // IAC + command + option: skip 3 bytes
+          vlog('Telnet IAC:', raw[i], raw[i+1], raw[i+2]);
+          i += 2;
+        } else {
+          bytes.push(raw[i]);
+        }
+      }
+      if (bytes.length > 0) {
+        vlog('TCP->WS term-input identCode=' + boundIdentCode +
+            ' bytes=[' + bytes.map(b => '0x' + b.toString(16)).join(',') + ']');
+        sendToEmulator({
+          type: 'term-input',
+          identCode: boundIdentCode,
+          data: bytes
+        });
+      }
     }
   });
 
