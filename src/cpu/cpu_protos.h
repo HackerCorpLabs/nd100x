@@ -132,6 +132,7 @@ void DoMST(ushort instr);
 void DoTRA(ushort instr);
 void DoEXR(ushort instr);
 void DoWAIT(ushort instr);
+void ndfunc_halt(ushort operand);
 void ndfunc_lwcs(ushort instr);
 void DoTRR(ushort instr);
 void DoSRB(ushort operand);
