@@ -308,6 +308,16 @@ document.getElementById('menu-floppy-library').addEventListener('click', functio
   document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
 });
 
+document.getElementById('menu-smd-manager').addEventListener('click', function() {
+  var smdWin = document.getElementById('smd-manager-window');
+  if (smdWin.style.display === 'none' || smdWin.style.display === '') {
+    if (typeof smdManagerShow === 'function') smdManagerShow();
+  } else {
+    if (typeof smdManagerHide === 'function') smdManagerHide();
+  }
+  document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+});
+
 document.getElementById('menu-debugger').addEventListener('click', function() {
   var dbgWin = document.getElementById('debugger-window');
   if (dbgWin.style.display === 'none' || dbgWin.style.display === '') {
@@ -386,6 +396,54 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// =========================================================
+// SMD Manager window close + event wiring
+// =========================================================
+document.getElementById('smd-manager-close').addEventListener('click', function() {
+  if (typeof smdManagerHide === 'function') smdManagerHide();
+});
+
+// Persistence toggle
+(function() {
+  var toggle = document.getElementById('smd-persist-toggle');
+  if (toggle) {
+    toggle.addEventListener('change', function() {
+      if (typeof smdHandlePersistToggle === 'function') {
+        smdHandlePersistToggle(toggle.checked);
+      }
+    });
+  }
+})();
+
+// Boot unit selector
+(function() {
+  var bootSelect = document.getElementById('smd-boot-select');
+  if (bootSelect) {
+    bootSelect.addEventListener('change', function() {
+      if (typeof smdStorage !== 'undefined') {
+        smdStorage.setBootUnit(parseInt(bootSelect.value));
+        if (typeof smdRefreshUnitDisplay === 'function') smdRefreshUnitDisplay();
+      }
+    });
+  }
+})();
+
+// Import / Download buttons
+(function() {
+  var importBtn = document.getElementById('smd-import-btn');
+  if (importBtn) {
+    importBtn.addEventListener('click', function() {
+      if (typeof smdImportFromFile === 'function') smdImportFromFile();
+    });
+  }
+  var downloadBtn = document.getElementById('smd-download-btn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', function() {
+      if (typeof smdDownloadFromCatalog === 'function') smdDownloadFromCatalog();
+    });
+  }
+})();
 
 // =========================================================
 // Config: Float terminals toggle
@@ -1059,6 +1117,10 @@ document.getElementById('color-theme-select').addEventListener('change', functio
   var configHeader = document.getElementById('config-window-header');
   if (configWin && configHeader) makeDraggable(configWin, configHeader, 'config-pos');
 
+  var smdWin = document.getElementById('smd-manager-window');
+  var smdHeader = document.getElementById('smd-manager-header');
+  if (smdWin && smdHeader) makeDraggable(smdWin, smdHeader, 'smd-manager-pos');
+
   // Debugger has its own drag logic but register its storage key for the global helpers
   windowStorageKeys['debugger-window'] = 'dbg-pos';
 })();
@@ -1228,6 +1290,11 @@ makeResizable(
   document.getElementById('cpu-load-window-resize'),
   'cpu-load-size', 240, 140
 );
+makeResizable(
+  document.getElementById('smd-manager-window'),
+  document.getElementById('smd-manager-resize'),
+  'smd-manager-size', 350, 300
+);
 
 // =========================================================
 // Register all windows with the window manager
@@ -1248,6 +1315,7 @@ windowManager.register('segment-table-window', 'Segments');
 windowManager.register('io-devices-window', 'I/O Devices');
 windowManager.register('page-table-window', 'Page Tables');
 windowManager.register('config-window', 'Config');
+windowManager.register('smd-manager-window', 'SMD Manager');
 
 // Restore window visibility from localStorage
 (function() {

@@ -210,6 +210,27 @@
       return undefined;
     },
 
+    // --- OPFS persistent storage (Direct mode: buffer-based) ---
+    opfsMountSMD: function(unit, fileName) {
+      // In Direct mode, we cannot use SyncAccessHandle. Reject so caller falls back.
+      return Promise.reject(new Error('OPFS SyncAccessHandle not available in Direct mode'));
+    },
+    opfsUnmountSMD: function(unit) {
+      Module._UnmountSMD(unit);
+    },
+    mountSMDFromBuffer: function(unit, data) {
+      // Copy data into WASM heap and call MountSMDFromBuffer
+      var ptr = Module._malloc(data.byteLength);
+      Module.HEAPU8.set(data instanceof Uint8Array ? data : new Uint8Array(data), ptr);
+      var rc = Module._MountSMDFromBuffer(unit, ptr, data.byteLength);
+      // Do NOT free ptr - MountSMDFromBuffer copies into its own malloc'd buffer,
+      // but the C function already copied so we free the temp copy
+      Module._free(ptr);
+      return rc;
+    },
+    getSMDBuffer: function(unit) { return Module._GetSMDBuffer(unit); },
+    getSMDBufferSize: function(unit) { return Module._GetSMDBufferSize(unit); },
+
     // --- WebSocket bridge (requires Worker mode) ---
     wsConnect: function(url) { console.warn('WebSocket bridge requires Worker mode'); },
     wsDisconnect: function() { },

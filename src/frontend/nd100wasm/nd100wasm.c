@@ -52,6 +52,7 @@
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
 
+
 // Debugger support (WITH_DEBUGGER is now enabled for WASM)
 #ifdef WITH_DEBUGGER
 #include "../debugger/debugger.h"
@@ -516,6 +517,88 @@ EMSCRIPTEN_EXPORT int RemountFloppy(int unit)
     mount_drive(DRIVE_FLOPPY, unit, "md5-unknown", "Floppy", "Mounted floppy image", filename);
 
     return isMounted(DRIVE_FLOPPY, unit) ? 0 : -1;
+}
+
+// Mount an SMD drive from OPFS (Worker mode - no FILE*, block I/O via JS)
+// imageSize is the full image size in bytes (for disk_info queries)
+EMSCRIPTEN_EXPORT int MountSMDFromOPFS(int unit, int imageSize)
+{
+    if (unit < 0 || unit > 3) return -1;
+
+    // Unmount existing if mounted
+    if (isMounted(DRIVE_SMD, unit)) {
+        unmount_drive(DRIVE_SMD, unit);
+    }
+
+    const char *name = (unit == 0) ? "Boot SMD (OPFS)" : "Data SMD (OPFS)";
+    const char *desc = (unit == 0) ? "Boot SMD from persistent storage" : "Data SMD from persistent storage";
+    mount_drive_opfs(DRIVE_SMD, unit, name, desc, (size_t)imageSize);
+
+    return isMounted(DRIVE_SMD, unit) ? 0 : -1;
+}
+
+// Mount an SMD drive from a JS buffer (Direct mode - data in malloc'd buffer)
+// The buffer is copied into a malloc'd remote_data block so writes are in-memory.
+EMSCRIPTEN_EXPORT int MountSMDFromBuffer(int unit, const uint8_t *data, int size)
+{
+    if (unit < 0 || unit > 3 || !data || size <= 0) return -1;
+
+    // Unmount existing if mounted
+    if (isMounted(DRIVE_SMD, unit)) {
+        unmount_drive(DRIVE_SMD, unit);
+    }
+
+    // Allocate and copy data
+    char *buf = malloc((size_t)size);
+    if (!buf) return -1;
+    memcpy(buf, data, (size_t)size);
+
+    // Ensure drive arrays exist, then get the array via API
+    init_drive_arrays();
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SMD);
+    if (!drives) { free(buf); return -1; }
+
+    MountedDriveInfo_t *entry = &drives[unit];
+    entry->is_mounted = true;
+    entry->is_remote = true;  // uses remote_data (in-memory buffer)
+    entry->is_opfs = false;
+    entry->is_writeprotected = false;
+    entry->data.remote_data = buf;
+    entry->data_size = (size_t)size;
+    entry->block_size = 1024;
+
+    const char *name = (unit == 0) ? "Boot SMD (Buffer)" : "Data SMD (Buffer)";
+    strncpy(entry->name, name, sizeof(entry->name) - 1);
+    entry->name[sizeof(entry->name) - 1] = '\0';
+    strncpy(entry->description, "SMD from persistent storage buffer", sizeof(entry->description) - 1);
+    entry->description[sizeof(entry->description) - 1] = '\0';
+    strncpy(entry->md5, "buffer", sizeof(entry->md5) - 1);
+    entry->image_path[0] = '\0';
+
+    return 0;
+}
+
+// Get the in-memory buffer pointer for an SMD drive (Direct mode save-back)
+// Returns pointer to remote_data if drive is mounted as remote (in-memory buffer), 0 otherwise.
+EMSCRIPTEN_EXPORT int GetSMDBuffer(int unit)
+{
+    if (unit < 0 || unit > 3) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SMD);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted || !entry->is_remote || !entry->data.remote_data) return 0;
+    return (int)(uintptr_t)entry->data.remote_data;
+}
+
+// Get the size of the in-memory buffer for an SMD drive
+EMSCRIPTEN_EXPORT int GetSMDBufferSize(int unit)
+{
+    if (unit < 0 || unit > 3) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SMD);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted) return 0;
+    return (int)entry->data_size;
 }
 
 // Remount an SMD drive (close old FILE*, re-open from MEMFS)

@@ -115,6 +115,13 @@ function setupTerminalOutputHandler() {
 // Track which disk images loaded successfully
 var diskImageStatus = { smd: false };
 
+// Persistence mode: opt-in via Config toggle
+var SMD_PERSIST_KEY = 'nd100x-smd-persist';
+
+function isSmdPersistenceEnabled() {
+  return localStorage.getItem(SMD_PERSIST_KEY) === 'true';
+}
+
 // Expected minimum sizes (sanity check - reject truncated / error pages)
 var DISK_MIN_SIZES = {
   'SMD0.IMG':   1024 * 1024,  // SMD must be at least 1MB
@@ -233,7 +240,39 @@ function loadDiskImage(url, memfsPath) {
   });
 }
 
-// Function to load the disk images
+// Download an image with XHR and return the ArrayBuffer (for OPFS import)
+function downloadImageBuffer(url) {
+  return new Promise(function(resolve, reject) {
+    var statusEl = document.getElementById('status');
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'arraybuffer';
+
+    xhr.onprogress = function(e) {
+      if (e.lengthComputable && statusEl) {
+        var pct = Math.round((e.loaded / e.total) * 100);
+        statusEl.textContent = 'Downloading ' + url + '... ' + pct + '%';
+      } else if (statusEl) {
+        statusEl.textContent = 'Downloading ' + url + '... ' + formatBytes(e.loaded);
+      }
+    };
+
+    xhr.onload = function() {
+      if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
+        resolve(xhr.response);
+      } else {
+        reject(new Error('HTTP ' + xhr.status));
+      }
+    };
+    xhr.onerror = function() { reject(new Error('Network error')); };
+    xhr.timeout = 120000;
+    xhr.send();
+  });
+}
+
+// Load disk images - respects persistence mode
+// Demo mode: XHR to MEMFS (current behavior)
+// Persistent mode: mount from OPFS (no XHR if images exist)
 function loadDiskImages() {
   if (!emu || !emu.fsAvailable()) {
     console.error("ERROR: Module.FS is not available!");
@@ -244,7 +283,12 @@ function loadDiskImages() {
     return Promise.resolve();
   }
 
-  // Load SMD disk image only. Floppy images are loaded on demand via Floppy Library.
+  // Check if persistence is enabled
+  if (isSmdPersistenceEnabled()) {
+    return loadDiskImagesPersistent();
+  }
+
+  // Demo mode: load SMD from server into MEMFS (original behavior)
   return loadDiskImage('SMD0.IMG', '/SMD0.IMG').then(function(smdOk) {
     diskImageStatus.smd = smdOk;
 
@@ -256,6 +300,116 @@ function loadDiskImages() {
     } else {
       statusElement.textContent = 'Warning: Failed to load SMD0.IMG. Check console.';
       console.warn('SMD0.IMG not found. Ensure disk image is served alongside the WASM files.');
+    }
+  });
+}
+
+// Persistent mode: mount SMD units from OPFS
+function loadDiskImagesPersistent() {
+  var statusEl = document.getElementById('status');
+
+  return smdStorage.init().then(function(available) {
+    if (!available) {
+      console.warn('[Persist] OPFS not available, falling back to demo mode');
+      if (statusEl) statusEl.textContent = 'OPFS unavailable - using demo mode';
+      return loadDiskImage('SMD0.IMG', '/SMD0.IMG').then(function(ok) {
+        diskImageStatus.smd = ok;
+      });
+    }
+
+    return smdStorage.refreshMetadata().then(function() {
+      var units = smdStorage.getUnitAssignments();
+      var hasAnyUnit = false;
+      for (var u = 0; u < 4; u++) {
+        if (units[u]) { hasAnyUnit = true; break; }
+      }
+
+      if (!hasAnyUnit) {
+        // No images stored yet - download default to OPFS, then mount
+        if (statusEl) statusEl.textContent = 'First-time setup: downloading SMD0.IMG...';
+        return downloadImageBuffer('SMD0.IMG').then(function(buf) {
+          var data = new Uint8Array(buf);
+          return smdStorage.storeImage('SMD0.IMG', data, {
+            name: 'SINTRAN III/VSE K03',
+            description: 'Default system disk'
+          }).then(function() {
+            smdStorage.setUnitAssignment(0, 'SMD0.IMG');
+            smdStorage.setBootUnit(0);
+            return smdStorage.requestPersistence();
+          }).then(function() {
+            return mountPersistentUnits();
+          });
+        }).catch(function(err) {
+          console.error('[Persist] Download failed:', err);
+          if (statusEl) statusEl.textContent = 'Download failed - using demo mode';
+          return loadDiskImage('SMD0.IMG', '/SMD0.IMG').then(function(ok) {
+            diskImageStatus.smd = ok;
+          });
+        });
+      }
+
+      // Images exist in OPFS - mount them
+      return mountPersistentUnits();
+    });
+  });
+}
+
+// Mount all assigned units from OPFS
+function mountPersistentUnits() {
+  var units = smdStorage.getUnitAssignments();
+  var promises = [];
+
+  for (var u = 0; u < 4; u++) {
+    if (!units[u]) continue;
+
+    (function(unit, fileName) {
+      if (emu.isWorkerMode()) {
+        // Worker mode: use SyncAccessHandle (true per-block persistence)
+        promises.push(
+          emu.opfsMountSMD(unit, fileName).then(function(result) {
+            if (result.ok) {
+              console.log('[Persist] Unit ' + unit + ' mounted from OPFS: ' + fileName);
+              if (unit === 0) diskImageStatus.smd = true;
+              return true;
+            }
+            console.error('[Persist] Failed to mount unit ' + unit);
+            return false;
+          }).catch(function(err) {
+            console.error('[Persist] Mount error unit ' + unit + ':', err);
+            return false;
+          })
+        );
+      } else {
+        // Direct mode: load entire image into buffer
+        promises.push(
+          smdStorage.retrieveImage(fileName).then(function(data) {
+            if (!data) {
+              console.error('[Persist] Image not found in OPFS: ' + fileName);
+              return false;
+            }
+            var rc = emu.mountSMDFromBuffer(unit, data);
+            if (rc === 0) {
+              console.log('[Persist] Unit ' + unit + ' mounted from buffer: ' + fileName + ' (' + formatBytes(data.byteLength) + ')');
+              if (unit === 0) diskImageStatus.smd = true;
+              return true;
+            }
+            console.error('[Persist] mountSMDFromBuffer failed for unit ' + unit);
+            return false;
+          })
+        );
+      }
+    })(u, units[u]);
+  }
+
+  return Promise.all(promises).then(function(results) {
+    var statusEl = document.getElementById('status');
+    var mounted = results.filter(function(r) { return r; }).length;
+    if (statusEl) {
+      if (mounted > 0) {
+        statusEl.textContent = 'Persistent storage: ' + mounted + ' drive(s) mounted';
+      } else {
+        statusEl.textContent = 'No drives mounted from persistent storage';
+      }
     }
   });
 }

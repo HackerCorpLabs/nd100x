@@ -60,6 +60,7 @@ typedef struct {
     bool is_mounted;        // Is the drive mounted
     bool is_remote;         // true if downloaded from HTTP, false if local file
     bool is_writeprotected; // true if the drive is write-protected
+    bool is_opfs;           // true if using OPFS (block I/O via JS, no FILE*)
     
     union {
         FILE* local_file;   // File handle for local files
