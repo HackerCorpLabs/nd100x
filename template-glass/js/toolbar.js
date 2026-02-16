@@ -1330,6 +1330,10 @@ windowManager.register('smd-manager-window', 'SMD Manager');
         win.style.display = 'none';
       }
     }
+    // Refresh SMD Manager state if it was restored as visible
+    if (state['smd-manager-window'] && typeof smdRefreshAll === 'function') {
+      smdRefreshAll();
+    }
   } catch(e) {}
   // Remove early-restore style tag - toolbar.js now owns all positions/visibility
   var earlyStyle = document.getElementById('early-restore');
