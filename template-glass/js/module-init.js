@@ -291,6 +291,9 @@ function loadDiskImages() {
   // Demo mode: load SMD from server into MEMFS (original behavior)
   return loadDiskImage('SMD0.IMG', '/SMD0.IMG').then(function(smdOk) {
     diskImageStatus.smd = smdOk;
+    if (smdOk && typeof driveRegistry !== 'undefined') {
+      driveRegistry.mount('smd', 0, 'demo', 'SINTRAN K (Demo)', 'SMD0.IMG', 0);
+    }
 
     var statusElement = document.getElementById('status');
     if (!statusElement) return;
@@ -352,6 +355,10 @@ function mountPersistentUnits() {
             if (result.ok) {
               console.log('[Persist] Unit ' + unit + ' mounted from OPFS: ' + fileName);
               if (unit === 0) diskImageStatus.smd = true;
+              if (typeof driveRegistry !== 'undefined') {
+                var meta = smdStorage.getMetadata(fileName);
+                driveRegistry.mount('smd', unit, 'opfs', meta ? meta.name : fileName, fileName, result.size || 0);
+              }
               return true;
             }
             console.error('[Persist] Failed to mount unit ' + unit);
@@ -373,6 +380,10 @@ function mountPersistentUnits() {
             if (rc === 0) {
               console.log('[Persist] Unit ' + unit + ' mounted from buffer: ' + fileName + ' (' + formatBytes(data.byteLength) + ')');
               if (unit === 0) diskImageStatus.smd = true;
+              if (typeof driveRegistry !== 'undefined') {
+                var meta = smdStorage.getMetadata(fileName);
+                driveRegistry.mount('smd', unit, 'opfs', meta ? meta.name : fileName, fileName, data.byteLength || 0);
+              }
               return true;
             }
             console.error('[Persist] mountSMDFromBuffer failed for unit ' + unit);
