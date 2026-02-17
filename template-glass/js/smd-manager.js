@@ -211,9 +211,11 @@ function smdShowRenameInline(uuid) {
     '<div class="smd-rename-fields">' +
     '<input type="text" class="smd-rename-input" id="smd-rename-desc" value="' + escapeHtml(meta.description) + '" placeholder="Description" maxlength="200">' +
     '<button class="smd-rename-save" id="smd-rename-save">Save</button>' +
+    '<button class="smd-rename-cancel" id="smd-rename-cancel">Cancel</button>' +
     '</div>';
 
   var saveBtn = infoEl.querySelector('#smd-rename-save');
+  var cancelBtn = infoEl.querySelector('#smd-rename-cancel');
   var nameInput = infoEl.querySelector('#smd-rename-name');
   var descInput = infoEl.querySelector('#smd-rename-desc');
 
@@ -225,8 +227,15 @@ function smdShowRenameInline(uuid) {
   }
 
   saveBtn.addEventListener('click', doSave);
-  nameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doSave(); });
-  descInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doSave(); });
+  cancelBtn.addEventListener('click', function() { smdRefreshAll(); });
+  nameInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doSave();
+    if (e.key === 'Escape') smdRefreshAll();
+  });
+  descInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doSave();
+    if (e.key === 'Escape') smdRefreshAll();
+  });
   nameInput.focus();
   nameInput.select();
 }
