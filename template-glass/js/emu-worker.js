@@ -153,6 +153,9 @@ var _diskReadCount = 0;   // total gateway reads (cache misses)
 var _diskWriteCount = 0;  // total gateway writes
 
 function initDiskWorker(gatewayUrl) {
+  // Close existing sub-worker before creating a new one
+  closeDiskWorker();
+
   var hasSAB = (typeof SharedArrayBuffer !== 'undefined');
   var initMsg = { type: 'init', wsUrl: gatewayUrl };
 
@@ -453,6 +456,8 @@ function wsConnect(url) {
     if (_wsUrl) {
       _wsReconnectTimer = setTimeout(function() {
         wsConnect(_wsUrl);
+        // Re-init disk sub-worker so it reconnects and sends fresh disk list
+        initDiskWorker(_wsUrl);
       }, 3000);
     }
   };
