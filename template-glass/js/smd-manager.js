@@ -620,12 +620,10 @@ window.onDiskList = function(data) {
 
 window.onDiskConnected = function(blockIO) {
   _gatewayBlockIO = !!blockIO;
-  console.log('[SMD Manager] Gateway disk I/O connected (block I/O: ' + _gatewayBlockIO + ')');
   smdRefreshRemoteList();
 };
 
 window.onDiskDisconnected = function() {
-  console.log('[SMD Manager] Gateway disk I/O disconnected');
   _gatewayDiskList = null;
   _gatewayBlockIO = false;
   // Eject all gateway mounts from the registry

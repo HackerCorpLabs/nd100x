@@ -643,7 +643,6 @@ updateSmdManagerMenuState();
     }
     // Enable remote terminals first, then connect WebSocket
     emu.enableRemoteTerminals().then(function(result) {
-      console.log('[Gateway] Remote terminals enabled:', result.count);
       emu.wsConnect(url);
     });
   }
