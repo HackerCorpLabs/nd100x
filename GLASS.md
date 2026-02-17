@@ -55,7 +55,7 @@ flowchart TB
         CSS1["styles.css<br/>Glass effects, layout"]
         CSS2["themes.css<br/>5 theme overrides"]
 
-        subgraph JS["JavaScript Modules 24 files"]
+        subgraph JS["JavaScript Modules 31 files"]
             direction LR
             INIT["module-init.js"]
             TCORE["terminal-core.js"]
@@ -114,7 +114,7 @@ flowchart TB
    - `index.html` (entry point)
    - `terminal-popout.html` (pop-out terminal window)
    - `css/styles.css`, `css/themes.css`
-   - `js/*.js` (24 modules, 4 compiled from TypeScript)
+   - `js/*.js` (31 modules: 27 hand-written + 4 compiled from TypeScript)
    - `data/logical-device-numbers.json`
 4. **Serve** (optional): `make wasm-glass-run` starts `python3 -m http.server 8000` in the build output directory.
 
@@ -178,28 +178,39 @@ Scripts load in this exact order (from `index.html`):
 | 2 | xterm.js (CDN) | Terminal rendering library |
 | 3 | xterm-addon-fit (CDN) | Terminal auto-fit addon |
 | 4 | `nd100wasm.js` | Emscripten-generated WASM loader |
-| 5 | `js/theme-manager.js` | Theme load/save/apply |
-| 6 | `js/terminal-core.js` | Color themes, font scaling, terminal factory, keyboard handler (compiled from TS) |
-| 7 | `js/terminal-manager.js` | Terminal creation, tabs, floating windows, settings (compiled from TS) |
-| 8 | `js/terminal-bridge.js` | Pop-out terminal BroadcastChannel bridge (compiled from TS) |
-| 9 | `js/emulation.js` | Main execution loop, CPU load sampling |
-| 10 | `js/toolbar.js` | Window management, buttons, menus, dragging |
-| 11 | `js/floppy-browser.js` | Floppy image library browser |
-| 12 | `js/help-window.js` | SINTRAN command help with search |
-| 13 | `js/debugger.js` | Debugger panel (registers, memory, flags, stepping) |
-| 14 | `js/disassembly.js` | Standalone disassembly window |
-| 15 | `js/breakpoints.js` | Breakpoint/watchpoint manager |
-| 16 | `js/sintran.js` | OS detection polling and system info |
-| 17 | `js/sintran-symbols.js` | Shared symbol tables and memory helpers |
-| 18 | `js/sintran-rt-names.js` | RT program name reverse lookup |
-| 19 | `js/sintran-processes.js` | Process list and detail windows |
-| 20 | `js/sintran-queues.js` | Execution, time, monitor queue viewer |
-| 21 | `js/sintran-seg-names.js` | System segment name lookup |
-| 22 | `js/sintran-segments.js` | Segment table viewer |
-| 23 | `js/sintran-dev-names.js` | Device address-to-name tables |
-| 24 | `js/sintran-devices.js` | I/O device inspector (4-phase discovery) |
-| 25 | `js/pagetables.js` | Hardware page table inspector |
-| 26 | `js/cpu-load-graph.js` | CPU load graph (scrolling 60s history) |
+| 4a | `js/emu-proxy-worker.js` OR `js/emu-proxy.js` | Emulation proxy (Worker or Direct mode, selected at runtime) |
+| 5 | `js/smd-storage.js` | OPFS-based persistent SMD storage with UUID-keyed images |
+| 6 | `js/drive-registry.js` | Unified drive mount state registry, Machine Info auto-update |
+| 7 | `js/theme-manager.js` | Theme load/save/apply |
+| 8 | `js/terminal-core.js` | Color themes, font scaling, terminal factory, keyboard handler (compiled from TS) |
+| 9 | `js/terminal-manager.js` | Terminal creation, tabs, floating windows, settings (compiled from TS) |
+| 10 | `js/terminal-bridge.js` | Pop-out terminal BroadcastChannel bridge (compiled from TS) |
+| 11 | `js/emulation.js` | Main execution loop, CPU load sampling |
+| 12 | `js/toolbar.js` | Window management, buttons, menus, dragging |
+| 13 | `js/floppy-browser.js` | Floppy image library browser |
+| 14 | `js/help-window.js` | SINTRAN command help with search |
+| 15 | `js/debugger.js` | Debugger panel (registers, memory, flags, stepping) |
+| 16 | `js/disassembly.js` | Standalone disassembly window |
+| 17 | `js/breakpoints.js` | Breakpoint/watchpoint manager |
+| 18 | `js/sintran.js` | OS detection polling and system info |
+| 19 | `js/sintran-symbols.js` | Shared symbol tables and memory helpers |
+| 20 | `js/sintran-rt-names.js` | RT program name reverse lookup |
+| 21 | `js/sintran-processes.js` | Process list and detail windows |
+| 22 | `js/sintran-queues.js` | Execution, time, monitor queue viewer |
+| 23 | `js/sintran-seg-names.js` | System segment name lookup |
+| 24 | `js/sintran-segments.js` | Segment table viewer |
+| 25 | `js/sintran-dev-names.js` | Device address-to-name tables |
+| 26 | `js/sintran-devices.js` | I/O device inspector (4-phase discovery) |
+| 27 | `js/pagetables.js` | Hardware page table inspector |
+| 28 | `js/smd-manager.js` | SMD Disk Manager window (local library, catalog, gateway mounts) |
+| 29 | `js/cpu-load-graph.js` | CPU load graph (scrolling 60s history) |
+
+**Worker-only modules** (loaded by `emu-worker.js`, not in main page):
+
+| File | Purpose |
+|------|---------|
+| `js/emu-worker.js` | Web Worker emulation loop, MessageChannel scheduling |
+| `js/disk-io-worker.js` | Disk I/O sub-worker, SharedArrayBuffer + Atomics synchronous block R/W |
 
 ### Two-Phase Init/Boot
 
@@ -350,6 +361,7 @@ The taskbar also contains the CPU load mini-graph canvas (80x24px) and a setting
 | `segment-table-window` | Hidden | Segment table viewer (resizable) |
 | `io-devices-window` | Hidden | I/O device inspector (resizable) |
 | `page-table-window` | Hidden | Hardware page table viewer (resizable) |
+| `smd-manager-window` | Hidden | SMD Disk Manager (local library, catalog, gateway, persistence) |
 
 ---
 
@@ -380,6 +392,13 @@ The taskbar also contains the CPU load mini-graph canvas (80x24px) and a setting
 | Devices | `sintran-devices.js` | I/O device inspector (4-phase discovery, tabbed) | (internal show/hide) |
 | Page Tables | `pagetables.js` | Hardware PTE viewer with decoded flags | `window.pageTableShowWindow()`, `window.pageTableHideWindow()` |
 | CPU Load Graph | `cpu-load-graph.js` | Scrolling 60s CPU load graph, taskbar mini graph | `window.cpuLoadGraphPush()`, `window.cpuLoadGraphReset()` |
+| SMD Storage | `smd-storage.js` | OPFS persistent storage layer: UUID-keyed images, metadata, unit assignments | `window.smdStorage` |
+| Drive Registry | `drive-registry.js` | Unified mount state for all drives, onChange callbacks, Machine Info auto-update | `window.driveRegistry` |
+| SMD Manager | `smd-manager.js` | Disk Manager window: local library, catalog copy, import/export, gateway mounts | `window.smdManagerShow()`, `window.smdManagerHide()` |
+| Emu Proxy | `emu-proxy.js` | Direct mode: synchronous bridge from JS API to `Module._*()` calls | `window.emu` |
+| Emu Proxy Worker | `emu-proxy-worker.js` | Worker mode: async bridge from JS API to Worker via `postMessage` | `window.emu` |
+| Emu Worker | `emu-worker.js` | Worker: runs WASM, MessageChannel loop, terminal ring buffer drain | (Worker scope) |
+| Disk I/O Worker | `disk-io-worker.js` | Sub-worker: synchronous disk block R/W via SharedArrayBuffer + gateway WebSocket | (Worker scope) |
 
 ---
 
@@ -773,6 +792,10 @@ All UI state is persisted to `localStorage`:
 | `nd100x-worker` | `"true"` or absent | Web Worker emulation mode |
 | `nd100x-ws-bridge` | `"true"` or absent | WebSocket terminal bridge enabled |
 | `nd100x-ws-url` | URL string | Gateway WebSocket URL (default `ws://localhost:8765`) |
+| `nd100x-smd-persist` | `"true"` or absent | SMD persistent storage enabled (OPFS mode) |
+| `nd100x-smd-metadata` | JSON object | Image metadata keyed by UUID |
+| `nd100x-smd-units` | JSON object `{0: uuid, ...}` | Unit-to-UUID assignments for persistent drives |
+| `nd100x-smd-boot-unit` | `"0"`-`"3"` | Boot drive unit number |
 
 ---
 
@@ -983,12 +1006,17 @@ Full protocol specification: `docs/GATEWAY-PROTOCOL.md`
     { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
     { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
   ],
-  "smd": { "images": [] },
-  "floppy": { "images": [] }
+  "smd": {
+    "images": [
+      { "path": "../../SMD0.IMG", "name": "SINTRAN K", "description": "Standard system disk" },
+      "../../SMD1.IMG"
+    ]
+  },
+  "floppy": { "images": ["../../FLOPPY.IMG"] }
 }
 ```
 
-Disk images are configured as arrays where the index is the unit number: `"smd": { "images": ["./SMD0.IMG"] }` mounts SMD0.IMG as unit 0. The gateway opens images with `fs.openSync('r+')` for synchronous read/write.
+Disk image entries support two formats: a string path (`"../../SMD1.IMG"`) or an object `{ path, name, description }`. Object entries provide metadata for the dynamic `/smd-catalog.json` HTTP endpoint and the Glass UI Disk Manager. The index in the array is the unit number. The gateway opens images with `fs.openSync('r+')` for synchronous read/write.
 
 **Running:**
 ```bash
@@ -1015,13 +1043,13 @@ Custom config: `node tools/nd100-gateway/gateway.js --config path/to/config.json
 
 The disk sub-worker enables synchronous disk block I/O from C code over an async WebSocket. The main Worker is blocked by `Atomics.wait()` during disk operations; the sub-worker's event loop remains free to process WebSocket messages and signal completion via `Atomics.notify()`.
 
-**SharedArrayBuffer layout** (4096 bytes):
+**SharedArrayBuffer layout** (65568 bytes = 32 control + 64 KB data):
 
 | Offset | Type | Purpose |
 |--------|------|---------|
 | 0 | Int32 | Control: 0=idle, 1=request pending, 2=response ready |
 | 4-28 | Int32[6] | driveType, unit, offset, size, status, dataLen, isWrite |
-| 32+ | Uint8[4064] | Data area (read response / write payload) |
+| 32+ | Uint8[65536] | Data area (read response / write payload) |
 
 The main Worker spawns the sub-worker and passes the SharedArrayBuffer. Both connect to the same gateway WebSocket endpoint. Remote disk images appear in the SMD Disk Manager "Remote Images" section.
 
@@ -1050,6 +1078,44 @@ The Config window contains a "Network" section (visible only in Worker mode):
 The toggle persists to `localStorage` key `nd100x-ws-bridge`. When enabled, the bridge auto-connects on page load after the emulator is ready (polls `emu.isReady()` every 1 second, up to 30 seconds).
 
 The SMD Disk Manager window shows a "Remote Images (Gateway)" section when the disk sub-worker is connected, listing available SMD and floppy images with mount/eject controls.
+
+### Drive Registry
+
+`drive-registry.js` is the single source of truth for all drive mount state in the UI. All modules call `driveRegistry.mount()` / `driveRegistry.eject()` instead of maintaining their own state. The Machine Info window updates automatically via an `onChange` listener.
+
+**API:**
+
+| Method | Description |
+|--------|-------------|
+| `mount(type, unit, source, name, fileName, imageSize)` | Register a mount. Auto-ejects duplicates. |
+| `eject(type, unit)` | Clear mount state. Caller handles WASM unmount. |
+| `get(type, unit)` | Returns a copy of mount entry: `{ mounted, source, name, fileName, imageSize }` |
+| `getAll()` | Returns flat array of all drive entries. |
+| `isOccupied(type, unit)` | Quick check if a slot is mounted. |
+| `findByFileName(type, fileName)` | Find unit where a fileName is mounted (-1 if not found). |
+| `onChange(callback)` | Subscribe to mount/eject events. Callback: `function(type, unit, action)` |
+| `syncFromBackend()` | Sync registry from C backend state via `emu.getDriveInfo()`. |
+
+**Source types:** `'demo'` (XHR to MEMFS), `'opfs'` (persistent storage), `'gateway'` (remote block I/O), `'library'` (floppy library).
+
+### SMD Persistent Storage
+
+`smd-storage.js` manages OPFS-based persistent disk images with UUID-keyed filenames. Images are stored in the browser's Origin Private File System, surviving page reloads. Metadata (name, description, size, date, source) is persisted in `localStorage` key `nd100x-smd-metadata`.
+
+**Key concepts:**
+
+- **UUID filenames**: Each image in OPFS has a UUID filename (e.g., `a3b2c1d0-...`). This avoids naming conflicts.
+- **Unit assignments**: `localStorage` key `nd100x-smd-units` maps unit numbers (0-3) to UUIDs.
+- **Worker mode**: Uses `SyncAccessHandle` for true per-block persistence (writes survive immediately).
+- **Direct mode**: Loads entire image into memory buffer, auto-saves to OPFS on stop/unload.
+- **Persistence toggle**: Config window toggle writes `nd100x-smd-persist` to `localStorage`, requires reload.
+
+**SMD Manager window** (`smd-manager.js`) provides the UI for:
+
+- **Drive Configuration**: 4 unit slots with assign/eject controls
+- **Local Disk Library**: List, import, rename, export, delete disk images
+- **Server Catalog**: Browse and copy gateway images to local library (via `/smd-catalog.json`)
+- **Remote Images**: Mount/eject gateway disk images (visible when gateway connected)
 
 ### Testing
 

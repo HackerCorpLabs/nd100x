@@ -58,10 +58,25 @@ The gateway server reads a JSON configuration file (`gateway.conf.json`):
     { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
     { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
   ],
-  "smd": { "images": [] },
-  "floppy": { "images": [] }
+  "smd": {
+    "images": [
+      {
+        "path": "../../SMD0.IMG",
+        "name": "SINTRAN K",
+        "description": "SINTRAN III/VSE version K, standard ND-100 system disk"
+      },
+      "../../SMD1.IMG"
+    ]
+  },
+  "floppy": {
+    "images": [
+      "../../FLOPPY.IMG"
+    ]
+  }
 }
 ```
+
+Disk image entries support two formats: a simple string path (`"../../SMD1.IMG"`) or an object with metadata. Object entries provide `name` and `description` which are used in the dynamic catalog endpoint and the Glass UI Disk Manager.
 
 | Field | Default | Description |
 |-------|---------|-------------|
@@ -72,8 +87,8 @@ The gateway server reads a JSON configuration file (`gateway.conf.json`):
 | `hdlc[]` | -- | HDLC controller TCP port definitions |
 | `hdlc[].channel` | -- | HDLC channel number (0-based) |
 | `hdlc[].enabled` | `false` | Enable this HDLC TCP server |
-| `smd.images` | `[]` | Array of SMD disk image paths (index = unit number) |
-| `floppy.images` | `[]` | Array of floppy disk image paths (index = unit number) |
+| `smd.images` | `[]` | Array of SMD disk image entries (index = unit number). Each entry is either a string path or an object `{ path, name, description }`. |
+| `floppy.images` | `[]` | Array of floppy disk image entries (index = unit number). Same format as `smd.images`. |
 
 ### CLI Options
 
@@ -315,19 +330,19 @@ This is forwarded to the main thread and displayed in the SMD Disk Manager's "Re
 
 ### SharedArrayBuffer Layout
 
-The main Worker and disk sub-worker share a 4096-byte SharedArrayBuffer:
+The main Worker and disk sub-worker share a 65568-byte SharedArrayBuffer (32 bytes control + 64 KB data):
 
 ```
-Offset  Type        Purpose
-0       Int32       control: 0=idle, 1=request pending, 2=response ready
-4       Int32       driveType (0=SMD, 1=Floppy)
-8       Int32       unit number
-12      Int32       byte offset into image
-16      Int32       size (bytes to read/write)
-20      Int32       response status (0=ok, -1=error)
-24      Int32       response data length
-28      Int32       isWrite (0=read, 1=write)
-32+     Uint8[4064] data area
+Offset  Type         Purpose
+0       Int32        control: 0=idle, 1=request pending, 2=response ready
+4       Int32        driveType (0=SMD, 1=Floppy)
+8       Int32        unit number
+12      Int32        byte offset into image
+16      Int32        size (bytes to read/write)
+20      Int32        response status (0=ok, -1=error)
+24      Int32        response data length
+28      Int32        isWrite (0=read, 1=write)
+32+     Uint8[65536] data area (64 KB -- sized for largest possible SMD block read)
 ```
 
 **Requires COOP/COEP headers** on the serving page for SharedArrayBuffer support.
@@ -486,6 +501,44 @@ When the emulator WebSocket connection closes:
 ### Auto-Reconnect
 
 The emulator (emu-worker.js) automatically reconnects to the gateway 3 seconds after a WebSocket disconnection, and re-sends the `register` message on reconnect.
+
+---
+
+## HTTP Endpoints
+
+The gateway serves two dynamic HTTP endpoints in addition to static files:
+
+### `/smd-catalog.json` -- Disk Image Catalog
+
+Returns a JSON array describing all configured SMD images. Generated dynamically from `gateway.conf.json` at request time. The Glass UI fetches this to populate the "Copy to Library" dialog in the SMD Disk Manager.
+
+**Response:**
+
+```json
+[
+  {
+    "name": "SINTRAN K",
+    "description": "SINTRAN III/VSE version K, standard ND-100 system disk",
+    "size": 33554432,
+    "url": "smd-images/0",
+    "available": true
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Display name (from config object `name` field, or filename without extension) |
+| `description` | String | Description text (from config object, or empty) |
+| `size` | Number | File size in bytes (0 if file not found) |
+| `url` | String | Relative URL for downloading the image |
+| `available` | Boolean | `true` if the file exists on disk, `false` otherwise |
+
+### `/smd-images/{index}` -- Image Streaming
+
+Streams a raw SMD disk image file. The index corresponds to the position in the `smd.images` config array. Returns `Content-Type: application/octet-stream` with `Content-Length` header. Used by the Glass UI to copy gateway images into the local OPFS library.
+
+Returns 404 if the index is out of range or the file does not exist.
 
 ---
 
