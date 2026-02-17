@@ -31,6 +31,16 @@ var ws = null;
 var connected = false;
 var hasBlockIO = false;   // true if SharedArrayBuffer available for sync I/O
 
+// Full-image read state (Copy to Library)
+var _fullReadMode = false;
+var _fullReadBuffer = null;
+var _fullReadOffset = 0;
+var _fullReadSize = 0;
+var _fullReadDriveType = 0;
+var _fullReadUnit = 0;
+var _fullReadNextOffset = 0;
+var FULL_READ_BLOCK_SIZE = 65535;
+
 onmessage = function(e) {
   if (e.data.type === 'init') {
     if (e.data.sharedBuffer) {
@@ -40,12 +50,45 @@ onmessage = function(e) {
     }
     connectWebSocket(e.data.wsUrl);
   }
+  else if (e.data.type === 'read-full') {
+    _fullReadMode = true;
+    _fullReadDriveType = e.data.driveType;
+    _fullReadUnit = e.data.unit;
+    _fullReadSize = e.data.size;
+    _fullReadBuffer = new Uint8Array(e.data.size);
+    _fullReadOffset = 0;
+    _fullReadNextOffset = 0;
+    sendNextFullReadBlock();
+  }
   else if (e.data.type === 'close') {
     if (ws) {
       try { ws.close(); } catch(err) {}
     }
   }
 };
+
+function sendNextFullReadBlock() {
+  if (!ws || ws.readyState !== 1) {
+    _fullReadMode = false;
+    _fullReadBuffer = null;
+    postMessage({ type: 'full-image-data', driveType: _fullReadDriveType, unit: _fullReadUnit, error: 'WebSocket not connected' });
+    return;
+  }
+  var remaining = _fullReadSize - _fullReadNextOffset;
+  var blockSize = Math.min(FULL_READ_BLOCK_SIZE, remaining);
+  var frame = new Uint8Array(9);
+  frame[0] = 0x20;
+  frame[1] = _fullReadDriveType;
+  frame[2] = _fullReadUnit;
+  frame[3] = (_fullReadNextOffset >>> 24) & 0xFF;
+  frame[4] = (_fullReadNextOffset >>> 16) & 0xFF;
+  frame[5] = (_fullReadNextOffset >>> 8) & 0xFF;
+  frame[6] = _fullReadNextOffset & 0xFF;
+  frame[7] = (blockSize >>> 8) & 0xFF;
+  frame[8] = blockSize & 0xFF;
+  ws.send(frame.buffer);
+  _fullReadNextOffset += blockSize;
+}
 
 function connectWebSocket(url) {
   try {
@@ -74,10 +117,35 @@ function connectWebSocket(url) {
       return;
     }
 
-    // Binary frame (only relevant if block I/O is active)
-    if (!hasBlockIO) return;
     var buf = new Uint8Array(ev.data);
     if (buf.length < 3) return;
+
+    // Full-image read mode: accumulate blocks into local buffer
+    if (_fullReadMode && buf[0] === 0x21) {
+      var blockData = buf.subarray(3);
+      _fullReadBuffer.set(blockData, _fullReadOffset);
+      _fullReadOffset += blockData.length;
+      // Progress every 64 blocks (~4MB at 65535 bytes/block)
+      var blockNum = Math.floor(_fullReadOffset / FULL_READ_BLOCK_SIZE);
+      if (blockNum % 64 === 0 || _fullReadOffset >= _fullReadSize) {
+        postMessage({ type: 'full-image-progress', done: _fullReadOffset, total: _fullReadSize });
+      }
+      if (_fullReadOffset >= _fullReadSize) {
+        _fullReadMode = false;
+        var result = _fullReadBuffer.buffer.slice(0, _fullReadSize);
+        _fullReadBuffer = null;
+        postMessage({ type: 'full-image-data',
+                      driveType: _fullReadDriveType, unit: _fullReadUnit,
+                      buffer: result }, [result]);
+        if (hasBlockIO) waitForRequest();  // resume normal sync loop
+      } else {
+        sendNextFullReadBlock();
+      }
+      return;
+    }
+
+    // Binary frame (only relevant if block I/O is active)
+    if (!hasBlockIO) return;
 
     if (buf[0] === 0x21) {
       // Block read response: [0x21][driveType][unit][data...]
