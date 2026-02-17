@@ -10,7 +10,6 @@
 let floppyDatabase = [];
 let productsDatabase = [];
 let filteredFloppies = [];
-let currentMountedFloppy = null;
 let selectedProductId = null;
 let currentProductFilter = '';
 
@@ -368,7 +367,9 @@ async function mountFloppy() {
         throw new Error('Failed to mount floppy on unit ' + unitNum);
       }
 
-      currentMountedFloppy = floppyData;
+      if (typeof driveRegistry !== 'undefined') {
+        driveRegistry.mount('floppy', unitNum, 'library', floppyData.Name || 'Custom Floppy', floppyData.Name, floppyImageData.byteLength);
+      }
 
       progressText.textContent = 'Floppy mounted to FLOPPY-DISC-1 Unit ' + unitNum + '!';
       progressFill.style.width = '100%';
@@ -376,13 +377,6 @@ async function mountFloppy() {
 
       mountButton.textContent = 'Mounted!';
       mountButton.disabled = true;
-
-      // Update the drive display and toggle mount/eject buttons
-      var driveDisplay = document.getElementById('floppy-drive-' + driveNum + '-name');
-      if (driveDisplay) {
-        driveDisplay.textContent = floppyData.Name || 'Custom Floppy';
-      }
-      updateFloppyDriveButtons(driveNum);
 
       console.log('Floppy mounted to FLOPPY-DISC-1 Unit ' + unitNum + ':', floppyData.Name);
 
@@ -404,8 +398,10 @@ async function mountFloppy() {
 }
 
 // Helper: update mount/eject button visibility for a drive
+// Note: The drive registry onChange listener also handles this automatically.
 function updateFloppyDriveButtons(driveNum) {
-  var nameEl = document.getElementById('floppy-drive-' + driveNum + '-name');
+  var unitNum = driveNum - 1;
+  var nameEl = document.getElementById('drive-name-floppy-' + unitNum);
   var mountBtn = document.getElementById('floppy-drive-' + driveNum + '-mount');
   var ejectBtn = document.getElementById('floppy-drive-' + driveNum + '-eject');
   if (!nameEl || !mountBtn || !ejectBtn) return;
@@ -417,15 +413,16 @@ function updateFloppyDriveButtons(driveNum) {
 // Floppy drive eject handlers
 document.getElementById('floppy-drive-1-eject').addEventListener('click', function() {
   emu.unmountFloppy(0);
-  currentMountedFloppy = null;
-  document.getElementById('floppy-drive-1-name').textContent = 'Empty';
-  updateFloppyDriveButtons(1);
+  if (typeof driveRegistry !== 'undefined') {
+    driveRegistry.eject('floppy', 0);
+  }
 });
 
 document.getElementById('floppy-drive-2-eject').addEventListener('click', function() {
   emu.unmountFloppy(1);
-  document.getElementById('floppy-drive-2-name').textContent = 'Empty';
-  updateFloppyDriveButtons(2);
+  if (typeof driveRegistry !== 'undefined') {
+    driveRegistry.eject('floppy', 1);
+  }
 });
 
 // Floppy drive mount handlers - open Floppy Library with correct default unit
@@ -582,3 +579,72 @@ function clearProductFilter() {
 
 window.selectProduct = selectProduct;
 window.clearProductFilter = clearProductFilter;
+
+// =========================================================
+// Gateway floppy images
+// =========================================================
+var _gatewayFloppyList = null;
+
+function floppyRefreshGatewaySection() {
+  var section = document.getElementById('floppy-gateway-section');
+  var container = document.getElementById('floppy-gateway-list');
+  if (!section || !container) return;
+
+  if (!_gatewayFloppyList || _gatewayFloppyList.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  var html = '';
+  _gatewayFloppyList.forEach(function(img) {
+    html += '<div class="smd-image-card">';
+    html += '<div class="smd-image-info">';
+    html += '<span class="smd-image-name">' + escapeHtml(img.name) + '</span>';
+    html += '<span class="smd-image-meta">' + Math.round(img.size / 1024) + ' KB &middot; Gateway unit ' + img.unit + '</span>';
+    html += '</div>';
+    html += '<div class="smd-image-actions">';
+    html += '<button class="floppy-drive-mount floppy-gw-mount-btn" data-remote-unit="' + img.unit + '" data-size="' + img.size + '">Mount to Unit 0</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.floppy-gw-mount-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var remoteUnit = parseInt(this.getAttribute('data-remote-unit'));
+      var size = parseInt(this.getAttribute('data-size'));
+      if (emu && emu.gatewayMountFloppy) {
+        var imgName = (_gatewayFloppyList && _gatewayFloppyList[remoteUnit]) ? _gatewayFloppyList[remoteUnit].name : 'Gateway Floppy';
+        emu.gatewayMountFloppy(0, size).then(function(r) {
+          if (r && r.ok) {
+            if (typeof driveRegistry !== 'undefined') {
+              driveRegistry.mount('floppy', 0, 'gateway', imgName, null, size);
+            }
+            console.log('[Floppy] Gateway floppy unit ' + remoteUnit + ' mounted');
+          } else {
+            console.error('[Floppy] Gateway mount failed');
+          }
+        });
+      }
+    });
+  });
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Gateway callbacks are set by smd-manager.js (loads later).
+// Register via custom event listeners on window instead of overwriting callbacks.
+window.addEventListener('gateway-disk-list', function(e) {
+  _gatewayFloppyList = (e.detail && e.detail.floppy) ? e.detail.floppy : null;
+  floppyRefreshGatewaySection();
+});
+
+window.addEventListener('gateway-disk-disconnected', function() {
+  _gatewayFloppyList = null;
+  floppyRefreshGatewaySection();
+});

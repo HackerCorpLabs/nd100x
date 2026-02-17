@@ -61,7 +61,8 @@ typedef struct {
     bool is_remote;         // true if downloaded from HTTP, false if local file
     bool is_writeprotected; // true if the drive is write-protected
     bool is_opfs;           // true if using OPFS (block I/O via JS, no FILE*)
-    
+    bool is_gateway;        // true if using gateway WebSocket block I/O
+
     union {
         FILE* local_file;   // File handle for local files
         char* remote_data;  // Downloaded data for remote files

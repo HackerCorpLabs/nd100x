@@ -239,6 +239,11 @@
       return Promise.resolve({ count: 0 });
     },
 
+    // --- Drive info (unified registry query) ---
+    getDriveInfo: function() {
+      return JSON.parse(Module.UTF8ToString(Module._GetDriveInfo()));
+    },
+
     // --- Mode flag ---
     isWorkerMode: function() { return false; }
   };

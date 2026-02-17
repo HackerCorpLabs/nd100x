@@ -56,6 +56,10 @@
 
       // Restore window visibility - hide windows the user previously closed
       var vis = JSON.parse(localStorage.getItem('window-visibility') || '{}');
+      // Force-hide SMD Manager if persistence is off
+      if (localStorage.getItem('nd100x-smd-persist') !== 'true') {
+        vis['smd-manager-window'] = false;
+      }
       for (var id in vis) {
         if (!vis[id]) {
           css += '#' + id + '{display:none!important}';
@@ -88,7 +92,8 @@
         'io-devices-window': 'io-devices-pos',
         'page-table-window': 'page-table-pos',
         'config-window': 'config-pos',
-        'smd-manager-window': 'smd-manager-pos'
+        'smd-manager-window': 'smd-manager-pos',
+        'gateway-stats-window': 'gateway-stats-pos'
       };
       for (var wid in posKeys) {
         var pos = JSON.parse(localStorage.getItem(posKeys[wid]));
@@ -235,18 +240,43 @@
         <span class="machine-info-label">Levels</span>
         <div class="machine-info-value lv-bars" id="machine-level-bars"></div>
       </div>
-      <div class="floppy-drive-slot" id="smd-unit-0-info">
+      <div class="floppy-drive-slot">
         <div class="floppy-drive-label">SMD Unit 0</div>
         <div class="floppy-drive-row">
-          <span class="floppy-drive-name" id="smd-info-0-name">SMD0.IMG</span>
-          <button class="floppy-drive-mount" id="smd-info-manage"
-                  onclick="if(typeof smdManagerShow==='function')smdManagerShow()">Manage</button>
+          <span class="floppy-drive-name" id="drive-name-smd-0">Not mounted</span>
+          <span class="drive-source-badge" id="drive-badge-smd-0" style="display:none"></span>
+          <button class="floppy-drive-mount" onclick="if(typeof smdManagerShow==='function')smdManagerShow()">Manage</button>
+        </div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">SMD Unit 1</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name" id="drive-name-smd-1">Not mounted</span>
+          <span class="drive-source-badge" id="drive-badge-smd-1" style="display:none"></span>
+          <button class="floppy-drive-mount" onclick="if(typeof smdManagerShow==='function')smdManagerShow()">Manage</button>
+        </div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">SMD Unit 2</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name" id="drive-name-smd-2">Not mounted</span>
+          <span class="drive-source-badge" id="drive-badge-smd-2" style="display:none"></span>
+          <button class="floppy-drive-mount" onclick="if(typeof smdManagerShow==='function')smdManagerShow()">Manage</button>
+        </div>
+      </div>
+      <div class="floppy-drive-slot">
+        <div class="floppy-drive-label">SMD Unit 3</div>
+        <div class="floppy-drive-row">
+          <span class="floppy-drive-name" id="drive-name-smd-3">Not mounted</span>
+          <span class="drive-source-badge" id="drive-badge-smd-3" style="display:none"></span>
+          <button class="floppy-drive-mount" onclick="if(typeof smdManagerShow==='function')smdManagerShow()">Manage</button>
         </div>
       </div>
       <div class="floppy-drive-slot">
         <div class="floppy-drive-label">FLOPPY-DISC-1 (Unit 0)</div>
         <div class="floppy-drive-row">
-          <span class="floppy-drive-name" id="floppy-drive-1-name">Empty</span>
+          <span class="floppy-drive-name" id="drive-name-floppy-0">Empty</span>
+          <span class="drive-source-badge" id="drive-badge-floppy-0" style="display:none"></span>
           <button class="floppy-drive-mount" id="floppy-drive-1-mount">Mount</button>
           <button class="floppy-drive-eject" id="floppy-drive-1-eject" style="display:none">Eject</button>
         </div>
@@ -254,7 +284,8 @@
       <div class="floppy-drive-slot">
         <div class="floppy-drive-label">FLOPPY-DISC-1 (Unit 1)</div>
         <div class="floppy-drive-row">
-          <span class="floppy-drive-name" id="floppy-drive-2-name">Empty</span>
+          <span class="floppy-drive-name" id="drive-name-floppy-1">Empty</span>
+          <span class="drive-source-badge" id="drive-badge-floppy-1" style="display:none"></span>
           <button class="floppy-drive-mount" id="floppy-drive-2-mount">Mount</button>
           <button class="floppy-drive-eject" id="floppy-drive-2-eject" style="display:none">Eject</button>
         </div>
@@ -373,6 +404,13 @@
         </label>
         <span class="config-toggle-label">Background execution (Web Worker)</span>
       </div>
+      <div class="config-option" id="config-persist-row" style="margin-left:20px">
+        <label class="config-toggle">
+          <input type="checkbox" id="config-smd-persist">
+          <span class="config-toggle-slider"></span>
+        </label>
+        <span class="config-toggle-label">Persistent disk storage</span>
+      </div>
       <div class="config-section-title" style="margin-top:16px">Terminal</div>
       <div class="config-option">
         <label class="config-toggle">
@@ -404,6 +442,57 @@
       <div class="config-option" id="config-ws-status-row" style="display:none; margin-left:20px">
         <span class="config-toggle-label" style="opacity:0.6">Status:</span>
         <span id="config-ws-status" style="font-size:12px; opacity:0.7">Disconnected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       GATEWAY STATISTICS WINDOW (hidden by default)
+       ========================================= -->
+  <div id="gateway-stats-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="gateway-stats-header">
+      <span class="glass-window-title">Gateway Statistics</span>
+      <button class="glass-window-close" id="gateway-stats-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-window-body">
+      <div class="stat-section-header">Connection</div>
+      <div class="machine-info-row" title="Time since the emulator WebSocket connected to the gateway server">
+        <span class="machine-info-label">Uptime</span>
+        <span class="machine-info-value" id="gw-stat-uptime">-</span>
+      </div>
+      <div class="stat-section-header" title="Keyboard input and screen output for remote terminals (TCP clients via gateway)">Terminal I/O</div>
+      <div class="machine-info-row" title="Keyboard data received from TCP terminal clients, forwarded to emulator (binary frame type 0x01)">
+        <span class="machine-info-label">Input</span>
+        <span class="machine-info-value" id="gw-stat-term-in">0 frames / 0 B</span>
+      </div>
+      <div class="machine-info-row" title="Screen data sent from emulator to TCP terminal clients (binary frame type 0x02)">
+        <span class="machine-info-label">Output</span>
+        <span class="machine-info-value" id="gw-stat-term-out">0 frames / 0 B</span>
+      </div>
+      <div class="stat-section-header" title="Block-level read/write operations on SMD and floppy disk images hosted on the gateway server">Disk I/O</div>
+      <div class="machine-info-row" title="Disk blocks read from gateway server images (binary frame type 0x20/0x21)">
+        <span class="machine-info-label">Read</span>
+        <span class="machine-info-value" id="gw-stat-disk-read">0 ops / 0 B</span>
+      </div>
+      <div class="machine-info-row" title="Disk blocks written to gateway server images (binary frame type 0x22/0x23)">
+        <span class="machine-info-label">Write</span>
+        <span class="machine-info-value" id="gw-stat-disk-write">0 ops / 0 B</span>
+      </div>
+      <div class="stat-section-header" title="HDLC data link frames bridged between emulator and TCP endpoints on the gateway">HDLC</div>
+      <div class="machine-info-row" title="HDLC frames received from TCP clients, injected into emulator (binary frame type 0x10)">
+        <span class="machine-info-label">RX</span>
+        <span class="machine-info-value" id="gw-stat-hdlc-rx">0 frames / 0 B</span>
+      </div>
+      <div class="machine-info-row" title="HDLC frames transmitted by emulator, forwarded to TCP clients (binary frame type 0x11)">
+        <span class="machine-info-label">TX</span>
+        <span class="machine-info-value" id="gw-stat-hdlc-tx">0 frames / 0 B</span>
+      </div>
+      <div class="stat-section-header" title="TCP clients connecting to the gateway to use remote terminals (e.g. PuTTY, telnet)">TCP Clients</div>
+      <div class="machine-info-row" title="Total TCP terminal client connections and disconnections since the emulator connected to the gateway">
+        <span class="machine-info-label">Sessions</span>
+        <span class="machine-info-value" id="gw-stat-clients">0 connect / 0 disconnect</span>
       </div>
     </div>
   </div>
@@ -490,6 +579,10 @@
       </svg>
     </div>
     <div class="glass-window-body" style="padding:0;overflow:hidden;">
+      <div id="floppy-gateway-section" class="floppy-gateway-section" style="display:none">
+        <div class="smd-section-title">Gateway Floppy Images</div>
+        <div id="floppy-gateway-list" class="smd-installed-list"></div>
+      </div>
       <div class="floppy-loading" id="floppy-loading" style="display: none;">
         <div class="floppy-spinner"></div>
         <p>Loading floppy database...</p>
@@ -546,66 +639,68 @@
       </svg>
     </div>
     <div class="glass-window-body" style="padding:12px;overflow-y:auto;">
-      <!-- Persistence toggle -->
-      <div class="smd-persist-row">
-        <label class="config-toggle">
-          <input type="checkbox" id="smd-persist-toggle">
-          <span class="config-toggle-slider"></span>
-        </label>
-        <span class="config-toggle-label">Persistent disk storage</span>
-      </div>
-      <!-- Demo mode message -->
-      <div id="smd-demo-message" class="smd-demo-msg">
-        <p>Persistent storage is off. The emulator runs in <strong>demo mode</strong> &mdash; the default SMD image is downloaded each visit and disk writes are lost on page refresh.</p>
-        <p style="margin-top:8px;opacity:0.7;font-size:11px;">Enable persistent storage above to keep disk images in your browser. Writes will survive across sessions.</p>
-      </div>
-      <!-- Manager body (hidden in demo mode) -->
-      <div id="smd-manager-body" style="display:none;">
+      <div id="smd-manager-body">
         <div class="smd-section-title">Drive Configuration</div>
         <div class="smd-unit-list">
           <div class="smd-unit-row">
-            <span class="smd-unit-label"><span class="smd-boot-star" id="smd-unit-0-star">&#9733;</span> Unit 0</span>
+            <span class="smd-unit-label">Unit 0 (boot)</span>
             <span class="smd-unit-name" id="smd-unit-0-name">Not assigned</span>
             <button class="smd-eject-btn" id="smd-unit-0-eject" style="display:none" onclick="smdEjectUnit(0)">Eject</button>
           </div>
           <div class="smd-unit-row">
-            <span class="smd-unit-label"><span class="smd-boot-star" id="smd-unit-1-star" style="display:none">&#9733;</span> Unit 1</span>
+            <span class="smd-unit-label">Unit 1</span>
             <span class="smd-unit-name" id="smd-unit-1-name">Not assigned</span>
             <button class="smd-eject-btn" id="smd-unit-1-eject" style="display:none" onclick="smdEjectUnit(1)">Eject</button>
           </div>
           <div class="smd-unit-row">
-            <span class="smd-unit-label"><span class="smd-boot-star" id="smd-unit-2-star" style="display:none">&#9733;</span> Unit 2</span>
+            <span class="smd-unit-label">Unit 2</span>
             <span class="smd-unit-name" id="smd-unit-2-name">Not assigned</span>
             <button class="smd-eject-btn" id="smd-unit-2-eject" style="display:none" onclick="smdEjectUnit(2)">Eject</button>
           </div>
           <div class="smd-unit-row">
-            <span class="smd-unit-label"><span class="smd-boot-star" id="smd-unit-3-star" style="display:none">&#9733;</span> Unit 3</span>
+            <span class="smd-unit-label">Unit 3</span>
             <span class="smd-unit-name" id="smd-unit-3-name">Not assigned</span>
             <button class="smd-eject-btn" id="smd-unit-3-eject" style="display:none" onclick="smdEjectUnit(3)">Eject</button>
           </div>
-        </div>
-        <div class="smd-boot-row">
-          <span style="font-size:11px;opacity:0.6">&#9733; = boot drive</span>
-          <span style="font-size:11px;opacity:0.6;margin-left:12px">Boot from:</span>
-          <select id="smd-boot-select" class="term-header-select" style="width:80px;margin-left:4px">
-            <option value="0">Unit 0</option>
-            <option value="1">Unit 1</option>
-            <option value="2">Unit 2</option>
-            <option value="3">Unit 3</option>
-          </select>
         </div>
         <div class="smd-section-title" style="margin-top:12px">
           Local Disk Library
           <div class="smd-lib-actions">
             <button class="smd-action-btn" id="smd-import-btn" title="Import .IMG from local file">Import</button>
-            <button class="smd-action-btn" id="smd-download-btn" title="Download from server catalog">Download</button>
           </div>
         </div>
         <div id="smd-installed-list" class="smd-installed-list">
           <div class="smd-empty-msg">Loading...</div>
         </div>
-        <div id="smd-download-status" class="smd-download-status"></div>
         <div id="smd-storage-info" class="smd-storage-info"></div>
+        <div class="smd-section-title" style="margin-top:12px">
+          Server Catalog
+        </div>
+        <div id="smd-catalog-list" class="smd-installed-list">
+          <div class="smd-empty-msg">Loading catalog...</div>
+        </div>
+        <!-- Copy to library dialog (hidden by default) -->
+        <div id="smd-copy-dialog" class="smd-copy-dialog" style="display:none">
+          <div class="smd-copy-dialog-title">Copy to Local Library</div>
+          <label class="smd-copy-label">Name
+            <input type="text" id="smd-copy-name" class="smd-copy-input" maxlength="80" />
+          </label>
+          <label class="smd-copy-label">Description
+            <textarea id="smd-copy-desc" class="smd-copy-input smd-copy-textarea"
+                      rows="2" maxlength="200"></textarea>
+          </label>
+          <div class="smd-copy-actions">
+            <button class="smd-action-btn" id="smd-copy-cancel">Cancel</button>
+            <button class="smd-action-btn smd-copy-confirm-btn" id="smd-copy-confirm">Copy to Library</button>
+          </div>
+        </div>
+        <div id="smd-download-status" class="smd-download-status"></div>
+        <div class="smd-section-title" style="margin-top:12px">
+          Remote Images (Gateway)
+        </div>
+        <div id="smd-remote-list" class="smd-installed-list">
+          <div class="smd-empty-msg">No gateway connection.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1024,6 +1119,8 @@
 
   <!-- SMD persistent storage (must load before module-init uses it during boot) -->
   <script src="js/smd-storage.js"></script>
+  <!-- Unified drive mount registry (must load before floppy-browser and smd-manager) -->
+  <script src="js/drive-registry.js"></script>
 
   <!-- Application JS modules -->
   <script src="js/theme-manager.js"></script>
@@ -1054,6 +1151,11 @@
     <div id="taskbar-level-bars" class="lv-bars lv-bars-sm"></div>
     <div id="taskbar-cpu-load" class="taskbar-cpu-load" title="CPU Load - click to open graph">
       <canvas id="taskbar-cpu-canvas" width="160" height="48"></canvas>
+    </div>
+    <div id="taskbar-ws-indicator" class="taskbar-ws-indicator" title="Gateway disconnected" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
     </div>
     <button id="taskbar-settings" class="taskbar-settings-btn" title="Settings">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -13,6 +13,7 @@ BUILD_DIR_RISCV = build_riscv
 # Commands with full paths
 CMAKE = cmake
 EMCMAKE = emcmake
+NODE = /usr/bin/node
 
 # By default, enable debugger in Linux/Windows builds
 DEBUGGER_ENABLED ?= ON
@@ -109,6 +110,7 @@ wasm-glass: check-deps mkptypes ts-compile
 	@cp -r template-glass/js $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/data $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template-glass/smd-catalog.json $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp template-glass/staticwebapp.config.json $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template/Logo_ND.png template/favicon.ico template/favicon.png $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template/floppies $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
@@ -143,7 +145,7 @@ wasm-run: wasm
 wasm-glass-run: wasm-glass
 	@echo "Starting HTTP server for glassmorphism WASM build..."
 	@echo "Open http://localhost:8000/index.html in your browser."
-	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 -m http.server
+	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 $(CURDIR)/tools/serve-coop.py 8000
 
 riscv: check-riscv-deps mkptypes
 	@echo "Building RISC-V Linux version with DAP support..."
@@ -227,20 +229,20 @@ gateway-install:
 
 gateway: gateway-install
 	@echo "Starting ND-100 Terminal Gateway..."
-	node tools/nd100-gateway/gateway.js $(GATEWAY_ARGS)
+	$(NODE) tools/nd100-gateway/gateway.js $(GATEWAY_ARGS)
 
 gateway-run: gateway
 
 gateway-test: gateway-install
 	@echo "Running gateway tests..."
-	node tools/nd100-gateway/test-gateway.js
+	$(NODE) tools/nd100-gateway/test-gateway.js
 
 wasm-glass-gateway: wasm-glass gateway-install
-	@echo "Starting glassmorphism WASM build + Terminal Gateway..."
-	@echo "Open http://localhost:8000/index.html?worker=1 in your browser."
+	@echo "Starting glassmorphism WASM build + Gateway (unified server)..."
+	@echo "Open http://localhost:8765/?worker=1 in your browser."
+	@echo "Static files served with COOP/COEP headers (SharedArrayBuffer support)."
 	@echo ""
-	node tools/nd100-gateway/gateway.js &
-	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 -m http.server
+	$(NODE) tools/nd100-gateway/gateway.js --static $(BUILD_DIR_WASM_GLASS)/bin
 
 
 help:
@@ -263,7 +265,7 @@ help:
 	@echo "  gateway       - Start the terminal gateway server"
 	@echo "  gateway-run   - Start the terminal gateway server (alias)"
 	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
-	@echo "  wasm-glass-gateway - Build glass UI + start gateway + HTTP server"
+	@echo "  wasm-glass-gateway - Build glass UI + start gateway (unified server)"
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"

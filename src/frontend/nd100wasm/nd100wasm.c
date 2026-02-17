@@ -653,6 +653,114 @@ EMSCRIPTEN_EXPORT int UnmountSMD(int unit)
     return 0; // already unmounted
 }
 
+// Mount an SMD drive from gateway (Worker mode - block I/O via WebSocket sub-worker)
+// imageSize is the full image size in bytes (for disk_info queries)
+EMSCRIPTEN_EXPORT int MountSMDFromGateway(int unit, int imageSize)
+{
+    if (unit < 0 || unit > 3) return -1;
+
+    // Unmount existing if mounted
+    if (isMounted(DRIVE_SMD, unit)) {
+        unmount_drive(DRIVE_SMD, unit);
+    }
+
+    const char *name = (unit == 0) ? "Boot SMD (Gateway)" : "Data SMD (Gateway)";
+    const char *desc = (unit == 0) ? "Boot SMD from gateway server" : "Data SMD from gateway server";
+    mount_drive_gateway(DRIVE_SMD, unit, name, desc, (size_t)imageSize);
+
+    return isMounted(DRIVE_SMD, unit) ? 0 : -1;
+}
+
+// Mount a floppy drive from gateway (Worker mode - block I/O via WebSocket sub-worker)
+EMSCRIPTEN_EXPORT int MountFloppyFromGateway(int unit, int imageSize)
+{
+    if (unit < 0 || unit > 2) return -1;
+
+    // Unmount existing if mounted
+    if (isMounted(DRIVE_FLOPPY, unit)) {
+        unmount_drive(DRIVE_FLOPPY, unit);
+    }
+
+    const char *name = "Floppy (Gateway)";
+    const char *desc = "Floppy from gateway server";
+    mount_drive_gateway(DRIVE_FLOPPY, unit, name, desc, (size_t)imageSize);
+
+    return isMounted(DRIVE_FLOPPY, unit) ? 0 : -1;
+}
+
+// =========================================================
+// HDLC Frame Bridge Stubs
+// =========================================================
+// These stubs provide the WASM export surface for HDLC frame transport
+// between the gateway and the emulator. The actual HDLC C device (COM5025
+// emulation) is a separate future task; these stubs allow the gateway
+// infrastructure to be tested and used once the device is ported.
+
+#define HDLC_TX_RING_SIZE 16
+#define HDLC_MAX_FRAME_SIZE 2048
+
+static struct {
+    int channel;
+    int length;
+    uint8_t data[HDLC_MAX_FRAME_SIZE];
+} hdlc_tx_ring[HDLC_TX_RING_SIZE];
+
+static int hdlc_tx_head = 0;
+static int hdlc_tx_tail = 0;
+static int hdlc_last_tx_channel = 0;
+static int hdlc_last_tx_length = 0;
+static uint8_t *hdlc_last_tx_buffer = NULL;
+
+// Inject a received HDLC frame into the emulator (from gateway via WebSocket)
+// Future: this will feed data into the COM5025 receive FIFO
+EMSCRIPTEN_EXPORT void HDLC_InjectRxFrame(int channel, const uint8_t *data, int length)
+{
+    // Stub: log and discard until C device is ported
+    (void)channel;
+    (void)data;
+    (void)length;
+}
+
+// Poll for a transmitted HDLC frame from the emulator
+// Returns 1 if a frame is available, 0 if not
+EMSCRIPTEN_EXPORT int HDLC_PollTxFrame(void)
+{
+    if (hdlc_tx_head == hdlc_tx_tail) return 0;
+
+    hdlc_last_tx_channel = hdlc_tx_ring[hdlc_tx_tail].channel;
+    hdlc_last_tx_length = hdlc_tx_ring[hdlc_tx_tail].length;
+    hdlc_last_tx_buffer = hdlc_tx_ring[hdlc_tx_tail].data;
+    hdlc_tx_tail = (hdlc_tx_tail + 1) % HDLC_TX_RING_SIZE;
+    return 1;
+}
+
+EMSCRIPTEN_EXPORT int HDLC_GetLastTxChannel(void) { return hdlc_last_tx_channel; }
+EMSCRIPTEN_EXPORT int HDLC_GetLastTxLength(void) { return hdlc_last_tx_length; }
+EMSCRIPTEN_EXPORT uint8_t* HDLC_GetLastTxBuffer(void) { return hdlc_last_tx_buffer; }
+
+// Set carrier status for an HDLC channel
+// Future: this will update the COM5025 status register
+EMSCRIPTEN_EXPORT void HDLC_SetCarrier(int channel, int present)
+{
+    // Stub: log and discard until C device is ported
+    (void)channel;
+    (void)present;
+}
+
+// Queue a TX frame from the C device for transmission to the gateway
+// Called by the future HDLC C device when it has a frame to send
+void HDLC_QueueTxFrame(int channel, const uint8_t *data, int length)
+{
+    int next = (hdlc_tx_head + 1) % HDLC_TX_RING_SIZE;
+    if (next == hdlc_tx_tail) return;  // ring full, drop frame
+
+    if (length > HDLC_MAX_FRAME_SIZE) length = HDLC_MAX_FRAME_SIZE;
+    hdlc_tx_ring[hdlc_tx_head].channel = channel;
+    hdlc_tx_ring[hdlc_tx_head].length = length;
+    memcpy(hdlc_tx_ring[hdlc_tx_head].data, data, length);
+    hdlc_tx_head = next;
+}
+
 // Set a callback for terminal output (traditional callback approach)
 EMSCRIPTEN_EXPORT void SetTerminalOutputCallback(int identCode, void (*callback)(int identCode, char c))
 {
@@ -1155,6 +1263,51 @@ EMSCRIPTEN_EXPORT int Dbg_GetPageTableEntryRaw(int pageTable, int vpn)
 EMSCRIPTEN_EXPORT int Dbg_GetExtendedMode(void)
 {
     return STS_SEXI ? 1 : 0;
+}
+
+// --- Drive Info (unified mount registry query) ---
+
+EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
+{
+    static char buf[4096];
+    int pos = 0;
+
+    init_drive_arrays();
+
+    MountedDriveInfo_t *smd = list_mount(DRIVE_SMD);
+    MountedDriveInfo_t *floppy = list_mount(DRIVE_FLOPPY);
+
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "[");
+
+    for (int i = 0; i < 4 && pos < (int)sizeof(buf) - 256; i++) {
+        if (i > 0) pos += snprintf(buf + pos, sizeof(buf) - pos, ",");
+        MountedDriveInfo_t *d = smd ? &smd[i] : NULL;
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "{\"type\":\"smd\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
+            i,
+            (d && d->is_mounted) ? "true" : "false",
+            (d && d->is_mounted) ? d->name : "",
+            (d && d->is_opfs) ? "true" : "false",
+            (d && d->is_gateway) ? "true" : "false",
+            (d && d->is_mounted) ? (int)d->data_size : 0);
+    }
+
+    for (int i = 0; i < 2 && pos < (int)sizeof(buf) - 256; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, ",");
+        MountedDriveInfo_t *d = floppy ? &floppy[i] : NULL;
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "{\"type\":\"floppy\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
+            i,
+            (d && d->is_mounted) ? "true" : "false",
+            (d && d->is_mounted) ? d->name : "",
+            (d && d->is_opfs) ? "true" : "false",
+            (d && d->is_gateway) ? "true" : "false",
+            (d && d->is_mounted) ? (int)d->data_size : 0);
+    }
+
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "]");
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
 }
 
 // Main function for both Emscripten and non-Emscripten builds

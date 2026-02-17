@@ -318,38 +318,12 @@ function loadDiskImagesPersistent() {
     }
 
     return smdStorage.refreshMetadata().then(function() {
-      var units = smdStorage.getUnitAssignments();
-      var hasAnyUnit = false;
-      for (var u = 0; u < 4; u++) {
-        if (units[u]) { hasAnyUnit = true; break; }
-      }
-
-      if (!hasAnyUnit) {
-        // No images stored yet - download default to OPFS, then mount
-        if (statusEl) statusEl.textContent = 'First-time setup: downloading SMD0.IMG...';
-        return downloadImageBuffer('SMD0.IMG').then(function(buf) {
-          var data = new Uint8Array(buf);
-          return smdStorage.storeImage('SMD0.IMG', data, {
-            name: 'SINTRAN III/VSE K03',
-            description: 'Default system disk'
-          }).then(function() {
-            smdStorage.setUnitAssignment(0, 'SMD0.IMG');
-            smdStorage.setBootUnit(0);
-            return smdStorage.requestPersistence();
-          }).then(function() {
-            return mountPersistentUnits();
-          });
-        }).catch(function(err) {
-          console.error('[Persist] Download failed:', err);
-          if (statusEl) statusEl.textContent = 'Download failed - using demo mode';
-          return loadDiskImage('SMD0.IMG', '/SMD0.IMG').then(function(ok) {
-            diskImageStatus.smd = ok;
-          });
-        });
-      }
-
-      // Images exist in OPFS - mount them
       return mountPersistentUnits();
+    }).then(function() {
+      // If no disk on unit 0 after mounting, show a helpful message
+      if (!smdStorage.getUnitAssignment(0)) {
+        if (statusEl) statusEl.textContent = 'No disk on Unit 0. Open SMD Disk Manager to assign an image.';
+      }
     });
   });
 }

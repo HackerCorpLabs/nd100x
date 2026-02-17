@@ -1,9 +1,15 @@
 [
     {
-        "name": "SINTRAN III/VSE K03",
-        "fileName": "SMD0.IMG",
+        "name": "SINTRAN K",
         "description": "SINTRAN III/VSE version K, standard ND-100 system disk",
         "size": 78643200,
         "url": "SMD0.IMG"
+    },
+    {
+        "name": "Clean 75 MB Disk",
+        "description": "Empty 75 MB SMD disk image, for installing an OS from floppy",
+        "size": 78643200,
+        "url": null,
+        "generate": true
     }
 ]

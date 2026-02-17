@@ -178,6 +178,9 @@
       case 'getPageTableMapResult':
         resolveRequest(msg.id, msg.entries);
         break;
+      case 'getDriveInfoResult':
+        resolveRequest(msg.id, msg.data);
+        break;
       case 'ccallResult':
         resolveRequest(msg.id, msg.error ? null : msg.value);
         break;
@@ -209,12 +212,40 @@
         }
         break;
 
+      case 'ws-stats':
+        if (typeof window.onWsStatsUpdate === 'function') {
+          window.onWsStatsUpdate(msg.stats);
+        }
+        break;
+
       case 'enableRemoteTerminalsResult':
         resolveRequest(msg.id, msg);
         break;
 
       case 'opfsMountResult':
         resolveRequest(msg.id, msg);
+        break;
+
+      case 'gatewayMountResult':
+        resolveRequest(msg.id, msg);
+        break;
+
+      case 'disk-connected':
+        if (typeof window.onDiskConnected === 'function') {
+          window.onDiskConnected(msg.blockIO);
+        }
+        break;
+
+      case 'disk-disconnected':
+        if (typeof window.onDiskDisconnected === 'function') {
+          window.onDiskDisconnected();
+        }
+        break;
+
+      case 'disk-list':
+        if (typeof window.onDiskList === 'function') {
+          window.onDiskList(msg.data);
+        }
         break;
 
       case 'log':
@@ -516,6 +547,11 @@
     hasFunction: function(fnName) { return false; },  // Module not on main thread
     callFunction: function(fnName) { return undefined; },
 
+    // --- Drive info (unified registry query) ---
+    getDriveInfo: function() {
+      return postRequest('getDriveInfo', {});
+    },
+
     // --- Mode flag ---
     isWorkerMode: function() { return true; },
 
@@ -548,6 +584,20 @@
     },
     getSMDBuffer: function(unit) { return 0; },
     getSMDBufferSize: function(unit) { return 0; },
+
+    // --- Gateway disk mount/unmount ---
+    gatewayMountSMD: function(unit, imageSize) {
+      return postRequest('gatewayMountSMD', { unit: unit, imageSize: imageSize });
+    },
+    gatewayUnmountSMD: function(unit) {
+      return postRequest('gatewayUnmountSMD', { unit: unit });
+    },
+    gatewayMountFloppy: function(unit, imageSize) {
+      return postRequest('gatewayMountFloppy', { unit: unit, imageSize: imageSize });
+    },
+    gatewayUnmountFloppy: function(unit) {
+      return postRequest('gatewayUnmountFloppy', { unit: unit });
+    },
 
     // --- WebSocket bridge ---
     wsConnect: function(url) { postCmd('ws-connect', { url: url }); },

@@ -5,18 +5,24 @@
 // HackerCorp Labs -- https://github.com/HackerCorpLabs
 // Emulating yesterday's technology with today's code
 //
-// gateway.js - ND-100/CX Terminal Gateway Server
+// gateway.js - ND-100/CX Gateway Server
 //
-// Bridges TCP terminal connections to the ND-100 WASM emulator running
-// in a browser Web Worker via WebSocket.
+// Bridges TCP terminal/HDLC connections and disk block I/O to the ND-100
+// WASM emulator running in a browser Web Worker via WebSocket.
 //
 // Architecture:
 //   Remote client (PuTTY/telnet) --TCP--> Gateway --WebSocket--> Worker
+//   Disk I/O sub-worker --WebSocket--> Gateway --fs.readSync/writeSync
+//   HDLC TCP client --TCP--> Gateway --WebSocket--> Worker
 //
-// Usage: node gateway.js [--config path] [--verbose]
+// Single WebSocket server, all message types multiplexed by frame type byte.
+// Emulator worker and disk sub-worker both connect to the same endpoint.
+//
+// Usage: node gateway.js [--config path] [--static dir] [--verbose]
 
 'use strict';
 
+const http = require('http');
 const net = require('net');
 const fs = require('fs');
 const path = require('path');
@@ -28,17 +34,21 @@ const { WebSocketServer } = require('ws');
 const args = process.argv.slice(2);
 let configPath = path.join(__dirname, 'gateway.conf.json');
 let verbose = false;
+let staticDirOverride = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--config' && args[i + 1]) {
     configPath = args[++i];
+  } else if (args[i] === '--static' && args[i + 1]) {
+    staticDirOverride = args[++i];
   } else if (args[i] === '--verbose' || args[i] === '-v') {
     verbose = true;
   } else if (args[i] === '--help' || args[i] === '-h') {
-    console.log('Usage: node gateway.js [--config path] [--verbose]');
+    console.log('Usage: node gateway.js [--config path] [--static dir] [--verbose]');
     console.log('');
     console.log('Options:');
     console.log('  --config path  Path to config file (default: gateway.conf.json)');
+    console.log('  --static dir   Serve static files from directory (with COOP/COEP headers)');
     console.log('  --verbose, -v  Enable verbose logging');
     console.log('  --help, -h     Show this help');
     process.exit(0);
@@ -54,6 +64,15 @@ try {
   process.exit(1);
 }
 
+// CLI --static overrides config
+// CLI path resolves relative to CWD, config path resolves relative to config file
+var staticDir = '';
+if (staticDirOverride) {
+  staticDir = path.resolve(process.cwd(), staticDirOverride);
+} else if (config.staticDir) {
+  staticDir = path.resolve(path.dirname(configPath), config.staticDir);
+}
+
 function log(...args) {
   const ts = new Date().toISOString().slice(11, 19);
   console.log(`[${ts}]`, ...args);
@@ -64,46 +83,248 @@ function vlog(...args) {
 }
 
 // =========================================================
+// MIME types for static file serving
+// =========================================================
+var MIME_TYPES = {
+  '.html': 'text/html',
+  '.css':  'text/css',
+  '.js':   'application/javascript',
+  '.json': 'application/json',
+  '.wasm': 'application/wasm',
+  '.png':  'image/png',
+  '.ico':  'image/x-icon',
+  '.jpg':  'image/jpeg',
+  '.gif':  'image/gif',
+  '.svg':  'image/svg+xml',
+  '.txt':  'text/plain',
+  '.map':  'application/json',
+  '.img':  'application/octet-stream',
+  '.IMG':  'application/octet-stream'
+};
+
+// =========================================================
 // State
 // =========================================================
-let emulatorWs = null;           // Single WebSocket connection to emulator
+let emulatorWs = null;           // Emulator WebSocket (terminal + HDLC + control)
+let diskWs = null;               // Disk I/O sub-worker WebSocket
 let registeredTerminals = [];    // Terminal list from emulator { identCode, name, logicalDevice }
 const tcpBindings = new Map();   // identCode -> { socket, clientAddr }
 const menuClients = new Set();   // TCP sockets in menu-selection mode
 
-// =========================================================
-// WebSocket Server (emulator connection)
-// =========================================================
-const wsPort = config.websocket.port || 8765;
-const wss = new WebSocketServer({ port: wsPort });
+// HDLC state
+const hdlcBindings = new Map();  // channel -> { socket, clientAddr }
+const hdlcServers = [];          // Active HDLC TCP servers
 
-wss.on('listening', function() {
-  log('WebSocket server listening on ws://localhost:' + wsPort);
-});
+// Disk image state
+const diskFds = { smd: {}, floppy: {} };  // [type][unit] -> { fd, path, size, name }
+
+// =========================================================
+// Disk image file management
+// =========================================================
+function openDiskImages() {
+  ['smd', 'floppy'].forEach(function(type) {
+    var imgConfig = config[type];
+    if (!imgConfig || !imgConfig.images) return;
+    imgConfig.images.forEach(function(img, unit) {
+      if (!img) return;
+      // Support both string paths and object entries { path, name, description }
+      var imgPath = (typeof img === 'string') ? img : img.path;
+      if (!imgPath) return;
+      var resolved = path.resolve(path.dirname(configPath), imgPath);
+      try {
+        var fd = fs.openSync(resolved, 'r+');
+        var stat = fs.fstatSync(fd);
+        diskFds[type][unit] = {
+          fd: fd,
+          path: resolved,
+          size: stat.size,
+          name: (typeof img === 'object' && img.name) ? img.name : path.basename(resolved)
+        };
+      } catch (err) {
+        log('WARNING: Failed to open', type.toUpperCase(), 'unit', unit + ':', resolved, '-', err.message);
+      }
+    });
+  });
+}
+
+function closeDiskImages() {
+  ['smd', 'floppy'].forEach(function(type) {
+    for (var unit in diskFds[type]) {
+      try { fs.closeSync(diskFds[type][unit].fd); } catch(e) {}
+    }
+    diskFds[type] = {};
+  });
+}
+
+// =========================================================
+// Disk listing JSON (sent to disk sub-worker on connect)
+// =========================================================
+function buildDiskList() {
+  return JSON.stringify({
+    type: 'disk-list',
+    smd: Object.entries(diskFds.smd).map(function(e) {
+      return { unit: parseInt(e[0]), name: e[1].name, size: e[1].size };
+    }),
+    floppy: Object.entries(diskFds.floppy).map(function(e) {
+      return { unit: parseInt(e[0]), name: e[1].name, size: e[1].size };
+    })
+  });
+}
+
+// =========================================================
+// HTTP Server (static files with COOP/COEP headers)
+// =========================================================
+function handleHttpRequest(req, res) {
+  // COOP/COEP headers for SharedArrayBuffer support
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+
+  // Parse URL, strip query string
+  var urlPath = req.url.split('?')[0];
+
+  // Dynamic SMD catalog endpoint (generated from gateway.conf.json)
+  if (urlPath === '/smd-catalog.json') {
+    var catalog = [];
+    var images = (config.smd && config.smd.images) ? config.smd.images : [];
+    images.forEach(function(img, idx) {
+      var imgPath = (typeof img === 'string') ? img : img.path;
+      var imgName = (typeof img === 'object' && img.name)
+        ? img.name : path.basename(imgPath, path.extname(imgPath));
+      var imgDesc = (typeof img === 'object' && img.description) ? img.description : '';
+      var absPath = path.resolve(path.dirname(configPath), imgPath);
+      var stat = null;
+      try { stat = fs.statSync(absPath); } catch(e) {}
+      catalog.push({
+        name: imgName,
+        description: imgDesc,
+        size: stat ? stat.size : 0,
+        url: 'smd-images/' + idx,
+        available: stat !== null
+      });
+    });
+    var body = JSON.stringify(catalog);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body)
+    });
+    res.end(body);
+    return;
+  }
+
+  // SMD image streaming endpoint
+  var smdMatch = /^\/smd-images\/(\d+)$/.exec(urlPath);
+  if (smdMatch) {
+    var smdIdx = parseInt(smdMatch[1], 10);
+    var smdImages = (config.smd && config.smd.images) ? config.smd.images : [];
+    if (smdIdx < 0 || smdIdx >= smdImages.length) {
+      res.writeHead(404); res.end('Not Found'); return;
+    }
+    var smdImgPath = (typeof smdImages[smdIdx] === 'string') ? smdImages[smdIdx] : smdImages[smdIdx].path;
+    var smdAbsPath = path.resolve(path.dirname(configPath), smdImgPath);
+    fs.stat(smdAbsPath, function(err, stat) {
+      if (err || !stat.isFile()) { res.writeHead(404); res.end('Not Found'); return; }
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': stat.size
+      });
+      fs.createReadStream(smdAbsPath).pipe(res);
+    });
+    return;
+  }
+
+  if (!staticDir) {
+    res.writeHead(404);
+    res.end('Not Found (no static directory configured)');
+    return;
+  }
+
+  if (urlPath === '/') urlPath = '/index.html';
+
+  // Security: prevent path traversal
+  var safePath = path.normalize(urlPath).replace(/^(\.\.[\/\\])+/, '');
+  var filePath = path.join(staticDir, safePath);
+
+  // Ensure we're still within staticDir
+  if (!filePath.startsWith(staticDir)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.stat(filePath, function(err, stat) {
+    if (err || !stat.isFile()) {
+      res.writeHead(404);
+      res.end('Not Found');
+      return;
+    }
+
+    var ext = path.extname(filePath);
+    var contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': stat.size });
+    var stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+    stream.on('error', function() {
+      res.writeHead(500);
+      res.end('Internal Server Error');
+    });
+  });
+}
+
+const wsPort = config.websocket.port || 8765;
+const server = http.createServer(handleHttpRequest);
+
+// =========================================================
+// Single WebSocket Server (all connections)
+// =========================================================
+const wss = new WebSocketServer({ server: server });
 
 wss.on('connection', function(ws, req) {
   const clientIp = req.socket.remoteAddress;
 
-  if (emulatorWs) {
+  // Determine connection role based on state:
+  // - If no emulator connected yet, this is the emulator
+  // - If emulator is connected but no disk client, this is the disk sub-worker
+  // - Otherwise reject
+  if (!emulatorWs) {
+    emulatorWs = ws;
+    log('Emulator connected from', clientIp);
+    setupEmulatorWs(ws);
+  } else if (!diskWs) {
+    diskWs = ws;
+    log('Disk I/O client connected from', clientIp);
+    setupDiskWs(ws);
+  } else {
     log('Rejecting additional WebSocket connection from', clientIp);
-    ws.close(4000, 'Only one emulator connection allowed');
-    return;
+    ws.close(4000, 'Only one emulator + one disk connection allowed');
   }
+});
 
-  emulatorWs = ws;
-  log('Emulator connected from', clientIp);
-
+// =========================================================
+// Emulator WebSocket handler (terminal + HDLC + control)
+// =========================================================
+function setupEmulatorWs(ws) {
   ws.on('message', function(data, isBinary) {
-    // Binary frame: [type:1][identCode:1][data:N]
-    // Type 0x02 = term-output
     if (isBinary) {
       var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
-      if (buf.length >= 2 && buf[0] === 0x02) {
-        // term-output (binary)
+      if (buf.length < 2) return;
+
+      if (buf[0] === 0x02) {
+        // term-output (binary): [0x02][identCode][data...]
         var identCode = buf[1];
         var binding = tcpBindings.get(identCode);
         if (binding && binding.socket && !binding.socket.destroyed) {
           binding.socket.write(buf.slice(2));
+        }
+      }
+      else if (buf[0] === 0x11 && buf.length >= 4) {
+        // HDLC TX frame from emulator: [0x11][channel][lenHi][lenLo][data...]
+        var channel = buf[1];
+        var len = (buf[2] << 8) | buf[3];
+        var frameData = buf.slice(4, 4 + len);
+        var hdlcBinding = hdlcBindings.get(channel);
+        if (hdlcBinding && hdlcBinding.socket && !hdlcBinding.socket.destroyed) {
+          hdlcBinding.socket.write(frameData);
+          vlog('HDLC TX ch=' + channel + ' len=' + len + ' -> TCP');
         }
       }
       return;
@@ -154,17 +375,130 @@ wss.on('connection', function(ws, req) {
       }
     }
     tcpBindings.clear();
+
+    // Notify HDLC TCP clients
+    for (const [channel, binding] of hdlcBindings) {
+      if (binding.socket && !binding.socket.destroyed) {
+        binding.socket.destroy();
+      }
+    }
+    hdlcBindings.clear();
+
+    // Also close disk sub-worker (it belongs to this emulator session)
+    if (diskWs) {
+      diskWs.close(1000, 'Emulator disconnected');
+    }
   });
 
   ws.on('error', function(err) {
-    log('WebSocket error:', err.message);
+    log('Emulator WebSocket error:', err.message);
   });
-});
+}
 
-wss.on('error', function(err) {
-  console.error('WebSocket server error:', err.message);
-  process.exit(1);
-});
+// =========================================================
+// Disk I/O WebSocket handler (block read/write)
+// =========================================================
+var _gwDiskReadCount = 0;
+var _gwDiskWriteCount = 0;
+var _gwDiskReadBytes = 0;
+var _gwDiskWriteBytes = 0;
+
+function setupDiskWs(ws) {
+  // Send disk listing on connect
+  ws.send(buildDiskList());
+
+  ws.on('message', function(data, isBinary) {
+    if (!isBinary) return;
+    var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    if (buf.length < 3) return;
+
+    var type = buf[0];
+    var driveType = buf[1];  // 0=smd, 1=floppy
+    var unit = buf[2];
+    var typeName = driveType === 0 ? 'smd' : 'floppy';
+    var disk = diskFds[typeName] && diskFds[typeName][unit];
+
+    if ((type === 0x20 || type === 0x22) && !disk) {
+      log('Disk ERROR: no image for', typeName, 'unit', unit, '- request type 0x' + type.toString(16), 'dropped');
+      // Send error response so the sub-worker doesn't hang
+      if (type === 0x20) {
+        var errResp = Buffer.alloc(4);
+        errResp[0] = 0x21; errResp[1] = driveType; errResp[2] = unit; errResp[3] = 0xFF;
+        ws.send(errResp);
+      } else {
+        ws.send(Buffer.from([0x23, driveType, unit, 0xFF]));
+      }
+      return;
+    }
+
+    if (type === 0x20 && buf.length >= 9 && disk) {
+      // Block read request: [0x20][driveType][unit][offset:4BE][size:2BE]
+      var offset = buf.readUInt32BE(3);
+      var size = buf.readUInt16BE(7);
+      var readBuf = Buffer.alloc(size);
+      try {
+        fs.readSync(disk.fd, readBuf, 0, size, offset);
+      } catch (err) {
+        log('Disk read error:', typeName, 'unit', unit, 'offset', offset, '-', err.message);
+        var errResp = Buffer.alloc(4);
+        errResp[0] = 0x21;
+        errResp[1] = driveType;
+        errResp[2] = unit;
+        errResp[3] = 0xFF;  // error flag
+        ws.send(errResp);
+        return;
+      }
+      // Response: [0x21][driveType][unit][data...]
+      var resp = Buffer.alloc(3 + size);
+      resp[0] = 0x21;
+      resp[1] = driveType;
+      resp[2] = unit;
+      readBuf.copy(resp, 3);
+      ws.send(resp);
+      _gwDiskReadCount++;
+      _gwDiskReadBytes += size;
+      if (_gwDiskReadCount === 1) {
+        log('Disk read: first block -', typeName, 'unit', unit, 'offset', offset, 'size', size, '- sent', resp.length, 'bytes');
+      } else if (_gwDiskReadCount % 100 === 0) {
+        log('Disk I/O: ' + _gwDiskReadCount + ' reads (' + (_gwDiskReadBytes / 1024).toFixed(0) + ' KB), ' + _gwDiskWriteCount + ' writes (' + (_gwDiskWriteBytes / 1024).toFixed(0) + ' KB)');
+      }
+      vlog('Disk read:', typeName, 'unit', unit, 'offset', offset, 'size', size);
+    }
+
+    else if (type === 0x22 && buf.length >= 9 && disk) {
+      // Block write request: [0x22][driveType][unit][offset:4BE][size:2BE][data...]
+      var offset = buf.readUInt32BE(3);
+      var size = buf.readUInt16BE(7);
+      var writeData = buf.slice(9, 9 + size);
+      var status = 0x00;
+      try {
+        fs.writeSync(disk.fd, writeData, 0, writeData.length, offset);
+      } catch (err) {
+        log('Disk write error:', typeName, 'unit', unit, 'offset', offset, '-', err.message);
+        status = 0xFF;
+      }
+      // Ack: [0x23][driveType][unit][status]
+      ws.send(Buffer.from([0x23, driveType, unit, status]));
+      _gwDiskWriteCount++;
+      _gwDiskWriteBytes += size;
+      if (_gwDiskWriteCount === 1) {
+        log('Disk write: first block -', typeName, 'unit', unit, 'offset', offset, 'size', size);
+      } else if (_gwDiskWriteCount % 100 === 0) {
+        log('Disk I/O: ' + _gwDiskReadCount + ' reads (' + (_gwDiskReadBytes / 1024).toFixed(0) + ' KB), ' + _gwDiskWriteCount + ' writes (' + (_gwDiskWriteBytes / 1024).toFixed(0) + ' KB)');
+      }
+      vlog('Disk write:', typeName, 'unit', unit, 'offset', offset, 'size', size, 'status', status);
+    }
+  });
+
+  ws.on('close', function() {
+    log('Disk I/O client disconnected');
+    diskWs = null;
+  });
+
+  ws.on('error', function(err) {
+    log('Disk WebSocket error:', err.message);
+  });
+}
 
 // =========================================================
 // Helper: send JSON control message to emulator
@@ -190,6 +524,36 @@ function sendTermInput(identCode, bytes) {
       frame[2 + i] = bytes[i];
     }
     emulatorWs.send(frame);
+    return true;
+  }
+  return false;
+}
+
+// =========================================================
+// Helper: send binary HDLC RX frame to emulator
+// Format: [0x10][channel][lenHi][lenLo][data...]
+// =========================================================
+function sendHdlcRxFrame(channel, data) {
+  if (emulatorWs && emulatorWs.readyState === 1) {
+    var frame = Buffer.alloc(4 + data.length);
+    frame[0] = 0x10;  // HDLC RX
+    frame[1] = channel & 0xFF;
+    frame[2] = (data.length >> 8) & 0xFF;
+    frame[3] = data.length & 0xFF;
+    data.copy(frame, 4);
+    emulatorWs.send(frame);
+    return true;
+  }
+  return false;
+}
+
+// =========================================================
+// Helper: send HDLC carrier status to emulator
+// Format: [0x12][channel][present]
+// =========================================================
+function sendHdlcCarrier(channel, present) {
+  if (emulatorWs && emulatorWs.readyState === 1) {
+    emulatorWs.send(Buffer.from([0x12, channel & 0xFF, present ? 0x01 : 0x00]));
     return true;
   }
   return false;
@@ -363,31 +727,136 @@ tcpServer.on('error', function(err) {
   process.exit(1);
 });
 
-tcpServer.listen(tcpPort, function() {
-  log('TCP terminal server listening on port', tcpPort);
-  log('');
-  log('Waiting for emulator WebSocket connection on ws://localhost:' + wsPort);
-});
+// =========================================================
+// HDLC TCP servers
+// =========================================================
+function createHdlcServer(hdlcConf) {
+  var channel = hdlcConf.channel;
+  var hdlcPort = hdlcConf.port;
 
-// =========================================================
-// HDLC TCP servers (future, structure ready)
-// =========================================================
+  var hdlcServer = net.createServer(function(socket) {
+    var clientAddr = socket.remoteAddress + ':' + socket.remotePort;
+    log('HDLC ch=' + channel + ' TCP client connected from', clientAddr);
+
+    // Only one client per HDLC channel
+    if (hdlcBindings.has(channel)) {
+      var existing = hdlcBindings.get(channel);
+      if (existing.socket && !existing.socket.destroyed) {
+        log('HDLC ch=' + channel + ' replacing existing connection');
+        existing.socket.destroy();
+      }
+    }
+
+    hdlcBindings.set(channel, { socket: socket, clientAddr: clientAddr });
+
+    // Notify emulator: carrier present
+    sendHdlcCarrier(channel, true);
+
+    socket.on('data', function(data) {
+      var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      sendHdlcRxFrame(channel, buf);
+      vlog('HDLC RX ch=' + channel + ' len=' + buf.length + ' <- TCP');
+    });
+
+    socket.on('close', function() {
+      log('HDLC ch=' + channel + ' TCP client disconnected');
+      hdlcBindings.delete(channel);
+      sendHdlcCarrier(channel, false);
+    });
+
+    socket.on('error', function(err) {
+      vlog('HDLC ch=' + channel + ' TCP error:', err.message);
+    });
+  });
+
+  hdlcServer.on('error', function(err) {
+    log('HDLC server ch=' + channel + ' error:', err.message);
+  });
+
+  hdlcServer.listen(hdlcPort, function() {
+    log('HDLC', hdlcConf.name, 'ch=' + channel, 'listening on port', hdlcPort);
+  });
+
+  hdlcServers.push(hdlcServer);
+}
+
 if (config.hdlc) {
   for (const hdlcConf of config.hdlc) {
     if (!hdlcConf.enabled) {
       vlog('HDLC', hdlcConf.name, 'disabled (port', hdlcConf.port + ')');
       continue;
     }
-    // Future: create TCP server for each enabled HDLC controller
-    log('HDLC', hdlcConf.name, 'on port', hdlcConf.port, '- not yet implemented');
+    createHdlcServer(hdlcConf);
   }
 }
+
+// =========================================================
+// Start servers
+// =========================================================
+openDiskImages();
+
+tcpServer.listen(tcpPort, function() {
+  log('TCP terminal server listening on port', tcpPort);
+});
+
+server.listen(wsPort, function() {
+  log('');
+  log('=== ND-100/CX Gateway Server ===');
+  log('');
+  log('Config: ' + configPath);
+  log('');
+
+  // Network
+  log('Network:');
+  log('  WebSocket:  ws://localhost:' + wsPort + '/');
+  log('  Terminals:  tcp://localhost:' + tcpPort + '/');
+  if (staticDir) {
+    log('  Static:     http://localhost:' + wsPort + '/ (' + staticDir + ')');
+    log('  COOP/COEP:  enabled (SharedArrayBuffer support)');
+  }
+
+  // HDLC
+  if (config.hdlc && config.hdlc.length > 0) {
+    log('');
+    log('HDLC:');
+    config.hdlc.forEach(function(h) {
+      log('  ' + h.name + ': port ' + h.port + ' (' + (h.enabled ? 'enabled' : 'disabled') + ')');
+    });
+  }
+
+  // Disk images
+  var smdCount = Object.keys(diskFds.smd).length;
+  var floppyCount = Object.keys(diskFds.floppy).length;
+  log('');
+  log('Disk images:');
+  if (smdCount === 0 && floppyCount === 0) {
+    log('  (none configured)');
+  } else {
+    Object.entries(diskFds.smd).forEach(function(e) {
+      log('  SMD ' + e[0] + ':     ' + e[1].name + ' (' + Math.round(e[1].size / 1024 / 1024) + ' MB)');
+    });
+    Object.entries(diskFds.floppy).forEach(function(e) {
+      log('  Floppy ' + e[0] + ':  ' + e[1].name + ' (' + Math.round(e[1].size / 1024) + ' KB)');
+    });
+  }
+
+  log('');
+  log('Waiting for emulator connection...');
+});
+
+server.on('error', function(err) {
+  console.error('HTTP server error:', err.message);
+  process.exit(1);
+});
 
 // =========================================================
 // Graceful shutdown
 // =========================================================
 function shutdown() {
   log('Shutting down...');
+
+  // Close disk file descriptors
+  closeDiskImages();
 
   // Close all TCP client connections
   for (const [identCode, binding] of tcpBindings) {
@@ -399,8 +868,21 @@ function shutdown() {
     if (!sock.destroyed) sock.destroy();
   }
 
+  // Close HDLC TCP connections
+  for (const [channel, binding] of hdlcBindings) {
+    if (binding.socket && !binding.socket.destroyed) {
+      binding.socket.destroy();
+    }
+  }
+
+  // Close HDLC servers
+  for (const hs of hdlcServers) {
+    hs.close();
+  }
+
   tcpServer.close();
   wss.close();
+  server.close();
   process.exit(0);
 }
 

@@ -2,12 +2,32 @@
   "websocket": {
     "port": 8765
   },
+  "staticDir": "",
   "terminals": {
     "port": 5001,
     "welcome": "ND-100/CX Terminal Server"
   },
   "hdlc": [
-    { "name": "HDLC-0", "port": 5010, "enabled": false },
-    { "name": "HDLC-1", "port": 5011, "enabled": false }
-  ]
+    { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
+    { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
+  ],
+  "smd": {
+    "images": [
+      {
+        "path": "../../SMD0.IMG",
+        "name": "SINTRAN K",
+        "description": "SINTRAN III/VSE version K, standard ND-100 system disk"
+      },
+      {
+        "path": "../../SMD1.IMG",
+        "name": "SMD Disk 1",
+        "description": "Secondary SMD disk (unit 1)"
+      }
+    ]
+  },
+  "floppy": {
+    "images": [
+      "../../FLOPPY.IMG"
+    ]
+  }
 }

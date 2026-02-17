@@ -378,6 +378,26 @@ body {
   left: 20px;
   width: 280px;
 }
+/* =========================================
+   Gateway Statistics Window
+   ========================================= */
+#gateway-stats-window {
+  top: 120px;
+  left: 320px;
+  width: 260px;
+}
+.stat-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(160, 175, 210, 0.45);
+  padding: 6px 0 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.stat-section-header:first-child {
+  padding-top: 0;
+}
 .machine-info-row {
   display: flex;
   justify-content: space-between;
@@ -2371,6 +2391,29 @@ button:disabled {
   background: rgba(0, 0, 0, 0.3);
   pointer-events: none;
 }
+/* Taskbar WebSocket gateway indicator */
+.taskbar-ws-indicator {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+  color: rgba(0, 200, 180, 0.85);
+  cursor: pointer;
+  transition: color 0.2s, filter 0.2s;
+  filter: drop-shadow(0 0 3px rgba(0, 200, 180, 0.4));
+}
+.taskbar-ws-indicator:hover {
+  color: rgba(0, 240, 210, 1);
+  filter: drop-shadow(0 0 6px rgba(0, 240, 210, 0.6));
+}
+.taskbar-ws-indicator.disconnected {
+  color: rgba(200, 80, 60, 0.7);
+  filter: none;
+}
+
 /* Taskbar settings cogwheel */
 .taskbar-settings-btn {
   flex: none;
@@ -2632,25 +2675,6 @@ button:disabled {
   min-height: 300px;
 }
 
-.smd-persist-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 10px;
-}
-
-.smd-demo-msg {
-  padding: 12px;
-  background: rgba(255, 176, 0, 0.06);
-  border: 1px solid rgba(255, 176, 0, 0.15);
-  border-radius: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: rgba(200, 210, 230, 0.8);
-}
-
 .smd-section-title {
   font-size: 11px;
   font-weight: 700;
@@ -2711,11 +2735,6 @@ button:disabled {
   white-space: nowrap;
 }
 
-.smd-boot-star {
-  color: rgba(255, 200, 50, 0.9);
-  margin-right: 2px;
-}
-
 .smd-unit-name {
   flex: 1;
   color: #c0d0e0;
@@ -2747,14 +2766,6 @@ button:disabled {
   border-color: rgba(255, 80, 80, 0.4);
   transform: none;
   box-shadow: none;
-}
-
-.smd-boot-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .smd-installed-list {
@@ -2826,6 +2837,10 @@ button:disabled {
   color: rgba(180, 200, 230, 0.8);
   cursor: pointer;
 }
+.smd-assign-select option {
+  background: #1a1e35;
+  color: #c8d0e0;
+}
 
 .smd-delete-btn {
   padding: 1px 6px;
@@ -2845,6 +2860,61 @@ button:disabled {
   box-shadow: none;
 }
 
+.smd-remote-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(180, 200, 230, 0.5);
+  margin: 8px 0 4px 0;
+}
+
+.smd-badge-gateway {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-family: inherit;
+  background: rgba(0, 200, 150, 0.15);
+  border: 1px solid rgba(0, 200, 150, 0.3);
+  border-radius: 3px;
+  color: rgba(0, 220, 170, 0.9);
+}
+
+.smd-eject-remote-btn,
+.smd-mount-remote-btn {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  color: rgba(180, 200, 230, 0.8);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.smd-eject-remote-btn:hover,
+.smd-mount-remote-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.smd-assign-remote-select {
+  font-size: 10px;
+  font-family: inherit;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  color: rgba(180, 200, 230, 0.8);
+  cursor: pointer;
+}
+.smd-assign-remote-select option {
+  background: #1a1e35;
+  color: #c8d0e0;
+}
+.smd-assign-remote-select option:disabled {
+  color: rgba(160, 175, 210, 0.35);
+}
+
 .smd-download-status {
   font-size: 11px;
   color: rgba(160, 175, 210, 0.6);
@@ -2858,3 +2928,162 @@ button:disabled {
   padding: 4px 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
+
+/* =========================================
+   Drive source badges (Machine Info)
+   ========================================= */
+.drive-source-badge {
+  font-size: 0.7em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-demo    { background: rgba(255,152,0,0.2); color: #ffb74d; }
+.badge-opfs    { background: rgba(76,175,80,0.2); color: #81c784; }
+.badge-gateway { background: rgba(33,150,243,0.2); color: #64b5f6; }
+.badge-library { background: rgba(156,39,176,0.2); color: #ce93d8; }
+
+/* SMD catalog card styles */
+.smd-catalog-card .smd-image-meta {
+  display: block;
+  margin-top: 2px;
+}
+.smd-catalog-badge {
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.smd-catalog-badge.downloaded {
+  background: rgba(76,175,80,0.15);
+  color: #81c784;
+}
+.smd-catalog-dl-btn {
+  min-width: 72px;
+}
+.smd-catalog-dl-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.smd-export-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(180,210,255,0.7);
+  cursor: pointer;
+}
+.smd-export-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(180,210,255,0.9);
+}
+
+/* Copy to Library dialog */
+.smd-copy-dialog {
+  background: rgba(20, 24, 44, 0.95);
+  border: 1px solid rgba(100, 140, 220, 0.3);
+  border-radius: 6px;
+  padding: 14px;
+  margin-top: 10px;
+}
+.smd-copy-dialog-title {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #a0b8e8;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.smd-copy-label {
+  display: block;
+  font-size: 0.78em;
+  color: #8090b0;
+  margin-bottom: 8px;
+}
+.smd-copy-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(100,140,220,0.25);
+  border-radius: 4px;
+  color: #c8d0e0;
+  padding: 5px 8px;
+  font-size: 0.85em;
+  font-family: inherit;
+  margin-top: 3px;
+}
+.smd-copy-textarea { resize: vertical; }
+.smd-copy-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.smd-copy-confirm-btn { background: rgba(76,175,80,0.2); color: #81c784; }
+.smd-copy-confirm-btn:hover { background: rgba(76,175,80,0.35); }
+
+/* Installed image rename button */
+.smd-rename-btn {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: rgba(180,200,230,0.7);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.smd-rename-btn:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.2);
+}
+
+/* Source label for local library entries */
+.smd-source-label {
+  font-size: 9px;
+  color: rgba(160,175,210,0.35);
+  font-style: italic;
+}
+
+/* Inline rename fields */
+.smd-rename-fields {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+}
+.smd-rename-input {
+  flex: 1;
+  font-size: 10px;
+  font-family: inherit;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(100,140,220,0.25);
+  border-radius: 3px;
+  color: #c8d0e0;
+  padding: 2px 6px;
+}
+.smd-rename-save {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  background: rgba(76,175,80,0.15);
+  border: 1px solid rgba(76,175,80,0.3);
+  border-radius: 3px;
+  color: #81c784;
+  cursor: pointer;
+}
+.smd-rename-save:hover { background: rgba(76,175,80,0.3); }
+
+/* Catalog unavailable card */
+.smd-catalog-card.unavailable {
+  opacity: 0.5;
+}
+.smd-catalog-card.unavailable .smd-action-btn { display: none; }

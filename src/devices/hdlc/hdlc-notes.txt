@@ -1,0 +1,49 @@
+STARTUP
+
+HDLC Read from register 8 (address 1650)
+Read RRTS: 0x0000
+HDLC Read from register 8 returned 0x0000
+HDLC Write to register 3 (address 1643) value 0x0010
+HDLC Write to register 7 (address 1647) value 0x0010
+HDLC Write to register 11 (address 1653) value 0x0010
+HDLC Write to register 15 (address 1657) value 0x0010
+DMAEngine: DMA Device Clear command
+
+
+*start-x
+
+OK: XMSG started.
+*
+
+System malfunction. Sintran halt in ERRFATAL. L-reg: 072767
+Current page index tables (NPIT/APIT): 000012 / 000007
+Level: 000016
+
+WAIT when IONI is off PIL[14] PC[   316] PID[0x6026] PIE[0x7C3F] IONI[0] PONI[1] STS_HI[7E00] STS_LO[   1]
+CPU: WAS STOPPED, SHUTTING DOWN
+
+RetroCore: oct 20 = 0x10
+Device; [15:16:26.380] HDLC DMA 00000000001: Read RRTS: 0
+Device; [15:16:26.380] HDLC DMA 00000000001: IOX Read from ReadReceiverTransferStatus value 00000000000
+Device; [15:16:37.142] HDLC DMA 00000000001: IOX Write to WriteSAR value 00000000020
+Device; [15:16:37.143] HDLC DMA 00000000001: IOX Write to WriteTransmitterControlRegister value 00000000020
+Device; [15:16:37.144] HDLC DMA 00000000001: IOX Write to WriteTransmitterTransferControlRegister value 00000000020
+Device; [15:16:37.144] HDLC DMA 00000000001: IOX Write to WriteDMACommand value 00000000020
+
+SINTRAN L STDB B : 72767 TDTLEV - Fatal internal error on illegal level => CPU FAULT
+
+072541   %=======================
+072541   %      T D T L E V
+072541   %
+072541   % TEST FOR ERROR ON DIRECT TASK LEVEL (6 TO 9)
+072541   INTEGER CBSET(0); *BSET ONE DA
+072542   TDTLEV: IF ACTLV>=6 AND A<12 THEN                % ERROR ON DIRECT TASK LEVEL?
+072551              A SH 3\/CBSET=:T; A:=0                % YES
+072555              *EXR ST; MCL PID; MCL PIE             % DISABLE LEVEL
+072560              T:=IBITNO; ACTLV; CALL 9ERR(#04)      % GIVE ERROR MESSAGE
+072564              *TRA PGS
+072565              GO RET14
+072566           FI; CALL ERRFATAL                        % FATAL INTERNAL ERROR ON ILLEGAL LEVEL
+072567   *)FILL
+
+PID with bits: 0110_0000_0010_0110 <= TODO: Decode what this may be

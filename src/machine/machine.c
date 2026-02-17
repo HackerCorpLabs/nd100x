@@ -354,8 +354,10 @@ void autoMountDrives()
          break;
      case BOOT_SMD:
 
-        // Ensure unit 0 is mounted before we ask the SMD device to memory-boot
-        mount_smd(imageFile, 0);
+        // Only mount from MEMFS file if not already mounted (gateway/OPFS mounts take priority)
+        if (!isMounted(DRIVE_SMD, 0)) {
+            mount_smd(imageFile, 0);
+        }
 
          bootAddress = DeviceManager_Boot(01540);
          if (bootAddress < 0)
@@ -570,8 +572,8 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
            unit);
     
     // Clean up data based on type
-    if (drives[unit].is_opfs) {
-        // OPFS drives have no FILE* or malloc'd data - nothing to free
+    if (drives[unit].is_opfs || drives[unit].is_gateway) {
+        // OPFS/gateway drives have no FILE* or malloc'd data - nothing to free
         drives[unit].data.local_file = NULL;
     } else if (drives[unit].is_remote) {
         // Free downloaded remote data
@@ -590,6 +592,7 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
     // Clear the drive entry
     drives[unit].is_mounted = false;
     drives[unit].is_opfs = false;
+    drives[unit].is_gateway = false;
     drives[unit].md5[0] = '\0';
     drives[unit].name[0] = '\0';
     drives[unit].description[0] = '\0';
@@ -637,6 +640,33 @@ EM_JS(int, opfs_is_available_js, (int unit), {
     }
     return 0;
 });
+
+/* Gateway block I/O via JavaScript sub-worker.
+ * In Worker mode, a dedicated sub-worker holds a WebSocket to the gateway
+ * server and uses SharedArrayBuffer + Atomics for synchronous block I/O.
+ * These EM_JS functions call into the global gatewayBlockRead/Write
+ * which are set up by emu-worker.js.
+ */
+EM_JS(int, gateway_block_read_js, (int driveType, int unit, uint8_t *buffer, int bytes, int offset), {
+    if (typeof gatewayBlockRead === 'function') {
+        return gatewayBlockRead(driveType, unit, buffer, bytes, offset);
+    }
+    return -1;
+});
+
+EM_JS(int, gateway_block_write_js, (int driveType, int unit, const uint8_t *buffer, int bytes, int offset), {
+    if (typeof gatewayBlockWrite === 'function') {
+        return gatewayBlockWrite(driveType, unit, buffer, bytes, offset);
+    }
+    return -1;
+});
+
+EM_JS(int, gateway_is_available_js, (int driveType, int unit), {
+    if (typeof gatewayIsAvailable === 'function') {
+        return gatewayIsAvailable(driveType, unit);
+    }
+    return 0;
+});
 #endif
 
 /* Mount an SMD drive for OPFS mode (no FILE* needed).
@@ -680,12 +710,72 @@ void mount_drive_opfs(DRIVE_TYPE drive_type, int unit, const char *name,
     drives[unit].image_path[0] = '\0';
 }
 
+/* Mount a drive for gateway mode (block I/O via WebSocket, no FILE*).
+ * The actual I/O goes through JS gatewayBlockRead/Write. */
+void mount_drive_gateway(DRIVE_TYPE drive_type, int unit, const char *name,
+                         const char *description, size_t imageSize) {
+    MountedDriveInfo_t* drives = NULL;
+    int max_units = 0;
+
+    if (drive_type == DRIVE_SMD) {
+        drives = smd_drives;
+        max_units = 4;
+    } else if (drive_type == DRIVE_FLOPPY) {
+        drives = floppy_drives;
+        max_units = 3;
+    } else {
+        return;
+    }
+
+    if (unit < 0 || unit >= max_units) return;
+
+    if (!drives) {
+        init_drive_arrays();
+        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        if (!drives) return;
+    }
+
+    drives[unit].is_mounted = true;
+    drives[unit].is_remote = false;
+    drives[unit].is_opfs = false;
+    drives[unit].is_gateway = true;
+    drives[unit].is_writeprotected = false;
+    drives[unit].data.local_file = NULL;
+    drives[unit].data_size = imageSize;
+    drives[unit].block_size = (drive_type == DRIVE_SMD) ? 1024 : 512;
+
+    strncpy(drives[unit].md5, "gateway", sizeof(drives[unit].md5) - 1);
+    strncpy(drives[unit].name, name, sizeof(drives[unit].name) - 1);
+    drives[unit].name[sizeof(drives[unit].name) - 1] = '\0';
+    strncpy(drives[unit].description, description, sizeof(drives[unit].description) - 1);
+    drives[unit].description[sizeof(drives[unit].description) - 1] = '\0';
+    drives[unit].image_path[0] = '\0';
+}
+
 // Callback-based block READ for block devices
 int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
 
     DRIVE_TYPE drive_type = (device->type == DEVICE_TYPE_DISC_SMD) ? DRIVE_SMD : DRIVE_FLOPPY;
     MountedDriveInfo_t *drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+
+    // Diagnostic: log first floppy block read attempt
+    if (drive_type == DRIVE_FLOPPY) {
+        static int _floppy_read_log = 0;
+        if (_floppy_read_log < 5) {
+            _floppy_read_log++;
+            printf("[FLOPPY-DIAG] machine_block_read: unit=%d drives=%s mounted=%d gateway=%d opfs=%d remote=%d size=%d blkAddr=%u blkSize=%u\n",
+                unit,
+                drives ? "ok" : "NULL",
+                drives ? drives[unit].is_mounted : -1,
+                drives ? drives[unit].is_gateway : -1,
+                drives ? drives[unit].is_opfs : -1,
+                drives ? drives[unit].is_remote : -1,
+                drives ? (int)drives[unit].data_size : -1,
+                blockAddress, (unsigned)device->blockSizeBytes);
+        }
+    }
+
     if (!drives) return -1;
 
     // block size is determined by the device; size is number of blocks
@@ -698,6 +788,15 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
 #ifdef __EMSCRIPTEN__
     if (entry->is_opfs && opfs_is_available_js(unit)) {
         int rc = opfs_block_read_js(unit, buffer, (int)bytes, (int)offset);
+        if (rc < 0) return -1;
+        if ((size_t)rc < bytes) {
+            memset(buffer + rc, 0, bytes - rc);
+        }
+        return (int)size;
+    }
+
+    if (entry->is_gateway && gateway_is_available_js((int)drive_type, unit)) {
+        int rc = gateway_block_read_js((int)drive_type, unit, buffer, (int)bytes, (int)offset);
         if (rc < 0) return -1;
         if ((size_t)rc < bytes) {
             memset(buffer + rc, 0, bytes - rc);
@@ -748,6 +847,11 @@ int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint
         int rc = opfs_block_write_js(unit, buffer, (int)bytes, (int)offset);
         return (rc >= 0) ? (int)size : -1;
     }
+
+    if (entry->is_gateway && gateway_is_available_js((int)drive_type, unit)) {
+        int rc = gateway_block_write_js((int)drive_type, unit, buffer, (int)bytes, (int)offset);
+        return (rc >= 0) ? (int)size : -1;
+    }
 #endif
 
     if (entry->is_remote) {
@@ -782,9 +886,9 @@ int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_p
 
     *image_size = entry->data_size;
 
-    // OPFS and remote files are always NOT write protected
+    // OPFS, gateway, and remote files are always NOT write protected
     // Local files are write protected if we dont have access to write to the file
-    if (entry->is_opfs || entry->is_remote) {
+    if (entry->is_opfs || entry->is_gateway || entry->is_remote) {
         *is_write_protected = false;
     }
     else {
