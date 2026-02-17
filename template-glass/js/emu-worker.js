@@ -440,6 +440,14 @@ function wsConnect(url) {
     if (_wsStatsTimer) { clearInterval(_wsStatsTimer); _wsStatsTimer = null; }
     postMessage({ type: 'ws-stats', stats: _wsStats });
     postMessage({ type: 'ws-status', connected: false, error: null });
+    // Drop carrier on all active remote terminals. The gateway WebSocket is
+    // gone, so any TCP clients it was serving are now disconnected. Signal
+    // carrier missing for each so SINTRAN can clean up the sessions.
+    if (Module && Module._SetTerminalCarrier) {
+      for (var ic in _remoteIdentCodes) {
+        Module._SetTerminalCarrier(1, parseInt(ic, 10));
+      }
+    }
     _ws = null;
     // Auto-reconnect after 3 seconds if we had a URL
     if (_wsUrl) {
