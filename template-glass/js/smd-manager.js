@@ -266,11 +266,15 @@ function smdAssignToUnit(uuid, unit) {
 
   smdStorage.setUnitAssignment(unit, uuid);
 
-  // If emulator is initialized and persistence is on, mount live
-  if (emu && emu.isReady && emu.isReady() && isSmdPersistenceEnabled()) {
+  // Update registry immediately so Machine Info reflects the assignment
+  if (typeof driveRegistry !== 'undefined') {
     var meta = smdStorage.getMetadata(uuid);
     var displayName = meta ? meta.name : uuid;
+    driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, meta ? meta.size || 0 : 0);
+  }
 
+  // If emulator is initialized and persistence is on, mount live
+  if (emu && emu.isReady && emu.isReady() && isSmdPersistenceEnabled()) {
     if (emu.isWorkerMode()) {
       emu.opfsMountSMD(unit, uuid).then(function(r) {
         console.log('[SMD Manager] Unit ' + unit + ' mounted: ' + displayName + (r.ok ? ' OK' : ' FAILED'));
