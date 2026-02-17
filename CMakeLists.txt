@@ -153,7 +153,7 @@ endif()
 # Apply Emscripten-specific settings when compiling for WASM
 if(PLATFORM_WASM OR BUILD_WASM)
     set(EMSCRIPTEN_LINK_FLAGS
-        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','stackTrace','noExitRuntime','preloadPlugins','STACK_SIZE','FS','addFunction'] -s ALLOW_TABLE_GROWTH=1"
+        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','stackTrace','noExitRuntime','preloadPlugins','STACK_SIZE','FS','addFunction','HEAPU8'] -s ALLOW_TABLE_GROWTH=1"
     )
     
     if(TARGET nd100wasm)

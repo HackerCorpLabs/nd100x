@@ -177,12 +177,26 @@ function tcpRead(sock, timeoutMs) {
   });
 }
 
-// Helper: collect WebSocket messages for a duration
+// Helper: collect WebSocket messages for a duration (handles both JSON and binary)
 function wsCollect(ws, timeoutMs) {
   return new Promise((resolve) => {
     let messages = [];
-    const handler = (data) => {
-      try { messages.push(JSON.parse(data)); } catch(e) {}
+    const handler = (data, isBinary) => {
+      if (isBinary) {
+        var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        if (buf.length >= 2 && buf[0] === 0x01) {
+          // term-input binary frame: [0x01][identCode][data bytes...]
+          messages.push({
+            type: 'term-input',
+            identCode: buf[1],
+            data: Array.from(buf.slice(2))
+          });
+        } else {
+          messages.push({ type: 'binary', raw: buf });
+        }
+      } else {
+        try { messages.push(JSON.parse(data)); } catch(e) {}
+      }
     };
     ws.on('message', handler);
     setTimeout(() => {
@@ -223,29 +237,32 @@ async function test02_WebSocketConnect() {
   await closeEmulator(ws);
 }
 
-async function test03_RejectSecondWebSocket() {
-  testName = '03 Second WebSocket connection rejected';
-  const ws1 = await connectEmulator();
+async function test03_RejectThirdWebSocket() {
+  testName = '03 Third WebSocket connection rejected (emulator + disk = 2 allowed)';
+  const ws1 = await connectEmulator();  // accepted as emulator
+  const ws2 = await connectEmulator();  // accepted as disk I/O client
+  await sleep(100);
 
   const result = await new Promise((resolve) => {
-    const ws2 = new WebSocket('ws://127.0.0.1:' + TEST_WS_PORT);
-    ws2.on('close', (code) => {
+    const ws3 = new WebSocket('ws://127.0.0.1:' + TEST_WS_PORT);
+    ws3.on('close', (code) => {
       resolve({ rejected: true, code: code });
     });
-    ws2.on('error', () => {
+    ws3.on('error', () => {
       resolve({ rejected: true, code: -1 });
     });
     setTimeout(() => {
-      try { ws2.close(); } catch(e) {}
+      try { ws3.close(); } catch(e) {}
       resolve({ rejected: false });
     }, 2000);
   });
 
-  if (assert(result.rejected, 'Second connection should be rejected') &&
+  if (assert(result.rejected, 'Third connection should be rejected') &&
       assert(result.code === 4000 || result.code === -1, 'Should close with code 4000, got ' + result.code)) {
     pass();
   }
 
+  await closeEmulator(ws2);
   await closeEmulator(ws1);
 }
 
@@ -399,13 +416,10 @@ async function test10_ByteForwarding_WStoTCP() {
   socket.write('1\r\n');
   await sleep(300);
 
-  // Send term-output from emulator, read on TCP side
+  // Send term-output from emulator as binary frame [0x02][identCode][data...]
   const tcpPromise = tcpRead(socket, 500);
-  ws.send(JSON.stringify({
-    type: 'term-output',
-    identCode: 43,
-    data: [87, 111, 114, 108, 100]  // "World"
-  }));
+  var termOutFrame = Buffer.from([0x02, 43, 87, 111, 114, 108, 100]);  // "World"
+  ws.send(termOutFrame);
   const tcpData = await tcpPromise;
   log('TCP received:', JSON.stringify(tcpData));
 
@@ -542,7 +556,7 @@ async function runAllTests() {
   const tests = [
     test01_GatewayStarts,
     test02_WebSocketConnect,
-    test03_RejectSecondWebSocket,
+    test03_RejectThirdWebSocket,
     test04_TCPBannerNoEmulator,
     test05_RegisterTerminals,
     test06_SelectTerminal,

@@ -309,6 +309,7 @@ document.getElementById('menu-floppy-library').addEventListener('click', functio
 });
 
 document.getElementById('menu-smd-manager').addEventListener('click', function() {
+  if (!isSmdPersistenceEnabled()) return;
   var smdWin = document.getElementById('smd-manager-window');
   if (smdWin.style.display === 'none' || smdWin.style.display === '') {
     if (typeof smdManagerShow === 'function') smdManagerShow();
@@ -387,12 +388,24 @@ document.getElementById('config-window-close').addEventListener('click', functio
   closeWindow('config-window');
 });
 
+// Gateway Statistics window close
+document.getElementById('gateway-stats-close').addEventListener('click', function() {
+  closeWindow('gateway-stats-window');
+});
+
 // Taskbar cogwheel - toggle Config window (taskbar element is below scripts in DOM)
 document.addEventListener('DOMContentLoaded', function() {
   var settingsBtn = document.getElementById('taskbar-settings');
   if (settingsBtn) {
     settingsBtn.addEventListener('click', function() {
       toggleGlassWindow('config-window');
+    });
+  }
+  // Taskbar WebSocket indicator - click opens Gateway Statistics window
+  var wsInd = document.getElementById('taskbar-ws-indicator');
+  if (wsInd) {
+    wsInd.addEventListener('click', function() {
+      toggleGlassWindow('gateway-stats-window');
     });
   }
 });
@@ -404,43 +417,25 @@ document.getElementById('smd-manager-close').addEventListener('click', function(
   if (typeof smdManagerHide === 'function') smdManagerHide();
 });
 
-// Persistence toggle
-(function() {
-  var toggle = document.getElementById('smd-persist-toggle');
-  if (toggle) {
-    toggle.addEventListener('change', function() {
-      if (typeof smdHandlePersistToggle === 'function') {
-        smdHandlePersistToggle(toggle.checked);
-      }
-    });
+// SMD Manager menu item visibility (depends on persistence state)
+function updateSmdManagerMenuState() {
+  var menuItem = document.getElementById('menu-smd-manager');
+  if (menuItem) {
+    var enabled = isSmdPersistenceEnabled();
+    menuItem.classList.toggle('disabled', !enabled);
+    menuItem.style.opacity = enabled ? '' : '0.4';
+    menuItem.style.pointerEvents = enabled ? '' : 'none';
   }
-})();
+}
+updateSmdManagerMenuState();
 
-// Boot unit selector
-(function() {
-  var bootSelect = document.getElementById('smd-boot-select');
-  if (bootSelect) {
-    bootSelect.addEventListener('change', function() {
-      if (typeof smdStorage !== 'undefined') {
-        smdStorage.setBootUnit(parseInt(bootSelect.value));
-        if (typeof smdRefreshUnitDisplay === 'function') smdRefreshUnitDisplay();
-      }
-    });
-  }
-})();
 
-// Import / Download buttons
+// Import button
 (function() {
   var importBtn = document.getElementById('smd-import-btn');
   if (importBtn) {
     importBtn.addEventListener('click', function() {
       if (typeof smdImportFromFile === 'function') smdImportFromFile();
-    });
-  }
-  var downloadBtn = document.getElementById('smd-download-btn');
-  if (downloadBtn) {
-    downloadBtn.addEventListener('click', function() {
-      if (typeof smdDownloadFromCatalog === 'function') smdDownloadFromCatalog();
     });
   }
 })();
@@ -494,10 +489,42 @@ document.getElementById('smd-manager-close').addEventListener('click', function(
   toggle.checked = (localStorage.getItem('nd100x-worker') === 'true');
 
   toggle.addEventListener('change', function() {
-    localStorage.setItem('nd100x-worker', toggle.checked ? 'true' : 'false');
     // Worker mode requires page reload to take effect
-    if (confirm('Worker mode change requires a page reload. Reload now?')) {
+    if (confirm('Background execution change requires a page reload. Reload now?')) {
+      localStorage.setItem('nd100x-worker', toggle.checked ? 'true' : 'false');
       location.reload();
+    } else {
+      // Revert checkbox - don't change setting without reload
+      toggle.checked = !toggle.checked;
+    }
+  });
+})();
+
+// =========================================================
+// Config: Persistent disk storage toggle
+// =========================================================
+(function() {
+  var persistToggle = document.getElementById('config-smd-persist');
+  var persistRow = document.getElementById('config-persist-row');
+  if (!persistToggle) return;
+
+  // Disable when not in Worker mode
+  if (!USE_WORKER) {
+    persistToggle.disabled = true;
+    if (persistRow) persistRow.style.opacity = '0.4';
+    persistToggle.checked = false;
+  } else {
+    persistToggle.checked = isSmdPersistenceEnabled();
+  }
+
+  persistToggle.addEventListener('change', function() {
+    if (typeof smdHandlePersistToggle === 'function') {
+      smdHandlePersistToggle(persistToggle.checked);
+    }
+    updateSmdManagerMenuState();
+    // Close SMD Manager if persistence was turned off
+    if (!persistToggle.checked) {
+      if (typeof smdManagerHide === 'function') smdManagerHide();
     }
   });
 })();
@@ -514,6 +541,74 @@ document.getElementById('smd-manager-close').addEventListener('click', function(
   var networkTitle = document.getElementById('config-network-title');
   var bridgeRow = document.getElementById('config-ws-bridge-row');
   if (!toggle) return;
+
+  // WebSocket status callback - MUST be defined before any early return
+  // so the taskbar indicator works regardless of Worker mode
+  window.onWsStatusChange = function(connected, error) {
+    if (statusEl) {
+      if (connected) {
+        statusEl.textContent = 'Connected';
+        statusEl.style.color = 'var(--accent-color, #00c8b4)';
+      } else {
+        statusEl.textContent = error ? ('Error: ' + error) : 'Disconnected';
+        statusEl.style.color = '';
+      }
+    }
+    // Update taskbar lightning indicator
+    var wsInd = document.getElementById('taskbar-ws-indicator');
+    if (wsInd) {
+      wsInd.style.display = connected ? 'flex' : 'none';
+      wsInd.title = connected ? 'Gateway connected' : 'Gateway disconnected';
+    }
+    // Auto-show Gateway Statistics window on connect, hide on disconnect
+    var gwStatsWin = document.getElementById('gateway-stats-window');
+    if (gwStatsWin) {
+      if (connected) {
+        gwStatsWin.style.display = '';
+      } else {
+        gwStatsWin.style.display = 'none';
+      }
+    }
+  };
+
+  // Gateway stats update callback
+  window.onWsStatsUpdate = function(stats) {
+    function fmtBytes(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+      return (n / 1048576).toFixed(1) + ' MB';
+    }
+    function fmtUptime(since) {
+      if (!since) return '-';
+      var sec = Math.floor((Date.now() - since) / 1000);
+      var h = Math.floor(sec / 3600);
+      var m = Math.floor((sec % 3600) / 60);
+      var s = sec % 60;
+      return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+    function setEl(id, txt) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+    setEl('gw-stat-uptime', fmtUptime(stats.connectedSince));
+    setEl('gw-stat-term-in', stats.termIn.frames + ' frames / ' + fmtBytes(stats.termIn.bytes));
+    setEl('gw-stat-term-out', stats.termOut.frames + ' frames / ' + fmtBytes(stats.termOut.bytes));
+    setEl('gw-stat-disk-read', stats.diskRead.ops + ' ops / ' + fmtBytes(stats.diskRead.bytes));
+    setEl('gw-stat-disk-write', stats.diskWrite.ops + ' ops / ' + fmtBytes(stats.diskWrite.bytes));
+    setEl('gw-stat-hdlc-rx', stats.hdlcRx.frames + ' frames / ' + fmtBytes(stats.hdlcRx.bytes));
+    setEl('gw-stat-hdlc-tx', stats.hdlcTx.frames + ' frames / ' + fmtBytes(stats.hdlcTx.bytes));
+    var active = stats.clientConnects - stats.clientDisconnects;
+    setEl('gw-stat-clients', active + ' active / ' + stats.clientConnects + ' total');
+  };
+
+  // Client connection callback
+  window.onWsClientChange = function(action, identCode, clientAddr) {
+    if (action === 'connected') {
+      console.log('[Gateway] Client', clientAddr, 'connected to identCode', identCode);
+    } else {
+      console.log('[Gateway] Client disconnected from identCode', identCode);
+    }
+  };
 
   // Hide entire Network section if not in Worker mode
   var isWorker = (typeof USE_WORKER !== 'undefined' && USE_WORKER);
@@ -537,27 +632,6 @@ document.getElementById('smd-manager-close').addEventListener('click', function(
     if (statusRow) statusRow.style.display = on ? 'flex' : 'none';
   }
   updateVisibility();
-
-  // WebSocket status callback (called from emu-proxy-worker.js)
-  window.onWsStatusChange = function(connected, error) {
-    if (!statusEl) return;
-    if (connected) {
-      statusEl.textContent = 'Connected';
-      statusEl.style.color = 'var(--accent-color, #00c8b4)';
-    } else {
-      statusEl.textContent = error ? ('Error: ' + error) : 'Disconnected';
-      statusEl.style.color = '';
-    }
-  };
-
-  // Client connection callback
-  window.onWsClientChange = function(action, identCode, clientAddr) {
-    if (action === 'connected') {
-      console.log('[Gateway] Client', clientAddr, 'connected to identCode', identCode);
-    } else {
-      console.log('[Gateway] Client disconnected from identCode', identCode);
-    }
-  };
 
   function connectBridge() {
     var url = (urlInput && urlInput.value) ? urlInput.value.trim() : 'ws://localhost:8765';
@@ -851,6 +925,10 @@ function performBoot(bootType) {
 
       document.getElementById('boot-select').disabled = true;
       bootBtn.disabled = true;
+
+      // Sync drive registry from C backend (picks up demo-mode mounts)
+      if (typeof driveRegistry !== 'undefined') driveRegistry.syncFromBackend();
+
       startEmulation(bootNames[bootType] || 'unknown');
     };
     emu.boot(bootType);
@@ -878,6 +956,9 @@ function performBoot(bootType) {
   document.getElementById('boot-select').disabled = true;
   bootBtn.disabled = true;
 
+  // Sync drive registry from C backend (picks up demo-mode mounts)
+  if (typeof driveRegistry !== 'undefined') driveRegistry.syncFromBackend();
+
   startEmulation(bootNames[bootType] || 'unknown');
 }
 
@@ -893,18 +974,22 @@ document.getElementById('toolbar-boot').addEventListener('click', function() {
   // 0=FLOPPY, 1=SMD
   var bootType = (bootDevice === 'smd') ? 1 : 0;
 
-  // Check SMD image was loaded
-  if (bootType === 1 && typeof diskImageStatus !== 'undefined' && !diskImageStatus.smd) {
-    document.getElementById('status').textContent = 'Boot failed - SMD0.IMG not loaded';
-    terminals[activeTerminalId].term.writeln(
-      '\r\n\x1b[31mCannot boot: SMD0.IMG was not loaded.\x1b[0m\r\n' +
-      '\x1b[33mEnsure the disk image is served alongside the WASM files.\x1b[0m');
-    return;
+  // Check SMD image was loaded (XHR demo, OPFS, or gateway)
+  if (bootType === 1) {
+    var hasSmd = (typeof diskImageStatus !== 'undefined' && diskImageStatus.smd) ||
+      (typeof driveRegistry !== 'undefined' && driveRegistry.isOccupied('smd', 0));
+    if (!hasSmd) {
+      document.getElementById('status').textContent = 'Boot failed - no SMD image on unit 0';
+      terminals[activeTerminalId].term.writeln(
+        '\r\n\x1b[31mCannot boot: No SMD image mounted on unit 0.\x1b[0m\r\n' +
+        '\x1b[33mMount an image via the SMD Disk Manager or ensure SMD0.IMG is served.\x1b[0m');
+      return;
+    }
   }
 
   // Check floppy is mounted (via Floppy Library)
   if (bootType === 0) {
-    var driveEl = document.getElementById('floppy-drive-1-name');
+    var driveEl = document.getElementById('drive-name-floppy-0');
     if (!driveEl || driveEl.textContent === 'Empty') {
       document.getElementById('status').textContent = 'No floppy mounted';
       terminals[activeTerminalId].term.writeln(
@@ -1121,6 +1206,10 @@ document.getElementById('color-theme-select').addEventListener('change', functio
   var smdHeader = document.getElementById('smd-manager-header');
   if (smdWin && smdHeader) makeDraggable(smdWin, smdHeader, 'smd-manager-pos');
 
+  var gwStatsWin = document.getElementById('gateway-stats-window');
+  var gwStatsHeader = document.getElementById('gateway-stats-header');
+  if (gwStatsWin && gwStatsHeader) makeDraggable(gwStatsWin, gwStatsHeader, 'gateway-stats-pos');
+
   // Debugger has its own drag logic but register its storage key for the global helpers
   windowStorageKeys['debugger-window'] = 'dbg-pos';
 })();
@@ -1316,6 +1405,7 @@ windowManager.register('io-devices-window', 'I/O Devices');
 windowManager.register('page-table-window', 'Page Tables');
 windowManager.register('config-window', 'Config');
 windowManager.register('smd-manager-window', 'SMD Manager');
+windowManager.register('gateway-stats-window', 'Gateway');
 
 // Restore window visibility from localStorage
 (function() {
@@ -1329,10 +1419,6 @@ windowManager.register('smd-manager-window', 'SMD Manager');
       } else {
         win.style.display = 'none';
       }
-    }
-    // Refresh SMD Manager state if it was restored as visible
-    if (state['smd-manager-window'] && typeof smdRefreshAll === 'function') {
-      smdRefreshAll();
     }
   } catch(e) {}
   // Remove early-restore style tag - toolbar.js now owns all positions/visibility

@@ -1,7 +1,7 @@
 //
 // SPDX-License-Identifier: MIT
 // Copyright (c) 1985-2026 Ronny Hansen
-// HackerCorp Labs — https://github.com/HackerCorpLabs
+// HackerCorp Labs -- https://github.com/HackerCorpLabs
 // Emulating yesterday's technology with today's code
 //
 
@@ -11,6 +11,9 @@
 // Worker mode uses SyncAccessHandle for per-block persistence.
 // Direct mode uses async OPFS API with auto-save on stop.
 // Falls back gracefully when OPFS is unavailable.
+//
+// Storage is UUID-keyed: each image in OPFS has a UUID filename.
+// Metadata (name, description, source) is stored in localStorage.
 
 var smdStorage = (function() {
   'use strict';
@@ -22,13 +25,25 @@ var smdStorage = (function() {
   var _available = false;        // Is OPFS usable?
   var _opfsRoot = null;          // OPFS root directory handle
   var _imagesDir = null;         // 'smd-images' directory handle
-  var _metadata = {};            // fileName -> { name, fileName, size, date, description }
+  var _metadata = {};            // uuid -> { uuid, name, description, size, date, sourceName }
   var _dirty = {};               // unit -> true (Direct mode dirty tracking)
 
   // localStorage keys
   var UNITS_KEY = 'nd100x-smd-units';
   var BOOT_KEY = 'nd100x-smd-boot-unit';
   var META_KEY = 'nd100x-smd-metadata';  // fallback if OPFS metadata unavailable
+
+  // =========================================================
+  // UUID generation
+  // =========================================================
+  function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   // =========================================================
   // Initialization
@@ -56,6 +71,11 @@ var smdStorage = (function() {
       if (saved) _metadata = JSON.parse(saved);
     } catch (e) {}
 
+    // Migrate old filename-keyed entries to UUID-keyed
+    if (_available) {
+      await _migrateIfNeeded();
+    }
+
     _initialized = true;
     return _available;
   }
@@ -74,86 +94,165 @@ var smdStorage = (function() {
   }
 
   // =========================================================
+  // Migration: old filename keys -> UUID keys
+  // =========================================================
+  async function _migrateIfNeeded() {
+    var needsMigration = Object.keys(_metadata).some(function(k) { return !UUID_RE.test(k); });
+    if (!needsMigration) return;
+
+    console.log('[SMD Storage] Migrating old filename-keyed entries to UUID format...');
+
+    var oldKeys = Object.keys(_metadata).filter(function(k) { return !UUID_RE.test(k); });
+    var units = getUnitAssignments();
+
+    for (var i = 0; i < oldKeys.length; i++) {
+      var oldKey = oldKeys[i];
+      var oldMeta = _metadata[oldKey];
+      var uuid = generateUUID();
+
+      // Rename OPFS file: old filename -> UUID
+      try {
+        var oldHandle = await _imagesDir.getFileHandle(oldKey);
+        var file = await oldHandle.getFile();
+        var data = await file.arrayBuffer();
+
+        // Create new file with UUID name
+        var newHandle = await _imagesDir.getFileHandle(uuid, { create: true });
+        var writable = await newHandle.createWritable();
+        await writable.write(data);
+        await writable.close();
+
+        // Remove old file
+        await _imagesDir.removeEntry(oldKey);
+      } catch (e) {
+        console.warn('[SMD Storage] Migration: could not rename OPFS file ' + oldKey + ':', e.message);
+        // If the OPFS file doesn't exist, still migrate the metadata
+      }
+
+      // Migrate metadata
+      _metadata[uuid] = {
+        uuid: uuid,
+        name: oldMeta.name || oldKey,
+        description: oldMeta.description || '',
+        size: oldMeta.size || 0,
+        date: oldMeta.date || new Date().toISOString().split('T')[0],
+        sourceName: oldMeta.sourceName || ''
+      };
+      delete _metadata[oldKey];
+
+      // Update unit assignments that referenced the old filename
+      for (var u = 0; u < 4; u++) {
+        if (units[u] === oldKey) {
+          units[u] = uuid;
+        }
+      }
+
+      console.log('[SMD Storage] Migrated ' + oldKey + ' -> ' + uuid);
+    }
+
+    // Save updated unit assignments and metadata
+    try {
+      localStorage.setItem(UNITS_KEY, JSON.stringify(units));
+    } catch (e) {}
+    _saveMetadata();
+    console.log('[SMD Storage] Migration complete');
+  }
+
+  // =========================================================
   // Image CRUD
   // =========================================================
 
   // Store an image to OPFS
-  // fileName: string, data: Uint8Array, meta: { name, description }
-  async function storeImage(fileName, data, meta) {
+  // uuid: string (caller-generated), data: Uint8Array, meta: { name, description, sourceName }
+  async function storeImage(uuid, data, meta) {
     if (!_available || !_imagesDir) {
       throw new Error('OPFS not available');
     }
 
-    var fileHandle = await _imagesDir.getFileHandle(fileName, { create: true });
+    var fileHandle = await _imagesDir.getFileHandle(uuid, { create: true });
     var writable = await fileHandle.createWritable();
     await writable.write(data);
     await writable.close();
 
-    _metadata[fileName] = {
-      name: (meta && meta.name) || fileName,
-      fileName: fileName,
+    _metadata[uuid] = {
+      uuid: uuid,
+      name: (meta && meta.name) || uuid,
+      description: (meta && meta.description) || '',
       size: data.byteLength,
       date: new Date().toISOString().split('T')[0],
-      description: (meta && meta.description) || ''
+      sourceName: (meta && meta.sourceName) || ''
     };
     _saveMetadata();
 
-    console.log('[SMD Storage] Stored ' + fileName + ' (' + formatSize(data.byteLength) + ')');
+    console.log('[SMD Storage] Stored ' + uuid + ' (' + formatSize(data.byteLength) + ')');
     return true;
   }
 
   // Retrieve an image from OPFS as Uint8Array
-  async function retrieveImage(fileName) {
+  async function retrieveImage(uuid) {
     if (!_available || !_imagesDir) return null;
 
     try {
-      var fileHandle = await _imagesDir.getFileHandle(fileName);
+      var fileHandle = await _imagesDir.getFileHandle(uuid);
       var file = await fileHandle.getFile();
       var buffer = await file.arrayBuffer();
       return new Uint8Array(buffer);
     } catch (e) {
-      console.warn('[SMD Storage] Could not retrieve ' + fileName + ':', e.message);
+      console.warn('[SMD Storage] Could not retrieve ' + uuid + ':', e.message);
       return null;
     }
   }
 
   // Delete an image from OPFS
-  async function deleteImage(fileName) {
+  async function deleteImage(uuid) {
     if (!_available || !_imagesDir) return false;
 
     try {
-      await _imagesDir.removeEntry(fileName);
+      await _imagesDir.removeEntry(uuid);
     } catch (e) {
       // File may not exist
     }
 
-    delete _metadata[fileName];
+    delete _metadata[uuid];
     _saveMetadata();
 
     // Remove from any unit assignments
     var units = getUnitAssignments();
     for (var u = 0; u < 4; u++) {
-      if (units[u] === fileName) {
+      if (units[u] === uuid) {
         clearUnitAssignment(u);
       }
     }
 
-    console.log('[SMD Storage] Deleted ' + fileName);
+    console.log('[SMD Storage] Deleted ' + uuid);
     return true;
   }
 
   // List all stored images (returns array of metadata objects)
   function listImages() {
     var result = [];
-    for (var fn in _metadata) {
-      result.push(_metadata[fn]);
+    for (var key in _metadata) {
+      result.push(_metadata[key]);
     }
     return result;
   }
 
-  // Quick existence check
-  function imageExists(fileName) {
-    return !!_metadata[fileName];
+  // Quick existence check by UUID
+  function imageExists(uuid) {
+    return !!_metadata[uuid];
+  }
+
+  // Update metadata (name/description) without re-copying data
+  function updateMetadata(uuid, name, description) {
+    if (!_metadata[uuid]) return;
+    _metadata[uuid].name = name;
+    _metadata[uuid].description = description;
+    _saveMetadata();
+  }
+
+  // Get metadata for a specific UUID
+  function getMetadata(uuid) {
+    return _metadata[uuid] || null;
   }
 
   // Refresh metadata by scanning OPFS directory
@@ -162,18 +261,19 @@ var smdStorage = (function() {
 
     var found = {};
     for await (var entry of _imagesDir.values()) {
-      if (entry.kind === 'file' && entry.name.endsWith('.IMG')) {
+      if (entry.kind === 'file') {
         found[entry.name] = true;
         if (!_metadata[entry.name]) {
           // File exists in OPFS but not in metadata - add basic entry
           try {
             var file = await entry.getFile();
             _metadata[entry.name] = {
+              uuid: entry.name,
               name: entry.name,
-              fileName: entry.name,
+              description: '',
               size: file.size,
               date: new Date().toISOString().split('T')[0],
-              description: ''
+              sourceName: ''
             };
           } catch (e) {}
         }
@@ -181,9 +281,9 @@ var smdStorage = (function() {
     }
 
     // Remove metadata for files that no longer exist
-    for (var fn in _metadata) {
-      if (!found[fn]) {
-        delete _metadata[fn];
+    for (var key in _metadata) {
+      if (!found[key]) {
+        delete _metadata[key];
       }
     }
 
@@ -192,6 +292,7 @@ var smdStorage = (function() {
 
   // =========================================================
   // Unit assignments (persisted in localStorage)
+  // Now stores UUIDs instead of filenames
   // =========================================================
 
   function getUnitAssignments() {
@@ -202,21 +303,27 @@ var smdStorage = (function() {
     return { 0: null, 1: null, 2: null, 3: null };
   }
 
-  function setUnitAssignment(unit, fileName) {
+  // Get display name for a unit assignment
+  function getUnitAssignment(unit) {
+    var units = getUnitAssignments();
+    return units[unit] || null;
+  }
+
+  function setUnitAssignment(unit, uuid) {
     if (unit < 0 || unit > 3) return;
     var units = getUnitAssignments();
 
-    // Prevent assigning the same file to multiple units (OPFS SyncAccessHandle is exclusive)
-    if (fileName) {
+    // Prevent assigning the same image to multiple units (OPFS SyncAccessHandle is exclusive)
+    if (uuid) {
       for (var u = 0; u < 4; u++) {
-        if (u !== unit && units[u] === fileName) {
-          console.warn('[SMD Storage] ' + fileName + ' already assigned to unit ' + u + ', clearing it first');
+        if (u !== unit && units[u] === uuid) {
+          console.warn('[SMD Storage] ' + uuid + ' already assigned to unit ' + u + ', clearing it first');
           units[u] = null;
         }
       }
     }
 
-    units[unit] = fileName;
+    units[unit] = uuid;
     try {
       localStorage.setItem(UNITS_KEY, JSON.stringify(units));
     } catch (e) {}
@@ -301,10 +408,10 @@ var smdStorage = (function() {
   // =========================================================
 
   // Get the raw file handle for a stored image (for Worker to open SyncAccessHandle)
-  async function getFileHandle(fileName) {
+  async function getFileHandle(uuid) {
     if (!_available || !_imagesDir) return null;
     try {
-      return await _imagesDir.getFileHandle(fileName);
+      return await _imagesDir.getFileHandle(uuid);
     } catch (e) {
       return null;
     }
@@ -333,16 +440,22 @@ var smdStorage = (function() {
     init: init,
     isAvailable: isAvailable,
 
+    // UUID generation
+    generateUUID: generateUUID,
+
     // Image CRUD
     storeImage: storeImage,
     retrieveImage: retrieveImage,
     deleteImage: deleteImage,
     listImages: listImages,
     imageExists: imageExists,
+    updateMetadata: updateMetadata,
+    getMetadata: getMetadata,
     refreshMetadata: refreshMetadata,
 
     // Unit assignments
     getUnitAssignments: getUnitAssignments,
+    getUnitAssignment: getUnitAssignment,
     setUnitAssignment: setUnitAssignment,
     clearUnitAssignment: clearUnitAssignment,
 

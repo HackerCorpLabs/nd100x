@@ -330,9 +330,8 @@
     if (emu.isWorkerMode()) {
       // Worker mode: tell Worker to start autonomous loop
       emu.workerStart();
-    } else {
-      startExecLoop();
     }
+    startExecLoop();
   });
 
   document.getElementById('dbg-pause').addEventListener('click', function() {
@@ -770,7 +769,11 @@
     window.startEmulation = startEmulation = function(bootDevice) {
       if (active) return;
       origStart(bootDevice);
+      paused = false;
       syncState();
+      if (visible && emu.isWorkerMode()) {
+        startExecLoop();
+      }
     };
   }
 
@@ -826,5 +829,15 @@
   });
 
   syncState();
+
+  // If the debugger window was restored as visible by toolbar.js (before this script loaded),
+  // initialize the visible flag and start the refresh timer
+  (function() {
+    var win = document.getElementById('debugger-window');
+    if (win && win.style.display !== 'none') {
+      visible = true;
+      startRefreshTimer();
+    }
+  })();
 
 })();

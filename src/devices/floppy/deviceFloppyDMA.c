@@ -254,9 +254,16 @@ static void ExecuteTest(Device *self, int testData)
 
 static void ExecuteFloppyGo(Device *self)
 {
-#ifdef DEBUG_FLOPPY_DMA
-    printf("FloppyDMA: Executing Floppy GO Callback!\n");
-#endif
+    // Diagnostic: log first few floppy commands
+    {
+        static int _floppy_go_log = 0;
+        if (_floppy_go_log < 5) {
+            _floppy_go_log++;
+            printf("[FLOPPY-DIAG] ExecuteFloppyGo called (readFunc=%s writeFunc=%s)\n",
+                self && self->blockCallbacks.readFunc ? "ok" : "NULL",
+                self && self->blockCallbacks.writeFunc ? "ok" : "NULL");
+        }
+    }
 
     if (!self)
         return;

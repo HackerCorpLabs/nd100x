@@ -899,9 +899,9 @@ No build changes needed - the Makefile copies all `template-glass/js/*.js` files
 
 ---
 
-## WebSocket Terminal Bridge
+## WebSocket Terminal Bridge & Gateway
 
-The WebSocket Terminal Bridge enables remote terminal access to SINTRAN III via TCP clients (PuTTY, telnet, or similar). A Node.js gateway server bridges TCP connections to the WASM emulator running in a Web Worker.
+The gateway server bridges remote terminal access, disk block I/O, and HDLC frames between TCP clients and the WASM emulator running in a Web Worker. A single Node.js server handles all traffic over one WebSocket endpoint.
 
 > **Requirement**: Worker mode must be active (`?worker=1` or Config toggle). The bridge is not available in direct mode.
 
@@ -912,15 +912,18 @@ Remote Terminal Client (PuTTY / telnet / raw TCP)
     | TCP port 5001 (raw bytes after menu selection)
     |
 Gateway Server (Node.js: tools/nd100-gateway/)
-    | WebSocket port 8765 (JSON messages)
+    | Single HTTP + WebSocket server on port 8765
+    | Serves static files with COOP/COEP headers
+    | Also handles HDLC TCP ports and disk image files
     |
-Web Worker (emu-worker.js)
-    | direct WASM function calls
+    +-- WebSocket conn 1: Main Worker (emu-worker.js)
+    |     Terminal I/O (0x01/0x02), HDLC (0x10-0x12), control JSON
     |
-Terminal Devices in WASM (identCodes 43-50 for remote terminals)
+    +-- WebSocket conn 2: Disk Sub-Worker (disk-io-worker.js)
+          Disk block R/W (0x20-0x23) via SharedArrayBuffer + Atomics
 ```
 
-The gateway accepts a single WebSocket connection from the emulator and multiplexes all terminal traffic over it. Multiple TCP clients connect to the same TCP port and select a terminal from a numbered menu.
+The gateway accepts two WebSocket connections: the emulator Worker (first) and the disk I/O sub-worker (second). Additional connections are rejected. Multiple TCP clients connect to the terminal port and select a terminal from a numbered menu.
 
 ### Remote Terminal Devices
 
@@ -939,32 +942,32 @@ When the user enables the WebSocket bridge, `EnableRemoteTerminals()` is called 
 
 Slots 0-7 are the local terminals (console + TERMINAL 5-11). Together they fill `MAX_TERMINALS=16` exactly.
 
-### JSON Protocol
+### Binary Frame Protocol
 
-All WebSocket messages have a `type` field. Terminal traffic is multiplexed by `identCode`.
+All WebSocket binary frames use the first byte as a type discriminator:
 
-**Emulator to Gateway:**
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `0x01` | Gateway -> Emulator | **term-input** -- keyboard bytes |
+| `0x02` | Emulator -> Gateway | **term-output** -- display bytes |
+| `0x10` | Gateway -> Emulator | **HDLC RX frame** -- data from TCP |
+| `0x11` | Emulator -> Gateway | **HDLC TX frame** -- data to TCP |
+| `0x12` | Gateway -> Emulator | **HDLC carrier status** |
+| `0x20` | Disk Worker -> Gateway | **Block read request** |
+| `0x21` | Gateway -> Disk Worker | **Block read response** |
+| `0x22` | Disk Worker -> Gateway | **Block write request** |
+| `0x23` | Gateway -> Disk Worker | **Block write ack** |
 
-| Type | Fields | Description |
-|------|--------|-------------|
-| `register` | `terminals[]` (identCode, name, logicalDevice) | Sent on WS connect; declares available remote terminals |
-| `term-output` | `identCode`, `data[]` | Terminal output bytes (batched per frame) |
-| `carrier` | `identCode`, `missing` | Carrier status change |
+JSON text frames are used for infrequent control messages (`register`, `client-connected`, `client-disconnected`, `carrier`, `disk-list`).
 
-**Gateway to Emulator:**
-
-| Type | Fields | Description |
-|------|--------|-------------|
-| `term-input` | `identCode`, `data[]` | Keyboard input bytes from TCP client |
-| `client-connected` | `identCode`, `clientAddr` | TCP client connected to terminal |
-| `client-disconnected` | `identCode` | TCP client disconnected |
+Full protocol specification: `docs/GATEWAY-PROTOCOL.md`
 
 ### Gateway Server
 
 **Location**: `tools/nd100-gateway/`
 
 **Files:**
-- `gateway.js` -- Main server (WebSocket + TCP)
+- `gateway.js` -- Main server (HTTP + WebSocket + TCP + disk I/O)
 - `gateway.conf.json` -- Default configuration
 - `package.json` -- Dependencies (ws library)
 - `test-gateway.js` -- 14 unit tests
@@ -974,22 +977,29 @@ All WebSocket messages have a `type` field. Terminal traffic is multiplexed by `
 ```json
 {
   "websocket": { "port": 8765 },
+  "staticDir": "",
   "terminals": { "port": 5001, "welcome": "ND-100/CX Terminal Server" },
   "hdlc": [
-    { "name": "HDLC-0", "port": 5010, "enabled": false },
-    { "name": "HDLC-1", "port": 5011, "enabled": false }
-  ]
+    { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
+    { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
+  ],
+  "smd": { "images": [] },
+  "floppy": { "images": [] }
 }
 ```
+
+Disk images are configured as arrays where the index is the unit number: `"smd": { "images": ["./SMD0.IMG"] }` mounts SMD0.IMG as unit 0. The gateway opens images with `fs.openSync('r+')` for synchronous read/write.
 
 **Running:**
 ```bash
 make gateway              # Start gateway with default config
 make gateway-test         # Run 14 unit tests
-make wasm-glass-gateway   # Build Glass UI + start gateway + HTTP server
+make wasm-glass-gateway   # Build Glass UI + start unified gateway server
 ```
 
-Custom config: `node tools/nd100-gateway/gateway.js --config path/to/config.json`
+The `wasm-glass-gateway` target serves the WASM build on `http://localhost:8765/?worker=1` with COOP/COEP headers enabling SharedArrayBuffer.
+
+Custom config: `node tools/nd100-gateway/gateway.js --config path/to/config.json --static build_wasm_glass/bin`
 
 **TCP Client Flow:**
 1. Client connects to terminal port (default 5001)
@@ -999,17 +1009,33 @@ Custom config: `node tools/nd100-gateway/gateway.js --config path/to/config.json
 5. Raw byte pass-through from this point
 6. TCP disconnect sends `client-disconnected` to Worker, which sets carrier missing
 
+### Disk I/O Sub-Worker
+
+**File**: `template-glass/js/disk-io-worker.js`
+
+The disk sub-worker enables synchronous disk block I/O from C code over an async WebSocket. The main Worker is blocked by `Atomics.wait()` during disk operations; the sub-worker's event loop remains free to process WebSocket messages and signal completion via `Atomics.notify()`.
+
+**SharedArrayBuffer layout** (4096 bytes):
+
+| Offset | Type | Purpose |
+|--------|------|---------|
+| 0 | Int32 | Control: 0=idle, 1=request pending, 2=response ready |
+| 4-28 | Int32[6] | driveType, unit, offset, size, status, dataLen, isWrite |
+| 32+ | Uint8[4064] | Data area (read response / write payload) |
+
+The main Worker spawns the sub-worker and passes the SharedArrayBuffer. Both connect to the same gateway WebSocket endpoint. Remote disk images appear in the SMD Disk Manager "Remote Images" section.
+
 ### Worker Integration
 
 **Output routing** in `emu-worker.js`:
 
 The Worker's `runLoop()` drains the terminal ring buffer after each `Step()` batch. Each output entry's identCode is checked against `_remoteIdentCodes`:
-- **Remote identCode**: Bytes batched into `wsOutBuf[identCode]` and sent over WebSocket once per frame (~60/sec)
+- **Remote identCode**: Bytes batched into `wsOutBuf[identCode]` and sent as binary term-output (0x02) once per frame (~60/sec)
 - **Local identCode**: Sent to main thread via `postMessage` as before
 
-The same routing logic applies to `flushRingBuffer()` (used by boot, step, and debugger handlers).
+HDLC TX frames are polled after terminal output and sent as binary frames (0x11) over the same WebSocket.
 
-**Input path**: Gateway sends `term-input` JSON over WebSocket. The Worker calls `Module._SendKeyToTerminal(identCode, byte)` for each byte, routing input directly to the WASM terminal device.
+**Input path**: Gateway sends binary term-input (0x01) over WebSocket. The Worker calls `Module._SendKeyToTerminal(identCode, byte)` for each byte. HDLC RX frames (0x10) are injected via `Module._HDLC_InjectRxFrame()`.
 
 ### Glass UI Config
 
@@ -1023,6 +1049,8 @@ The Config window contains a "Network" section (visible only in Worker mode):
 
 The toggle persists to `localStorage` key `nd100x-ws-bridge`. When enabled, the bridge auto-connects on page load after the emulator is ready (polls `emu.isReady()` every 1 second, up to 30 seconds).
 
+The SMD Disk Manager window shows a "Remote Images (Gateway)" section when the disk sub-worker is connected, listing available SMD and floppy images with mount/eject controls.
+
 ### Testing
 
 Two test suites verify the bridge:
@@ -1032,6 +1060,6 @@ Two test suites verify the bridge:
 | Gateway unit tests | `tools/nd100-gateway/test-gateway.js` | 14 | `make gateway-test` |
 | Browser integration | `test-gateway-browser.js` | 10 | `node test-gateway-browser.js` |
 
-**Gateway unit tests** verify: server start, WebSocket connect/reject, TCP banner, terminal registration, menu selection, byte forwarding (both directions), disconnect handling, reconnection, and menu refresh.
+**Gateway unit tests** verify: server start, WebSocket connect/reject (2 allowed, 3rd rejected), TCP banner, terminal registration, menu selection, byte forwarding (both directions), disconnect handling, reconnection, and menu refresh.
 
 **Browser integration tests** (Puppeteer) verify the full stack: Worker mode page load, Network config visibility, proxy methods, power-on + remote terminal enablement, gateway registration via TCP menu, terminal selection, TCP-to-WASM input, output path, WebSocket status UI, and disconnect handling.

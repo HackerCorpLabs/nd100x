@@ -22,6 +22,22 @@ var running = false;
 var initialized = false;
 
 // =========================================================
+// Gateway WebSocket statistics
+// =========================================================
+var _wsStats = {
+  connectedSince: 0,
+  termIn:    { frames: 0, bytes: 0 },
+  termOut:   { frames: 0, bytes: 0 },
+  diskRead:  { ops: 0, bytes: 0 },
+  diskWrite: { ops: 0, bytes: 0 },
+  hdlcRx:    { frames: 0, bytes: 0 },
+  hdlcTx:    { frames: 0, bytes: 0 },
+  clientConnects: 0,
+  clientDisconnects: 0
+};
+var _wsStatsTimer = null;
+
+// =========================================================
 // Unthrottled scheduling via MessageChannel
 // =========================================================
 // setTimeout(0) gets throttled to 1s+ in background tabs, even in Workers.
@@ -115,6 +131,190 @@ function opfsIsAvailable(unit) {
 }
 
 // =========================================================
+// Gateway disk I/O sub-worker (SharedArrayBuffer + Atomics)
+// =========================================================
+var _diskWorker = null;
+var _diskControlArray = null;  // Int32Array view (8 x Int32)
+var _diskDataArray = null;     // Uint8Array view at offset 32
+var _diskSharedBuffer = null;
+var _diskReady = false;
+var _diskGatewayDrives = { smd: {}, floppy: {} };  // [type][unit] -> true
+
+var DRIVE_TYPE_NAMES = ['smd', 'floppy'];
+
+// Block read cache: key = "driveType-unit-offset-bytes" -> Uint8Array
+var _diskBlockCache = new Map();
+var _diskReadCount = 0;   // total gateway reads (cache misses)
+var _diskWriteCount = 0;  // total gateway writes
+
+function initDiskWorker(gatewayUrl) {
+  var hasSAB = (typeof SharedArrayBuffer !== 'undefined');
+  var initMsg = { type: 'init', wsUrl: gatewayUrl };
+
+  if (hasSAB) {
+    _diskSharedBuffer = new SharedArrayBuffer(32 + 65536);  // 32 bytes control + 64KB data (SMD reads up to 64KB)
+    _diskControlArray = new Int32Array(_diskSharedBuffer, 0, 8);
+    _diskDataArray = new Uint8Array(_diskSharedBuffer, 32);
+    Atomics.store(_diskControlArray, 0, 0);  // idle
+    initMsg.sharedBuffer = _diskSharedBuffer;
+  } else {
+    postMessage({ type: 'log', level: 'warn',
+      text: '[DiskIO] SharedArrayBuffer not available - disk listing only (no block I/O). Serve page via gateway for full support.' });
+  }
+
+  _diskWorker = new Worker('disk-io-worker.js');
+  _diskWorker.postMessage(initMsg);
+
+  _diskWorker.onmessage = function(e) {
+    if (e.data.type === 'connected') {
+      _diskReady = true;
+      postMessage({ type: 'disk-connected', blockIO: hasSAB });
+    }
+    if (e.data.type === 'disconnected') {
+      _diskReady = false;
+      postMessage({ type: 'disk-disconnected' });
+    }
+    if (e.data.type === 'disk-list') {
+      postMessage({ type: 'disk-list', data: e.data.data });
+    }
+    if (e.data.type === 'error') {
+      postMessage({ type: 'log', level: 'error', text: '[DiskIO] ' + e.data.error });
+    }
+  };
+}
+
+function closeDiskWorker() {
+  if (_diskWorker) {
+    _diskWorker.postMessage({ type: 'close' });
+    _diskWorker = null;
+  }
+  _diskReady = false;
+  _diskGatewayDrives = { smd: {}, floppy: {} };
+  _diskBlockCache.clear();
+}
+
+// Synchronous block read from gateway (called from C via EM_JS -> gatewayBlockRead)
+function gatewayBlockRead(driveType, unit, wasmPtr, bytes, offset) {
+  if (!_diskReady || !_diskControlArray) return -1;
+  var typeName = DRIVE_TYPE_NAMES[driveType];
+  if (!typeName || !_diskGatewayDrives[typeName][unit]) return -1;
+
+  // Check block cache first
+  var cacheKey = driveType + '-' + unit + '-' + offset + '-' + bytes;
+  var cached = _diskBlockCache.get(cacheKey);
+  if (cached) {
+    Module.HEAPU8.set(cached, wasmPtr);
+    _wsStats.diskRead.ops++;
+    _wsStats.diskRead.bytes += cached.length;
+    return cached.length;
+  }
+
+  // Cache miss - fetch from gateway via sub-worker
+  _diskControlArray[1] = driveType;
+  _diskControlArray[2] = unit;
+  _diskControlArray[3] = offset;
+  _diskControlArray[4] = bytes;
+  _diskControlArray[7] = 0;  // read
+
+  // Signal request and wait for response
+  Atomics.store(_diskControlArray, 0, 1);
+  Atomics.notify(_diskControlArray, 0);
+  // Poll with short timeouts until sub-worker signals response ready
+  var _rwc = 0;
+  while (Atomics.load(_diskControlArray, 0) === 1) {
+    Atomics.wait(_diskControlArray, 0, 1, 1);  // 1ms timeout
+    if (++_rwc > 30000) {  // 30 second safety bail-out
+      console.warn('[GW-READ] Timeout waiting for response');
+      Atomics.store(_diskControlArray, 0, 0);
+      return -1;
+    }
+  }
+
+  // Read response
+  var status = _diskControlArray[5];
+  var dataLen = _diskControlArray[6];
+  Atomics.store(_diskControlArray, 0, 0);  // reset to idle
+  Atomics.notify(_diskControlArray, 0);    // wake sub-worker
+
+  if (status !== 0 || dataLen <= 0) return -1;
+
+  // Cache the block and copy to WASM heap
+  var blockCopy = new Uint8Array(dataLen);
+  blockCopy.set(_diskDataArray.subarray(0, dataLen));
+  _diskBlockCache.set(cacheKey, blockCopy);
+
+  Module.HEAPU8.set(blockCopy, wasmPtr);
+  _wsStats.diskRead.ops++;
+  _wsStats.diskRead.bytes += dataLen;
+  _diskReadCount++;
+  if (_diskReadCount === 1) {
+    console.log('[Gateway I/O] First disk read: ' + DRIVE_TYPE_NAMES[driveType] + ' unit ' + unit + ' offset ' + offset + ' (' + dataLen + ' bytes)');
+  } else if (_diskReadCount % 100 === 0) {
+    console.log('[Gateway I/O] Disk reads: ' + _diskReadCount + ' blocks (' + (_wsStats.diskRead.bytes / 1024).toFixed(0) + ' KB), cache: ' + _diskBlockCache.size + ' entries');
+  }
+  return dataLen;
+}
+
+// Synchronous block write to gateway (called from C via EM_JS -> gatewayBlockWrite)
+function gatewayBlockWrite(driveType, unit, wasmPtr, bytes, offset) {
+  if (!_diskReady || !_diskControlArray) return -1;
+  var typeName = DRIVE_TYPE_NAMES[driveType];
+  if (!typeName || !_diskGatewayDrives[typeName][unit]) return -1;
+
+  // Copy write data to shared buffer
+  _diskDataArray.set(Module.HEAPU8.subarray(wasmPtr, wasmPtr + bytes), 0);
+
+  // Write request parameters
+  _diskControlArray[1] = driveType;
+  _diskControlArray[2] = unit;
+  _diskControlArray[3] = offset;
+  _diskControlArray[4] = bytes;
+  _diskControlArray[7] = 1;  // write
+
+  // Signal request and wait for response
+  Atomics.store(_diskControlArray, 0, 1);
+  Atomics.notify(_diskControlArray, 0);
+  // Poll with short timeouts - Atomics.notify from sub-worker may not wake Atomics.wait
+  var _wwc = 0;
+  while (Atomics.load(_diskControlArray, 0) === 1) {
+    Atomics.wait(_diskControlArray, 0, 1, 1);  // 1ms timeout
+    if (++_wwc > 30000) {  // 30 second safety bail-out
+      console.warn('[GW-WRITE] Timeout waiting for response');
+      Atomics.store(_diskControlArray, 0, 0);
+      return -1;
+    }
+  }
+
+  var status = _diskControlArray[5];
+  Atomics.store(_diskControlArray, 0, 0);
+  Atomics.notify(_diskControlArray, 0);
+  if (status === 0) {
+    // Update block cache with written data
+    var cacheKey = driveType + '-' + unit + '-' + offset + '-' + bytes;
+    var blockCopy = new Uint8Array(bytes);
+    blockCopy.set(Module.HEAPU8.subarray(wasmPtr, wasmPtr + bytes));
+    _diskBlockCache.set(cacheKey, blockCopy);
+
+    _wsStats.diskWrite.ops++;
+    _wsStats.diskWrite.bytes += bytes;
+    _diskWriteCount++;
+    if (_diskWriteCount === 1) {
+      console.log('[Gateway I/O] First disk write: ' + DRIVE_TYPE_NAMES[driveType] + ' unit ' + unit + ' offset ' + offset + ' (' + bytes + ' bytes)');
+    } else if (_diskWriteCount % 100 === 0) {
+      console.log('[Gateway I/O] Disk writes: ' + _diskWriteCount + ' blocks (' + (_wsStats.diskWrite.bytes / 1024).toFixed(0) + ' KB)');
+    }
+  }
+  return status === 0 ? bytes : -1;
+}
+
+// Check if gateway disk is available for a unit
+function gatewayIsAvailable(driveType, unit) {
+  var typeName = DRIVE_TYPE_NAMES[driveType];
+  return (_diskReady && typeName && _diskGatewayDrives[typeName][unit]) ? 1 : 0;
+}
+
+
+// =========================================================
 // WebSocket bridge state (remote terminal gateway)
 // =========================================================
 var _ws = null;              // WebSocket connection to gateway
@@ -140,6 +340,21 @@ function wsConnect(url) {
   _ws.binaryType = 'arraybuffer';
 
   _ws.onopen = function() {
+    // Reset stats on new connection
+    _wsStats.connectedSince = Date.now();
+    _wsStats.termIn.frames = 0;    _wsStats.termIn.bytes = 0;
+    _wsStats.termOut.frames = 0;   _wsStats.termOut.bytes = 0;
+    _wsStats.diskRead.ops = 0;     _wsStats.diskRead.bytes = 0;
+    _wsStats.diskWrite.ops = 0;    _wsStats.diskWrite.bytes = 0;
+    _wsStats.hdlcRx.frames = 0;   _wsStats.hdlcRx.bytes = 0;
+    _wsStats.hdlcTx.frames = 0;   _wsStats.hdlcTx.bytes = 0;
+    _wsStats.clientConnects = 0;
+    _wsStats.clientDisconnects = 0;
+    // Start periodic stats posting (~1/s)
+    if (_wsStatsTimer) clearInterval(_wsStatsTimer);
+    _wsStatsTimer = setInterval(function() {
+      postMessage({ type: 'ws-stats', stats: _wsStats });
+    }, 1000);
     postMessage({ type: 'ws-status', connected: true, error: null });
     // Send register message with remote terminal list
     if (_remoteTerminals.length > 0) {
@@ -154,9 +369,31 @@ function wsConnect(url) {
       var buf = new Uint8Array(ev.data);
       if (buf.length >= 2 && buf[0] === 0x01) {
         // term-input (binary)
+        _wsStats.termIn.frames++;
+        _wsStats.termIn.bytes += buf.length;
         var identCode = buf[1];
         for (var i = 2; i < buf.length; i++) {
           Module._SendKeyToTerminal(identCode, buf[i]);
+        }
+      }
+      else if (buf[0] === 0x10 && buf.length >= 4) {
+        // HDLC RX frame: [0x10][channel][lenHi][lenLo][data...]
+        _wsStats.hdlcRx.frames++;
+        _wsStats.hdlcRx.bytes += buf.length;
+        var channel = buf[1];
+        var len = (buf[2] << 8) | buf[3];
+        if (typeof Module._HDLC_InjectRxFrame === 'function' && len > 0) {
+          var frameData = buf.subarray(4, 4 + len);
+          var ptr = Module._malloc(len);
+          Module.HEAPU8.set(frameData, ptr);
+          Module._HDLC_InjectRxFrame(channel, ptr, len);
+          Module._free(ptr);
+        }
+      }
+      else if (buf[0] === 0x12 && buf.length >= 3) {
+        // HDLC carrier status: [0x12][channel][present]
+        if (typeof Module._HDLC_SetCarrier === 'function') {
+          Module._HDLC_SetCarrier(buf[1], buf[2] & 0x01);
         }
       }
       return;
@@ -168,6 +405,7 @@ function wsConnect(url) {
 
     switch (msg.type) {
       case 'client-connected': {
+        _wsStats.clientConnects++;
         // Restore carrier on this terminal
         Module._SetTerminalCarrier(0, msg.identCode);
         postMessage({
@@ -179,6 +417,7 @@ function wsConnect(url) {
         break;
       }
       case 'client-disconnected': {
+        _wsStats.clientDisconnects++;
         // Set carrier missing
         Module._SetTerminalCarrier(1, msg.identCode);
         postMessage({
@@ -192,6 +431,9 @@ function wsConnect(url) {
   };
 
   _ws.onclose = function(ev) {
+    _wsStats.connectedSince = 0;
+    if (_wsStatsTimer) { clearInterval(_wsStatsTimer); _wsStatsTimer = null; }
+    postMessage({ type: 'ws-stats', stats: _wsStats });
     postMessage({ type: 'ws-status', connected: false, error: null });
     _ws = null;
     // Auto-reconnect after 3 seconds if we had a URL
@@ -210,12 +452,15 @@ function wsConnect(url) {
 function wsDisconnect() {
   _wsUrl = '';  // Clear URL to prevent reconnection
   if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+  if (_wsStatsTimer) { clearInterval(_wsStatsTimer); _wsStatsTimer = null; }
   if (_ws) {
     try { _ws.close(); } catch(e) {}
     _ws = null;
   }
   _remoteIdentCodes = {};
   _remoteTerminals = [];
+  _wsStats.connectedSince = 0;
+  postMessage({ type: 'ws-stats', stats: _wsStats });
   postMessage({ type: 'ws-status', connected: false, error: null });
 }
 
@@ -253,6 +498,8 @@ function flushRingBuffer() {
         frame[2 + bi] = bytes[bi];
       }
       _ws.send(frame.buffer);
+      _wsStats.termOut.frames++;
+      _wsStats.termOut.bytes += frame.length;
     }
   }
   return output;
@@ -373,6 +620,28 @@ function runLoop() {
         frame[2 + bi] = bytes[bi];
       }
       _ws.send(frame.buffer);
+      _wsStats.termOut.frames++;
+      _wsStats.termOut.bytes += frame.length;
+    }
+
+    // Poll HDLC TX frames and send over WebSocket
+    if (typeof Module._HDLC_PollTxFrame === 'function') {
+      while (Module._HDLC_PollTxFrame() > 0) {
+        var txLen = Module._HDLC_GetLastTxLength();
+        var txPtr = Module._HDLC_GetLastTxBuffer();
+        var txChan = Module._HDLC_GetLastTxChannel();
+        if (txLen > 0) {
+          var txFrame = new Uint8Array(4 + txLen);
+          txFrame[0] = 0x11;  // HDLC TX
+          txFrame[1] = txChan;
+          txFrame[2] = (txLen >> 8) & 0xFF;
+          txFrame[3] = txLen & 0xFF;
+          txFrame.set(Module.HEAPU8.subarray(txPtr, txPtr + txLen), 4);
+          _ws.send(txFrame.buffer);
+          _wsStats.hdlcTx.frames++;
+          _wsStats.hdlcTx.bytes += txFrame.length;
+        }
+      }
     }
   }
 
@@ -436,6 +705,35 @@ onmessage = function(e) {
         }
       }
       postMessage({ type: 'initialized', result: result, terminals: terminalInfo });
+
+      // After Init creates terminal devices, if WS is already connected
+      // (auto-connect may have fired before Init), re-discover and register
+      // remote terminals with the gateway.
+      if (_ws && _ws.readyState === 1) {
+        var rtRes = Module._EnableRemoteTerminals();
+        _remoteTerminals = [];
+        _remoteIdentCodes = {};
+        for (var rti2 = 8; rti2 < 16; rti2++) {
+          var rtId2 = Module._GetTerminalIdentCode(rti2);
+          if (rtId2 !== -1) {
+            var rtNm2 = '';
+            try {
+              var np2 = Module._GetTerminalName(rti2);
+              if (np2) rtNm2 = Module.UTF8ToString(np2);
+            } catch(e2) {}
+            _remoteTerminals.push({
+              identCode: rtId2,
+              name: rtNm2 || ('Terminal ' + rti2),
+              logicalDevice: Module._GetTerminalLogicalDevice(rti2)
+            });
+            _remoteIdentCodes[rtId2] = true;
+          }
+        }
+        if (_remoteTerminals.length > 0) {
+          _ws.send(JSON.stringify({ type: 'register', terminals: _remoteTerminals }));
+          console.log('[Worker] Post-Init: re-registered ' + _remoteTerminals.length + ' remote terminals with gateway');
+        }
+      }
       break;
     }
 
@@ -781,12 +1079,53 @@ onmessage = function(e) {
 
     // --- WebSocket bridge ---
     case 'ws-connect': {
+      // Connect to gateway WebSocket (single endpoint for all traffic)
       wsConnect(msg.url);
+      // Also init disk I/O sub-worker (connects to same gateway)
+      initDiskWorker(msg.url);
       break;
     }
 
     case 'ws-disconnect': {
       wsDisconnect();
+      closeDiskWorker();
+      break;
+    }
+
+    // --- Gateway disk mount/unmount ---
+    case 'gatewayMountSMD': {
+      _diskGatewayDrives.smd[msg.unit] = true;
+      var gmsResult = Module._MountSMDFromGateway(msg.unit, msg.imageSize);
+      postMessage({ type: 'gatewayMountResult', id: msg.id, unit: msg.unit, driveType: 'smd', ok: gmsResult === 0 });
+      break;
+    }
+
+    case 'gatewayUnmountSMD': {
+      delete _diskGatewayDrives.smd[msg.unit];
+      Module._UnmountSMD(msg.unit);
+      postMessage({ type: 'fsResult', id: msg.id, result: 0 });
+      break;
+    }
+
+    case 'gatewayMountFloppy': {
+      _diskGatewayDrives.floppy[msg.unit] = true;
+      var gmfResult = Module._MountFloppyFromGateway(msg.unit, msg.imageSize);
+      postMessage({ type: 'gatewayMountResult', id: msg.id, unit: msg.unit, driveType: 'floppy', ok: gmfResult === 0 });
+      break;
+    }
+
+    case 'gatewayUnmountFloppy': {
+      delete _diskGatewayDrives.floppy[msg.unit];
+      Module._UnmountFloppy(msg.unit);
+      postMessage({ type: 'fsResult', id: msg.id, result: 0 });
+      break;
+    }
+
+    case 'getDriveInfo': {
+      var driveJson = Module.UTF8ToString(Module._GetDriveInfo());
+      var driveData;
+      try { driveData = JSON.parse(driveJson); } catch(e) { driveData = []; }
+      postMessage({ type: 'getDriveInfoResult', id: msg.id, data: driveData });
       break;
     }
 
@@ -812,6 +1151,10 @@ onmessage = function(e) {
           });
           _remoteIdentCodes[rtIdent] = true;
         }
+      }
+      // Send register message to gateway if WebSocket is connected
+      if (_ws && _ws.readyState === 1 && _remoteTerminals.length > 0) {
+        _ws.send(JSON.stringify({ type: 'register', terminals: _remoteTerminals }));
       }
       postMessage({
         type: 'enableRemoteTerminalsResult',

@@ -1,42 +1,47 @@
 # ND-100 Gateway WebSocket Protocol
 
-Protocol specification for the WebSocket interface between the ND-100 emulator and gateway clients. This document describes the hybrid binary/JSON message protocol used over the WebSocket connection, enabling external applications to bridge remote terminal clients to emulated ND-100 terminal devices.
+Protocol specification for the WebSocket interface between the ND-100 emulator and gateway clients. This document describes the hybrid binary/JSON message protocol used over the WebSocket connection, enabling external applications to bridge remote terminal clients, disk block I/O, and HDLC frames to emulated ND-100 devices.
 
 ---
 
 ## Overview
 
-The protocol supports two types of gateway clients:
+The gateway server (`gateway.js`) is a Node.js bridge providing:
 
-1. **Gateway Server** (`gateway.js`) — Node.js bridge between TCP terminal clients (PuTTY/telnet) and the emulator
-2. **RetroTerm** — Native terminal emulator that connects directly via WebSocket
+1. **Terminal I/O** -- TCP terminal clients (PuTTY/telnet) bridged to emulated terminal devices
+2. **Disk block I/O** -- SMD and floppy disk images served from the host filesystem
+3. **HDLC frame bridging** -- TCP endpoints bridged to emulated HDLC controllers
 
-Both use the same protocol over a single WebSocket connection. All terminal traffic is multiplexed using `identCode` as the terminal identifier.
+All traffic flows over a **single WebSocket server** on one port. The emulator's main Worker and disk I/O sub-worker each open a WebSocket connection. Message types are distinguished by frame type byte.
 
 ```
-Remote Clients          Gateway Server          Emulator
-(PuTTY/telnet)          (Node.js)               (Browser/WASM)
-
-  TCP :5001  ---------> WebSocket :8765 ------> Web Worker
-  raw bytes              binary + JSON           WASM terminal devices
-  (per terminal)         (multiplexed)           (identCode routing)
-
-RetroTerm ------WebSocket :8765----------------> Web Worker
-  native app             binary + JSON           WASM terminal devices
+Browser                                     Gateway Server (Node.js)
++-----------------------------------+       +---------------------------+
+| Main Worker (emu-worker.js)       |       |                           |
+|   WebSocket -------- terminal I/O ------> | TCP :5001 <-> PuTTY/telnet|
+|                +----- HDLC frames ------> | TCP :5010 <-> HDLC client |
+|                +----- control JSON -----> |                           |
+|                                   |       |                           |
+| Disk Sub-Worker (disk-io-worker)  |       |                           |
+|   WebSocket -------- block R/W ---------> | fs.readSync/writeSync     |
+|   SharedArrayBuffer + Atomics     |       | (SMD0.IMG, FLOPPY.IMG)    |
++-----------------------------------+       +---------------------------+
 ```
 
 ### Connection Model
 
-- **One WebSocket connection** from the emulator to the gateway (additional connections are rejected with close code `4000`)
-- **Multiple TCP connections** from remote clients to the gateway's terminal port (gateway.js only)
-- **Multiple virtual connections** from RetroTerm tabs, each bound to one identCode
-- All terminal I/O multiplexed over the single WebSocket using `identCode`
+- **Two WebSocket connections** from the browser to the gateway:
+  1. **Emulator** (first to connect) -- terminal I/O, HDLC frames, control messages
+  2. **Disk sub-worker** (second to connect) -- disk block read/write
+- Additional WebSocket connections are rejected with close code `4000`
+- **Multiple TCP connections** from remote terminal clients to the gateway's terminal port
+- All terminal I/O multiplexed over the emulator WebSocket using `identCode`
 
 ### Transport
 
-- WebSocket (RFC 6455)
-- **Binary frames** for high-frequency terminal I/O (`term-input`, `term-output`)
-- **JSON text frames** for infrequent control messages (`register`, `client-connected`, `client-disconnected`)
+- WebSocket (RFC 6455), single server, no path filtering
+- **Binary frames** for high-frequency I/O (terminal, HDLC, disk block)
+- **JSON text frames** for infrequent control messages (`register`, `client-connected`, etc.)
 
 ---
 
@@ -46,30 +51,75 @@ The gateway server reads a JSON configuration file (`gateway.conf.json`):
 
 ```json
 {
-  "websocket": {
-    "port": 8765
-  },
-  "terminals": {
-    "port": 5001,
-    "welcome": "ND-100/CX Terminal Server"
-  },
+  "websocket": { "port": 8765 },
+  "staticDir": "",
+  "terminals": { "port": 5001, "welcome": "ND-100/CX Terminal Server" },
   "hdlc": [
-    { "name": "HDLC-0", "port": 5010, "enabled": false },
-    { "name": "HDLC-1", "port": 5011, "enabled": false }
-  ]
+    { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
+    { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
+  ],
+  "smd": { "images": [] },
+  "floppy": { "images": [] }
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `websocket.port` | 8765 | WebSocket listen port for emulator connection |
+| `websocket.port` | 8765 | HTTP + WebSocket listen port |
+| `staticDir` | `""` | Serve static files from this directory (with COOP/COEP headers) |
 | `terminals.port` | 5001 | TCP listen port for remote terminal clients |
 | `terminals.welcome` | `"ND-100/CX Terminal Server"` | Banner text shown to TCP clients |
-| `hdlc[]` | — | Future: HDLC controller TCP ports (not yet implemented) |
+| `hdlc[]` | -- | HDLC controller TCP port definitions |
+| `hdlc[].channel` | -- | HDLC channel number (0-based) |
+| `hdlc[].enabled` | `false` | Enable this HDLC TCP server |
+| `smd.images` | `[]` | Array of SMD disk image paths (index = unit number) |
+| `floppy.images` | `[]` | Array of floppy disk image paths (index = unit number) |
+
+### CLI Options
+
+```
+node gateway.js [--config path] [--static dir] [--verbose]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--config path` | Config file path (default: `gateway.conf.json`) |
+| `--static dir` | Serve static files from directory (overrides config `staticDir`) |
+| `--verbose` | Enable verbose logging |
+
+When `--static` is used, the gateway serves the WASM build directory with COOP/COEP headers (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: credentialless`), enabling `SharedArrayBuffer` for the disk I/O sub-worker.
+
+### Makefile Targets
+
+```bash
+make gateway              # Start gateway with default config
+make gateway-test         # Run 14 unit tests
+make wasm-glass-gateway   # Build Glass UI + start unified gateway server
+```
+
+The `wasm-glass-gateway` target builds the WASM Glass UI and starts the gateway serving both static files and WebSocket on port 8765. Open `http://localhost:8765/?worker=1` in the browser.
 
 ---
 
-## Binary Frame Protocol (Terminal I/O)
+## Binary Frame Type Map
+
+All binary WebSocket frames use the first byte as a type discriminator:
+
+| Type | Direction | Category | Description |
+|------|-----------|----------|-------------|
+| `0x01` | Gateway -> Emulator | Terminal | **term-input** -- keyboard data to terminal |
+| `0x02` | Emulator -> Gateway | Terminal | **term-output** -- display data from terminal |
+| `0x10` | Gateway -> Emulator | HDLC | **HDLC RX frame** -- data received from TCP |
+| `0x11` | Emulator -> Gateway | HDLC | **HDLC TX frame** -- data to send to TCP |
+| `0x12` | Gateway -> Emulator | HDLC | **HDLC carrier status** |
+| `0x20` | Disk Worker -> Gateway | Disk | **Block read request** |
+| `0x21` | Gateway -> Disk Worker | Disk | **Block read response** |
+| `0x22` | Disk Worker -> Gateway | Disk | **Block write request** |
+| `0x23` | Gateway -> Disk Worker | Disk | **Block write ack** |
+
+---
+
+## Terminal I/O Protocol (0x01, 0x02)
 
 High-frequency terminal input and output uses binary WebSocket frames for minimal overhead.
 
@@ -79,34 +129,16 @@ High-frequency terminal input and output uses binary WebSocket frames for minima
 [type: 1 byte] [identCode: 1 byte] [data: N bytes]
 ```
 
-| Type | Direction | Description |
-|------|-----------|-------------|
-| `0x01` | Client → Emulator | **term-input** — keyboard data from terminal to host |
-| `0x02` | Emulator → Client | **term-output** — display data from host to terminal |
-
 The data length is implicit: `dataLength = frameLength - 2` (WebSocket provides message boundaries).
-
-### Examples
-
-Sending ESC key (0x1B) to identCode 43:
-```
-Binary frame: [0x01] [0x2B] [0x1B]
-               type   id=43   ESC
-               3 bytes total
-```
-
-Emulator sending "Hello" to identCode 43:
-```
-Binary frame: [0x02] [0x2B] [0x48] [0x65] [0x6C] [0x6C] [0x6F]
-               type   id=43   'H'    'e'    'l'    'l'    'o'
-               7 bytes total
-```
-
-A 100-byte terminal output = 102 bytes on the wire. No JSON parsing, no encoding overhead.
 
 ### term-input (0x01)
 
 Keyboard input from a client, destined for a terminal device.
+
+```
+Binary frame: [0x01] [0x2B] [0x1B]
+               type   id=43   ESC
+```
 
 - Each byte in the data payload is delivered individually to the emulated terminal device's input queue via `SendKeyToTerminal(identCode, byte)`.
 - Common input values: ESC = 0x1B (wakes SINTRAN), CR = 0x0D, printable ASCII = 0x20-0x7E.
@@ -116,10 +148,189 @@ Keyboard input from a client, destined for a terminal device.
 
 Terminal output data from the emulator, destined for a client.
 
+```
+Binary frame: [0x02] [0x2B] [0x48] [0x65] [0x6C] [0x6C] [0x6F]
+               type   id=43   'H'    'e'    'l'    'l'    'o'
+```
+
 - Data is batched per animation frame (~60 Hz). Each message may contain 1 to several hundred bytes.
 - If no client is bound to the specified identCode, the data is silently discarded.
 - The gateway server writes the raw bytes directly to the TCP socket.
-- RetroTerm feeds the bytes to its TDV terminal emulator.
+
+---
+
+## HDLC Frame Protocol (0x10, 0x11, 0x12)
+
+HDLC frames are bridged between TCP endpoints and the emulator's HDLC device stubs.
+
+### HDLC RX Frame (0x10) -- Gateway to Emulator
+
+Data received from a TCP client, destined for an HDLC controller.
+
+```
+[0x10] [channel: 1] [lenHi: 1] [lenLo: 1] [data: N bytes]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x10 |
+| 1 | 1 | HDLC channel number |
+| 2-3 | 2 | Data length (big-endian) |
+| 4+ | N | Frame data bytes |
+
+### HDLC TX Frame (0x11) -- Emulator to Gateway
+
+Data from an HDLC controller, destined for a TCP client.
+
+```
+[0x11] [channel: 1] [lenHi: 1] [lenLo: 1] [data: N bytes]
+```
+
+Same format as 0x10 but in the opposite direction.
+
+### HDLC Carrier Status (0x12) -- Gateway to Emulator
+
+```
+[0x12] [channel: 1] [present: 1]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x12 |
+| 1 | 1 | HDLC channel number |
+| 2 | 1 | 0x01 = carrier present (TCP client connected), 0x00 = carrier lost |
+
+### HDLC TCP Server
+
+Each enabled HDLC entry in the config creates a TCP server. One TCP client per channel. Data flows as raw bytes over TCP, framed as HDLC binary messages over WebSocket.
+
+---
+
+## Disk Block I/O Protocol (0x20-0x23)
+
+The disk sub-worker uses a dedicated WebSocket connection (second connection to the gateway) for synchronous block read/write of SMD and floppy disk images.
+
+### Why a Separate Connection
+
+The C code calls `machine_block_read()` synchronously -- it must return data immediately. But the main Worker's event loop is blocked by `Atomics.wait()` during these calls. The disk sub-worker has its own event loop and WebSocket, communicating with the main Worker via SharedArrayBuffer + Atomics.
+
+```
+C: machine_block_read()
+  -> EM_JS: gateway_block_read_js()
+    -> Atomics.wait() [main Worker BLOCKED]
+       ...
+Disk Sub-Worker: Atomics.waitAsync() fires
+  -> WebSocket send [0x20 read request]
+  -> WebSocket recv [0x21 read response]
+  -> Copy data to SharedArrayBuffer
+  -> Atomics.notify() [wakes main Worker]
+       ...
+Main Worker: reads data from SharedArrayBuffer
+  -> returns to C code
+```
+
+### Drive Types
+
+| Value | Type |
+|-------|------|
+| 0 | SMD |
+| 1 | Floppy |
+
+### Block Read Request (0x20) -- Disk Worker to Gateway
+
+```
+[0x20] [driveType: 1] [unit: 1] [offset: 4 BE] [size: 2 BE]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x20 |
+| 1 | 1 | Drive type (0=SMD, 1=Floppy) |
+| 2 | 1 | Unit number (0-3) |
+| 3-6 | 4 | Byte offset into image (big-endian) |
+| 7-8 | 2 | Bytes to read (big-endian) |
+
+Total: 9 bytes.
+
+### Block Read Response (0x21) -- Gateway to Disk Worker
+
+```
+[0x21] [driveType: 1] [unit: 1] [data: N bytes]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x21 |
+| 1 | 1 | Drive type |
+| 2 | 1 | Unit number |
+| 3+ | N | Read data (N = requested size) |
+
+On error: response has 4 bytes with `data[0] = 0xFF`.
+
+### Block Write Request (0x22) -- Disk Worker to Gateway
+
+```
+[0x22] [driveType: 1] [unit: 1] [offset: 4 BE] [size: 2 BE] [data: N bytes]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x22 |
+| 1 | 1 | Drive type |
+| 2 | 1 | Unit number |
+| 3-6 | 4 | Byte offset into image (big-endian) |
+| 7-8 | 2 | Bytes to write (big-endian) |
+| 9+ | N | Data to write |
+
+Total: 9 + N bytes.
+
+### Block Write Ack (0x23) -- Gateway to Disk Worker
+
+```
+[0x23] [driveType: 1] [unit: 1] [status: 1]
+```
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 1 | Type = 0x23 |
+| 1 | 1 | Drive type |
+| 2 | 1 | Unit number |
+| 3 | 1 | Status: 0x00 = OK, 0xFF = error |
+
+### Disk Listing (JSON)
+
+On connect, the gateway sends a JSON text frame listing available disk images:
+
+```json
+{
+  "type": "disk-list",
+  "smd": [
+    { "unit": 0, "name": "SMD0.IMG", "size": 33554432 }
+  ],
+  "floppy": []
+}
+```
+
+This is forwarded to the main thread and displayed in the SMD Disk Manager's "Remote Images" section.
+
+### SharedArrayBuffer Layout
+
+The main Worker and disk sub-worker share a 4096-byte SharedArrayBuffer:
+
+```
+Offset  Type        Purpose
+0       Int32       control: 0=idle, 1=request pending, 2=response ready
+4       Int32       driveType (0=SMD, 1=Floppy)
+8       Int32       unit number
+12      Int32       byte offset into image
+16      Int32       size (bytes to read/write)
+20      Int32       response status (0=ok, -1=error)
+24      Int32       response data length
+28      Int32       isWrite (0=read, 1=write)
+32+     Uint8[4064] data area
+```
+
+**Requires COOP/COEP headers** on the serving page for SharedArrayBuffer support.
 
 ---
 
@@ -127,7 +338,7 @@ Terminal output data from the emulator, destined for a client.
 
 Infrequent control messages use JSON text WebSocket frames.
 
-### Emulator to Client
+### Emulator to Gateway
 
 #### `register`
 
@@ -182,17 +393,13 @@ Reports carrier status changes on a terminal device.
 | `identCode` | Integer | Terminal identifier |
 | `missing` | Boolean | `true` = carrier lost, `false` = carrier present |
 
-**Notes:**
-- This message is informational. The gateway logs it but takes no action.
-- Carrier status is managed by the emulator's terminal device logic.
-
 ---
 
-### Client to Emulator
+### Gateway to Emulator
 
 #### `client-connected`
 
-Sent when a client connects to a terminal (TCP client selects terminal, or RetroTerm tab connects).
+Sent when a TCP client connects to a terminal.
 
 ```json
 {
@@ -202,21 +409,13 @@ Sent when a client connects to a terminal (TCP client selects terminal, or Retro
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `identCode` | Integer | Terminal identifier that the client connected to |
-| `clientAddr` | String | (Optional) TCP client's IP address and port |
-
-**Notes:**
 - The emulator should restore carrier on this terminal (clear the carrier-missing flag).
 - On the ND-100, this is equivalent to a modem establishing carrier detect (DCD).
 - SINTRAN will then service the terminal: an ESC keypress triggers the login prompt.
 
----
-
 #### `client-disconnected`
 
-Sent when a client disconnects (socket close, network drop, tab close, or quit command).
+Sent when a TCP client disconnects.
 
 ```json
 {
@@ -225,14 +424,8 @@ Sent when a client disconnects (socket close, network drop, tab close, or quit c
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `identCode` | Integer | Terminal identifier that the client was connected to |
-
-**Notes:**
 - The emulator should set carrier missing on this terminal.
-- On the ND-100, this signals modem hangup. SINTRAN detects the carrier loss via the terminal input status register (bit 11) and cleans up the user session.
-- The terminal becomes available for a new client connection.
+- SINTRAN detects the carrier loss and cleans up the user session.
 
 ---
 
@@ -241,16 +434,18 @@ Sent when a client disconnects (socket close, network drop, tab close, or quit c
 ### Startup Sequence
 
 ```
-1. Gateway/RetroTerm starts, listens on WebSocket port (or connects to emulator)
-2. Emulator connects via WebSocket
+1. Gateway starts, listens on HTTP/WebSocket port and TCP terminal port
+2. Emulator Worker connects via WebSocket (becomes emulator connection)
 3. Emulator sends "register" message with terminal list
-4. Gateway stores terminal list, ready for clients
+4. Disk sub-worker connects via WebSocket (becomes disk I/O connection)
+5. Gateway sends "disk-list" JSON to disk sub-worker
+6. System ready for TCP terminal clients and disk block I/O
 ```
 
-### TCP Client Session (gateway.js)
+### TCP Client Session
 
 ```
-1. Client connects to TCP terminal port
+1. Client connects to TCP terminal port (default 5001)
 2. Gateway sends welcome banner + numbered terminal menu
 3. Client sends terminal number (line-buffered, CR/LF terminated)
 4. Gateway validates selection:
@@ -261,47 +456,30 @@ Sent when a client disconnects (socket close, network drop, tab close, or quit c
 6. Gateway sends telnet negotiation (IAC WILL ECHO, WILL/DO SGA)
 7. Gateway sends "client-connected" JSON to emulator
 8. Raw byte pass-through begins:
-   - TCP bytes -> binary term-input frame -> emulator
-   - Binary term-output frame -> raw bytes -> TCP
+   - TCP bytes -> binary term-input (0x01) -> emulator
+   - Binary term-output (0x02) -> raw bytes -> TCP
 9. On TCP disconnect:
    - Gateway sends "client-disconnected" JSON to emulator
    - Terminal becomes available for new client
 ```
 
-### RetroTerm Session
-
-```
-1. RetroTerm hosts WebSocket listener on configured port
-2. Emulator connects and sends "register" message
-3. User opens connection dialog, selects Gateway protocol, picks terminal
-4. RetroTerm sends "client-connected" JSON to emulator
-5. Terminal I/O flows as binary frames:
-   - Keyboard input -> binary term-input (0x01) -> emulator
-   - Binary term-output (0x02) -> TDV terminal emulator -> screen
-6. On disconnect:
-   - RetroTerm sends "client-disconnected" JSON to emulator
-   - Terminal becomes available
-```
-
-### Telnet Negotiation (gateway.js only)
+### Telnet Negotiation
 
 When a TCP client enters connected mode, the gateway sends:
 
 | Sequence | Meaning |
 |----------|---------|
-| `FF FB 01` | IAC WILL ECHO — server handles echo |
-| `FF FB 03` | IAC WILL SUPPRESS-GO-AHEAD — character mode |
-| `FF FD 03` | IAC DO SUPPRESS-GO-AHEAD — client should also use character mode |
-
-This switches telnet clients from line mode (buffered) to character-at-a-time mode with remote echo. Raw TCP clients (PuTTY raw mode, netcat) ignore these bytes.
+| `FF FB 01` | IAC WILL ECHO -- server handles echo |
+| `FF FB 03` | IAC WILL SUPPRESS-GO-AHEAD -- character mode |
+| `FF FD 03` | IAC DO SUPPRESS-GO-AHEAD -- client should also use character mode |
 
 Inbound telnet IAC sequences from the client are stripped and not forwarded to the emulator.
 
 ### Emulator Disconnect
 
-When the WebSocket connection closes:
+When the emulator WebSocket connection closes:
 - All active TCP client sessions receive "Emulator disconnected." and are closed
-- All active RetroTerm gateway connections transition to Disconnected state
+- The disk sub-worker WebSocket is also closed
 - The terminal list is cleared
 - New clients see "No terminals available" until the emulator reconnects
 
@@ -334,10 +512,11 @@ ws.onopen = function() {
 
 // 2. Handle incoming messages
 ws.onmessage = function(ev) {
-  // Binary frame: term-input
+  // Binary frame
   if (ev.data instanceof ArrayBuffer) {
     var buf = new Uint8Array(ev.data);
     if (buf.length >= 2 && buf[0] === 0x01) {
+      // term-input
       var identCode = buf[1];
       for (var i = 2; i < buf.length; i++) {
         myEmulator.sendKeyToTerminal(identCode, buf[i]);
@@ -420,16 +599,3 @@ The ND-100 terminal input status register (IOX address + 1) has bit 11 as the ca
 | 6 | Parity Error | Parity check failed |
 | 7 | Overrun | Input buffer overrun |
 | 11 | Carrier Missing | Modem carrier detect lost |
-
----
-
-## Future: HDLC Extension
-
-The protocol is designed to be extended for HDLC controller bridging. Binary frame types could be assigned for HDLC data:
-
-| Type | Description |
-|------|-------------|
-| `0x10` | HDLC frame data (controller ID in identCode byte) |
-| `0x11` | HDLC status/control |
-
-Each HDLC controller would have its own TCP port in the gateway configuration. This is not yet implemented.
