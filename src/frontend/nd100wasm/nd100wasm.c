@@ -389,12 +389,12 @@ EMSCRIPTEN_EXPORT int SetTerminalCarrier(int flag, int identCode)
             data->uartInputBuf = ' ';
             Device_SetInterruptStatus(terminal, true, 12);
         }
-        printf("Terminal %d: carrier missing\n", identCode);
+        // carrier missing signaled to SINTRAN via interrupt
     } else {
         // Carrier present - terminal window reopened
         data->noCarrier = false;
         data->inputStatus.bits.carrierMissing = 0;
-        printf("Terminal %d: carrier restored\n", identCode);
+        // carrier restored
     }
 
     return 1;
@@ -413,7 +413,6 @@ EMSCRIPTEN_EXPORT int EnableRemoteTerminals(void)
     }
 
     if (remote_terminals_enabled) {
-        printf("Remote terminals already enabled.\n");
         return 0;
     }
 
