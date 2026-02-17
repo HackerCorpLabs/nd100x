@@ -146,6 +146,7 @@ var _diskReady = false;
 var _diskGatewayDrives = { smd: {}, floppy: {} };  // [type][unit] -> true
 
 var DRIVE_TYPE_NAMES = ['smd', 'floppy'];
+var _fullReadRequestId = null;  // pending gatewayReadFullImage request id
 
 // Block read cache: key = "driveType-unit-offset-bytes" -> Uint8Array
 var _diskBlockCache = new Map();
@@ -187,6 +188,21 @@ function initDiskWorker(gatewayUrl) {
     }
     if (e.data.type === 'error') {
       postMessage({ type: 'log', level: 'error', text: '[DiskIO] ' + e.data.error });
+    }
+    if (e.data.type === 'full-image-progress') {
+      postMessage({ type: 'full-image-progress', id: _fullReadRequestId,
+                    done: e.data.done, total: e.data.total });
+    }
+    if (e.data.type === 'full-image-data') {
+      if (e.data.error) {
+        postMessage({ type: 'full-image-data', id: _fullReadRequestId, error: e.data.error });
+      } else {
+        var buf = e.data.buffer;
+        postMessage({ type: 'full-image-data', id: _fullReadRequestId,
+                      driveType: e.data.driveType, unit: e.data.unit,
+                      buffer: buf }, [buf]);
+      }
+      _fullReadRequestId = null;
     }
   };
 }
@@ -1148,6 +1164,17 @@ onmessage = function(e) {
       var driveData;
       try { driveData = JSON.parse(driveJson); } catch(e) { driveData = []; }
       postMessage({ type: 'getDriveInfoResult', id: msg.id, data: driveData });
+      break;
+    }
+
+    case 'gatewayReadFullImage': {
+      if (!_diskWorker || !_diskReady) {
+        postMessage({ type: 'full-image-data', id: msg.id, error: 'Disk worker not connected' });
+        break;
+      }
+      _fullReadRequestId = msg.id;
+      _diskWorker.postMessage({ type: 'read-full', driveType: msg.driveType,
+                                unit: msg.unit, size: msg.size });
       break;
     }
 
