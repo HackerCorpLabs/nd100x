@@ -691,6 +691,12 @@ function smdRefreshRemoteList() {
           html += '<option value="' + su + '"' + (occupied ? ' disabled' : '') + '>Unit ' + su + (occupied ? ' (in use)' : '') + '</option>';
         }
         html += '</select>';
+        var persistOk = isSmdPersistenceEnabled();
+        var disabledAttr = persistOk ? '' : ' disabled title="Enable persistent storage first"';
+        html += '<button class="smd-copy-gateway-btn smd-action-btn"' + disabledAttr +
+                ' data-type="smd" data-remote-unit="' + img.unit + '"' +
+                ' data-size="' + img.size + '"' +
+                ' data-name="' + escapeHtml(img.name) + '">Copy to Library</button>';
       }
       html += '</div>';
       html += '</div>';
@@ -724,6 +730,12 @@ function smdRefreshRemoteList() {
         html += '<button class="smd-eject-remote-btn" data-type="floppy" data-unit="' + fmountedToLocal + '">Eject</button>';
       } else {
         html += '<button class="smd-mount-remote-btn" data-type="floppy" data-remote-unit="' + img.unit + '" data-size="' + img.size + '" data-name="' + escapeHtml(img.name) + '">Mount</button>';
+        var fPersistOk = isSmdPersistenceEnabled();
+        var fDisabledAttr = fPersistOk ? '' : ' disabled title="Enable persistent storage first"';
+        html += '<button class="smd-copy-gateway-btn smd-action-btn"' + fDisabledAttr +
+                ' data-type="floppy" data-remote-unit="' + img.unit + '"' +
+                ' data-size="' + img.size + '"' +
+                ' data-name="' + escapeHtml(img.name) + '">Copy to Library</button>';
       }
       html += '</div>';
       html += '</div>';
@@ -765,6 +777,17 @@ function smdRefreshRemoteList() {
       smdEjectRemote(driveType, unit);
     });
   });
+
+  // Wire up Copy to Library buttons
+  container.querySelectorAll('.smd-copy-gateway-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var driveType = this.getAttribute('data-type') === 'floppy' ? 1 : 0;
+      var remoteUnit = parseInt(this.getAttribute('data-remote-unit'));
+      var size = parseInt(this.getAttribute('data-size'));
+      var imgName = this.getAttribute('data-name') || '';
+      smdCopyGatewayToLibrary(driveType, remoteUnit, size, imgName, this);
+    });
+  });
 }
 
 function smdMountRemote(driveType, remoteUnit, localUnit, imageSize, imageName) {
@@ -798,6 +821,97 @@ function smdEjectRemote(driveType, unit) {
   }
   smdRefreshRemoteList();
   smdRefreshUnitDisplay();
+}
+
+// =========================================================
+// Copy Gateway Image to Library
+// =========================================================
+
+function smdCopyGatewayToLibrary(driveType, remoteUnit, size, name, btnEl) {
+  if (!emu || !emu.isWorkerMode || !emu.isWorkerMode()) {
+    console.warn('[SMD Manager] Gateway copy requires Worker mode');
+    return;
+  }
+  if (!isSmdPersistenceEnabled()) {
+    console.warn('[SMD Manager] Persistent storage must be enabled');
+    return;
+  }
+
+  // Show the copy dialog for name/description
+  var dlg = document.getElementById('smd-copy-dialog');
+  if (!dlg) return;
+
+  document.getElementById('smd-copy-name').value = name || '';
+  document.getElementById('smd-copy-desc').value = '';
+
+  document.getElementById('smd-copy-confirm').onclick = function() {
+    var copyName = document.getElementById('smd-copy-name').value.trim() || name;
+    var copyDesc = document.getElementById('smd-copy-desc').value.trim();
+    dlg.style.display = 'none';
+    smdDoGatewayCopy(driveType, remoteUnit, size, copyName, copyDesc, btnEl);
+  };
+
+  document.getElementById('smd-copy-cancel').onclick = function() {
+    dlg.style.display = 'none';
+  };
+
+  dlg.style.display = '';
+}
+
+function smdDoGatewayCopy(driveType, remoteUnit, size, name, description, btnEl) {
+  // Find the card and replace actions area with a progress bar
+  var card = btnEl ? btnEl.closest('.smd-image-card') : null;
+  var actionsEl = card ? card.querySelector('.smd-image-actions') : null;
+
+  if (actionsEl) {
+    actionsEl.innerHTML =
+      '<div class="smd-copy-progress">' +
+      '<div class="smd-copy-progress-bar" style="width:0%"></div>' +
+      '</div>' +
+      '<span class="smd-copy-progress-text">0%</span>';
+  }
+
+  // Set up progress callback
+  window.onGatewayCopyProgress = function(p) {
+    var pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+    if (actionsEl) {
+      var bar = actionsEl.querySelector('.smd-copy-progress-bar');
+      var text = actionsEl.querySelector('.smd-copy-progress-text');
+      if (bar) bar.style.width = pct + '%';
+      if (text) text.textContent = pct + '% (' + smdStorage.formatSize(p.done) + ' / ' + smdStorage.formatSize(p.total) + ')';
+    }
+  };
+
+  emu.gatewayReadFullImage(driveType, remoteUnit, size).then(function(msg) {
+    window.onGatewayCopyProgress = null;
+
+    if (msg.error) {
+      console.error('[SMD Manager] Gateway copy failed:', msg.error);
+      smdRefreshRemoteList();
+      return;
+    }
+
+    var uuid = smdStorage.generateUUID();
+    var data = new Uint8Array(msg.buffer);
+
+    smdStorage.storeImage(uuid, data, {
+      name: name,
+      description: description,
+      sourceName: name
+    }).then(function() {
+      console.log('[SMD Manager] Gateway image copied to library: ' + name + ' (' + smdStorage.formatSize(data.byteLength) + ')');
+      smdRefreshRemoteList();
+      smdRefreshInstalledList();
+      smdUpdateStorageInfo();
+    }).catch(function(err) {
+      console.error('[SMD Manager] Failed to store image:', err);
+      smdRefreshRemoteList();
+    });
+  }).catch(function(err) {
+    window.onGatewayCopyProgress = null;
+    console.error('[SMD Manager] Gateway read failed:', err);
+    smdRefreshRemoteList();
+  });
 }
 
 // Expose for toolbar.js

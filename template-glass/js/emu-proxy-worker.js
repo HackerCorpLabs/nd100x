@@ -230,6 +230,16 @@
         resolveRequest(msg.id, msg);
         break;
 
+      case 'full-image-progress':
+        if (typeof window.onGatewayCopyProgress === 'function') {
+          window.onGatewayCopyProgress({ done: msg.done, total: msg.total });
+        }
+        break;
+
+      case 'full-image-data':
+        resolveRequest(msg.id, msg);
+        break;
+
       case 'disk-connected':
         if (typeof window.onDiskConnected === 'function') {
           window.onDiskConnected(msg.blockIO);
@@ -597,6 +607,9 @@
     },
     gatewayUnmountFloppy: function(unit) {
       return postRequest('gatewayUnmountFloppy', { unit: unit });
+    },
+    gatewayReadFullImage: function(driveType, unit, size) {
+      return postRequest('gatewayReadFullImage', { driveType: driveType, unit: unit, size: size });
     },
 
     // --- WebSocket bridge ---
