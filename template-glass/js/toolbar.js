@@ -899,6 +899,49 @@ document.getElementById('toolbar-power').addEventListener('click', function() {
   }
 });
 
+// Log which image is actually on each SMD unit at boot time
+function logBootDriveInfo() {
+  console.log('--- SMD Boot Drive Info ---');
+
+  // Check persistence mode
+  var persist = (typeof isSmdPersistenceEnabled === 'function') && isSmdPersistenceEnabled();
+  console.log('  Persistence: ' + (persist ? 'ON' : 'OFF (demo mode)'));
+  console.log('  Worker mode: ' + (emu && emu.isWorkerMode ? emu.isWorkerMode() : false));
+
+  if (persist && typeof smdStorage !== 'undefined') {
+    var units = smdStorage.getUnitAssignments();
+    for (var u = 0; u < 4; u++) {
+      var uuid = units[u];
+      if (uuid) {
+        var meta = smdStorage.getMetadata(uuid);
+        var name = meta ? meta.name : '(no metadata)';
+        var src = meta && meta.sourceName ? ' [source: ' + meta.sourceName + ']' : '';
+        console.log('  Unit ' + u + ': "' + name + '" (uuid=' + uuid.substring(0, 8) + '...)' + src);
+      } else {
+        console.log('  Unit ' + u + ': (empty)');
+      }
+    }
+  }
+
+  // Check drive registry
+  if (typeof driveRegistry !== 'undefined') {
+    for (var u2 = 0; u2 < 4; u2++) {
+      var reg = driveRegistry.get('smd', u2);
+      if (reg.mounted) {
+        console.log('  Registry unit ' + u2 + ': mounted as "' + reg.name + '" source=' + reg.source +
+          (reg.fileName ? ' file=' + reg.fileName.substring(0, 8) + '...' : ''));
+      }
+    }
+  }
+
+  // Demo mode: check diskImageStatus
+  if (!persist && typeof diskImageStatus !== 'undefined') {
+    console.log('  Demo SMD0: ' + (diskImageStatus.smd ? 'loaded' : 'NOT loaded'));
+  }
+
+  console.log('--------------------------');
+}
+
 // --- BOOT button handler ---
 // boot_type values: 0=FLOPPY, 1=SMD, 2=BPUN
 function performBoot(bootType) {
@@ -906,6 +949,11 @@ function performBoot(bootType) {
   var bootNames = ['FLOPPY', 'SMD', 'BPUN'];
 
   console.log("Booting type " + (bootNames[bootType] || bootType));
+
+  // Log detailed drive info for SMD boot
+  if (bootType === 1) {
+    logBootDriveInfo();
+  }
 
   if (emu.isWorkerMode()) {
     // Worker mode: boot is async, result arrives via callback

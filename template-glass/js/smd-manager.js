@@ -238,14 +238,21 @@ function smdShowRenameInline(uuid) {
 function smdAssignToUnit(uuid, unit) {
   if (unit < 0 || unit > 3) return;
 
+  var currentUnits = smdStorage.getUnitAssignments();
+
   // If this image is already assigned to another unit, eject it first
   // (OPFS SyncAccessHandle is exclusive -- only one handle per file)
-  var currentUnits = smdStorage.getUnitAssignments();
   for (var u = 0; u < 4; u++) {
     if (u !== unit && currentUnits[u] === uuid) {
-      console.log('[SMD Manager] Ejecting from unit ' + u + ' before reassigning to unit ' + unit);
+      console.log('[SMD Manager] Ejecting ' + uuid + ' from unit ' + u + ' (moving to unit ' + unit + ')');
       smdEjectUnit(u);
     }
+  }
+
+  // Eject the CURRENT occupant of the target unit (close its SyncAccessHandle)
+  if (currentUnits[unit] && currentUnits[unit] !== uuid) {
+    console.log('[SMD Manager] Ejecting current image from unit ' + unit + ' to make room');
+    smdEjectUnit(unit);
   }
 
   smdStorage.setUnitAssignment(unit, uuid);

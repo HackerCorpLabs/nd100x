@@ -78,8 +78,13 @@ var _opfsHandles = [null, null, null, null];  // SyncAccessHandle per SMD unit
 var _opfsReady = [false, false, false, false];
 
 // Open OPFS file for a unit using SyncAccessHandle (synchronous I/O in Worker)
+// Always closes any existing handle on this unit first to prevent leaks.
 async function opfsOpenUnit(unit, fileName) {
   if (unit < 0 || unit > 3) return false;
+
+  // Close existing handle first (prevents SyncAccessHandle leaks)
+  opfsCloseUnit(unit);
+
   try {
     var root = await navigator.storage.getDirectory();
     var dir = await root.getDirectoryHandle('smd-images', { create: false });
@@ -1058,12 +1063,15 @@ onmessage = function(e) {
     // --- OPFS persistent storage ---
     case 'opfsMountSMD': {
       // Open OPFS SyncAccessHandle and mount in C as OPFS drive
+      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsMountSMD unit=' + msg.unit + ' file=' + msg.fileName });
       opfsOpenUnit(msg.unit, msg.fileName).then(function(ok) {
         if (ok) {
           var size = _opfsHandles[msg.unit].getSize();
           Module._MountSMDFromOPFS(msg.unit, size);
+          postMessage({ type: 'log', level: 'info', text: '[Worker] MountSMDFromOPFS unit=' + msg.unit + ' size=' + size + ' OK' });
           postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: true, size: size });
         } else {
+          postMessage({ type: 'log', level: 'error', text: '[Worker] opfsMountSMD FAILED unit=' + msg.unit });
           postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: false, size: 0 });
         }
       });
@@ -1071,6 +1079,7 @@ onmessage = function(e) {
     }
 
     case 'opfsUnmountSMD': {
+      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsUnmountSMD unit=' + msg.unit });
       opfsCloseUnit(msg.unit);
       Module._UnmountSMD(msg.unit);
       postMessage({ type: 'fsResult', id: msg.id, result: 0 });
