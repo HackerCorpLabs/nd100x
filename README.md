@@ -1,7 +1,8 @@
 # nd100x
+
 ND-100/CX Emulator written in C
 
-For more information about the ND-100 series of minicomputers: https://www.ndwiki.org/wiki/ND-100
+For more information about the ND-100 series of minicomputers: <https://www.ndwiki.org/wiki/ND-100>
 
 # Origins
 
@@ -9,16 +10,18 @@ This project (nd100x) is a fork of nd100em, started in 2025 by Ronny Hansen.
 It remains under the GNU General Public License (GPL v2 or later).
 
 This project is based upon the source code from the nd100em project.
-Their latest version was version 0.2.4, which can be found here https://github.com/tingox/nd100em
-Read more about the nd100em project here https://www.ndwiki.org/wiki/ND100_emulator_project
+Their latest version was version 0.2.4, which can be found here <https://github.com/tingox/nd100em>
+Read more about the nd100em project here <https://www.ndwiki.org/wiki/ND100_emulator_project>
 
 The original authors of the nd100em are:
+
 * Per-Olof Åström
 * Roger Abrahamsson
 * Zdravko Dimitrov
 * Göran Axelsson
 
 ## Status
+
 The emulator is under active development. Current work in progress includes:
 
 * All test programs validate the CPU, Memory Management and Devices.
@@ -29,33 +32,33 @@ The emulator is under active development. Current work in progress includes:
 
 This project continues from nd100em version 0.2.4 and includes significant enhancements:
 
-- **Opcode Improvements**
-  - Added support for missing opcodes
-  - Fixed bugs in several instructions
-- **Memory Management**
-  - Fully re-implemented with support for MMS1 and MMS2
-  - Proper TRAP generation for Page Faults and Access Violations
-- **IO Subsystem**
-  - Complete rewrite: now single-threaded and simplified
-  - Old IO code has been removed
-- **Supported IO Devices**
-  - Real-Time Clock (20ms tick emulation pending for full SINTRAN compatibility)
-  - Console
-  - Floppy (PIO and DMA) for 8" and 5.25" formats
-  - SMD Hard Disk (75MB; multi-drive support in progress)
-- **Codebase Modernization**
-  - Removed requirement for libconfig and the supporting .conf file. All options are now given on the command line.
-  - Refactored folder structure
-  - Automatic function header generation via [mkptypes](https://github.com/OrangeTide/mkptypes) (by Eric R. Smith)
+* **Opcode Improvements**
+  * Added support for missing opcodes
+  * Fixed bugs in several instructions
+* **Memory Management**
+  * Fully re-implemented with support for MMS1 and MMS2
+  * Proper TRAP generation for Page Faults and Access Violations
+* **IO Subsystem**
+  * Complete rewrite: now single-threaded and simplified
+  * Old IO code has been removed
+* **Supported IO Devices**
+  * Real-Time Clock (20ms tick emulation pending for full SINTRAN compatibility)
+  * Console
+  * Floppy (PIO and DMA) for 8" and 5.25" formats
+  * SMD Hard Disk (75MB; multi-drive support in progress)
+* **Codebase Modernization**
+  * Removed requirement for libconfig and the supporting .conf file. All options are now given on the command line.
+  * Refactored folder structure
+  * Automatic function header generation via [mkptypes](https://github.com/OrangeTide/mkptypes) (by Eric R. Smith)
 
- ## Project Goals
+## Project Goals
 
-* Focus on ND-100 CPU and controllers. 
-  * The newer CPU's (ND-110 and ND-120) is mostly hardware/performance improvements, with some new opcodes to support SINTRAN and COBOL running with better performance. 
+* Focus on ND-100 CPU and controllers.
+  * The newer CPU's (ND-110 and ND-120) is mostly hardware/performance improvements, with some new opcodes to support SINTRAN and COBOL running with better performance.
   * Focus on getting these opcodes into this emulator has very low priority, as SINTRAN doesnt require an ND-110 or ND-120 CPU.
 * Refactorand, re-structure and modernize code so its easier to extend
 * Adding support for building different frontends
-  * The only frontend currently is the nd100x emulator 
+  * The only frontend currently is the nd100x emulator
   * Other frond ends planned
     * Web Assembly version (WASM) for running emulator in browser and in Visual Studio Code as plugin
     * Arduino, ESP and RISC-V device support.
@@ -63,41 +66,42 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
     * Windows version
 * Adding even more devices (like HDLC, Ethernet, SCSI)
 
-
-
 ## Project Structure
+
 The project is organized into several key components:
 
-- `src/cpu/` - CPU emulation implementation
-- `src/devices/` - Device emulation (I/O, peripherals)
-- `src/machine/` - Machine state and main emulation loop
-- `src/ndlib/` - Supporting library functions (loading BPUN and a.out formats++)
-- `src/debugger/` - DAP Debugger supporting functionality
-- `src/frontend/` - User interface and emulator frontend(s)
-- `tools/` - Development and build tools
-- `images/` - Norsk-Data SMD disk, floppy and BPUN files.
-- `build/` - Build output directory
-
+* `src/cpu/` - CPU emulation implementation
+* `src/devices/` - Device emulation (I/O, peripherals)
+* `src/machine/` - Machine state and main emulation loop
+* `src/ndlib/` - Supporting library functions (loading BPUN and a.out formats++)
+* `src/debugger/` - DAP Debugger supporting functionality
+* `src/frontend/` - User interface and emulator frontend(s)
+* `tools/` - Development and build tools
+* `images/` - Norsk-Data SMD disk, floppy and BPUN files.
+* `build/` - Build output directory
 
 ## Build Requirements
+
 - Linux (I am using Ubuntu 22.04) under WSL
-- GCC compiler (I am using GCC 11.4.0)
-- Make build system
-- mkptypes tool (automatically built during compilation)
+* GCC compiler (I am using GCC 11.4.0)
+* Make build system
+* mkptypes tool (automatically built during compilation)
 
 ### Additional Dependencies for Floppy Menu
 
 The floppy menu functionality requires additional libraries:
-- **libcurl4-openssl-dev**: For downloading floppy database from the internet
-- **libncurses5-dev**: For the terminal-based user interface
+* **libcurl4-openssl-dev**: For downloading floppy database from the internet
+* **libncurses5-dev**: For the terminal-based user interface
 
 Install these dependencies on Ubuntu/Debian:
+
 ```bash
 sudo apt update
 sudo apt install libcurl4-openssl-dev libncurses5-dev
 ```
 
 On FreeBSD
+
 ```bash
 pkg install curl ncurses
 ```
@@ -109,6 +113,7 @@ pkg install curl ncurses
 ## Building the Project
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/HackerCorpLabs/nd100x.git
 cd nd100x
@@ -117,29 +122,36 @@ git submodule update --init --recursive
 
 ```
 
-2. Build the project:
+1. Build the project:
+
 - For debug build (default):
+
 ```bash
 make debug
 ```
+
 - For release build:
+
 ```bash
 make release
 ```
+
 - For build with sanitizers:
+
 ```bash
 make sanitize
 ```
 
-- For more information on the build system, see the [How to build document](docs/HOWTO_BUILD.md).
-- Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
-- Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
+* For more information on the build system, see the [How to build document](docs/HOWTO_BUILD.md).
+* Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
+* Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
 
 ## Glass Web UI
 
-The emulator includes a glassmorphism browser frontend (the "Glass UI") that runs the full ND-100 emulator in your browser. The live version at **https://nd100x.hackercorp.no/** has been upgraded to use this layout.
+The emulator includes a glassmorphism browser frontend (the "Glass UI") that runs the full ND-100 emulator in your browser. The live version at **<https://nd100x.hackercorp.no/>** has been upgraded to use this layout.
 
 Build and run locally:
+
 ```bash
 make wasm-glass-run
 ```
@@ -152,9 +164,7 @@ The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 21 JS modules, 1 
 
 Sometimes the submodules are updated and you need to manually refresh them
 
-- git submodule update --init --recursive
-
-
+* git submodule update --init --recursive
 
 ### Command Line Options for nd100x
 
@@ -186,43 +196,39 @@ Examples:
 ```
 
 Boot Types:
-- `smd`: SMD disk boot (default)
-- `bp`: Boot program
-- `bpun`: Boot program unprotected
-- `aout`: BSD 2.11 a.out format
-- `floppy`: Floppy disk boot
+* `smd`: SMD disk boot (default)
+* `bp`: Boot program
+* `bpun`: Boot program unprotected
+* `aout`: BSD 2.11 a.out format
+* `floppy`: Floppy disk boot
 
 ### Block devices (Floppy and SMD)
 
 Currently the file names used for floppy and SMD are hard coded.
 And the files are expected to be in the current folder.
 
-* Floppy drives uses FLOPPY.IMG 
+* Floppy drives uses FLOPPY.IMG
 * SMD  drives uses SMD0.IMG, SMD1.IMG, SMD2.IMG and SMD3.IMG.
 
 Other floppy images can be mounted via the Floppy Menu
-
 
 ## Running SINTRAN in the Emulator
 
 The emulator requires a system image file (SMD0.IMG) to run. Place the image file in the project root directory.
 
 To boot a SINTRAN image from an SMD disk
+
 ```bash
 build/bin/nd100x --boot=smd 
 ```
 
-
 Read more about [how to boot sintran](SINTRAN.md)
-
 
 ![Boot Animation](images/boot.gif)
 
-
-
 ## Booting TPE-MON from floppy and running test programs
-The emulator requires a floppy image to boot from. Place the image file in the current directory.
 
+The emulator requires a floppy image to boot from. Place the image file in the current directory.
 
 ```bash
 cp images/Nd-210523I01-XX-01D.img FLOPPY.IMG
@@ -230,7 +236,6 @@ build/bin/nd100x --boot=floppy
 ```
 
 Now you have access to test programs like CONFIG, PAGING, INSTRUCTION and more.
-
 
 ## Floppy Menu
 
@@ -244,18 +249,17 @@ While the emulator is running, press **F12** to open the floppy menu.
 
 ### Menu Features
 
-- **Browse Database**: View all available floppy disk images from the online database
-- **Search Functionality**: Search for floppies by name, reference, or directory content
-- **Detailed Information**: View detailed information about each floppy including description, reference and directory content
-- **Mount Capability**: Mount selected floppy disks to floppy drive units 0, 1 or 2
+* **Browse Database**: View all available floppy disk images from the online database
+* **Search Functionality**: Search for floppies by name, reference, or directory content
+* **Detailed Information**: View detailed information about each floppy including description, reference and directory content
+* **Mount Capability**: Mount selected floppy disks to floppy drive units 0, 1 or 2
 
 ### Requirements
 
-- Internet connection (required to download floppy database).
-- Terminal that supports F12 key
+* Internet connection (required to download floppy database).
+* Terminal that supports F12 key
 
-
-Floppy database is available directly at https://ndlib.hackercorp.no/
+Floppy database is available directly at <https://ndlib.hackercorp.no/>
 
 ## Assembling your own programs
 
@@ -275,13 +279,13 @@ foo: .word 22
 
 Remember to end your code with 'opcom' to make the emulator stop executing your code.
 
-Overview of all [assembly instructions ](docs/cpu_documentation.md)
-
+Overview of all [assembly instructions](docs/cpu_documentation.md)
 
 ## Multiple systems
 
 The nd100x emulator has been compuiled and tested on multiple different systems.
 For more information, read the [Tested systems](docs/SYSTEMS.md) document
+
 ## License
 
 See the [LICENSE](LICENSE) file for detailed licensing information.
@@ -290,12 +294,11 @@ See the [LICENSE](LICENSE) file for detailed licensing information.
 
 See the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information
 
-
 ## TODO
 
-- Refactor IO access to request BLOCKs from Machine instead of direct file access
-  - Opens up for running WASM in the browser with better performance/less memory usage.
-- OPCOM implementation
-  - Emulation of OPCOM for memory inspection when CPU is in STOP mode.
-  - Currently STOP mode exits the emulator 
-- Clean up code and standardise on 8,16,32 and 64 bit signed and unsigned names for types
+* Refactor IO access to request BLOCKs from Machine instead of direct file access
+  * Opens up for running WASM in the browser with better performance/less memory usage.
+* OPCOM implementation
+  * Emulation of OPCOM for memory inspection when CPU is in STOP mode.
+  * Currently STOP mode exits the emulator
+* Clean up code and standardise on 8,16,32 and 64 bit signed and unsigned names for types

@@ -13,7 +13,7 @@ else()
 endif()
 
 # Create the executable
-add_executable(nd100x ${SOURCES})
+add_executable(nd100x ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h)
 
 # Include directories
 target_include_directories(nd100x PRIVATE
@@ -85,14 +85,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
 # Create the prototypes header using mkptypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    COMMAND echo "#include \"../../machine/machine_types.h\"" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/menu.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config.c ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c ${CMAKE_CURRENT_SOURCE_DIR}/menu.c ${CMAKE_SOURCE_DIR}/src/machine/machine_types.h
+    DEPENDS ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/menu.c
     COMMENT "Generating nd100x_protos.h"
+    VERBATIM
 )
-
-# Make sure the prototype header is generated before compiling
-add_custom_target(nd100x_protos_gen DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h)
-add_dependencies(nd100x nd100x_protos_gen) 
