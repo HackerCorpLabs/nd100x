@@ -51,8 +51,11 @@ typedef enum {
 extern LogLevel minLogLevel;
 
 
-/// @brief Array of log level strings for formatting output 
+/// @brief Array of log level strings for formatting output
 extern const char *level_str[];
+
+/// @brief Callback type for redirecting log output (e.g. to a VScreen)
+typedef void (*LogOutputFunc)(const char *message);
 
 // ** BPUN **
 typedef struct

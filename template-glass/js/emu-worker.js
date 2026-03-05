@@ -634,6 +634,24 @@ function runLoop() {
         termOutput.push(entry);
       }
     }
+    /*
+     * Ring buffer entry encoding for character device output:
+     *   Terminal:   (identCode << 8) | charCode   [bits 0-15]
+     *   Printer:    0x80000000 | (1 << 16) | charCode  [bit 31 = device class flag]
+     *   PaperTape:  0x80000000 | (2 << 16) | charCode
+     */
+    // Drain printer ring buffer
+    if (typeof Module._PollPrinterOutput === 'function') {
+      while ((entry = Module._PollPrinterOutput()) >= 0) {
+        termOutput.push(0x80000000 | (1 << 16) | (entry & 0xFF));
+      }
+    }
+    // Drain paper tape writer ring buffer
+    if (typeof Module._PollPaperTapeWriterOutput === 'function') {
+      while ((entry = Module._PollPaperTapeWriterOutput()) >= 0) {
+        termOutput.push(0x80000000 | (2 << 16) | (entry & 0xFF));
+      }
+    }
 
     runMode = Module._Dbg_GetRunMode();
     if (runMode === 2 || runMode === 4 || runMode === 5) break;
@@ -676,6 +694,22 @@ function runLoop() {
           _wsStats.hdlcTx.bytes += txFrame.length;
         }
       }
+    }
+  }
+
+  // Throttled printer job timeout check (~1Hz)
+  var _pNow = performance.now();
+  if (!runLoop._lastPrinterCheck || _pNow - runLoop._lastPrinterCheck >= 1000) {
+    runLoop._lastPrinterCheck = _pNow;
+    if (typeof Module._PrinterCheckTimeout === 'function' && Module._PrinterCheckTimeout() === 1) {
+      postMessage({
+        type: 'printerJobCompleted',
+        jobNumber: Module._PrinterGetLastCompletedJob(),
+        startTime: Module._PrinterGetLastJobStartTime(),
+        endTime: Module._PrinterGetLastJobEndTime(),
+        bytes: Module._PrinterGetLastJobBytes(),
+        lines: Module._PrinterGetLastJobLines()
+      });
     }
   }
 
@@ -807,6 +841,52 @@ onmessage = function(e) {
 
     case 'carrier': {
       Module._SetTerminalCarrier(msg.flag, msg.identCode);
+      break;
+    }
+
+    case 'loadPaperTape': {
+      if (typeof Module._LoadPaperTape === 'function' && msg.data) {
+        var ptr = Module._malloc(msg.data.length);
+        Module.HEAPU8.set(new Uint8Array(msg.data), ptr);
+        Module._LoadPaperTape(ptr, msg.data.length);
+        Module._free(ptr);
+      }
+      break;
+    }
+
+    // --- Printer PDF pipeline ---
+    case 'printerFlushJob': {
+      if (typeof Module._PrinterFlushJob === 'function') Module._PrinterFlushJob();
+      break;
+    }
+    case 'printerSetType': {
+      if (typeof Module._PrinterSetType === 'function') Module._PrinterSetType(msg.value);
+      break;
+    }
+    case 'printerGetType': {
+      var ptype = typeof Module._PrinterGetType === 'function' ? Module._PrinterGetType() : 0;
+      postMessage({ type: 'printerGetTypeResult', id: msg.id, value: ptype });
+      break;
+    }
+    case 'printerCheckTimeout': {
+      var flushed = typeof Module._PrinterCheckTimeout === 'function' ? Module._PrinterCheckTimeout() : 0;
+      postMessage({ type: 'printerCheckTimeoutResult', id: msg.id, value: flushed });
+      break;
+    }
+    case 'printerGetState': {
+      postMessage({
+        type: 'printerGetStateResult', id: msg.id,
+        lastCompletedJob: typeof Module._PrinterGetLastCompletedJob === 'function' ? Module._PrinterGetLastCompletedJob() : 0,
+        lastJobStartTime: typeof Module._PrinterGetLastJobStartTime === 'function' ? Module._PrinterGetLastJobStartTime() : 0,
+        lastJobEndTime: typeof Module._PrinterGetLastJobEndTime === 'function' ? Module._PrinterGetLastJobEndTime() : 0,
+        lastJobBytes: typeof Module._PrinterGetLastJobBytes === 'function' ? Module._PrinterGetLastJobBytes() : 0,
+        lastJobLines: typeof Module._PrinterGetLastJobLines === 'function' ? Module._PrinterGetLastJobLines() : 0,
+        activeJobBytes: typeof Module._PrinterGetActiveJobBytes === 'function' ? Module._PrinterGetActiveJobBytes() : 0,
+        activeJobLines: typeof Module._PrinterGetActiveJobLines === 'function' ? Module._PrinterGetActiveJobLines() : 0,
+        isJobActive: typeof Module._PrinterIsJobActive === 'function' ? Module._PrinterIsJobActive() : 0,
+        jobNumber: typeof Module._PrinterGetJobNumber === 'function' ? Module._PrinterGetJobNumber() : 0,
+        printerType: typeof Module._PrinterGetType === 'function' ? Module._PrinterGetType() : 0
+      });
       break;
     }
 
