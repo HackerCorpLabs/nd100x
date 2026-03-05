@@ -1,7 +1,9 @@
 # nd100x frontend executable
-set(SOURCES 
-    config.c 
+set(SOURCES
+    config.c
     nd100x.c
+    screenmenu.c
+    vscreen.c
 )
 
 # Include menu.c only when not building for WASM or RISC-V

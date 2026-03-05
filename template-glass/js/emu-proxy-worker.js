@@ -136,6 +136,24 @@
         if (msg.snapshot) applySnapshot(msg.snapshot);
         break;
 
+      case 'printerJobCompleted':
+        if (typeof window.onPrinterJobCompleted === 'function') {
+          window.onPrinterJobCompleted(msg);
+        }
+        break;
+
+      case 'printerGetTypeResult':
+        resolveRequest(msg.id, msg.value);
+        break;
+
+      case 'printerCheckTimeoutResult':
+        resolveRequest(msg.id, msg.value);
+        break;
+
+      case 'printerGetStateResult':
+        resolveRequest(msg.id, msg);
+        break;
+
       case 'diskLoaded':
         resolveRequest(msg.id, msg);
         break;
@@ -279,13 +297,29 @@
     }
   }
 
+  /*
+   * Ring buffer entry encoding for character device output:
+   *   Terminal:   (identCode << 8) | charCode   [bits 0-15]
+   *   Printer:    0x80000000 | (1 << 16) | charCode  [bit 31 = device class flag]
+   *   PaperTape:  0x80000000 | (2 << 16) | charCode
+   */
   function dispatchTermOutput(termOutput) {
     if (!termOutput || termOutput.length === 0) return;
     var handler = window.handleTerminalOutputFromC;
-    if (!handler) return;
     for (var i = 0; i < termOutput.length; i++) {
       var entry = termOutput[i];
-      handler((entry >> 8) & 0xFF, entry & 0xFF);
+      if (entry & 0x80000000) {
+        var devClass = (entry >> 16) & 0xFF;
+        var charCode = entry & 0xFF;
+        if (devClass === 1 && typeof window.handlePrinterOutput === 'function') {
+          window.handlePrinterOutput(charCode);
+        } else if (devClass === 2 && typeof window.handlePaperTapeWriterOutput === 'function') {
+          window.handlePaperTapeWriterOutput(charCode);
+        }
+      } else {
+        // Terminal output
+        if (handler) handler((entry >> 8) & 0xFF, entry & 0xFF);
+      }
     }
   }
 
@@ -370,6 +404,58 @@
     hasRingBuffer: function() { return true; },
     flushTerminalOutput: function() {
       // No-op in Worker mode - output arrives via frame messages
+    },
+
+    // --- Printer PDF pipeline (Worker mode) ---
+    printerCheckTimeout: function() {
+      return postRequest('printerCheckTimeout', {});
+    },
+    printerFlushJob: function() {
+      postCmd('printerFlushJob');
+    },
+    printerGetLastCompletedJob: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.lastCompletedJob; });
+    },
+    printerGetLastJobStartTime: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.lastJobStartTime; });
+    },
+    printerGetLastJobEndTime: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.lastJobEndTime; });
+    },
+    printerGetLastJobBytes: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.lastJobBytes; });
+    },
+    printerGetLastJobLines: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.lastJobLines; });
+    },
+    printerGetActiveJobBytes: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.activeJobBytes; });
+    },
+    printerGetActiveJobLines: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.activeJobLines; });
+    },
+    printerIsJobActive: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.isJobActive; });
+    },
+    printerGetJobNumber: function() {
+      return postRequest('printerGetState', {}).then(function(r) { return r.jobNumber; });
+    },
+    printerGetType: function() {
+      return postRequest('printerGetType', {});
+    },
+    printerSetType: function(type) {
+      postCmd('printerSetType', { value: type });
+    },
+
+    // --- Paper tape API (Worker mode) ---
+    loadPaperTape: function(data) {
+      // Send data to worker for loading into the paper tape reader
+      _worker.postMessage({ type: 'loadPaperTape', data: data });
+    },
+    getPaperTapeWriterData: function() {
+      // TODO: Worker mode needs async round-trip - not yet implemented
+      console.warn('getPaperTapeWriterData not yet supported in Worker mode');
+      return null;
     },
 
     // --- Legacy terminal callback registration ---

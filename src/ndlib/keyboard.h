@@ -27,6 +27,7 @@
 
 // Keyboard input functions
 int read_key_sequence(char *buf, size_t bufsize);
+int is_alt_digit_key(const char *keybuf);
 int is_f12_key(const char *keybuf);
 int is_escape_key(const char *keybuf);
 

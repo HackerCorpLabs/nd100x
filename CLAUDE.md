@@ -91,6 +91,9 @@ build/bin/nd100x --boot=aout --image=program.out --debugger --verbose
 # Load BPUN files (boot program unprotected)
 build/bin/nd100x --boot=bpun --image=images/FILSYS-INV-Q04.BPUN
 
+# Boot with paper tape loaded
+build/bin/nd100x --boot=floppy --tape=images/test.bpun
+
 # Run with various options using Makefile
 BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 ```
@@ -98,9 +101,14 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 ### Command Line Options
 - `-b, --boot=TYPE`: Boot type (bp, bpun, aout, floppy, smd)
 - `-i, --image=FILE`: Image file to load
+- `-t, --tape=FILE`: Paper tape file to load into reader
+- `-P, --printdir=DIR`: Directory for line printer output files (default: ./prints)
+- `-T, --tapedir=DIR`: Directory for paper tape punch output files (default: ./tapes)
 - `-s, --start=ADDR`: Start address (default: 0)
 - `-a, --disasm`: Enable disassembly output
 - `-d, --debugger`: Enable DAP debugger
+- `-r, --printer=TYPE`: Printer emulation type: text (default), escp, laser (not yet implemented)
+- `-f, --printformat=FMT`: Printer output format: txt (default), pdf
 - `-v, --verbose`: Enable verbose output
 - `-h, --help`: Show help message
 
@@ -108,8 +116,13 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 - **Floppy**: Uses FLOPPY.IMG (other images can be mounted via F12 menu)
 - **SMD**: Uses SMD0.IMG, SMD1.IMG, SMD2.IMG, SMD3.IMG
 
-### Floppy Menu
-Press **F12** during emulation to access the floppy database browser. Requires internet connection.
+### Character Devices
+- **Paper Tape Reader**: I/O 0400-0403, loads BPUN files via `--tape` option
+- **Paper Tape Punch**: I/O 0410-0413, output saved to `--tapedir` directory
+- **Line Printer**: I/O 0430-0433, output saved to `--printdir` directory
+
+### Floppy Menu and Virtual Screen Switching (Native)
+Press **F12** during emulation to open the unified menu, which offers both the Floppy Database Browser (requires internet connection) and the Virtual Screen Selector. Press **Alt+1** through **Alt+6** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch). Device screens are output-only.
 
 ## Architecture Overview
 

@@ -31,6 +31,19 @@
 #include "../../machine/machine_types.h"
 #include "../ndlib/ndlib_types.h"
 
+// Printer emulation type (--printer= option)
+typedef enum {
+    PRINTER_TEXT,      // Simple line printer (plain ASCII)
+    PRINTER_ESCP,      // Epson ESC/P interpreter
+    PRINTER_LASER      // Color laser (future, not yet implemented)
+} PrinterType_t;
+
+// Printer output format (--printformat= option)
+typedef enum {
+    PRINT_FORMAT_TXT,  // Plain text output (.txt)
+    PRINT_FORMAT_PDF   // PDF output (.pdf)
+} PrintFormat_t;
+
 // Configuration structure
 typedef struct {
     BOOT_TYPE bootType;
@@ -41,6 +54,13 @@ typedef struct {
     bool showHelp;
     bool debuggerEnabled;
     int debuggerPort;
+    char *printDir;      // Output directory for print jobs (default: ./prints/)
+    char *tapeDir;       // Output directory for punched tape (default: ./tapes/)
+    char *tapeFile;      // Input file for paper tape reader
+    bool telnetEnabled;  // --telnet flag
+    int telnetPort;      // Default: 9000
+    PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
+    PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
 } Config_t;
 
 #endif // CONFIG_H 
