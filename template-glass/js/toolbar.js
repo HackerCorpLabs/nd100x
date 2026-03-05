@@ -319,6 +319,19 @@ document.getElementById('menu-smd-manager').addEventListener('click', function()
   document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
 });
 
+var menuPrinter = document.getElementById('menu-printer');
+if (menuPrinter) menuPrinter.addEventListener('click', function() {
+  toggleGlassWindow('printer-window');
+  document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+});
+
+
+var menuPaperTape = document.getElementById('menu-paper-tape');
+if (menuPaperTape) menuPaperTape.addEventListener('click', function() {
+  toggleGlassWindow('paper-tape-window');
+  document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+});
+
 document.getElementById('menu-debugger').addEventListener('click', function() {
   var dbgWin = document.getElementById('debugger-window');
   if (dbgWin.style.display === 'none' || dbgWin.style.display === '') {
@@ -854,6 +867,9 @@ function completePowerOn(btn) {
 
   // Start SINTRAN detection polling
   if (typeof sintranStartDetection === 'function') sintranStartDetection();
+
+  // Apply persisted printer driver setting
+  if (typeof applyPersistedPrinterDriver === 'function') applyPersistedPrinterDriver();
 }
 
 document.getElementById('toolbar-power').addEventListener('click', function() {

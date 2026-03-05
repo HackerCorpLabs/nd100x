@@ -93,7 +93,9 @@
         'page-table-window': 'page-table-pos',
         'config-window': 'config-pos',
         'smd-manager-window': 'smd-manager-pos',
-        'gateway-stats-window': 'gateway-stats-pos'
+        'gateway-stats-window': 'gateway-stats-pos',
+        'printer-window': 'printer-pos',
+        'paper-tape-window': 'paper-tape-pos'
       };
       for (var wid in posKeys) {
         var pos = JSON.parse(localStorage.getItem(posKeys[wid]));
@@ -141,6 +143,8 @@
           <button class="toolbar-menu-item" id="menu-cpu-load-graph">CPU Load</button>
           <button class="toolbar-menu-item" id="menu-floppy-library">Floppy Library</button>
           <button class="toolbar-menu-item" id="menu-smd-manager">SMD Disk Manager</button>
+          <button class="toolbar-menu-item" id="menu-printer">Printer</button>
+          <button class="toolbar-menu-item" id="menu-paper-tape">Paper Tape</button>
           <div class="toolbar-menu-separator"></div>
           <div class="toolbar-menu-item has-submenu" id="menu-terminal-submenu">
             Terminals
@@ -443,6 +447,20 @@
         <span class="config-toggle-label" style="opacity:0.6">Status:</span>
         <span id="config-ws-status" style="font-size:12px; opacity:0.7">Disconnected</span>
       </div>
+      <div class="config-section-title" style="margin-top:16px">Printer</div>
+      <div class="config-option">
+        <span class="config-toggle-label" style="min-width:60px">Driver</span>
+        <select id="config-printer-driver" style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:inherit; padding:4px 8px; font-size:12px;">
+          <option value="0">Text — Plain ASCII line printer</option>
+          <option value="1">ESC/P — Epson ESC/P interpreter</option>
+        </select>
+      </div>
+      <div class="config-option">
+        <span class="config-toggle-label" style="opacity:0.6">Jobs auto-complete after 5s of silence. PDF output in /prints/</span>
+      </div>
+      <div class="config-option">
+        <button id="config-printer-flush" style="padding:4px 12px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:inherit; cursor:pointer; font-size:12px;">Flush Current Job</button>
+      </div>
     </div>
   </div>
 
@@ -619,6 +637,95 @@
           </div>
           <p id="progress-text">Downloading...</p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       PRINTER WINDOW (hidden by default)
+       ========================================= -->
+  <div id="printer-window" class="glass-window" style="display: none; width: 650px; height: 450px;">
+    <div class="glass-window-header" id="printer-header">
+      <span class="glass-window-title">Printer</span>
+      <select id="printer-driver-select" style="margin-left: 12px; font-size: 11px; padding: 1px 4px; background: rgba(255,255,255,0.1); color: var(--text-color, #e0e0e0); border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;">
+        <option value="0">Text</option>
+        <option value="1">ESC/P</option>
+      </select>
+      <button class="glass-window-close" id="printer-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="printer-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <!-- Tab bar -->
+    <div style="display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid rgba(255,255,255,0.1); height: 28px; font-size: 12px;">
+      <button class="printer-tab active" data-tab="output" style="background: none; border: none; color: var(--text-color, #e0e0e0); padding: 4px 10px; cursor: pointer; border-bottom: 2px solid var(--accent-color, #4fc3f7); font-size: 12px;">Output</button>
+      <button class="printer-tab" data-tab="jobs" style="background: none; border: none; color: var(--text-muted, #999); padding: 4px 10px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 12px;">Jobs <span id="printer-job-badge" style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 0 5px; margin-left: 3px; font-size: 10px;">0</span></button>
+      <button class="printer-tab" data-tab="preview" style="background: none; border: none; color: var(--text-muted, #999); padding: 4px 10px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 12px;">Preview</button>
+      <span id="printer-active-indicator" style="margin-left: auto; font-size: 10px; color: var(--text-muted, #999);"></span>
+    </div>
+    <!-- Tab panels -->
+    <div class="printer-tab-panel" data-panel="output" style="padding: 8px; overflow-y: auto; height: calc(100% - 68px);">
+      <pre id="printer-output" style="font-family: 'Courier Prime', 'Fira Mono', monospace; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; margin: 0; color: var(--text-color, #e0e0e0);"></pre>
+    </div>
+    <div class="printer-tab-panel" data-panel="jobs" style="padding: 8px; overflow-y: auto; height: calc(100% - 68px); display: none;">
+      <table id="printer-jobs-table" style="width: 100%; font-size: 11px; border-collapse: collapse; color: var(--text-color, #e0e0e0);">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); text-align: left;">
+            <th style="padding: 4px 6px;">Job#</th>
+            <th style="padding: 4px 6px;">Started</th>
+            <th style="padding: 4px 6px;">Ended</th>
+            <th style="padding: 4px 6px;">Lines</th>
+            <th style="padding: 4px 6px;">Bytes</th>
+            <th style="padding: 4px 6px;"></th>
+          </tr>
+        </thead>
+        <tbody id="printer-jobs-tbody"></tbody>
+      </table>
+    </div>
+    <div class="printer-tab-panel" data-panel="preview" style="padding: 0; overflow: hidden; height: calc(100% - 68px); display: none;">
+      <iframe id="printer-pdf-viewer" style="width: 100%; height: 100%; border: none; background: #333;"></iframe>
+    </div>
+  </div>
+
+
+  <!-- =========================================
+       PAPER TAPE WINDOW (hidden by default)
+       ========================================= -->
+  <div id="paper-tape-window" class="glass-window" style="display: none; width: 500px; height: 400px;">
+    <div class="glass-window-header" id="paper-tape-header">
+      <span class="glass-window-title">Paper Tape</span>
+      <button class="glass-window-close" id="paper-tape-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="paper-tape-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding: 12px; overflow-y: auto; height: calc(100% - 40px);">
+      <!-- Reader section -->
+      <div style="margin-bottom: 12px;">
+        <div style="font-weight: bold; margin-bottom: 6px; color: var(--accent-color, #64ffda);">Reader</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="paper-tape-load-btn" class="toolbar-btn" style="padding: 4px 12px; font-size: 12px;">Load Tape (.bpun)</button>
+          <span id="paper-tape-reader-status" style="font-size: 11px; opacity: 0.7;">No tape loaded</span>
+          <input type="file" id="paper-tape-file-input" accept=".bpun,.BPUN" style="display: none;">
+        </div>
+      </div>
+      <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;"></div>
+      <!-- Writer section -->
+      <div>
+        <div style="font-weight: bold; margin-bottom: 6px; color: var(--accent-color, #64ffda);">Punch Output</div>
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+          <button id="paper-tape-download-btn" class="toolbar-btn" style="padding: 4px 12px; font-size: 12px;">Download Tape</button>
+          <span id="paper-tape-writer-status" style="font-size: 11px; opacity: 0.7;">0 bytes punched</span>
+        </div>
+        <pre id="paper-tape-writer-output" style="font-family: 'Fira Mono', monospace; font-size: 11px; white-space: pre-wrap; margin: 0; max-height: 200px; overflow-y: auto; color: var(--text-color, #e0e0e0);"></pre>
       </div>
     </div>
   </div>
@@ -1145,6 +1252,8 @@
   <script src="js/sintran-devices.js"></script>
   <script src="js/pagetables.js"></script>
   <script src="js/smd-manager.js"></script>
+  <script src="js/printer.js"></script>
+  <script src="js/paper-tape.js"></script>
   <!-- Window taskbar -->
   <div class="window-taskbar" id="window-taskbar-outer">
     <div id="window-taskbar" style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;"></div>

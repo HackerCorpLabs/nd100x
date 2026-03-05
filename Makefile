@@ -60,7 +60,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
@@ -219,6 +219,10 @@ run: debug
 	$(BUILD_DIR)/bin/nd100x --boot=$(BOOT_TYPE) $$IMAGE_ARG --start=$(START_ADDR) $$VERBOSE_ARG $$DEBUGGER_ARG $$DISASM_ARG
 
 
+test: debug
+	@echo "Running tests..."
+	cd $(BUILD_DIR) && ctest --output-on-failure
+
 runv: debug
 	@echo "Running with valgrind.."
 	valgrind --leak-check=full  $(BUILD_DIR)/bin/nd100x -d -v
@@ -266,6 +270,7 @@ help:
 	@echo "  gateway-run   - Start the terminal gateway server (alias)"
 	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
 	@echo "  wasm-glass-gateway - Build glass UI + start gateway (unified server)"
+	@echo "  test          - Build and run unit tests (ctest)"
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"

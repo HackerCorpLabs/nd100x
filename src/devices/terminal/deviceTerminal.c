@@ -484,7 +484,7 @@ Device *CreateTerminalDevice(uint8_t thumbwheel)
     // hook up  Device_SetCharacterInput to Terminal_QueueKeyCode
     Device_SetCharacterInput(dev, Terminal_InputFunction);
 
-    printf("Terminal device created: %s CODE[%o] ADDRESS[%o-%o] \n", dev->memoryName, dev->identCode, dev->startAddress, dev->endAddress);
+    printf("Terminal %d created (%s, ident %o, address %o)\n", dev->logicalDevice, dev->memoryName, dev->identCode, dev->startAddress);
     return dev;
 }
 

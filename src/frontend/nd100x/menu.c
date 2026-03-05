@@ -29,6 +29,8 @@
 #include <cjson/cJSON.h>
 #include <ncurses.h>
 #include <ctype.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
@@ -40,6 +42,30 @@
 // URL constants
 #define FLOPPIES_JSON_URL "https://ndlib.hackercorp.no/floppies.json"
 #define IMAGES_BASE_URL "https://ndlib.hackercorp.no/images/"
+
+// Cache constants
+#define CACHE_DIR_SUFFIX "/.cache/nd100x"
+#define CACHE_FILE_NAME "floppies.json"
+// Time conversion constants
+#define SECONDS_PER_DAY  86400
+#define SECONDS_PER_HOUR 3600
+
+#define CACHE_MAX_AGE_SECONDS (7 * SECONDS_PER_DAY)  // 7 days
+
+/*
+ * Window layout constants.
+ *
+ * The screen is divided vertically into three bands:
+ *   Row 0..2                  : Search box    (SEARCH_WIN_HEIGHT rows)
+ *   Row 3..max_y-5            : Content area  (list + detail side by side)
+ *   Row max_y-4..max_y-1      : Toolbar       (TOOLBAR_WIN_HEIGHT rows)
+ *
+ * Content area height = max_y - SEARCH_WIN_HEIGHT - TOOLBAR_WIN_HEIGHT
+ */
+#define SEARCH_WIN_HEIGHT        3
+#define TOOLBAR_WIN_HEIGHT       4
+#define TOOLBAR_TEXT_LEFT_MARGIN  2
+#define TOOLBAR_TEXT_RIGHT_MARGIN 2
 
 // URL builder function for downloading image files
 static char* build_image_url(const char* md5_hash) {
@@ -113,7 +139,6 @@ typedef struct {
     DirectoryPage_t *directory_pages;  // Array of pages for current floppy
     int directory_page_count;          // Number of pages
     int current_page;                  // Current page index (0-based)
-    WINDOW *main_win;
     WINDOW *search_win;
     WINDOW *list_win;
     WINDOW *detail_win;
@@ -258,6 +283,124 @@ static void build_directory_pages(FloppyDisk_t *floppy) {
 
 
 
+// Build the cache file path: $HOME/.cache/nd100x/floppies.json
+// Returns a malloc'd string or NULL on failure.
+static char *build_cache_path(void) {
+    const char *home = getenv("HOME");
+    if (!home) return NULL;
+
+    size_t len = strlen(home) + strlen(CACHE_DIR_SUFFIX) + 1 + strlen(CACHE_FILE_NAME) + 1;
+    char *path = malloc(len);
+    if (!path) return NULL;
+    snprintf(path, len, "%s%s/%s", home, CACHE_DIR_SUFFIX, CACHE_FILE_NAME);
+    return path;
+}
+
+// Ensure the cache directory exists (mkdir -p equivalent for one level).
+static bool ensure_cache_dir(void) {
+    const char *home = getenv("HOME");
+    if (!home) return false;
+
+    // Create $HOME/.cache if needed
+    char dir1[512];
+    snprintf(dir1, sizeof(dir1), "%s/.cache", home);
+    mkdir(dir1, 0755);  // ignore EEXIST
+
+    // Create $HOME/.cache/nd100x
+    char dir2[512];
+    snprintf(dir2, sizeof(dir2), "%s%s", home, CACHE_DIR_SUFFIX);
+    if (mkdir(dir2, 0755) != 0 && errno != EEXIST) {
+        return false;
+    }
+    return true;
+}
+
+// Write JSON data to the cache file.
+static void save_to_cache(const char *json_data) {
+    if (!json_data) return;
+    if (!ensure_cache_dir()) return;
+
+    char *path = build_cache_path();
+    if (!path) return;
+
+    FILE *f = fopen(path, "w");
+    if (f) {
+        fputs(json_data, f);
+        fclose(f);
+    }
+    free(path);
+}
+
+// Read the cache file contents into a malloc'd string. Returns NULL if missing.
+static char *load_from_cache(void) {
+    char *path = build_cache_path();
+    if (!path) return NULL;
+
+    FILE *f = fopen(path, "r");
+    free(path);
+    if (!f) return NULL;
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    if (size <= 0) { fclose(f); return NULL; }
+    fseek(f, 0, SEEK_SET);
+
+    char *data = malloc(size + 1);
+    if (!data) { fclose(f); return NULL; }
+
+    size_t read_bytes = fread(data, 1, size, f);
+    fclose(f);
+    data[read_bytes] = '\0';
+    return data;
+}
+
+// Return the age of the cache file in seconds, or -1 if it doesn't exist.
+static long cache_age_seconds(void) {
+    char *path = build_cache_path();
+    if (!path) return -1;
+
+    struct stat st;
+    int rc = stat(path, &st);
+    free(path);
+    if (rc != 0) return -1;
+
+    return (long)(time(NULL) - st.st_mtime);
+}
+
+// Get the floppy catalog JSON, using cache when available.
+// If force_download is true, the cache is bypassed.
+// Sets *from_cache to true if data came from cache, false if downloaded.
+static char *get_cached_or_download_json(bool force_download, bool *from_cache) {
+    if (from_cache) *from_cache = false;
+
+    if (!force_download) {
+        long age = cache_age_seconds();
+        if (age >= 0 && age < CACHE_MAX_AGE_SECONDS) {
+            char *cached = load_from_cache();
+            if (cached) {
+                if (from_cache) *from_cache = true;
+                return cached;
+            }
+        }
+    }
+
+    // Download from network
+    char *json_data = download_file(FLOPPIES_JSON_URL);
+    if (json_data) {
+        save_to_cache(json_data);
+        return json_data;
+    }
+
+    // Download failed — fall back to stale cache if one exists
+    char *stale = load_from_cache();
+    if (stale) {
+        if (from_cache) *from_cache = true;
+        return stale;
+    }
+
+    return NULL;
+}
+
 // Parse JSON and populate floppy list
 static bool parse_floppies_json(const char* json_data) {
     cJSON *json = cJSON_Parse(json_data);
@@ -364,27 +507,36 @@ static bool parse_floppies_json(const char* json_data) {
     return true;
 }
 
-// Initialize curses
+/*
+ * init_curses() - Set up ncurses and create the window layout.
+ *
+ * Creates four windows tiled vertically (see layout constants):
+ *   search_win  - Search input box at top
+ *   list_win    - Scrollable floppy disk list (left 1/3)
+ *   detail_win  - Scrollable detail/directory view (right 2/3)
+ *   toolbar_win - Key bindings and cache status at bottom
+ */
 static void init_curses() {
     initscr();
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
     curs_set(0);
-    
+
     getmaxyx(stdscr, menu_state.max_y, menu_state.max_x);
-    
+
+    int content_height = menu_state.max_y - SEARCH_WIN_HEIGHT - TOOLBAR_WIN_HEIGHT;
+
     // Create windows
-    menu_state.main_win = newwin(menu_state.max_y - 4, menu_state.max_x, 0, 0);
-    menu_state.search_win = newwin(3, menu_state.max_x, 0, 0);
-    menu_state.list_win = newwin(menu_state.max_y - 7, menu_state.max_x / 3, 3, 0);
-    menu_state.detail_win = newwin(menu_state.max_y - 7, (menu_state.max_x * 2) / 3, 3, menu_state.max_x / 3);
-    menu_state.toolbar_win = newwin(3, menu_state.max_x, menu_state.max_y - 3, 0);
-    
+    menu_state.search_win = newwin(SEARCH_WIN_HEIGHT, menu_state.max_x, 0, 0);
+    menu_state.list_win = newwin(content_height, menu_state.max_x / 3, SEARCH_WIN_HEIGHT, 0);
+    menu_state.detail_win = newwin(content_height, (menu_state.max_x * 2) / 3, SEARCH_WIN_HEIGHT, menu_state.max_x / 3);
+    menu_state.toolbar_win = newwin(TOOLBAR_WIN_HEIGHT, menu_state.max_x, menu_state.max_y - TOOLBAR_WIN_HEIGHT, 0);
+
     // Enable scrolling for list and detail windows
     scrollok(menu_state.list_win, TRUE);
     scrollok(menu_state.detail_win, TRUE);
-    
+
     // Set up colors if available
     if (has_colors()) {
         start_color();
@@ -393,7 +545,7 @@ static void init_curses() {
         init_pair(3, COLOR_GREEN, COLOR_BLACK);  // Success
         init_pair(4, COLOR_RED, COLOR_BLACK);    // Error
     }
-    
+
     // Clear screen and refresh to ensure proper initialization
     clear();
     refresh();
@@ -405,7 +557,6 @@ static void cleanup_curses() {
     delwin(menu_state.detail_win);
     delwin(menu_state.list_win);
     delwin(menu_state.search_win);
-    delwin(menu_state.main_win);
     endwin();
 }
 
@@ -417,12 +568,8 @@ static void draw_search_box() {
     
     // Draw search text
     mvwprintw(menu_state.search_win, 1, 2, "%s", menu_state.search_text);
-    
-    // Show cursor position (always active)
-    wmove(menu_state.search_win, 1, 2 + menu_state.search_cursor);
-    curs_set(1);
-    
-    wrefresh(menu_state.search_win);
+
+    wnoutrefresh(menu_state.search_win);
 }
 
 // Draw the floppy list
@@ -439,7 +586,8 @@ static void draw_floppy_list() {
     }
     
     int start_y = 1;
-    int max_items = menu_state.max_y - 9;
+    // Visible items = content height minus 2 for list window border
+    int max_items = menu_state.max_y - SEARCH_WIN_HEIGHT - TOOLBAR_WIN_HEIGHT - 2;
     int start_item = 0;
     
     // Determine which list to show (filtered or all)
@@ -474,7 +622,7 @@ static void draw_floppy_list() {
         }
     }
     
-    wrefresh(menu_state.list_win);
+    wnoutrefresh(menu_state.list_win);
 }
 
 // Helper function to safely print text within window bounds
@@ -689,15 +837,45 @@ static void draw_floppy_details() {
         }
     }
     
-    wrefresh(menu_state.detail_win);
+    wnoutrefresh(menu_state.detail_win);
 }
 
-// Draw toolbar
+/*
+ * draw_toolbar() - Render the keybinding toolbar.
+ *
+ * The toolbar window has TOOLBAR_WIN_HEIGHT rows (including border).
+ * Row 1: Navigation keys.  Row 2: Action keys + right-aligned cache age.
+ */
 static void draw_toolbar() {
     werase(menu_state.toolbar_win);
     box(menu_state.toolbar_win, 0, 0);
-    mvwprintw(menu_state.toolbar_win, 1, 2, "ESC=Exit  ENTER=Search  UP/DOWN=Navigate  LEFT/RIGHT=Scroll  PgUp/PgDn=Scroll Content  INSERT=Mount  DELETE=Unmount");
-    wrefresh(menu_state.toolbar_win);
+
+    // Show cache age indicator
+    long age = cache_age_seconds();
+    char cache_info[64] = "";
+    if (age >= 0) {
+        int days = age / SECONDS_PER_DAY;
+        int hours = (age % SECONDS_PER_DAY) / SECONDS_PER_HOUR;
+        if (days > 0)
+            snprintf(cache_info, sizeof(cache_info), "[cached %dd %dh ago]", days, hours);
+        else if (hours > 0)
+            snprintf(cache_info, sizeof(cache_info), "[cached %dh ago]", hours);
+        else
+            snprintf(cache_info, sizeof(cache_info), "[cached <1h ago]");
+    }
+
+    static const char nav_keys[] = "ESC=Exit  ENTER=Search  UP/DN=Navigate  PgUp/PgDn=Scroll  LEFT/RIGHT=Scroll";
+    static const char action_keys[] = "F5=Mount  F6=Unmount  F7=Refresh";
+
+    mvwprintw(menu_state.toolbar_win, 1, TOOLBAR_TEXT_LEFT_MARGIN, "%s", nav_keys);
+    mvwprintw(menu_state.toolbar_win, 2, TOOLBAR_TEXT_LEFT_MARGIN, "%s", action_keys);
+    if (cache_info[0]) {
+        int len = strlen(cache_info);
+        int x = menu_state.max_x - len - TOOLBAR_TEXT_RIGHT_MARGIN;
+        if (x > (int)sizeof(action_keys) + TOOLBAR_TEXT_LEFT_MARGIN)
+            mvwprintw(menu_state.toolbar_win, 2, x, "%s", cache_info);
+    }
+    wnoutrefresh(menu_state.toolbar_win);
 }
 
 // Filter floppies based on search text
@@ -889,7 +1067,7 @@ static void draw_mount_popup() {
     MountedDriveInfo_t* current_drives = list_mount(floppy->drive_type);
     if (!current_drives) {
         mvwprintw(popup, 6, 2, "Error: Could not get mounted drives");
-        wrefresh(popup);
+        wnoutrefresh(popup);
         return;
     }
     
@@ -931,8 +1109,8 @@ static void draw_mount_popup() {
     // Draw instructions
     int instruction_line = (floppy->drive_type == DRIVE_SMD) ? 12 : 11;
     mvwprintw(popup, instruction_line, 2, "ESC=Exit  ENTER=Mount  UP/DOWN=Select Unit");
-    
-    wrefresh(popup);
+
+    wnoutrefresh(popup);
 }
 
 // Handle mount popup input
@@ -1048,7 +1226,7 @@ static void draw_unmount_popup() {
     
     if (!floppy_drives || !smd_drives) {
         mvwprintw(popup, 2, 2, "Error: Could not get mounted drives");
-        wrefresh(popup);
+        wnoutrefresh(popup);
         return;
     }
 
@@ -1098,8 +1276,8 @@ static void draw_unmount_popup() {
 
     // Draw instructions
     mvwprintw(popup, y_pos++, 2, "ESC=Exit  ENTER=Unmount  UP/DOWN=Select");
-    
-    wrefresh(popup);
+
+    wnoutrefresh(popup);
 }
 
 // Handle unmount popup input
@@ -1164,8 +1342,11 @@ static void menu_loop() {
             draw_unmount_popup();
         }
         
-        // Force screen update after all windows are drawn
-        refresh();
+        // Position cursor in search box and flush all window updates
+        curs_set(1);
+        wmove(menu_state.search_win, 1, 2 + menu_state.search_cursor);
+        wnoutrefresh(menu_state.search_win);
+        doupdate();
         
         ch = getch();
         
@@ -1224,11 +1405,65 @@ static void menu_loop() {
                         menu_state.current_page++;
                     }
                     break;
-                case KEY_IC:  // Insert key - mount floppy
-                    show_mount_popup_for_floppy(0);  // Show mount popup
+                case KEY_F(5):   // F5 - mount floppy
+                case KEY_IC:     // Insert key - mount floppy (fallback)
+                    show_mount_popup_for_floppy(0);
                     break;
-                case KEY_DC:  // Delete key - unmount floppy
-                    unmount_floppy(0);  // Unmount from unit 0
+                case KEY_F(6):   // F6 - unmount floppy
+                case KEY_DC:     // Delete key - unmount floppy (fallback)
+                    unmount_floppy(0);
+                    break;
+                case KEY_F(7):   // F7 - force refresh catalog
+                case 18:         // Ctrl-R (fallback)
+                    {
+                        // Exit curses to show download progress
+                        cleanup_curses();
+
+                        // Free current floppy data
+                        free_directory_pages();
+                        if (menu_state.filtered_indices) {
+                            free(menu_state.filtered_indices);
+                            menu_state.filtered_indices = NULL;
+                            menu_state.filtered_count = 0;
+                        }
+                        if (menu_state.floppies) {
+                            for (int i = 0; i < menu_state.floppy_count; i++) {
+                                if (menu_state.floppies[i].directory_content) {
+                                    free(menu_state.floppies[i].directory_content);
+                                }
+                            }
+                            free(menu_state.floppies);
+                            menu_state.floppies = NULL;
+                            menu_state.floppy_count = 0;
+                        }
+
+                        printf("\033[2J\033[H");
+                        printf("=== Floppy Database Browser ===\n\n");
+                        printf("  Refreshing catalog from ndlib.hackercorp.no ...\n");
+                        fflush(stdout);
+
+                        bool from_cache_refresh = false;
+                        char *refreshed_json = get_cached_or_download_json(true, &from_cache_refresh);
+                        if (refreshed_json) {
+                            parse_floppies_json(refreshed_json);
+                            free(refreshed_json);
+                        } else {
+                            printf("  Refresh failed. Returning to menu.\n");
+                            fflush(stdout);
+                        }
+
+                        // Reset menu state
+                        menu_state.selected_index = 0;
+                        menu_state.search_text[0] = '\0';
+                        menu_state.search_cursor = 0;
+                        menu_state.detail_scroll_x = 0;
+                        menu_state.detail_scroll_y = 0;
+
+                        // Re-enter curses
+                        init_curses();
+                        init_mount_popup();
+                        init_unmount_popup();
+                    }
                     break;
                 case 'f':
                 case 'F':
@@ -1259,10 +1494,29 @@ int show_floppy_menu() {
     
     // Initialize CURL
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    
-    // Download JSON data
-    char *json_data = download_file(FLOPPIES_JSON_URL);
+
+    // Check cache age to decide what message to show
+    long age = cache_age_seconds();
+    bool have_valid_cache = (age >= 0 && age < CACHE_MAX_AGE_SECONDS);
+
+    printf("\033[2J\033[H");
+    printf("=== Floppy Database Browser ===\n\n");
+    if (have_valid_cache) {
+        printf("  Loading floppy catalog (cached)...\n");
+    } else {
+        printf("  Downloading floppy catalog from ndlib.hackercorp.no ...\n");
+    }
+    fflush(stdout);
+
+    // Get JSON data (from cache or network)
+    bool from_cache = false;
+    char *json_data = get_cached_or_download_json(false, &from_cache);
     if (!json_data) {
+        printf("\n  Download failed. Check your network connection.\n");
+        printf("  Press any key to return.\n");
+        fflush(stdout);
+        char keybuf[16];
+        read_key_sequence(keybuf, sizeof(keybuf));
         return -1;
     }
     

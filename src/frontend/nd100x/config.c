@@ -31,14 +31,20 @@
 
 // Long options
 static struct option long_options[] = {
-    {"boot",    required_argument, 0, 'b'},
-    {"image",   required_argument, 0, 'i'},
-    {"start",   required_argument, 0, 's'},
-    {"disasm",  no_argument,       0, 'a'},
-    {"verbose", no_argument,       0, 'v'},
-    {"help",    no_argument,       0, 'h'},
-    {"debugger", no_argument,      0, 'd'},
-    {"port",    no_argument,       0, 'p'},
+    {"boot",     required_argument, 0, 'b'},
+    {"image",    required_argument, 0, 'i'},
+    {"start",    required_argument, 0, 's'},
+    {"disasm",   no_argument,       0, 'a'},
+    {"verbose",  no_argument,       0, 'v'},
+    {"help",     no_argument,       0, 'h'},
+    {"debugger", no_argument,       0, 'd'},
+    {"port",     no_argument,       0, 'p'},
+    {"printdir", required_argument, 0, 'P'},
+    {"tapedir",  required_argument, 0, 'T'},
+    {"tape",     required_argument, 0, 't'},
+    {"telnet",      optional_argument, 0, 'n'},
+    {"printer",     required_argument, 0, 'r'},
+    {"printformat", required_argument, 0, 'f'},
     {0, 0, 0, 0}
 };
 
@@ -53,6 +59,13 @@ void Config_Init(Config_t *config) {
     config->showHelp = false;
     config->debuggerEnabled = false;
     config->debuggerPort = 4711;
+    config->printDir = NULL;
+    config->tapeDir = NULL;
+    config->tapeFile = NULL;
+    config->telnetEnabled = false;
+    config->telnetPort = 9000;
+    config->printerType = PRINTER_TEXT;
+    config->printFormat = PRINT_FORMAT_TXT;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -72,7 +85,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:P:T:t:n::r:f:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -111,6 +124,56 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->verbose = true;
                 break;
                 
+            case 'P':
+                config->printDir = strdup(optarg);
+                break;
+
+            case 'T':
+                config->tapeDir = strdup(optarg);
+                break;
+
+            case 't':
+                config->tapeFile = strdup(optarg);
+                break;
+
+            case 'n':
+                config->telnetEnabled = true;
+                if (optarg) {
+                    char *portEnd;
+                    long port = strtol(optarg, &portEnd, 10);
+                    if (*portEnd != '\0' || port <= 0 || port > 65535) {
+                        fprintf(stderr, "Invalid telnet port: %s\n", optarg);
+                        return false;
+                    }
+                    config->telnetPort = (int)port;
+                }
+                break;
+
+            case 'r':
+                if (strcmp(optarg, "text") == 0) {
+                    config->printerType = PRINTER_TEXT;
+                } else if (strcmp(optarg, "escp") == 0) {
+                    config->printerType = PRINTER_ESCP;
+                } else if (strcmp(optarg, "laser") == 0) {
+                    fprintf(stderr, "Laser printer emulation is not yet implemented\n");
+                    return false;
+                } else {
+                    fprintf(stderr, "Invalid printer type: %s (use text, escp, or laser)\n", optarg);
+                    return false;
+                }
+                break;
+
+            case 'f':
+                if (strcmp(optarg, "txt") == 0) {
+                    config->printFormat = PRINT_FORMAT_TXT;
+                } else if (strcmp(optarg, "pdf") == 0) {
+                    config->printFormat = PRINT_FORMAT_PDF;
+                } else {
+                    fprintf(stderr, "Invalid print format: %s (use txt or pdf)\n", optarg);
+                    return false;
+                }
+                break;
+
             case 'h':
                 config->showHelp = true;
                 return true;
@@ -165,6 +228,12 @@ void Config_PrintHelp(const char *progName) {
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -v,      --verbose      Enable verbose output\n");
+    printf("  -P DIR,  --printdir=DIR  Printer output directory (default: ./prints/)\n");
+    printf("  -T DIR,  --tapedir=DIR   Paper tape output directory (default: ./tapes/)\n");
+    printf("  -t FILE, --tape=FILE     Paper tape reader input file (.bpun)\n");
+    printf("  -n[PORT],--telnet[=PORT] Enable telnet server (default port: 9000)\n");
+    printf("  -r TYPE, --printer=TYPE  Printer emulation: text (default), escp, laser\n");
+    printf("  -f FMT,  --printformat=FMT  Output format: txt (default), pdf\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);

@@ -20,7 +20,12 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-
+/*
+ * Paper Tape Reader Interface (ND-06.015.02)
+ *
+ * Ported from RetroCore NDBusPapertapeReader.cs
+ * Buffer-based tape reading (no direct file I/O)
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,30 +36,38 @@
 
 #include "devicePapertape.h"
 
-static void PaperTape_Reset(Device *self) {
+static void PaperTape_Reset(Device *self)
+{
     PaperTapeData *data = (PaperTapeData *)self->deviceData;
-    if (data && data->papertapeFile) {
-        rewind(data->papertapeFile);
-    }
+    if (!data) return;
+
+    data->statusRegister.raw = 0;
+    data->statusRegister.bits.readyForTransfer = 1;
+    data->controlWord.raw = 0;
+    data->characterBuffer = 0;
+    // Do NOT reset tapePosition here - reset only resets the device state,
+    // not the tape position. Use device clear for that.
 }
 
-static uint16_t PaperTape_Tick(Device *self) {
+static uint16_t PaperTape_Tick(Device *self)
+{
     if (!self) return 0;
     Device_TickIODelay(self);
     return self->interruptBits;
 }
 
-static uint16_t PaperTape_Read(Device *self, uint32_t address) {
+static uint16_t PaperTape_Read(Device *self, uint32_t address)
+{
     if (!self) return 0;
-    
+
     PaperTapeData *data = (PaperTapeData *)self->deviceData;
     uint16_t value = 0;
     uint32_t reg = Device_RegisterAddress(self, address);
 
     switch (reg) {
         case PAPERTAPE_READ_DATA_REGISTER:
-            data->statusRegister.bits.readyForTransfer = 0;
             value = data->characterBuffer;
+            data->statusRegister.bits.readyForTransfer = 0;
             break;
 
         case PAPERTAPE_READ_STATUS_REGISTER:
@@ -62,77 +75,87 @@ static uint16_t PaperTape_Read(Device *self, uint32_t address) {
             break;
     }
 
-#ifdef DEBUG_PT
-    printf("PaperTape Reading from address: %o value: %o\n", address, value);
-#endif
-
     return value;
 }
 
-static void PaperTape_Write(Device *self, uint32_t address, uint16_t value) {
+static void PaperTape_Write(Device *self, uint32_t address, uint16_t value)
+{
     if (!self) return;
-    
+
     PaperTapeData *data = (PaperTapeData *)self->deviceData;
     uint32_t reg = Device_RegisterAddress(self, address);
 
-#ifdef DEBUG_PT
-    printf("PaperTape Writing value: %o to address: %o\n", value, address);
-#endif
-
     switch (reg) {
         case PAPERTAPE_WRITE_DATA_BUFFER:
-            // Only for PaperTapeWRITER
+            // Not used for paper tape reader
             break;
 
         case PAPERTAPE_WRITE_CONTROL_WORD:
+        {
             data->controlWord.raw = value;
-            data->statusRegister.bits.interruptEnabled = data->controlWord.bits.interruptEnabled;
-            data->statusRegister.bits.readActive = data->controlWord.bits.readActive;
-            data->statusRegister.bits.readyForTransfer = data->controlWord.bits.readyForTransfer;
 
-            if (data->controlWord.bits.deviceClear) {                
+            // Process bits in same order as C# reference:
+            // 1. IE, 2. ReadActive, 3. ReadyForTransfer, 4. DeviceClear, 5. Interrupt, 6. Read
+
+            // Bit 0: InterruptEnable
+            if (data->controlWord.bits.interruptEnabled)
+                data->statusRegister.bits.interruptEnabled = 1;
+            else
+                data->statusRegister.bits.interruptEnabled = 0;
+
+            // Bit 2: ReadActive from control → status
+            if (data->controlWord.bits.readActive)
+                data->statusRegister.bits.readActive = 1;
+            else
                 data->statusRegister.bits.readActive = 0;
-                data->statusRegister.bits.readyForTransfer = 0;
-                data->characterBuffer = 0x00;
+
+            // Bit 4: DeviceClear (processed inline, does NOT break)
+            if (data->controlWord.bits.deviceClear) {
+                data->statusRegister.bits.readActive = 0;
+                data->characterBuffer = 0;
+                data->tapePosition = 0;
             }
 
-            Device_SetInterruptStatus(self, 
-                data->statusRegister.bits.interruptEnabled && 
+            // Always set readyForTransfer after control write
+            // (device is always ready, matching line printer and punch behavior)
+            data->statusRegister.bits.readyForTransfer = 1;
+
+            // Update interrupt status
+            Device_SetInterruptStatus(self,
+                data->statusRegister.bits.interruptEnabled &&
                 data->statusRegister.bits.readyForTransfer,
                 self->interruptLevel);
 
+            // Read next byte from tape when ReadActive is set
             if (data->statusRegister.bits.readActive) {
                 data->statusRegister.bits.readyForTransfer = 0;
 
-                int w = -1;
-                if (data->papertapeFile == NULL) {
-                    printf("NO Papertape\n");
+                if (data->tapeData && data->tapePosition < data->tapeLength) {
+                    data->characterBuffer = data->tapeData[data->tapePosition];
+                    data->tapePosition++;
                 } else {
-                    w = getc(data->papertapeFile) & 0377;
+                    // No tape loaded or EOF - return 0x00 (blank/no tape)
+                    data->characterBuffer = 0;
                 }
 
-                if (w >= 0) {
-                    data->characterBuffer = w;
-                    data->statusRegister.bits.readyForTransfer = 1;
-                } else {
-                    //printf("Papertape EOF\n");
-                }
-
+                data->statusRegister.bits.readyForTransfer = 1;
                 data->statusRegister.bits.readActive = 0;
             }
 
-            Device_SetInterruptStatus(self, 
-                data->statusRegister.bits.interruptEnabled && 
+            // Final interrupt status update after read
+            Device_SetInterruptStatus(self,
+                data->statusRegister.bits.interruptEnabled &&
                 data->statusRegister.bits.readyForTransfer,
                 self->interruptLevel);
             break;
+        }
     }
 }
 
-static uint16_t PaperTape_Ident(Device *self, uint16_t level) {
+static uint16_t PaperTape_Ident(Device *self, uint16_t level)
+{
     if (!self) return 0;
-    
-    //printf("PaperTape::IDENT called with level %d\n", level);
+
     if ((self->interruptBits & (1 << level)) != 0) {
         PaperTapeData *data = (PaperTapeData *)self->deviceData;
         data->statusRegister.bits.interruptEnabled = 0;
@@ -142,7 +165,45 @@ static uint16_t PaperTape_Ident(Device *self, uint16_t level) {
     return 0;
 }
 
-Device* CreatePaperTapeDevice(uint8_t thumbwheel) {
+static void PaperTape_Destroy(Device *self)
+{
+    if (!self) return;
+    PaperTapeData *data = (PaperTapeData *)self->deviceData;
+    if (data && data->tapeData) {
+        free(data->tapeData);
+        data->tapeData = NULL;
+    }
+}
+
+// Load tape data into the reader's memory buffer
+void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length)
+{
+    if (!self || !data || length == 0) return;
+
+    PaperTapeData *ptData = (PaperTapeData *)self->deviceData;
+    if (!ptData) return;
+
+    // Free existing tape data
+    if (ptData->tapeData) {
+        free(ptData->tapeData);
+    }
+
+    // Allocate and copy
+    ptData->tapeData = malloc(length);
+    if (ptData->tapeData) {
+        memcpy(ptData->tapeData, data, length);
+        ptData->tapeLength = length;
+        ptData->tapePosition = 0;
+        printf("Paper tape loaded: %zu bytes\n", length);
+    } else {
+        ptData->tapeLength = 0;
+        ptData->tapePosition = 0;
+        fprintf(stderr, "Failed to allocate memory for paper tape (%zu bytes)\n", length);
+    }
+}
+
+Device* CreatePaperTapeDevice(uint8_t thumbwheel)
+{
     Device *dev = malloc(sizeof(Device));
     if (!dev) return NULL;
 
@@ -152,29 +213,27 @@ Device* CreatePaperTapeDevice(uint8_t thumbwheel) {
         return NULL;
     }
 
-    // Initialize device base structure
+    // Initialize device base structure as character device
     Device_Init(dev, thumbwheel, DEVICE_CLASS_CHARACTER, 0);
 
-    // Set up device-specific data
-    data->papertapeFile = NULL;
-    data->papertapeName = "test.bpun"; // "INSTRUCTION-B.BPUN";
-    data->characterBuffer = 0;
-    data->statusRegister.raw = 0;
-    data->controlWord.raw = 0;
+    // Initialize device-specific data
+    memset(data, 0, sizeof(PaperTapeData));
 
-    // Set up device address and interrupt settings based on thumbwheel
+    // Set up address and interrupt settings based on thumbwheel
     switch (thumbwheel) {
         case 0:
-            strcpy(dev->memoryName, "PAPER TAPE 0");
+            snprintf(dev->memoryName, sizeof(dev->memoryName), "PAPER TAPE READER 1");
             dev->interruptLevel = 12;
-            dev->identCode = 02;  // octal 02
+            dev->identCode = 02;    // octal 02
+            dev->logicalDevice = 03; // SINTRAN logical device 3
             dev->startAddress = 0400;
             dev->endAddress = 0403;
             break;
         case 1:
-            strcpy(dev->memoryName, "PAPER TAPE 1");
+            snprintf(dev->memoryName, sizeof(dev->memoryName), "PAPER TAPE READER 2");
             dev->interruptLevel = 12;
-            dev->identCode = 022;  // Octal 22
+            dev->identCode = 022;   // octal 22
+            dev->logicalDevice = 013;
             dev->startAddress = 0404;
             dev->endAddress = 0407;
             break;
@@ -184,22 +243,16 @@ Device* CreatePaperTapeDevice(uint8_t thumbwheel) {
             return NULL;
     }
 
-    // Open paper tape file
-    if ((data->papertapeFile = fopen(data->papertapeName, "r")) == NULL) {
-        printf("Unable to open file %s\n", data->papertapeName);
-        //free(data);
-        //free(dev);
-        //return NULL;
-    }
-
     // Set up device function pointers
     dev->Reset = PaperTape_Reset;
     dev->Tick = PaperTape_Tick;
     dev->Read = PaperTape_Read;
     dev->Write = PaperTape_Write;
     dev->Ident = PaperTape_Ident;
+    dev->Destroy = PaperTape_Destroy;
     dev->deviceData = data;
 
-    printf("PaperTape object created.\n");
+    printf("Paper Tape Reader created: %s CODE[%o] ADDRESS[%o-%o]\n",
+           dev->memoryName, dev->identCode, dev->startAddress, dev->endAddress);
     return dev;
-} 
+}
