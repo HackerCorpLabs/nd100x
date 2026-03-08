@@ -30,6 +30,7 @@
 
 #include "deviceTerminal.h"
 
+
 // Device definitions array
 static const DeviceDefinition deviceDefinitions[] = {
     // Group 1 (starts at offset 0)
@@ -277,9 +278,6 @@ static void Terminal_Write(Device *self, uint32_t address, uint16_t value)
 
         if (data->inputControl.bits.deviceClear)
         {
-            // Device clear
-            // printf("Device clear\n");
-
             // Clear input status
             data->inputStatus.raw = 0;
             data->inputStatus.bits.deviceActivated = true;
@@ -304,7 +302,7 @@ static void Terminal_Write(Device *self, uint32_t address, uint16_t value)
 
         // seems like we need to strip the parity bit always
         //if (data->inputControl.bits.characterLength != 0)
-        
+
         c &= 0x7F;
 
         // Clear interrupt status
@@ -317,7 +315,7 @@ static void Terminal_Write(Device *self, uint32_t address, uint16_t value)
             Terminal_QueueKeyCode(self, c);
         }
         else
-        {            
+        {
             // Use character device callback if available
             if (self->deviceClass == DEVICE_CLASS_CHARACTER && self->charCallbacks.outputFunc) {
                 Device_OutputCharacter(self, c);
