@@ -48,6 +48,13 @@ void unsetcbreak(void)
 void setcbreak(void)
 { /* set console input to raw mode. */
 	struct termios tty;
+
+	/*
+	 * Ignore SIGTTOU so tcsetattr() won't stop us when running
+	 * as a background process (e.g. under timeout(1) or make).
+	 */
+	signal(SIGTTOU, SIG_IGN);
+
 	tcgetattr(0, &saved_tty);
 	tcgetattr(0, &tty);
 	tty.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
