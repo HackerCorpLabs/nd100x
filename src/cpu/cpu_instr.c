@@ -3067,48 +3067,35 @@ void rmpy(ushort instr)
 	short source_value = (short)((instr & 0x0038) >> 3) ? (short)gReg->reg[gPIL][((instr & 0x0038) >> 3)] : 0;
 	short dest_value = (short)(instr & 0x0007) ? (short)gReg->reg[gPIL][(instr & 0x0007)] : 0;
 
-	// Below logic multiply-logic is 100% correct and verified against ND-100 microcode
-	if ((source_value & (1 << 15)) != 0)
+	// Use int for absolute values to avoid overflow when negating -32768
+	int abs_src = (int)source_value;
+	int abs_dst = (int)dest_value;
+
+	if (abs_src < 0)
 	{
-		source_value *= -1;
+		abs_src = -abs_src;
 		minusCnt++;
 	}
 
-	if ((dest_value & (1 << 15)) != 0)
+	if (abs_dst < 0)
 	{
-		dest_value *= -1;
+		abs_dst = -abs_dst;
 		minusCnt++;
 	}
 
-	int result = source_value * dest_value;
-
-
-	if (abs(result) > INT_MAX)
-	{
-		// Set O and Q
-		setbit(_STS, _Q, 1);
-		setbit(_STS, _O, 1);
-	}
-	else
-	{
-		setbit(_STS, _Q, 0);
-		//setbit(_STS, _O, 0); NO!
-	}
+	int result = abs_src * abs_dst;
 
 	// Check for carry (ie, value is bigger than 16 bits)
 	setbit(_STS, _C, ((result & 0xFFFF0000) != 0));
 
 	if (minusCnt == 1)
 	{
-		gA = (ushort)(((short)((result >> 16) & 0xFFFF) * -1) & 0x3FF);
-		gD = (ushort)((short)(result & 0xFFFF) * -1);
+		result = -result;
 	}
-	else
-	{
-		// set A and D registers
-		gA = (ushort)((result >> 16) & 0xFFFF);
-		gD = (ushort)(result & 0xFFFF);
-	}
+
+	// set A and D registers
+	gA = (ushort)((result >> 16) & 0xFFFF);
+	gD = (ushort)(result & 0xFFFF);
 }
 
 /*
