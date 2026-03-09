@@ -114,7 +114,7 @@ bool LoadBPUNStream(FILE* bpunStream, BPUN_Header* header)
                 if (c == '!') {
                     if (tmpStringPos > 0) {
                         tmpString[tmpStringPos] = '\0';
-                        int tmp = atoi(tmpString);
+                        int tmp = (int)strtol(tmpString, NULL, 8);
                         if (tmp >= 0) {
                             loadAddress = (uint16_t)tmp;
                         }
@@ -131,7 +131,7 @@ bool LoadBPUNStream(FILE* bpunStream, BPUN_Header* header)
                 else if (c == '/') {
                     if (tmpStringPos > 0) {
                         tmpString[tmpStringPos] = '\0';
-                        int tmp = atoi(tmpString);
+                        int tmp = (int)strtol(tmpString, NULL, 8);
                         if (tmp >= 0) {
                             currentLocationCounter = (uint16_t)tmp;
                             lastValue = currentLocationCounter;
@@ -153,7 +153,7 @@ bool LoadBPUNStream(FILE* bpunStream, BPUN_Header* header)
                 else if (c == 0x0D) {  // Carriage return
                     if (tmpStringPos > 0) {
                         tmpString[tmpStringPos] = '\0';
-                        int tmp = atoi(tmpString);
+                        int tmp = (int)strtol(tmpString, NULL, 8);
                         if (tmp >= 0) {
                             lastValue = (uint16_t)tmp;
                         }

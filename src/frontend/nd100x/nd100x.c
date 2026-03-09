@@ -189,7 +189,8 @@ static void TerminalOutputHandler(Device *device, char c)
     if (!device)
         return;
    
-   printf("%c",c);   
+   printf("%c",c);
+   fflush(stdout);
 }
 
 

@@ -77,16 +77,13 @@ ushort io_op(ushort ioadd, ushort regA)
         // Odd address - write operation
 
         // HACK!! needed for RISC-V version (if not the emulator just ignores output and input)
-        if (ioadd == 0305) {
-            //printf("IOX[%6o] Value[0x%x]\r\n", ioadd, regA);
-            fflush(stdout);
-        }
         IO_Write(ioadd, regA);
         return regA;
     }
     else
     {
         // Even address - read operation
-        return IO_Read(ioadd);
+        ushort val = IO_Read(ioadd);
+        return val;
     }
 }
