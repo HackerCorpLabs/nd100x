@@ -630,6 +630,24 @@ static int SMD_Boot(Device *self, uint16_t device_id)
     regs->selectedUnit = 0;
     regs->selectedDisk = &regs->disks[regs->selectedUnit];
 
+    // Initialize disk geometry if not already configured
+    if (regs->selectedDisk->diskType == DISK_TYPE_UNKNOWN)
+    {
+        if (self->blockCallbacks.diskInfoFunc)
+        {
+            bool isWriteProtected = false;
+            size_t imageSize = 0;
+            self->blockCallbacks.diskInfoFunc(self, &imageSize, &isWriteProtected, regs->selectedUnit);
+            regs->selectedDisk->diskFileSize = imageSize;
+            regs->selectedDisk->diskIsWriteProtected = isWriteProtected;
+        }
+        DiskType dt = DISK_75_MB; // Default
+        if (regs->selectedDisk->diskFileSize > 0x1000000 && regs->selectedDisk->diskFileSize <= 0x2000000)
+            dt = DISK_150_MB;
+        DiskSMD_SetDiskType(regs->selectedDisk, dt);
+    }
+    self->blockSizeBytes = regs->selectedDisk->bytesPrSector;
+
     uint32_t blockCounter = 4;   // 4 blocks of 1024 bytes each (total 4096 bytes or 2048 KWords)
     uint8_t *buffer= (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
 
@@ -1217,8 +1235,7 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
 
 
 
-    // Default block size from selected disk (updated on selection)
-    dev->blockSizeBytes = data->regs.disks[0].bytesPrSector;
+    // blockSizeBytes will be set when a disk is selected (SMD_Boot or ExecuteGO)
 
     // Set up device address and interrupt settings based on thumbwheel
     switch (thumbwheel)
