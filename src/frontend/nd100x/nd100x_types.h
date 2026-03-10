@@ -41,6 +41,7 @@ typedef struct {
     bool showHelp;
     bool debuggerEnabled;
     int debuggerPort;
+    bool smdDebug;
 } Config_t;
 
 #endif // CONFIG_H 
