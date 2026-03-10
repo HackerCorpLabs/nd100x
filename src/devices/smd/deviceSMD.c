@@ -32,8 +32,7 @@
 
 #include "deviceSMD.h"
 
-// #define DEBUG_DETAIL
-// #define DEBUG_HIGH_LEVEL
+int smd_debug_enabled = 0;
 
 // Local forward declarations for internal helpers
 static void ClearFlipFlops(ControllerRegs *regs);
@@ -45,6 +44,57 @@ static long ConvertCHStoLBA(ControllerRegs *regs, int cylinder, int head, int se
 static uint32_t IncrementCoreAddress(ControllerRegs *regs);
 static uint32_t DecrementWordCounter(ControllerRegs *regs);
 static bool SMDReadEnd(Device *self, int drive);
+
+static const char *SMD_OpName(DeviceOperation op) {
+    switch (op) {
+    case DEVICE_OP_READ_TRANSFER:    return "M0-Read";
+    case DEVICE_OP_WRITE_TRANSFER:   return "M1-Write";
+    case DEVICE_OP_READ_PARITY:      return "M2-ReadParity";
+    case DEVICE_OP_COMPARE_TRANSFER: return "M3-Compare";
+    case DEVICE_OP_INITIATE_SEEK:    return "M4-Seek";
+    case DEVICE_OP_WRITE_FORMAT:     return "M5-Format";
+    case DEVICE_OP_SEEK_COMPLETE:    return "M6-SeekComplete";
+    case DEVICE_OP_RETURN_TO_ZERO:   return "M7-ReturnToZero";
+    case DEVICE_OP_RUN_ECC:          return "M8-RunECC";
+    case DEVICE_OP_SELECT_RELEASE:   return "M9-Release";
+    default:                         return "Unknown";
+    }
+}
+
+static const char *SMD_RegReadName(uint32_t reg, int cwrBit) {
+    switch (reg) {
+    case SMD_READ_MEMORY_ADDRESS:  return cwrBit ? "ReadWordCounter" : "ReadCoreAddr";
+    case SMD_READ_SEEK_CONDITION:  return cwrBit ? "ReadECCCount" : "ReadSeekCondition";
+    case SMD_READ_STATUS_REGISTER: return cwrBit ? "ReadECCPattern" : "ReadStatus";
+    case SMD_READ_BLOCK_ADDRESS:   return cwrBit ? "ReadBlockAddrII" : "ReadBlockAddrI";
+    default:                       return "ReadUnknown";
+    }
+}
+
+static const char *SMD_RegWriteName(uint32_t reg, int cwrBit) {
+    switch (reg) {
+    case SMD_LOAD_MEMORY_ADDRESS:  return cwrBit ? "CountMemAddr" : "LoadCoreAddr";
+    case SMD_LOAD_BLOCK_ADDRESS:   return cwrBit ? "LoadBlockAddrII" : "LoadBlockAddrI";
+    case SMD_LOAD_CONTROL_WORD:    return "LoadControlWord";
+    case SMD_LOAD_WORD_COUNTER:    return cwrBit ? "LoadECCControl" : "LoadWordCounter";
+    default:                       return "WriteUnknown";
+    }
+}
+
+static const char *SMD_ErrorName(DiskError error) {
+    switch (error) {
+    case DISK_ERR_NO_DISK_ATTACHED:     return "NoDiskAttached";
+    case DISK_ERR_ADDRESS_MISMATCH:     return "AddressMismatch";
+    case DISK_ERR_SEEK_ERROR:           return "SeekError";
+    case DISK_ERR_READ_ERROR:           return "ReadError";
+    case DISK_ERR_WRITE_ERROR:          return "WriteError";
+    case DISK_ERR_COMPARER_ERROR:       return "ComparerError";
+    case DISK_ERR_DRIVE_NOT_SELECTED:   return "DriveNotSelected";
+    case DISK_ERR_ILLEGAL_WHILE_ACTIVE: return "IllegalWhileActive";
+    case DISK_ERR_WRITE_PROTECT_ERROR:  return "WriteProtectError";
+    default:                            return "Unknown";
+    }
+}
 
 static void SMD_Reset(Device *self)
 {
@@ -74,9 +124,11 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
     uint32_t reg = Device_RegisterAddress(self, address);
     uint16_t value = 0;
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::SMD_Read called [%o] reg = %o\n", address, reg);
-#endif
+    if (smd_debug_enabled) {
+        SMDData *dbgData = (SMDData *)self->deviceData;
+        int cwrBit = dbgData ? dbgData->controlRegister.bits.registerMultiplexBit : 0;
+        fprintf(stderr, "SMD: IOX READ  addr=%o reg=%o (%s)\n", address, reg, SMD_RegReadName(reg, cwrBit));
+    }
 
     switch (reg)
     {
@@ -279,9 +331,8 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
         break;
     }
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::SMD_Read reg = %o returned %o\n", reg, value);
-#endif
+    if (smd_debug_enabled)
+        fprintf(stderr, "SMD: IOX READ  addr=%o reg=%o -> value=%o (0x%04X)\n", address, reg, value, value);
 
     return value;
 }
@@ -290,9 +341,12 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
 {
     uint32_t reg = Device_RegisterAddress(self, address);
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::SMD_Write called [%o] reg = %o\n", reg, value);
-#endif
+    if (smd_debug_enabled) {
+        SMDData *dbgData = (SMDData *)self->deviceData;
+        int cwrBit = dbgData ? dbgData->controlRegister.bits.registerMultiplexBit : 0;
+        fprintf(stderr, "SMD: IOX WRITE addr=%o reg=%o (%s) value=%o (0x%04X)\n",
+                address, reg, SMD_RegWriteName(reg, cwrBit), value, value);
+    }
 
     SMDData *data = (SMDData *)self->deviceData;
     // if (!data || !data->regs.selectedDisk) return;
@@ -382,9 +436,15 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
                     15		Register multiplex bit
         */
 
-#ifdef DEBUG_DETAIL
-        printf("SMD::SMD_LoadControlWord called [%o] = %o\n", address, value);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: CONTROL WORD=%o (0x%04X) Unit=%d Op=%s IntEn=%d ErrIntEn=%d Active=%d CWR15=%d\n",
+                    value, value,
+                    (value >> 7) & 0x07,
+                    SMD_OpName((DeviceOperation)((value >> 11) & 0x0F)),
+                    value & 1,
+                    (value >> 1) & 1,
+                    (value >> 2) & 1,
+                    (value >> 15) & 1);
 
         data->controlRegister.raw = value;
 
@@ -606,9 +666,8 @@ static uint16_t SMD_Ident(Device *self, uint16_t level)
     if (!self)
         return 0;
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::IDENT called with level %d\n", level);
-#endif
+    if (smd_debug_enabled)
+        fprintf(stderr, "SMD: IDENT level=%d identCode=%o\n", level, self->identCode);
 
     if ((self->interruptBits & (1 << level)) != 0)
     {
@@ -686,9 +745,8 @@ static int SMD_Boot(Device *self, uint16_t device_id)
 static void ExecuteGO(Device *self)
 {
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::ExecuteGO called\n");
-#endif
+    if (smd_debug_enabled)
+        fprintf(stderr, "SMD: ExecuteGO called\n");
 
     if (!self)
         return;
@@ -806,9 +864,10 @@ static void ExecuteGO(Device *self)
     {
     case DEVICE_OP_READ_TRANSFER:
 
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_READ_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d LBA=%ld WC=%d CoreAddr=%o\n",
+                    SMD_OpName(DEVICE_OP_READ_TRANSFER), data->regs.selectedUnit,
+                    cylinder, head, sector, lba, wordCounter, coreAddress);
 
         buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
         if (!buffer)
@@ -845,9 +904,10 @@ static void ExecuteGO(Device *self)
 
     case DEVICE_OP_WRITE_TRANSFER:
 
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD_cb::DEVICE_OP_WRITE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d LBA=%ld WC=%d CoreAddr=%o\n",
+                    SMD_OpName(DEVICE_OP_WRITE_TRANSFER), data->regs.selectedUnit,
+                    cylinder, head, sector, lba, wordCounter, coreAddress);
         buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
         if (!buffer)
         {
@@ -895,9 +955,10 @@ static void ExecuteGO(Device *self)
 
     case DEVICE_OP_READ_PARITY:
 
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_READ_PARITY WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d LBA=%ld WC=%d CoreAddr=%o\n",
+                    SMD_OpName(DEVICE_OP_READ_PARITY), data->regs.selectedUnit,
+                    cylinder, head, sector, lba, wordCounter, coreAddress);
         buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
         if (!buffer)
         {
@@ -933,9 +994,10 @@ static void ExecuteGO(Device *self)
 
     case DEVICE_OP_COMPARE_TRANSFER:
 
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD_cb::DEVICE_OP_COMPARE_TRANSFER WC[%d] Core Address [%d]\n", wordCounter, coreAddress);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d LBA=%ld WC=%d CoreAddr=%o\n",
+                    SMD_OpName(DEVICE_OP_COMPARE_TRANSFER), data->regs.selectedUnit,
+                    cylinder, head, sector, lba, wordCounter, coreAddress);
 
         buffer = (uint8_t *)malloc(blockCounter * self->blockSizeBytes);
         if (!buffer)
@@ -979,9 +1041,10 @@ static void ExecuteGO(Device *self)
         break;
 
     case DEVICE_OP_INITIATE_SEEK:
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_INITIATE_SEEK: %ld\n", position);
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d pos=%ld\n",
+                    SMD_OpName(DEVICE_OP_INITIATE_SEEK), data->regs.selectedUnit,
+                    cylinder, head, sector, position);
         // Seek operation initiated
         data->seekCondition.bits.seekError = 0;
 
@@ -992,16 +1055,16 @@ static void ExecuteGO(Device *self)
         // Format operation
         // TODO: Implement disk formatting
 
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_WRITE_FORMAT: NOT IMPLEMENTED\n");
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d (NOT IMPLEMENTED)\n",
+                    SMD_OpName(DEVICE_OP_WRITE_FORMAT), data->regs.selectedUnit);
         Device_QueueIODelay(self, IODELAY_HDD_SMD, (IODelayedCallback)SMDReadEnd, data->regs.selectedDisk->unit, self->interruptLevel);
         break;
 
     case DEVICE_OP_SEEK_COMPLETE:
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_SEEK_COMPLETE\n");
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d\n",
+                    SMD_OpName(DEVICE_OP_SEEK_COMPLETE), data->regs.selectedUnit);
         regs->selectedDisk->onCylinder = true;
         data->seekCondition.bits.seekError = 0;
         data->seekCondition.bits.seekComplete = 1 << regs->selectedUnit;
@@ -1010,9 +1073,9 @@ static void ExecuteGO(Device *self)
         break;
 
     case DEVICE_OP_RETURN_TO_ZERO:
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_RETURN_TO_ZERO\n");
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d\n",
+                    SMD_OpName(DEVICE_OP_RETURN_TO_ZERO), data->regs.selectedUnit);
         data->seekCondition.bits.seekError = 0;
         regs->selectedDisk->onCylinder = 1;
         data->seekCondition.bits.seekComplete = 1 << regs->selectedUnit;
@@ -1021,17 +1084,17 @@ static void ExecuteGO(Device *self)
         break;
 
     case DEVICE_OP_RUN_ECC:
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_RUN_ECC: NOT IMPLEMENTED\n");
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s (NOT IMPLEMENTED)\n",
+                    SMD_OpName(DEVICE_OP_RUN_ECC));
         // Run ECC operation
         // TODO: Implement ECC operation
         break;
 
     case DEVICE_OP_SELECT_RELEASE:
-#ifdef DEBUG_HIGH_LEVEL
-        printf("SMD::DEVICE_OP_SELECT_RELEASE\n");
-#endif
+        if (smd_debug_enabled)
+            fprintf(stderr, "SMD: GO Op=%s Unit=%d\n",
+                    SMD_OpName(DEVICE_OP_SELECT_RELEASE), data->regs.selectedUnit);
         // Release disk selection
         regs->selectedDisk = NULL;
         break;
@@ -1046,9 +1109,10 @@ static bool SMDReadEnd(Device *self, int drive)
     if (!data)
         return false;
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::SMDReadEnd drive %d\n", drive);
-#endif
+    if (smd_debug_enabled)
+        fprintf(stderr, "SMD: IO Complete drive=%d intEnabled=%d -> %s\n",
+                drive, data->statusRegister.bits.interruptEnabled,
+                data->statusRegister.bits.interruptEnabled ? "INTERRUPT" : "no interrupt");
 
     data->statusRegister.bits.active = 0;
     data->statusRegister.bits.readyForTransfer = 1;
@@ -1111,9 +1175,8 @@ static void HandleError(Device *self, DiskError error)
         return;
     SMDData *data = (SMDData *)self->deviceData;
 
-#ifdef DEBUG_DETAIL
-    printf("SMD::HandleError called %d\n", error);
-#endif
+    if (smd_debug_enabled)
+        fprintf(stderr, "SMD: ERROR %s (%d)\n", SMD_ErrorName(error), error);
     switch (error)
     {
     case DISK_ERR_NO_DISK_ATTACHED: // NO_DISK_ATTACHED

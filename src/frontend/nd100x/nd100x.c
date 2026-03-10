@@ -219,6 +219,7 @@ int main(int argc, char *argv[])
     // Set global variables from config
     DISASM = config.disasmEnabled;
     STARTADDR = config.startAddress;
+    smd_debug_enabled = config.smdDebug;
 
     initialize();
 
