@@ -39,6 +39,7 @@ static struct option long_options[] = {
     {"help",    no_argument,       0, 'h'},
     {"debugger", no_argument,      0, 'd'},
     {"port",    no_argument,       0, 'p'},
+    {"smd-debug", no_argument,    0, 'S'},
     {0, 0, 0, 0}
 };
 
@@ -53,6 +54,7 @@ void Config_Init(Config_t *config) {
     config->showHelp = false;
     config->debuggerEnabled = false;
     config->debuggerPort = 4711;
+    config->smdDebug = false;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -72,7 +74,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:S",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -115,6 +117,10 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->showHelp = true;
                 return true;
                 
+            case 'S':
+                config->smdDebug = true;
+                break;
+
             case '?':
                 return false;
                 
@@ -164,6 +170,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  -a,      --disasm       Enable disassembly output\n");
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
+    printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
     printf("  -v,      --verbose      Enable verbose output\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
