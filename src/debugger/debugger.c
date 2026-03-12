@@ -2490,6 +2490,158 @@ static int cmd_set_instruction_breakpoints(DAPServer *server)
     return 0;
 }
 
+/**
+ * @brief Handle dataBreakpointInfo request - query if a data breakpoint is supported
+ *
+ * For nd100x, we support watchpoints on any 16-bit memory address.
+ * The dataId is the address as an octal string (matching nd100x convention).
+ */
+static int cmd_data_breakpoint_info(DAPServer *server)
+{
+    if (!server)
+    {
+        return -1;
+    }
+
+    DataBreakpointInfoCommandContext *ctx = &server->current_command.context.data_breakpoint_info;
+
+    // Parse the name as a memory address
+    uint16_t address = 0;
+    bool valid = false;
+
+    if (ctx->name)
+    {
+        // Try to parse as hex (0x...) or octal or decimal
+        char *endptr = NULL;
+        unsigned long val = strtoul(ctx->name, &endptr, 0);
+        if (endptr && endptr != ctx->name)
+        {
+            address = (uint16_t)(val & 0xFFFF);
+            valid = true;
+        }
+    }
+
+    if (valid)
+    {
+        // Return a dataId that encodes the address (use octal for nd100x)
+        char data_id[32];
+        snprintf(data_id, sizeof(data_id), "%06o", address);
+        ctx->data_id = strdup(data_id);
+
+        char desc[128];
+        snprintf(desc, sizeof(desc), "Watch memory at address %06o", address);
+        ctx->description = strdup(desc);
+
+        // nd100x supports all access types
+        ctx->supports_read = true;
+        ctx->supports_write = true;
+        ctx->supports_read_write = true;
+        ctx->can_persist = false;
+    }
+    else
+    {
+        // Not a valid address - data breakpoint not supported
+        ctx->data_id = NULL;
+        ctx->description = strdup("Data breakpoints only supported on memory addresses");
+        ctx->supports_read = false;
+        ctx->supports_write = false;
+        ctx->supports_read_write = false;
+        ctx->can_persist = false;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Handle setDataBreakpoints request - set memory watchpoints
+ *
+ * Uses the nd100x watchpoint API (watchpoint_add/remove/clear) to set
+ * hardware-style memory watchpoints for read, write, or readWrite access.
+ */
+static int cmd_set_data_breakpoints(DAPServer *server)
+{
+    if (!server)
+    {
+        return -1;
+    }
+
+    SetDataBreakpointsCommandContext *ctx = &server->current_command.context.set_data_breakpoints;
+    int count = ctx->breakpoint_count;
+
+    // Always clear existing watchpoints first (DAP spec: setDataBreakpoints replaces all)
+    watchpoint_clear();
+
+    if (count <= 0)
+    {
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
+                                        "Cleared all data breakpoints (watchpoints)\n");
+        return 0;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        if (!ctx->data_ids[i])
+        {
+            ctx->breakpoints[i].verified = false;
+            ctx->breakpoints[i].message = strdup("Missing dataId");
+            continue;
+        }
+
+        // Parse the dataId (octal address from dataBreakpointInfo)
+        char *endptr = NULL;
+        unsigned long val = strtoul(ctx->data_ids[i], &endptr, 8); // octal
+        if (!endptr || endptr == ctx->data_ids[i])
+        {
+            ctx->breakpoints[i].verified = false;
+            ctx->breakpoints[i].message = strdup("Invalid dataId format");
+            continue;
+        }
+
+        uint16_t address = (uint16_t)(val & 0xFFFF);
+
+        // Determine watchpoint type from accessType string
+        WatchpointType wp_type = WATCH_WRITE; // default
+        if (ctx->access_types[i])
+        {
+            if (strcmp(ctx->access_types[i], "read") == 0)
+            {
+                wp_type = WATCH_READ;
+            }
+            else if (strcmp(ctx->access_types[i], "readWrite") == 0)
+            {
+                wp_type = WATCH_READWRITE;
+            }
+            // "write" is the default
+        }
+
+        int result = watchpoint_add(address, wp_type);
+        if (result < 0)
+        {
+            ctx->breakpoints[i].verified = false;
+            ctx->breakpoints[i].message = strdup("Failed to add watchpoint (limit reached?)");
+        }
+        else
+        {
+            ctx->breakpoints[i].verified = true;
+
+            const char *type_str = "write";
+            if (wp_type == WATCH_READ) type_str = "read";
+            else if (wp_type == WATCH_READWRITE) type_str = "readWrite";
+
+            char msg[256];
+            snprintf(msg, sizeof(msg), "Watchpoint set at address %06o (access: %s)\n",
+                     address, type_str);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+        }
+    }
+
+    char output_msg[256];
+    snprintf(output_msg, sizeof(output_msg), "Set %d data breakpoints (watchpoints)\n", count);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, output_msg);
+
+    return 0;
+}
+
 void free_symbol_table()
 {
     if (symbol_tables.symbol_table_map)
@@ -3205,6 +3357,8 @@ int ndx_server_init(int port)
     // Register breakpoint callbacks
     dap_server_register_command_callback(server, DAP_CMD_SET_BREAKPOINTS, cmd_set_breakpoints);
     dap_server_register_command_callback(server, DAP_CMD_SET_INSTRUCTION_BREAKPOINTS, cmd_set_instruction_breakpoints);
+    dap_server_register_command_callback(server, DAP_CMD_DATA_BREAKPOINT_INFO, cmd_data_breakpoint_info);
+    dap_server_register_command_callback(server, DAP_CMD_SET_DATA_BREAKPOINTS, cmd_set_data_breakpoints);
 
     // Register stack trace callback
     dap_server_register_command_callback(server, DAP_CMD_STACK_TRACE, cmd_stack_trace);
@@ -3659,7 +3813,8 @@ int set_default_dap_capabilities(DAPServer *server)
                                        DAP_CAP_LOG_POINTS, true,  // Already works!
                                        DAP_CAP_STEPPING_GRANULARITY, true,  // Line/instruction stepping
                                        DAP_CAP_INSTRUCTION_BREAKPOINTS, true,  // Assembly breakpoints
-                                       
+                                       DAP_CAP_DATA_BREAKPOINTS, true,         // Memory watchpoints
+
                                        // Variable inspection (removed false claims)
                                        // DAP_CAP_EVALUATE_FOR_HOVERS - not implemented
                                        // DAP_CAP_SET_VARIABLE - stub only
