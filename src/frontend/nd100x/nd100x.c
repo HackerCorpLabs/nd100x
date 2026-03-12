@@ -220,6 +220,10 @@ int main(int argc, char *argv[])
     DISASM = config.disasmEnabled;
     STARTADDR = config.startAddress;
     smd_debug_enabled = config.smdDebug;
+    CPU_TRACE = config.traceEnabled;
+    CPU_MAX_INSTR = config.maxInstructions;
+    CPU_BREAKPOINT_ENABLED = config.breakpointEnabled;
+    CPU_BREAKPOINT_ADDR = (ushort)config.breakpointAddr;
 
     initialize();
 

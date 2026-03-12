@@ -90,6 +90,10 @@ uint64_t  instr_counter = 0;
 ushort STARTADDR = 0;
 int DISASM = 0;
 int gCpuExitCode = 0;
+int CPU_TRACE = 0;
+uint64_t CPU_MAX_INSTR = 0;
+int CPU_BREAKPOINT_ENABLED = 0;
+ushort CPU_BREAKPOINT_ADDR = 0;
 
 
 
@@ -299,6 +303,12 @@ void interrupt(ushort lvl, ushort sub)
 	// Check for MPV (bit 2), PF (bit 3), or illegal instruction (bit 4)
 	if (lvl == 14 && (sub & ((1 << 2) | (1 << 3) | (1 << 4))))
 	{
+		if (CPU_TRACE)
+			fprintf(stderr, "*** TRAP lvl=14 sub=%d(0x%x) P=%06o PGS=%04x PEA=%06o PIL=%d MMU=%d %s%s%s\n",
+				sub, sub, gPC, gPGS, gPEA, gPIL, STS_PONI,
+				(sub & (1<<2)) ? "MPV " : "",
+				(sub & (1<<3)) ? "PF " : "",
+				(sub & (1<<4)) ? "ILL " : "");
 #ifdef DEBUG_TRAP
 		printf("TRAP at P:[%6o], sub=%d \r\n", gPC, sub);
 #endif
@@ -446,6 +456,35 @@ void private_cpu_tick()
 	if (DISASM)
 		disasm_instr(gPC, operand);
 
+	// CPU execution trace to stderr
+	if (CPU_TRACE)
+	{
+		char disasm_str[128];
+		OpToStr(disasm_str, sizeof(disasm_str), operand);
+		fprintf(stderr, "%06o %06o %-24s PIL=%d prevPIL=%d A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o P=%06o STS=%04x PIE=%04x PID=%04x IIE=%04x IID=%04x PGS=%04x MMU=%d INT=%d SEX=%d\n",
+			gPC, operand, disasm_str,
+			gPIL, (gReg->reg_STS >> 8) & 0x0F,
+			gA, gD, gT, gX, gB, gL, gPC,
+			gSTSr, gPIE, gPID, gIIE, gIID, gPGS,
+			STS_PONI, STS_IONI, STS_SEXI);
+	}
+
+	// Check max instruction limit
+	if (CPU_MAX_INSTR > 0 && instr_counter >= CPU_MAX_INSTR)
+	{
+		fprintf(stderr, "\n--- CPU stopped: max instruction count reached (%llu) ---\n",
+			(unsigned long long)CPU_MAX_INSTR);
+		set_cpu_run_mode(CPU_SHUTDOWN);
+		return;
+	}
+
+	// Check breakpoint
+	if (CPU_BREAKPOINT_ENABLED && gPC == CPU_BREAKPOINT_ADDR)
+	{
+		fprintf(stderr, "\n--- CPU stopped: breakpoint at %06o ---\n", CPU_BREAKPOINT_ADDR);
+		set_cpu_run_mode(CPU_SHUTDOWN);
+		return;
+	}
 
 	if (gPIL>0)
 		activateSleep = true;
@@ -566,6 +605,9 @@ int cpu_run(int ticks)
 		// In this case, the P register points to the instruction after the instruction causing the internal hardware status interrupt.
 		// When the cause of the internal hardware status interrupt has been removed, the restart point will be found by subtracting one from the P register.
 
+		if (CPU_TRACE)
+			fprintf(stderr, "*** FAULT RETURN PC=%06o PGS=%04x PEA=%06o PIL=%d MMU=%d\n",
+				gPC, gPGS, gPEA, gPIL, STS_PONI);
 #ifdef DEBUG_TRAP
 		printf("CPU: Interrupt handler returned, PC=%06o, PGS=%04x\n", gPC, gPGS);
 #endif

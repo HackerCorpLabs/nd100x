@@ -40,6 +40,9 @@ static struct option long_options[] = {
     {"debugger", no_argument,      0, 'd'},
     {"port",    no_argument,       0, 'p'},
     {"smd-debug", no_argument,    0, 'S'},
+    {"trace",   no_argument,       0, 't'},
+    {"max-instr", required_argument, 0, 'n'},
+    {"breakpoint", required_argument, 0, 'B'},
     {0, 0, 0, 0}
 };
 
@@ -55,6 +58,10 @@ void Config_Init(Config_t *config) {
     config->debuggerEnabled = false;
     config->debuggerPort = 4711;
     config->smdDebug = false;
+    config->traceEnabled = false;
+    config->maxInstructions = 0;
+    config->breakpointEnabled = false;
+    config->breakpointAddr = 0;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -74,7 +81,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:S",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -119,6 +126,27 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 
             case 'S':
                 config->smdDebug = true;
+                break;
+
+            case 't':
+                config->traceEnabled = true;
+                break;
+
+            case 'n':
+                config->maxInstructions = strtoull(optarg, &endptr, 0);
+                if (*endptr != '\0') {
+                    fprintf(stderr, "Invalid max instruction count: %s\n", optarg);
+                    return false;
+                }
+                break;
+
+            case 'B':
+                config->breakpointEnabled = true;
+                config->breakpointAddr = strtoul(optarg, &endptr, 0);
+                if (*endptr != '\0') {
+                    fprintf(stderr, "Invalid breakpoint address: %s\n", optarg);
+                    return false;
+                }
                 break;
 
             case '?':
@@ -171,6 +199,9 @@ void Config_PrintHelp(const char *progName) {
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
+    printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
+    printf("  -n N,    --max-instr=N  Stop after N instructions\n");
+    printf("  -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)\n");
     printf("  -v,      --verbose      Enable verbose output\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
