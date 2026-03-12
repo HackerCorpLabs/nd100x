@@ -2441,6 +2441,55 @@ static int cmd_set_breakpoints(DAPServer *server)
     return 0;
 }
 
+static int cmd_set_instruction_breakpoints(DAPServer *server)
+{
+    if (!server)
+    {
+        return -1;
+    }
+
+    InstructionBreakpointCommandContext *ctx = &server->current_command.context.instruction_breakpoint;
+    int count = ctx->breakpoint_count;
+
+    if (count <= 0)
+    {
+        // Clear all instruction breakpoints
+        breakpoint_manager_clear();
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
+                                        "Cleared all instruction breakpoints\n");
+        return 0;
+    }
+
+    // Clear existing breakpoints and set new ones
+    breakpoint_manager_clear();
+
+    for (int i = 0; i < count; i++)
+    {
+        uint16_t address = (uint16_t)(ctx->addresses[i] + (ctx->offsets ? ctx->offsets[i] : 0));
+
+        breakpoint_manager_add(
+            address,
+            BP_TYPE_USER,
+            ctx->conditions ? ctx->conditions[i] : NULL,
+            NULL, // hit condition
+            NULL  // log message
+        );
+
+        ctx->breakpoints[i].verified = true;
+        ctx->breakpoints[i].instruction_reference = address;
+
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Added instruction breakpoint at address %06o\n", address);
+        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
+    }
+
+    char output_msg[256];
+    snprintf(output_msg, sizeof(output_msg), "Set %d instruction breakpoints\n", count);
+    dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, output_msg);
+
+    return 0;
+}
+
 void free_symbol_table()
 {
     if (symbol_tables.symbol_table_map)
@@ -3153,8 +3202,9 @@ int ndx_server_init(int port)
     // Register exception breakpoint callback
     dap_server_register_command_callback(server, DAP_CMD_SET_EXCEPTION_BREAKPOINTS, on_set_exception_breakpoints);
 
-    // Register breakpoint callback
+    // Register breakpoint callbacks
     dap_server_register_command_callback(server, DAP_CMD_SET_BREAKPOINTS, cmd_set_breakpoints);
+    dap_server_register_command_callback(server, DAP_CMD_SET_INSTRUCTION_BREAKPOINTS, cmd_set_instruction_breakpoints);
 
     // Register stack trace callback
     dap_server_register_command_callback(server, DAP_CMD_STACK_TRACE, cmd_stack_trace);
