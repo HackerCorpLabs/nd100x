@@ -73,6 +73,7 @@ typedef struct {
     symbol_table_t *symbol_table_map;
     symbol_table_t *symbol_table_aout;
     symbol_table_t *symbol_table_stabs;
+    symbol_debug_info_t *debug_info;   /* C-level debug info from .srcmap */
 } SymbolTables;
 #endif
 
