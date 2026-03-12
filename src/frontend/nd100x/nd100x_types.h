@@ -42,6 +42,10 @@ typedef struct {
     bool debuggerEnabled;
     int debuggerPort;
     bool smdDebug;
+    bool traceEnabled;
+    uint64_t maxInstructions;
+    bool breakpointEnabled;
+    uint32_t breakpointAddr;
 } Config_t;
 
 #endif // CONFIG_H 
