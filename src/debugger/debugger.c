@@ -2118,13 +2118,6 @@ static int cmd_stack_trace(DAPServer *server)
     int frame_count = stack_trace.frame_count;
 
     // Validate input parameters
-    if (stack_levels <= 0)
-    {
-        dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
-                                        "Error: Invalid stack levels requested\n");
-        return -1;
-    }
-
     if (stack_start_frame < 0)
     {
         dap_server_send_output_category(server, DAP_OUTPUT_STDERR,
@@ -2133,10 +2126,19 @@ static int cmd_stack_trace(DAPServer *server)
     }
 
     // Calculate number of frames to return
-    int frames_to_return = stack_levels;
-    if (frames_to_return > (frame_count - stack_start_frame))
+    // Per DAP spec: levels == 0 means return all frames
+    int frames_to_return;
+    if (stack_levels <= 0)
     {
         frames_to_return = frame_count - stack_start_frame;
+    }
+    else
+    {
+        frames_to_return = stack_levels;
+        if (frames_to_return > (frame_count - stack_start_frame))
+        {
+            frames_to_return = frame_count - stack_start_frame;
+        }
     }
 
     // If no frames to return after calculations, return empty result
@@ -2194,8 +2196,24 @@ static int cmd_stack_trace(DAPServer *server)
 
         // symbols_dump_all(symbol_tables.symbol_table_aout);
 
-        // Try to get symbol information
-        const symbol_entry_t *symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
+        // Try to get symbol information - check multiple symbol tables
+        const symbol_entry_t *symbol = NULL;
+
+        // Try AOUT symbols first (most common for binaries)
+        if (symbol_tables.symbol_table_aout) {
+            symbol = symbols_lookup_by_address(symbol_tables.symbol_table_aout, entry_point);
+        }
+
+        // Try MAP symbols if AOUT didn't work (for assembly programs)
+        if ((!symbol || !symbol->name) && symbol_tables.symbol_table_map) {
+            symbol = symbols_lookup_by_address(symbol_tables.symbol_table_map, entry_point);
+        }
+
+        // Try STABS symbols as last resort (for C programs)
+        if ((!symbol || !symbol->name) && symbol_tables.symbol_table_stabs) {
+            symbol = symbols_lookup_by_address(symbol_tables.symbol_table_stabs, entry_point);
+        }
+
         if (symbol && symbol->name)
         {
             frame->name = strdup(symbol->name);
