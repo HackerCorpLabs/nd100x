@@ -2505,19 +2505,44 @@ static int cmd_data_breakpoint_info(DAPServer *server)
 
     DataBreakpointInfoCommandContext *ctx = &server->current_command.context.data_breakpoint_info;
 
-    // Parse the name as a memory address
+    // Resolve name to address: try symbol lookup first, then numeric parse
     uint16_t address = 0;
     bool valid = false;
+    const char *resolved_name = NULL;
 
     if (ctx->name)
     {
-        // Try to parse as hex (0x...) or octal or decimal
-        char *endptr = NULL;
-        unsigned long val = strtoul(ctx->name, &endptr, 0);
-        if (endptr && endptr != ctx->name)
+        // Try symbol lookup across all loaded symbol tables
+        const symbol_entry_t *sym = NULL;
+        if (!sym && symbol_tables.symbol_table_aout)
         {
-            address = (uint16_t)(val & 0xFFFF);
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, ctx->name);
+        }
+        if (!sym && symbol_tables.symbol_table_map)
+        {
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, ctx->name);
+        }
+        if (!sym && symbol_tables.symbol_table_stabs)
+        {
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_stabs, ctx->name);
+        }
+
+        if (sym)
+        {
+            address = sym->address;
+            resolved_name = sym->name;
             valid = true;
+        }
+        else
+        {
+            // Fall back to parsing as numeric address (hex 0x..., octal, decimal)
+            char *endptr = NULL;
+            unsigned long val = strtoul(ctx->name, &endptr, 0);
+            if (endptr && endptr != ctx->name && *endptr == '\0')
+            {
+                address = (uint16_t)(val & 0xFFFF);
+                valid = true;
+            }
         }
     }
 
@@ -2529,7 +2554,14 @@ static int cmd_data_breakpoint_info(DAPServer *server)
         ctx->data_id = strdup(data_id);
 
         char desc[128];
-        snprintf(desc, sizeof(desc), "Watch memory at address %06o", address);
+        if (resolved_name)
+        {
+            snprintf(desc, sizeof(desc), "Watch '%s' at address %06o", resolved_name, address);
+        }
+        else
+        {
+            snprintf(desc, sizeof(desc), "Watch memory at address %06o", address);
+        }
         ctx->description = strdup(desc);
 
         // nd100x supports all access types
@@ -2540,9 +2572,11 @@ static int cmd_data_breakpoint_info(DAPServer *server)
     }
     else
     {
-        // Not a valid address - data breakpoint not supported
+        // Not a valid symbol or address
         ctx->data_id = NULL;
-        ctx->description = strdup("Data breakpoints only supported on memory addresses");
+        char desc[256];
+        snprintf(desc, sizeof(desc), "Unknown symbol or address: '%s'", ctx->name ? ctx->name : "");
+        ctx->description = strdup(desc);
         ctx->supports_read = false;
         ctx->supports_write = false;
         ctx->supports_read_write = false;
