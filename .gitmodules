@@ -10,3 +10,6 @@
 	path = external/libsymbols
 	url = https://github.com/HackerCorpLabs/libsymbols
 	branch = main
+[submodule "template-glass/external/RetroTermWeb"]
+	path = template-glass/external/RetroTermWeb
+	url = ../RetroTermWeb
