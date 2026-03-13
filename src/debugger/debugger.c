@@ -123,16 +123,22 @@ static int next_source_ref = 1000;  // Start from 1000
 
 // Console I/O capture support
 #define MAX_CONSOLE_CAPTURES 8
+#define CONSOLE_RING_SIZE 1024
 
 typedef struct {
     Device *device;                         /* Terminal device */
     int terminal_address;                   /* IOX address */
     CharacterDeviceOutputFunc original_output; /* Saved original callback */
     DAPServer *server;                      /* DAP server for sending events */
+    volatile unsigned char ring[CONSOLE_RING_SIZE]; /* Ring buffer for captured chars */
+    volatile int ring_head;                 /* Write position (CPU thread) */
+    volatile int ring_tail;                 /* Read position (debugger thread) */
 } ConsoleCapture;
 
 static ConsoleCapture console_captures[MAX_CONSOLE_CAPTURES];
 static int console_capture_count = 0;
+
+static void flush_console_output(void);
 
 #ifdef __EMSCRIPTEN__
 /* WASM: no threads, no atomics */
@@ -362,6 +368,8 @@ static int cmd_release_debugger(DAPServer *server)
 
 static int cmd_check_cpu_events(DAPServer *server)
 {
+    // Flush any buffered console output (from CPU thread ring buffers)
+    flush_console_output();
 
     CpuStopReason reason = get_cpu_stop_reason();
     if (reason != STOP_REASON_NONE)
@@ -3846,25 +3854,49 @@ static int cmd_disassemble(DAPServer *server)
     }
 }
 
-// Console output callback - intercepts terminal output and sends DAP output events
+// Console output callback - buffers characters for later sending from debugger thread.
+// This runs in the CPU thread so must NOT call dap_server_send_event directly.
 static void debugger_console_output(Device *dev, char c)
 {
-    // Find capture entry for this device
     for (int i = 0; i < console_capture_count; i++) {
         if (console_captures[i].device == dev) {
-            // Build output event
-            char buf[2] = { c, '\0' };
-            char hex_byte[3];
-            snprintf(hex_byte, sizeof(hex_byte), "%02X", (unsigned char)c);
+            // Buffer the character in the ring buffer (lock-free single producer)
+            int next = (console_captures[i].ring_head + 1) % CONSOLE_RING_SIZE;
+            if (next != console_captures[i].ring_tail) {
+                console_captures[i].ring[(int)console_captures[i].ring_head] = (unsigned char)c;
+                console_captures[i].ring_head = next;
+            }
+            // else: ring full, drop character
 
-            // Build data field with terminal address and hex
+            // Also call original callback so terminal still works normally
+            if (console_captures[i].original_output) {
+                console_captures[i].original_output(dev, c);
+            }
+            return;
+        }
+    }
+}
+
+// Flush buffered console output as DAP events. Called from debugger thread
+// via cmd_check_cpu_events.
+static void flush_console_output(void)
+{
+    for (int i = 0; i < console_capture_count; i++) {
+        ConsoleCapture *cap = &console_captures[i];
+        while (cap->ring_tail != cap->ring_head) {
+            unsigned char c = cap->ring[(int)cap->ring_tail];
+            cap->ring_tail = (cap->ring_tail + 1) % CONSOLE_RING_SIZE;
+
+            char buf[2] = { (char)c, '\0' };
+            char hex_byte[3];
+            snprintf(hex_byte, sizeof(hex_byte), "%02X", c);
+
             char data_str[64];
             snprintf(data_str, sizeof(data_str), "{\"terminal\":%d,\"hex\":\"%s\"}",
-                     console_captures[i].terminal_address, hex_byte);
+                     cap->terminal_address, hex_byte);
 
             cJSON *body = cJSON_CreateObject();
             cJSON_AddStringToObject(body, "category", "stdout");
-            // Replace non-printable chars with '.' in the text output
             if (c >= 32 && c < 127) {
                 cJSON_AddStringToObject(body, "output", buf);
             } else if (c == '\r' || c == '\n' || c == '\t') {
@@ -3873,14 +3905,8 @@ static void debugger_console_output(Device *dev, char c)
                 cJSON_AddStringToObject(body, "output", ".");
             }
             cJSON_AddStringToObject(body, "data", data_str);
-            dap_server_send_event(console_captures[i].server, "output", body);
-            cJSON_Delete(body);
-
-            // Also call original callback so terminal still works normally
-            if (console_captures[i].original_output) {
-                console_captures[i].original_output(dev, c);
-            }
-            return;
+            dap_server_send_event(cap->server, "output", body);
+            // body ownership transferred to dap_server_send_event, do NOT delete
         }
     }
 }
@@ -3917,6 +3943,8 @@ static int cmd_console_enable(DAPServer *server)
         cap->terminal_address = addr;
         cap->original_output = dev->charCallbacks.outputFunc;
         cap->server = server;
+        cap->ring_head = 0;
+        cap->ring_tail = 0;
 
         Device_SetCharacterOutput(dev, debugger_console_output);
     } else {
