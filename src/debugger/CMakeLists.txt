@@ -34,6 +34,7 @@ target_include_directories(debugger
     PUBLIC ${CMAKE_SOURCE_DIR}/src/ndlib
     PRIVATE ${CMAKE_SOURCE_DIR}/src/cpu
     PRIVATE ${CMAKE_SOURCE_DIR}/src/machine
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/devices
 )
 
 # Link dependencies
