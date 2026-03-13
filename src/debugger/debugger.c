@@ -22,12 +22,14 @@
 #include "debugger.h"
 #include "../cpu/cpu_types.h"
 #include "../cpu/cpu_protos.h"
+#include "../cpu/expr_eval.h"
 
 #ifdef WITH_DEBUGGER
 
 #include "symbols_support.h"
 #include "machine_types.h"
 #include "machine_protos.h"
+#include "devices_protos.h"
 
 #include "ndlib_types.h"
 #include "ndlib_protos.h"
@@ -118,6 +120,19 @@ typedef struct {
 static SourceReferenceMap *source_refs = NULL;
 static int source_ref_count = 0;
 static int next_source_ref = 1000;  // Start from 1000
+
+// Console I/O capture support
+#define MAX_CONSOLE_CAPTURES 8
+
+typedef struct {
+    Device *device;                         /* Terminal device */
+    int terminal_address;                   /* IOX address */
+    CharacterDeviceOutputFunc original_output; /* Saved original callback */
+    DAPServer *server;                      /* DAP server for sending events */
+} ConsoleCapture;
+
+static ConsoleCapture console_captures[MAX_CONSOLE_CAPTURES];
+static int console_capture_count = 0;
 
 #ifdef __EMSCRIPTEN__
 /* WASM: no threads, no atomics */
@@ -471,19 +486,24 @@ static uint16_t get_jpl_target_address(uint16_t pc, uint16_t operand)
     // Bit 10 (X): Index by X register
     // Bit 9  (I): Indirect addressing
     // Bit 8  (B): Base-relative (vs P-relative)
-    uint8_t mode = (operand >> 8) & 0x07;
+    bool flag_x = (operand >> 10) & 1;
+    bool flag_i = (operand >> 9) & 1;
+    bool flag_b = (operand >> 8) & 1;
 
-    // For simple case, assume P-relative addressing (mode 0)
-    // Full implementation would need access to gB, gX registers and memory
-    // EA = P + displacement (for P-relative mode)
-    uint16_t ea = pc + displacement;
+    // Compute base effective address
+    uint16_t ea;
+    if (flag_b)
+        ea = gB + displacement;  // B-relative
+    else
+        ea = pc + displacement;  // P-relative
 
-    // TODO: Implement full addressing mode support when we have access to:
-    //       - gB register (for B-relative modes)
-    //       - gX register (for indexed modes)
-    //       - Memory access (for indirect modes)
-    //       See New_GetEffectiveAddr() in src/cpu/cpu.c for reference
-    (void)mode;  // Unused for now
+    // Apply indirect: read target address from memory
+    if (flag_i)
+        ea = ReadVirtualMemory(ea, false);
+
+    // Apply indexing: add X register
+    if (flag_x)
+        ea += gX;
 
     return ea;
 }
@@ -770,69 +790,81 @@ int step_cpu(DAPServer *server, StepType step_type)
         
         if (is_line_granularity) {
             // Source-level Step In
-            
-            // Get the current instruction
-            uint16_t current_operand = ReadVirtualMemory(current_pc, false);
-            
-            // Check if this is a procedure call
-            if (is_procedure_call(current_operand)) {
-                // Calculate where the call will jump to
-                uint16_t call_target = get_jpl_target_address(current_pc, current_operand);
-                
+            // Scan all instructions in the current source line for a procedure call.
+            // A C source line like "result = test_break(5)" compiles to multiple
+            // instructions (push args, JPL, store result). The JPL may not be the
+            // first instruction at the line's address.
+
+            // Find the next line address to know the range of the current line
+            uint16_t next_line_addr = 0;
+            if (symbol_tables.symbol_table_stabs) {
+                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_stabs, current_pc);
+            }
+            if ((!next_line_addr || next_line_addr == current_pc) && symbol_tables.symbol_table_map) {
+                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
+            }
+
+            // Scan instructions from current_pc to next_line_addr for a JPL
+            uint16_t scan_limit = (next_line_addr && next_line_addr > current_pc) ? next_line_addr : current_pc + 1;
+            uint16_t jpl_addr = 0;
+            uint16_t jpl_operand = 0;
+
+            for (uint16_t addr = current_pc; addr < scan_limit; addr++) {
+                uint16_t operand = ReadVirtualMemory(addr, false);
+                if (is_procedure_call(operand)) {
+                    jpl_addr = addr;
+                    jpl_operand = operand;
+                    break;
+                }
+            }
+
+            if (jpl_addr != 0) {
+                // Found a procedure call in this source line
+                uint16_t call_target = get_jpl_target_address(jpl_addr, jpl_operand);
+
                 if (call_target != 0) {
                     // Try to find the first source line in the called function
                     int target_line = 0;
                     const char *target_file = NULL;
-                    
+
                     // Try STABS first (for C functions)
                     if (symbol_tables.symbol_table_stabs) {
                         target_line = symbols_get_line(symbol_tables.symbol_table_stabs, call_target);
                         target_file = symbols_get_file(symbol_tables.symbol_table_stabs, call_target);
                     }
-                    
+
                     // Try MAP if STABS didn't work (for assembly functions)
                     if ((!target_line || !target_file) && symbol_tables.symbol_table_map) {
                         target_line = symbols_get_line(symbol_tables.symbol_table_map, call_target);
                         target_file = symbols_get_file(symbol_tables.symbol_table_map, call_target);
                     }
-                    
+
                     if (target_line && target_file) {
                         // Found source info - step into the function
                         snprintf(log_message, sizeof(log_message),
-                                "Stepping into %s:%d (address %06o)\n", 
+                                "Stepping into %s:%d (address %06o)\n",
                                 target_file, target_line, call_target);
                         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
-                        
+
                         // Set temporary breakpoint at function entry
                         breakpoint_manager_add(call_target, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
                         ensure_cpu_running();
                         return 0;
                     }
-                    
+
                     // No source info - still step into, but at instruction level
                     snprintf(log_message, sizeof(log_message),
                             "Stepping into function at %06o (no source info)\n", call_target);
                     dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
-                    
+
                     breakpoint_manager_add(call_target, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
                     ensure_cpu_running();
                     return 0;
                 }
             }
-            
-            // Not a call - step to next source line in current function
-            uint16_t next_line_addr = 0;
-            
-            // Try STABS first
-            if (symbol_tables.symbol_table_stabs) {
-                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_stabs, current_pc);
-            }
-            
-            // Try MAP if STABS didn't work
-            if ((!next_line_addr || next_line_addr == current_pc) && symbol_tables.symbol_table_map) {
-                next_line_addr = symbols_get_next_line_address(symbol_tables.symbol_table_map, current_pc);
-            }
-            
+
+            // No call found in this line - step to next source line
+            // next_line_addr already computed above
             if (next_line_addr && next_line_addr != current_pc) {
                 snprintf(log_message, sizeof(log_message),
                         "Stepping to next line at %06o\n", next_line_addr);
@@ -2710,25 +2742,32 @@ static int cmd_data_breakpoint_info(DAPServer *server)
     DataBreakpointInfoCommandContext *ctx = &server->current_command.context.data_breakpoint_info;
 
     // Resolve name to address: try symbol lookup first, then numeric parse
-    uint16_t address = 0;
+    uint32_t address = 0;
     bool valid = false;
     const char *resolved_name = NULL;
 
     if (ctx->name)
     {
+        // Strip address space prefix if present (phys: or P:)
+        const char *lookup_name = ctx->name;
+        if (strncmp(lookup_name, "phys:", 5) == 0)
+            lookup_name += 5;
+        else if (strncmp(lookup_name, "P:", 2) == 0)
+            lookup_name += 2;
+
         // Try symbol lookup across all loaded symbol tables
         const symbol_entry_t *sym = NULL;
         if (!sym && symbol_tables.symbol_table_aout)
         {
-            sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, ctx->name);
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, lookup_name);
         }
         if (!sym && symbol_tables.symbol_table_map)
         {
-            sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, ctx->name);
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, lookup_name);
         }
         if (!sym && symbol_tables.symbol_table_stabs)
         {
-            sym = symbols_lookup_by_name(symbol_tables.symbol_table_stabs, ctx->name);
+            sym = symbols_lookup_by_name(symbol_tables.symbol_table_stabs, lookup_name);
         }
 
         if (sym)
@@ -2741,10 +2780,10 @@ static int cmd_data_breakpoint_info(DAPServer *server)
         {
             // Fall back to parsing as numeric address (hex 0x..., octal, decimal)
             char *endptr = NULL;
-            unsigned long val = strtoul(ctx->name, &endptr, 0);
-            if (endptr && endptr != ctx->name && *endptr == '\0')
+            unsigned long val = strtoul(lookup_name, &endptr, 0);
+            if (endptr && endptr != lookup_name && *endptr == '\0')
             {
-                address = (uint16_t)(val & 0xFFFF);
+                address = (uint32_t)val;
                 valid = true;
             }
         }
@@ -2752,19 +2791,29 @@ static int cmd_data_breakpoint_info(DAPServer *server)
 
     if (valid)
     {
-        // Return a dataId that encodes the address (use octal for nd100x)
+        // Determine address space: check for "physical" hint in the name
+        // Names prefixed with "phys:" or "P:" request physical address space
+        bool is_physical = false;
+        if (ctx->name && (strncmp(ctx->name, "phys:", 5) == 0 || strncmp(ctx->name, "P:", 2) == 0))
+        {
+            is_physical = true;
+        }
+
+        // Return a dataId that encodes address space + address (octal)
+        // Format: "V:000040" for virtual, "P:000040" for physical
         char data_id[32];
-        snprintf(data_id, sizeof(data_id), "%06o", address);
+        snprintf(data_id, sizeof(data_id), "%c:%06o", is_physical ? 'P' : 'V', address);
         ctx->data_id = strdup(data_id);
 
         char desc[128];
+        const char *space = is_physical ? "physical" : "virtual";
         if (resolved_name)
         {
-            snprintf(desc, sizeof(desc), "Watch '%s' at address %06o", resolved_name, address);
+            snprintf(desc, sizeof(desc), "Watch '%s' at %s address %06o", resolved_name, space, address);
         }
         else
         {
-            snprintf(desc, sizeof(desc), "Watch memory at address %06o", address);
+            snprintf(desc, sizeof(desc), "Watch %s memory at address %06o", space, address);
         }
         ctx->description = strdup(desc);
 
@@ -2808,6 +2857,7 @@ static int cmd_set_data_breakpoints(DAPServer *server)
 
     // Always clear existing watchpoints first (DAP spec: setDataBreakpoints replaces all)
     watchpoint_clear();
+    phys_watchpoint_clear();
 
     if (count <= 0)
     {
@@ -2825,17 +2875,28 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             continue;
         }
 
-        // Parse the dataId (octal address from dataBreakpointInfo)
+        // Parse the dataId: "V:000040" (virtual) or "P:000040" (physical)
+        bool is_physical = false;
+        const char *addr_str = ctx->data_ids[i];
+
+        if (addr_str[0] == 'P' && addr_str[1] == ':')
+        {
+            is_physical = true;
+            addr_str += 2;
+        }
+        else if (addr_str[0] == 'V' && addr_str[1] == ':')
+        {
+            addr_str += 2;
+        }
+
         char *endptr = NULL;
-        unsigned long val = strtoul(ctx->data_ids[i], &endptr, 8); // octal
-        if (!endptr || endptr == ctx->data_ids[i])
+        unsigned long val = strtoul(addr_str, &endptr, 8); // octal
+        if (!endptr || endptr == addr_str)
         {
             ctx->breakpoints[i].verified = false;
             ctx->breakpoints[i].message = strdup("Invalid dataId format");
             continue;
         }
-
-        uint16_t address = (uint16_t)(val & 0xFFFF);
 
         // Determine watchpoint type from accessType string
         WatchpointType wp_type = WATCH_WRITE; // default
@@ -2852,7 +2913,16 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             // "write" is the default
         }
 
-        int result = watchpoint_add(address, wp_type);
+        int result;
+        if (is_physical)
+        {
+            result = phys_watchpoint_add((uint32_t)val, wp_type);
+        }
+        else
+        {
+            result = watchpoint_add((uint16_t)(val & 0xFFFF), wp_type);
+        }
+
         if (result < 0)
         {
             ctx->breakpoints[i].verified = false;
@@ -2866,9 +2936,10 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             if (wp_type == WATCH_READ) type_str = "read";
             else if (wp_type == WATCH_READWRITE) type_str = "readWrite";
 
+            const char *space = is_physical ? "physical" : "virtual";
             char msg[256];
-            snprintf(msg, sizeof(msg), "Watchpoint set at address %06o (access: %s)\n",
-                     address, type_str);
+            snprintf(msg, sizeof(msg), "Watchpoint set at %s address %06lo (access: %s)\n",
+                     space, val, type_str);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, msg);
         }
     }
@@ -3368,11 +3439,166 @@ static int cmd_terminate(DAPServer *server)
     return 0;
 }
 
-/// @brief DAP command to set a variable
+/// @brief DAP command to set a variable value (register or C local)
 /// @param server
 /// @return
 static int cmd_set_variable(DAPServer *server)
 {
+    int ref = server->current_command.context.set_variable.variables_reference;
+    const char *name = server->current_command.context.set_variable.name;
+    const char *value_str = server->current_command.context.set_variable.value;
+
+    if (!name || !value_str)
+        return -1;
+
+    /* Parse the value - support octal (0-prefix), hex (0x-prefix), decimal */
+    char *endp;
+    unsigned long val;
+    if (value_str[0] == '0' && (value_str[1] == 'x' || value_str[1] == 'X'))
+        val = strtoul(value_str, &endp, 16);
+    else if (value_str[0] == '0' && value_str[1] >= '0' && value_str[1] <= '7')
+        val = strtoul(value_str, &endp, 8);
+    else
+        val = strtoul(value_str, &endp, 10);
+
+    uint16_t word = (uint16_t)(val & 0xFFFF);
+
+    /* Registers scope */
+    if (ref == SCOPE_ID_REGISTERS) {
+        if (strcmp(name, "A") == 0) { gA = word; }
+        else if (strcmp(name, "B") == 0) { gB = word; }
+        else if (strcmp(name, "D") == 0) { gD = word; }
+        else if (strcmp(name, "T") == 0) { gT = word; }
+        else if (strcmp(name, "X") == 0) { gX = word; }
+        else if (strcmp(name, "L") == 0) { gL = word; }
+        else if (strcmp(name, "P") == 0) { gPC = word; }
+        else { return -1; }
+
+        /* Set the return value in octal */
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%06o", word);
+        server->current_command.context.set_variable.new_value = strdup(buf);
+        server->current_command.context.set_variable.type = strdup("integer");
+        return 0;
+    }
+
+    /* Locals scope - write to memory via B-register offset */
+    if (ref == SCOPE_ID_LOCALS && symbol_tables.debug_info) {
+        symbol_function_t *fn = symbols_find_function_at(symbol_tables.debug_info, gPC);
+        if (fn) {
+            int var_count;
+            symbol_variable_t *vars = symbols_get_variables(fn, &var_count);
+            for (int i = 0; i < var_count; i++) {
+                if (strcmp(vars[i].name, name) == 0) {
+                    uint16_t addr = gB + vars[i].offset;
+                    WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "%06o", word);
+                    server->current_command.context.set_variable.new_value = strdup(buf);
+                    server->current_command.context.set_variable.type = strdup(vars[i].type_name);
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+/// @brief DAP command to evaluate an expression
+/// @param server
+/// @return
+static int cmd_evaluate(DAPServer *server)
+{
+    const char *expr = server->current_command.context.evaluate.expression;
+    if (!expr)
+        return -1;
+
+    const char *err = NULL;
+    uint16_t val = expr_eval_value(expr, &err);
+
+    if (err) {
+        /* Return the error as the result string */
+        char buf[128];
+        snprintf(buf, sizeof(buf), "Error: %s", err);
+        server->current_command.context.evaluate.result = strdup(buf);
+        server->current_command.context.evaluate.type = strdup("error");
+        return 0;
+    }
+
+    /* Format result as both octal and decimal */
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%06o (%u)", val, val);
+    server->current_command.context.evaluate.result = strdup(buf);
+    server->current_command.context.evaluate.type = strdup("integer");
+    server->current_command.context.evaluate.memory_reference = val;
+    return 0;
+}
+
+/// @brief DAP command to set function breakpoints by name
+/// @param server
+/// @return
+static int cmd_set_function_breakpoints(DAPServer *server)
+{
+    int count = server->current_command.context.function_breakpoint.count;
+
+    /* Clear existing function breakpoints */
+    breakpoint_manager_clear();
+
+    /* Allocate result array */
+    DAPBreakpoint *results = calloc(count, sizeof(DAPBreakpoint));
+    server->current_command.context.function_breakpoint.breakpoints = results;
+    server->current_command.context.function_breakpoint.breakpoint_count = count;
+
+    for (int i = 0; i < count; i++) {
+        const char *fname = server->current_command.context.function_breakpoint.names[i];
+        results[i].id = i + 1;
+        results[i].verified = false;
+
+        if (!fname) continue;
+
+        /* Look up function name in debug_info */
+        if (symbol_tables.debug_info) {
+            for (int f = 0; f < symbol_tables.debug_info->function_count; f++) {
+                symbol_function_t *fn = &symbol_tables.debug_info->functions[f];
+                if (fn->name && strcmp(fn->name, fname) == 0) {
+                    uint16_t addr = fn->start_address;
+                    const char *cond = server->current_command.context.function_breakpoint.conditions ?
+                                       server->current_command.context.function_breakpoint.conditions[i] : NULL;
+                    const char *hit_cond = server->current_command.context.function_breakpoint.hit_conditions ?
+                                           server->current_command.context.function_breakpoint.hit_conditions[i] : NULL;
+                    breakpoint_manager_add(addr, BP_TYPE_FUNCTION, cond, hit_cond, NULL);
+                    results[i].verified = true;
+                    results[i].line = addr;
+                    break;
+                }
+            }
+        }
+
+        /* Also try symbol table label lookup */
+        if (!results[i].verified) {
+            symbol_table_t *tables[] = {
+                symbol_tables.symbol_table_stabs,
+                symbol_tables.symbol_table_map,
+                symbol_tables.symbol_table_aout
+            };
+            for (int t = 0; t < 3 && !results[i].verified; t++) {
+                if (!tables[t]) continue;
+                const symbol_entry_t *entry = symbols_lookup_by_name(tables[t], fname);
+                if (entry) {
+                    uint16_t addr = entry->address;
+                    const char *cond = server->current_command.context.function_breakpoint.conditions ?
+                                       server->current_command.context.function_breakpoint.conditions[i] : NULL;
+                    const char *hit_cond = server->current_command.context.function_breakpoint.hit_conditions ?
+                                           server->current_command.context.function_breakpoint.hit_conditions[i] : NULL;
+                    breakpoint_manager_add(addr, BP_TYPE_FUNCTION, cond, hit_cond, NULL);
+                    results[i].verified = true;
+                    results[i].line = addr;
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -3620,6 +3846,138 @@ static int cmd_disassemble(DAPServer *server)
     }
 }
 
+// Console output callback - intercepts terminal output and sends DAP output events
+static void debugger_console_output(Device *dev, char c)
+{
+    // Find capture entry for this device
+    for (int i = 0; i < console_capture_count; i++) {
+        if (console_captures[i].device == dev) {
+            // Build output event
+            char buf[2] = { c, '\0' };
+            char hex_byte[3];
+            snprintf(hex_byte, sizeof(hex_byte), "%02X", (unsigned char)c);
+
+            // Build data field with terminal address and hex
+            char data_str[64];
+            snprintf(data_str, sizeof(data_str), "{\"terminal\":%d,\"hex\":\"%s\"}",
+                     console_captures[i].terminal_address, hex_byte);
+
+            cJSON *body = cJSON_CreateObject();
+            cJSON_AddStringToObject(body, "category", "stdout");
+            // Replace non-printable chars with '.' in the text output
+            if (c >= 32 && c < 127) {
+                cJSON_AddStringToObject(body, "output", buf);
+            } else if (c == '\r' || c == '\n' || c == '\t') {
+                cJSON_AddStringToObject(body, "output", buf);
+            } else {
+                cJSON_AddStringToObject(body, "output", ".");
+            }
+            cJSON_AddStringToObject(body, "data", data_str);
+            dap_server_send_event(console_captures[i].server, "output", body);
+            cJSON_Delete(body);
+
+            // Also call original callback so terminal still works normally
+            if (console_captures[i].original_output) {
+                console_captures[i].original_output(dev, c);
+            }
+            return;
+        }
+    }
+}
+
+// DAP command callback: enable/disable console capture on a terminal
+static int cmd_console_enable(DAPServer *server)
+{
+    if (!server) return -1;
+
+    ConsoleEnableContext *ctx = &server->current_command.context.console_enable;
+    int addr = ctx->terminal;
+    bool enable = ctx->enable;
+
+    if (enable) {
+        // Check if already capturing this terminal
+        for (int i = 0; i < console_capture_count; i++) {
+            if (console_captures[i].terminal_address == addr) {
+                return 0; // Already enabled
+            }
+        }
+
+        if (console_capture_count >= MAX_CONSOLE_CAPTURES) {
+            return -1;
+        }
+
+        Device *dev = DeviceManager_GetDeviceByAddress(addr);
+        if (!dev) {
+            return -1;
+        }
+
+        // Save original callback and install our hook
+        ConsoleCapture *cap = &console_captures[console_capture_count++];
+        cap->device = dev;
+        cap->terminal_address = addr;
+        cap->original_output = dev->charCallbacks.outputFunc;
+        cap->server = server;
+
+        Device_SetCharacterOutput(dev, debugger_console_output);
+    } else {
+        // Disable: restore original callback
+        for (int i = 0; i < console_capture_count; i++) {
+            if (console_captures[i].terminal_address == addr) {
+                Device_SetCharacterOutput(console_captures[i].device,
+                                          console_captures[i].original_output);
+                // Remove from array by shifting
+                for (int j = i; j < console_capture_count - 1; j++) {
+                    console_captures[j] = console_captures[j + 1];
+                }
+                console_capture_count--;
+                break;
+            }
+        }
+    }
+
+    return 0;
+}
+
+// DAP command callback: write input to a terminal
+static int cmd_console_write(DAPServer *server)
+{
+    if (!server) return -1;
+
+    ConsoleWriteContext *ctx = &server->current_command.context.console_write;
+    int addr = ctx->terminal;
+
+    Device *dev = DeviceManager_GetDeviceByAddress(addr);
+    if (!dev) {
+        return -1;
+    }
+
+    if (ctx->hex && ctx->input) {
+        // Hex mode: parse pairs of hex digits
+        const char *p = ctx->input;
+        while (*p) {
+            if (*(p+1)) {
+                char hex[3] = { p[0], p[1], '\0' };
+                unsigned int byte_val;
+                if (sscanf(hex, "%02x", &byte_val) == 1) {
+                    Terminal_QueueKeyCode(dev, (uint8_t)byte_val);
+                }
+                p += 2;
+            } else {
+                break;
+            }
+        }
+    } else if (ctx->input) {
+        // Text mode: send each character
+        const char *p = ctx->input;
+        while (*p) {
+            Terminal_QueueKeyCode(dev, (uint8_t)*p);
+            p++;
+        }
+    }
+
+    return 0;
+}
+
 /// @brief Initialize the DAP server
 /// @param port The port to listen on
 /// @return 0 if successful, -1 if error
@@ -3696,6 +4054,12 @@ int ndx_server_init(int port)
     // Register set variable callback
     dap_server_register_command_callback(server, DAP_CMD_SET_VARIABLE, cmd_set_variable);
 
+    // Expression evaluation
+    dap_server_register_command_callback(server, DAP_CMD_EVALUATE, cmd_evaluate);
+
+    // Function breakpoints
+    dap_server_register_command_callback(server, DAP_CMD_SET_FUNCTION_BREAKPOINTS, cmd_set_function_breakpoints);
+
     // Register read memory callback
     dap_server_register_command_callback(server, DAP_CMD_READ_MEMORY, cmd_read_memory);
 
@@ -3707,6 +4071,10 @@ int ndx_server_init(int port)
 
     // Register source callback
     dap_server_register_command_callback(server, DAP_CMD_SOURCE, cmd_source);
+
+    // Console I/O
+    dap_server_register_command_callback(server, DAP_CMD_CONSOLE_ENABLE, cmd_console_enable);
+    dap_server_register_command_callback(server, DAP_CMD_CONSOLE_WRITE, cmd_console_write);
 
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
@@ -3826,6 +4194,8 @@ static int ndx_server_init_wasm(void)
     dap_server_register_command_callback(server, DAP_CMD_VARIABLES, cmd_variables);
     dap_server_register_command_callback(server, DAP_CMD_DISASSEMBLE, cmd_disassemble);
     dap_server_register_command_callback(server, DAP_CMD_READ_MEMORY, cmd_read_memory);
+    dap_server_register_command_callback(server, DAP_CMD_CONSOLE_ENABLE, cmd_console_enable);
+    dap_server_register_command_callback(server, DAP_CMD_CONSOLE_WRITE, cmd_console_write);
 
     printf("WASM DAP debugger initialized (in-process, no transport)\n");
     return 0;
@@ -4140,9 +4510,12 @@ int set_default_dap_capabilities(DAPServer *server)
                                        DAP_CAP_INSTRUCTION_BREAKPOINTS, true,  // Assembly breakpoints
                                        DAP_CAP_DATA_BREAKPOINTS, true,         // Memory watchpoints
 
-                                       // Variable inspection (not yet implemented)
-                                       // DAP_CAP_EVALUATE_FOR_HOVERS - not implemented
-                                       // DAP_CAP_SET_VARIABLE - not implemented
+                                       // Expression evaluation and variable modification
+                                       DAP_CAP_EVALUATE_FOR_HOVERS, true,
+                                       DAP_CAP_SET_VARIABLE, true,
+                                       DAP_CAP_CONDITIONAL_BREAKPOINTS, true,
+                                       DAP_CAP_HIT_CONDITIONAL_BREAKPOINTS, true,
+                                       DAP_CAP_FUNCTION_BREAKPOINTS, true,
 
                                        DAP_CAP_COUNT // End of list
     );
