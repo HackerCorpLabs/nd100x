@@ -319,6 +319,7 @@
         }
         term.refresh(0, term.rows - 1);
         if (sizeDisplay) {
+            sizeDisplay.style.display = '';
             sizeDisplay.textContent = bestSize + 'px';
         }
     }
@@ -331,7 +332,7 @@
         term.resize(TARGET_COLS, TARGET_ROWS);
         term.refresh(0, term.rows - 1);
         if (sizeDisplay) {
-            sizeDisplay.textContent = 'bitmap';
+            sizeDisplay.style.display = 'none';
         }
     }
     // ---- Keyboard handler factory ----
@@ -398,7 +399,25 @@
         }
         return copy;
     }
+    // ---- Emulator type label ----
+    function getEmulatorTypeLabel() {
+        if (!isRetroTermBackend)
+            return '';
+        var saved = 'tdv2200';
+        try {
+            saved = localStorage.getItem('nd100x-emulator-type') || 'tdv2200';
+        }
+        catch (e) { }
+        if (saved === 'tdv2200')
+            return 'TDV 2200';
+        if (saved === 'tdv2215')
+            return 'TDV 2215';
+        if (saved === 'vt100')
+            return 'VT100';
+        return '';
+    }
     // ---- Exports ----
+    window.getEmulatorTypeLabel = getEmulatorTypeLabel;
     window.terminalColorThemes = colorThemes;
     window.createScaledTerminal = createScaledTerminal;
     window.fitTerminalScaled = fitTerminalScaled;

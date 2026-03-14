@@ -63,20 +63,30 @@ function createFloatingTerminalWindow(identCode, name) {
     var header = document.createElement('div');
     header.className = 'glass-window-header';
     header.id = winId + '-header';
+    var emuLabel = window.getEmulatorTypeLabel();
+    var titleText = 'Terminal ' + name + (emuLabel ? ' (' + emuLabel + ')' : '');
     header.innerHTML =
-        '<span class="glass-window-title">Terminal ' + name + '</span>' +
+        '<span class="glass-window-title" id="' + winId + '-title">' + titleText + '</span>' +
             '<div class="float-term-header-controls">' +
             '<span class="term-font-size-badge" id="' + winId + '-fontsize">16px</span>' +
             window.buildFontSelectHTML(identCode) +
             window.buildColorSelectHTML(identCode) +
-            '<button class="glass-window-popout" id="' + winId + '-popout" title="Pop out to separate window">' +
+            '<button class="terminal-window-btn float-vk-toggle" id="float-term-' + identCode + '-vk" title="Virtual Keyboard" style="display:none">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<rect x="2" y="4" width="20" height="16" rx="2"/>' +
+            '<line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/>' +
+            '<line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/>' +
+            '<line x1="8" y1="16" x2="16" y2="16"/>' +
+            '</svg>' +
+            '</button>' +
+            '<button class="terminal-window-btn" id="' + winId + '-popout" title="Pop out to separate window">' +
             '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
             '<polyline points="15,3 21,3 21,9"/>' +
             '<line x1="21" y1="3" x2="14" y2="10"/>' +
             '<path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>' +
             '</svg>' +
             '</button>' +
-            '<button class="glass-window-close" id="' + winId + '-close">' +
+            '<button class="terminal-window-btn terminal-window-btn-close" id="' + winId + '-close">' +
             '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
             '<line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>' +
             '</button>' +
@@ -97,9 +107,16 @@ function createFloatingTerminalWindow(identCode, name) {
     container.className = 'terminal-container active';
     body.appendChild(container);
     win.appendChild(header);
-    win.appendChild(resizeHandle);
     win.appendChild(body);
+    win.appendChild(resizeHandle);
     document.body.appendChild(win);
+    // VK toggle button (floating window)
+    var floatVkBtn = document.getElementById('float-term-' + identCode + '-vk');
+    if (floatVkBtn) {
+        floatVkBtn.addEventListener('click', function () {
+            toggleTerminalVK(identCode);
+        });
+    }
     // Pop-out button
     document.getElementById(winId + '-popout').addEventListener('click', function () {
         if (typeof window.popOutTerminal === 'function') {
@@ -130,6 +147,10 @@ function createFloatingTerminalWindow(identCode, name) {
         window.saveTerminalSettings();
         applySettingsToTerminal(identCode);
     });
+    // Hide font dropdown in RetroTerm mode (bitmap fonts only)
+    if (isRetroTermBackend) {
+        fontSel.style.display = 'none';
+    }
     // Click to focus
     win.addEventListener('mousedown', function () {
         activeTerminalId = identCode;
@@ -183,7 +204,9 @@ function createTerminal(identCode, name) {
     else {
         container = document.createElement('div');
         container.id = 'terminal-container-' + identCode;
-        container.className = 'terminal-container';
+        // Start first container as active so it has layout dimensions when the
+        // terminal renderer initialises (bitmap font canvas sizing needs non-zero size).
+        container.className = 'terminal-container' + (identCode === 1 ? ' active' : '');
         var tabs = document.querySelector('.terminal-tabs');
         if (tabs.nextSibling) {
             tabs.parentNode.insertBefore(container, tabs.nextSibling);
@@ -225,6 +248,8 @@ function createTerminal(identCode, name) {
         container: container,
         resizeTerminal: resizeTerminal
     };
+    // Create per-terminal VK (RetroTerm only)
+    createTerminalVK(identCode, container, term);
     console.log('Terminal ' + identCode + ' (' + name + ') created' + (useFloat ? ' [floating]' : ' [tab]'));
     terminalContainers[identCode] = container;
     // Keyboard handler using core factory
@@ -255,6 +280,7 @@ function initializeTerminals() {
         }
         switchTerminal(1);
         updateTerminalSubmenu();
+        updateConsoleTitle();
         return;
     }
     // Remove tab-based containers
@@ -307,6 +333,8 @@ function initializeTerminals() {
     }
     switchTerminal(1);
     updateTerminalSubmenu();
+    updateConsoleTitle();
+    fitTerminalWindowHeight();
 }
 // ---- Terminal submenu ----
 function updateTerminalSubmenu() {
@@ -488,6 +516,8 @@ function sendKey(keyCode) {
         return false;
     }
 }
+// ---- Backend detection ----
+var isRetroTermBackend = (typeof TERMINAL_BACKEND !== 'undefined' && TERMINAL_BACKEND === 'retroterm');
 // ---- Apply settings ----
 function applySettingsToTerminal(identCode) {
     // If popped out, broadcast settings to pop-out window
@@ -502,7 +532,10 @@ function applySettingsToTerminal(identCode) {
         return;
     var settings = window.getTerminalSettings(identCode);
     var colorThemes = window.terminalColorThemes;
-    t.term.options.fontFamily = settings.fontFamily;
+    // Skip font-related assignments for RetroTerm (bitmap fonts only)
+    if (!isRetroTermBackend) {
+        t.term.options.fontFamily = settings.fontFamily;
+    }
     t.term.options.theme = Object.assign({}, colorThemes[settings.colorTheme], { background: '#0a0e1c' });
     t.term.refresh(0, t.term.rows - 1);
     setTimeout(function () {
@@ -515,18 +548,171 @@ function applyAllTerminalSettings() {
         applySettingsToTerminal(parseInt(identCode));
     });
 }
+// ---- Per-terminal VirtualKeyboard integration (RetroTerm only) ----
+/** Auto-size console window height to fit canvas content */
+function fitTerminalWindowHeight() {
+    var win = document.getElementById('terminal-window');
+    if (!win)
+        return;
+    var header = win.querySelector('.terminal-window-header');
+    var body = win.querySelector('.terminal-window-body');
+    if (!header || !body)
+        return;
+    var canvas = body.querySelector('canvas.retroterm-canvas');
+    if (!canvas)
+        return;
+    requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+            var canvasH = canvas.getBoundingClientRect().height;
+            var headerH = header.getBoundingClientRect().height;
+            var tabsEl = body.querySelector('.terminal-tabs');
+            var tabsH = tabsEl ? tabsEl.getBoundingClientRect().height : 0;
+            // Account for VK if visible
+            var vkH = 0;
+            var activeContainer = body.querySelector('.terminal-container.active');
+            if (activeContainer) {
+                var vkEl = activeContainer.querySelector('.terminal-vk-container');
+                if (vkEl && vkEl.style.display !== 'none') {
+                    vkH = vkEl.getBoundingClientRect().height;
+                }
+            }
+            var padding = 20; // resize handle + borders
+            win.style.height = Math.ceil(headerH + tabsH + canvasH + vkH + padding) + 'px';
+        });
+    });
+}
+/** Create VK container and instance for a single terminal */
+function createTerminalVK(identCode, container, term) {
+    if (!isRetroTermBackend || typeof RetroTerm === 'undefined')
+        return;
+    if (typeof RetroTerm.VirtualKeyboard === 'undefined')
+        return;
+    var vkContainer = document.createElement('div');
+    vkContainer.className = 'terminal-vk-container';
+    vkContainer.style.display = 'none';
+    container.appendChild(vkContainer);
+    try {
+        var vk = new RetroTerm.VirtualKeyboard(vkContainer);
+        var name = terminalDisplayNames[identCode] || identCode.toString();
+        vk.attachTerminal(term, 'Terminal ' + name);
+        terminals[identCode].vk = vk;
+        terminals[identCode].vkContainer = vkContainer;
+        // Show VK toggle button for console window
+        if (identCode === 1 || !isFloatMode()) {
+            var vkBtn = document.getElementById('term-vk-toggle');
+            if (vkBtn)
+                vkBtn.style.display = '';
+        }
+        // Show VK toggle button for floating windows
+        var floatVkBtn = document.getElementById('float-term-' + identCode + '-vk');
+        if (floatVkBtn)
+            floatVkBtn.style.display = '';
+    }
+    catch (e) {
+        console.warn('VirtualKeyboard init failed for terminal ' + identCode + ':', e);
+        vkContainer.remove();
+    }
+}
+/** Toggle VK visibility for a terminal */
+function toggleTerminalVK(identCode) {
+    var t = terminals[identCode];
+    if (!t || !t.vkContainer)
+        return;
+    var showing = t.vkContainer.style.display === 'none';
+    t.vkContainer.style.display = showing ? '' : 'none';
+    // Adjust window height to accommodate VK
+    fitTerminalWindowHeight();
+}
+// ---- Update console title based on emulator type ----
+function updateConsoleTitle() {
+    var titleEl = document.getElementById('terminal-window-title');
+    if (!titleEl)
+        return;
+    var emuLabel = window.getEmulatorTypeLabel();
+    if (emuLabel) {
+        titleEl.textContent = 'Console (' + emuLabel + ') - Push ESC to wake up SINTRAN';
+    }
+    // Update floating terminal titles too
+    Object.keys(floatingTerminalWindows).forEach(function (id) {
+        var identCode = parseInt(id);
+        var floatTitleEl = document.getElementById('float-term-' + identCode + '-title');
+        if (floatTitleEl) {
+            var name = terminalDisplayNames[identCode] || identCode.toString();
+            floatTitleEl.textContent = 'Terminal ' + name + (emuLabel ? ' (' + emuLabel + ')' : '');
+        }
+    });
+}
+function toggleVirtualKeyboard() {
+    toggleTerminalVK(activeTerminalId);
+}
+// ---- Backend switching ----
+function switchTerminalBackend(backend) {
+    // Switching backend requires a full page reload which destroys all emulator state.
+    // If the emulator is running, warn the user.
+    if (typeof hasEverStartedEmulation !== 'undefined' && hasEverStartedEmulation) {
+        if (!confirm('Switching terminal backend requires a page reload.\nThe emulator will stop and you will need to reboot.')) {
+            // Revert the dropdown to current value
+            var sel = document.getElementById('config-terminal-backend');
+            if (sel)
+                sel.value = isRetroTermBackend ? 'retroterm' : 'xterm';
+            return;
+        }
+    }
+    localStorage.setItem('nd100x-terminal-backend', backend);
+    location.reload();
+}
 // ---- Initialize dropdowns ----
 function initializeDropdowns() {
     var settings = window.getTerminalSettings(activeTerminalId);
     var fontSelect = document.getElementById('font-family-select');
     var colorSelect = document.getElementById('color-theme-select');
-    if (fontSelect)
-        fontSelect.value = settings.fontFamily;
+    if (fontSelect) {
+        if (isRetroTermBackend) {
+            // Hide font dropdown when RetroTerm is active (bitmap fonts only)
+            fontSelect.style.display = 'none';
+        }
+        else {
+            fontSelect.value = settings.fontFamily;
+        }
+    }
     if (colorSelect)
         colorSelect.value = settings.colorTheme;
     var floatToggle = document.getElementById('config-float-terminals');
     if (floatToggle) {
         floatToggle.checked = isFloatMode();
+    }
+    // Backend config dropdown
+    var backendSelect = document.getElementById('config-terminal-backend');
+    if (backendSelect) {
+        backendSelect.value = isRetroTermBackend ? 'retroterm' : 'xterm';
+        backendSelect.addEventListener('change', function () {
+            switchTerminalBackend(backendSelect.value);
+        });
+    }
+    // Emulator type dropdown (RetroTerm only)
+    var emuTypeRow = document.getElementById('config-emulator-type-row');
+    var emuTypeSelect = document.getElementById('config-emulator-type');
+    if (emuTypeRow && emuTypeSelect) {
+        if (isRetroTermBackend) {
+            emuTypeRow.style.display = '';
+            var savedType = 'tdv2200';
+            try {
+                savedType = localStorage.getItem('nd100x-emulator-type') || 'tdv2200';
+            }
+            catch (e) { }
+            emuTypeSelect.value = savedType;
+            emuTypeSelect.addEventListener('change', function () {
+                localStorage.setItem('nd100x-emulator-type', emuTypeSelect.value);
+                location.reload();
+            });
+        }
+    }
+    // VK toggle button (console window)
+    var vkBtn = document.getElementById('term-vk-toggle');
+    if (vkBtn) {
+        vkBtn.addEventListener('click', function () {
+            toggleTerminalVK(activeTerminalId);
+        });
     }
 }
 if (document.readyState === 'loading') {
@@ -539,3 +725,5 @@ else {
 window.activeTerminalId = activeTerminalId;
 window.terminalDisplayNames = terminalDisplayNames;
 window.applySettingsToTerminal = applySettingsToTerminal;
+window.toggleVirtualKeyboard = toggleVirtualKeyboard;
+window.switchTerminalBackend = switchTerminalBackend;
