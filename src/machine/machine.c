@@ -80,14 +80,14 @@ static void cleanup_drive_arrays() {
 }
 
 void
-machine_init (bool debuggerEnabled)
+machine_init (bool debuggerEnabled, int debuggerPort)
 {
 
     // Initialize drive arrays
     init_drive_arrays();
 
     // Initialize the CPU
-    cpu_init(debuggerEnabled);
+    cpu_init(debuggerEnabled, debuggerPort);
 
     // Initialize the CPU debugger (if enabled, starts the debugger thread)
     init_cpu_debugger();

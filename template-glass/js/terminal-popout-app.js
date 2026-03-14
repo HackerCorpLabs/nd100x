@@ -80,11 +80,18 @@
     // Open BroadcastChannel
     var channelName = 'nd100x-term-' + identCode;
     var channel = new BroadcastChannel(channelName);
+    // Hide font select for RetroTerm (bitmap fonts only)
+    var isRetroTerm = (typeof TERMINAL_BACKEND !== 'undefined' && TERMINAL_BACKEND === 'retroterm');
+    if (isRetroTerm) {
+        fontSelect.style.display = 'none';
+    }
     // Apply font/color locally and save + notify main tab
     function applySettings(font, color) {
         fontFamily = font;
         colorTheme = color;
-        term.options.fontFamily = font;
+        if (!isRetroTerm) {
+            term.options.fontFamily = font;
+        }
         term.options.theme = window.getOpaqueTheme(color);
         setTimeout(resizeTerminal, 50);
         // Save to localStorage
@@ -168,7 +175,9 @@
                 if (msg.fontFamily) {
                     fontFamily = msg.fontFamily;
                     fontSelect.value = msg.fontFamily;
-                    term.options.fontFamily = msg.fontFamily;
+                    if (!isRetroTerm) {
+                        term.options.fontFamily = msg.fontFamily;
+                    }
                 }
                 if (msg.colorTheme) {
                     colorTheme = msg.colorTheme;
@@ -190,6 +199,26 @@
                 break;
         }
     };
+    // Virtual keyboard for RetroTerm popouts
+    if (isRetroTerm && typeof RetroTerm.VirtualKeyboard !== 'undefined') {
+        var vkContainer = document.getElementById('popout-vk-container');
+        if (vkContainer) {
+            try {
+                var vk = new RetroTerm.VirtualKeyboard(vkContainer);
+                vk.attachTerminal(term, 'Terminal ' + displayName);
+                var vkBtn = document.getElementById('popout-vk-toggle');
+                if (vkBtn) {
+                    vkBtn.style.display = '';
+                    vkBtn.addEventListener('click', function () {
+                        vkContainer.style.display = vkContainer.style.display === 'none' ? '' : 'none';
+                    });
+                }
+            }
+            catch (e) {
+                console.warn('VirtualKeyboard init failed:', e);
+            }
+        }
+    }
     // Keyboard input via core factory - sends to main tab via channel
     window.setupTerminalKeyHandler(term, function (keyCode) {
         channel.postMessage({ type: 'key', keyCode: keyCode });
