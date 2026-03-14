@@ -265,6 +265,18 @@ function createTerminal(identCode, name) {
         return identCode === activeTerminalId;
     });
     setTimeout(resizeTerminal, 0);
+    // Fit floating window height to terminal content (avoid empty space below canvas)
+    if (useFloat) {
+        setTimeout(function () {
+            var floatWin = floatingTerminalWindows[identCode];
+            if (floatWin && floatWin.style.display !== 'none') {
+                var w = floatWin.getBoundingClientRect().width;
+                if (w > 0) {
+                    floatWin.style.height = computeTerminalHeight(identCode, w) + 'px';
+                }
+            }
+        }, 100);
+    }
     // Auto pop-out floating terminals if enabled (skip console terminal)
     if (useFloat && isAutoPopout() && identCode !== 1) {
         setTimeout(function () {
@@ -407,6 +419,11 @@ function toggleFloatingTerminal(identCode) {
             windowManager.focus(winId);
             windowManager.updateTaskbar();
             if (terminals[identCode]) {
+                // Compute correct height from width to eliminate empty space below terminal
+                var w = win.getBoundingClientRect().width;
+                if (w > 0) {
+                    win.style.height = computeTerminalHeight(identCode, w) + 'px';
+                }
                 terminals[identCode].term.focus();
                 terminals[identCode].resizeTerminal();
             }
