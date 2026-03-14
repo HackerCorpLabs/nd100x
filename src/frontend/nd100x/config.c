@@ -38,7 +38,7 @@ static struct option long_options[] = {
     {"verbose", no_argument,       0, 'v'},
     {"help",    no_argument,       0, 'h'},
     {"debugger", no_argument,      0, 'd'},
-    {"port",    no_argument,       0, 'p'},
+    {"port",    required_argument, 0, 'p'},
     {"smd-debug", no_argument,    0, 'S'},
     {"trace",   no_argument,       0, 't'},
     {"max-instr", required_argument, 0, 'n'},
@@ -114,6 +114,14 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 
             case 'd':
                 config->debuggerEnabled = true;
+                break;
+
+            case 'p':
+                config->debuggerPort = (int)strtol(optarg, &endptr, 0);
+                if (*endptr != '\0' || config->debuggerPort <= 0 || config->debuggerPort > 65535) {
+                    fprintf(stderr, "Invalid port number: %s\n", optarg);
+                    return false;
+                }
                 break;
 
             case 'v':

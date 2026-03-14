@@ -23,6 +23,7 @@
 
 #include "cpu_types.h"
 #include "cpu_protos.h"
+#include "expr_eval.h"
 
 
 BreakpointManager *mgr;
@@ -239,8 +240,17 @@ int check_for_breakpoint(void)
             BreakpointEntry* bp = hits[i];
             //printf("[CPU] Hit breakpoint at %06o type=%d hitCount=%d\n", pc, bp->type, bp->hitCount);
     
-            // Evaluate condition expression if applicable
-            bool condition_ok = true; // TODO: implement evaluator
+            // Evaluate condition expression
+            bool condition_ok = true;
+            if (bp->condition) {
+                const char *err = NULL;
+                condition_ok = expr_eval_condition(bp->condition, &err);
+                if (err) {
+                    printf("[BREAKPOINT] Condition error at %06o: %s (expr: %s)\n",
+                           pc, err, bp->condition);
+                    condition_ok = false;
+                }
+            }
             bool hit_ok = true;
     
             if (bp->hitCondition) {
@@ -369,5 +379,86 @@ int watchpoint_get(int index, uint16_t *out_addr, int *out_type)
     if (!watchpoints[index].active) return -1;
     *out_addr = watchpoints[index].address;
     *out_type = (int)watchpoints[index].type;
+    return 0;
+}
+
+//********** Physical Watchpoints **********
+
+static PhysicalWatchpointEntry phys_watchpoints[MAX_WATCHPOINTS];
+static int phys_watchpoint_count = 0;
+
+/// @brief Add a physical memory watchpoint
+/// @param address Physical memory address to watch
+/// @param type WATCH_READ, WATCH_WRITE, or WATCH_READWRITE
+/// @return 0 on success, -1 if full
+int phys_watchpoint_add(uint32_t address, WatchpointType type)
+{
+    for (int i = 0; i < phys_watchpoint_count; i++) {
+        if (phys_watchpoints[i].active && phys_watchpoints[i].address == address) {
+            phys_watchpoints[i].type = type;
+            return 0;
+        }
+    }
+    if (phys_watchpoint_count >= MAX_WATCHPOINTS) return -1;
+
+    phys_watchpoints[phys_watchpoint_count].address = address;
+    phys_watchpoints[phys_watchpoint_count].type = type;
+    phys_watchpoints[phys_watchpoint_count].active = true;
+    phys_watchpoint_count++;
+    return 0;
+}
+
+/// @brief Remove physical watchpoint at address
+void phys_watchpoint_remove(uint32_t address)
+{
+    for (int i = 0; i < phys_watchpoint_count; i++) {
+        if (phys_watchpoints[i].active && phys_watchpoints[i].address == address) {
+            phys_watchpoints[i] = phys_watchpoints[phys_watchpoint_count - 1];
+            phys_watchpoints[phys_watchpoint_count - 1].active = false;
+            phys_watchpoint_count--;
+            return;
+        }
+    }
+}
+
+/// @brief Check if a physical memory access hits a watchpoint
+/// @param address Physical memory address being accessed
+/// @param isWrite true if write, false if read
+/// @return 1 if watchpoint hit, 0 otherwise
+int phys_watchpoint_check(uint32_t address, bool isWrite)
+{
+    for (int i = 0; i < phys_watchpoint_count; i++) {
+        if (!phys_watchpoints[i].active) continue;
+        if (phys_watchpoints[i].address != address) continue;
+        WatchpointType t = phys_watchpoints[i].type;
+        if (t == WATCH_READWRITE) return 1;
+        if (isWrite && (t == WATCH_WRITE)) return 1;
+        if (!isWrite && (t == WATCH_READ)) return 1;
+    }
+    return 0;
+}
+
+/// @brief Clear all physical watchpoints
+void phys_watchpoint_clear(void)
+{
+    for (int i = 0; i < MAX_WATCHPOINTS; i++) {
+        phys_watchpoints[i].active = false;
+    }
+    phys_watchpoint_count = 0;
+}
+
+/// @brief Get number of active physical watchpoints
+int phys_watchpoint_get_count(void)
+{
+    return phys_watchpoint_count;
+}
+
+/// @brief Get physical watchpoint at index
+int phys_watchpoint_get(int index, uint32_t *out_addr, int *out_type)
+{
+    if (index < 0 || index >= phys_watchpoint_count) return -1;
+    if (!phys_watchpoints[index].active) return -1;
+    *out_addr = phys_watchpoints[index].address;
+    *out_type = (int)phys_watchpoints[index].type;
     return 0;
 }
