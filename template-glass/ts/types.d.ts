@@ -40,6 +40,21 @@ declare var CanvasAddon: {
   CanvasAddon: new () => any;
 } | undefined;
 
+// ---- RetroTerm (IIFE bundle, global RetroTerm) ----
+
+declare var RetroTerm: {
+  Terminal: new (opts?: any) => Terminal;
+  FitAddon: new () => {
+    activate(terminal: Terminal): void;
+    fit(): void;
+    proposeDimensions?(): { cols: number; rows: number } | undefined;
+    dispose(): void;
+  };
+  VirtualKeyboard: new (container: HTMLElement) => any;
+} | undefined;
+
+declare var TERMINAL_BACKEND: string;
+
 // ---- Emu proxy (emu-proxy.js / emu-proxy-worker.js) ----
 
 interface EmuProxy {
@@ -67,6 +82,8 @@ interface TerminalEntry {
   fitAddon: any;
   container: HTMLElement;
   resizeTerminal: () => void;
+  vk?: any;
+  vkContainer?: HTMLElement;
 }
 
 interface ColorTheme {
@@ -132,12 +149,19 @@ interface Window {
   buildFontSelectHTML: (identCode: number) => string;
   buildColorSelectHTML: (identCode: number) => string;
   getOpaqueTheme: (themeName: string) => ColorTheme;
+  getEmulatorTypeLabel: () => string;
 
   // terminal-manager.ts globals
   activeTerminalId: number;
   terminalDisplayNames: { [identCode: number]: string };
   terminalSettings: { [identCode: number]: TerminalSettings };
   applySettingsToTerminal: (identCode: number) => void;
+
+  // terminal-manager.ts RetroTerm globals
+  virtualKeyboard: any;
+  toggleVirtualKeyboard: () => void;
+  switchTerminalBackend: (backend: string) => void;
+  fitTerminalRetroTerm: (term: Terminal, fitAddon: any, sizeDisplay?: HTMLElement | null) => void;
 
   // terminal-bridge.ts globals
   popOutTerminal: (identCode: number) => void;
@@ -146,4 +170,6 @@ interface Window {
   bufferPopoutOutput: (identCode: number, charCode: number) => void;
   broadcastThemeChange: (themeName: string) => void;
   broadcastSettingsChange: (identCode: number) => void;
+
+  _uiZoom: number;
 }
