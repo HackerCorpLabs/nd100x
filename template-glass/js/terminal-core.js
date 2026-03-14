@@ -106,9 +106,12 @@
         _measureSpan.style.fontSize = fontSize + 'px';
         return _measureSpan.getBoundingClientRect().height;
     }
+    // ---- Backend detection ----
+    var isRetroTermBackend = (typeof TERMINAL_BACKEND !== 'undefined' && TERMINAL_BACKEND === 'retroterm');
     // ---- Terminal factory ----
     /**
-     * Create an xterm.js Terminal with FitAddon, CanvasAddon, and auto font-scaling.
+     * Create a Terminal with FitAddon and auto font-scaling.
+     * Backend-aware: uses xterm.js or RetroTerm depending on TERMINAL_BACKEND.
      *
      * @param container   DOM element to host the terminal
      * @param opts        options
@@ -119,7 +122,42 @@
         var fontFamily = opts.fontFamily || 'monospace';
         var theme = colorThemes[opts.colorTheme] || colorThemes.green;
         var sizeDisplay = opts.sizeDisplay || null;
-        var term = new Terminal({
+        var term;
+        var fitAddon;
+        if (isRetroTermBackend && typeof RetroTerm !== 'undefined') {
+            // RetroTerm path
+            var emulatorType = 'tdv2200';
+            try {
+                emulatorType = localStorage.getItem('nd100x-emulator-type') || 'tdv2200';
+            }
+            catch (e) { }
+            term = new RetroTerm.Terminal({
+                cursorBlink: true,
+                rows: TARGET_ROWS,
+                cols: TARGET_COLS,
+                theme: theme,
+                emulatorType: emulatorType
+            });
+            fitAddon = new RetroTerm.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(container);
+            function resizeRetro() {
+                fitTerminalRetroTerm(term, fitAddon, sizeDisplay);
+            }
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    resizeRetro();
+                });
+            });
+            var observeTarget = opts.observeResize || null;
+            if (observeTarget) {
+                var observer = new ResizeObserver(function () { resizeRetro(); });
+                observer.observe(observeTarget);
+            }
+            return { term: term, fitAddon: fitAddon, resizeTerminal: resizeRetro };
+        }
+        // xterm.js path (default)
+        term = new Terminal({
             cursorBlink: true,
             fontSize: 16,
             fontFamily: fontFamily,
@@ -127,7 +165,7 @@
             cols: TARGET_COLS,
             theme: theme
         });
-        var fitAddon = new FitAddon.FitAddon();
+        fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
         // Canvas renderer: precise character positioning (no DOM cell gaps at large fonts)
         if (typeof CanvasAddon !== 'undefined' && CanvasAddon.CanvasAddon) {
@@ -144,10 +182,10 @@
         // Defer initial font scaling so xterm has rendered cell metrics
         setTimeout(resizeTerminal, 50);
         // Observe container or parent for size changes
-        var observeTarget = opts.observeResize || null;
-        if (observeTarget) {
-            var observer = new ResizeObserver(function () { resizeTerminal(); });
-            observer.observe(observeTarget);
+        var observeXterm = opts.observeResize || null;
+        if (observeXterm) {
+            var obs = new ResizeObserver(function () { resizeTerminal(); });
+            obs.observe(observeXterm);
         }
         return { term: term, fitAddon: fitAddon, resizeTerminal: resizeTerminal };
     }
@@ -284,6 +322,18 @@
             sizeDisplay.textContent = bestSize + 'px';
         }
     }
+    // ---- RetroTerm fit (bitmap fonts — no font scaling needed) ----
+    function fitTerminalRetroTerm(term, fitAddon, sizeDisplay) {
+        // For bitmap-font terminals, keep fixed 80x24 dimensions.
+        // The host system (SINTRAN) expects exactly 80 cols and 24 rows.
+        // The CanvasRenderer's _fitCanvasToContainer scales the canvas CSS to
+        // fit the container while preserving aspect ratio.
+        term.resize(TARGET_COLS, TARGET_ROWS);
+        term.refresh(0, term.rows - 1);
+        if (sizeDisplay) {
+            sizeDisplay.textContent = 'bitmap';
+        }
+    }
     // ---- Keyboard handler factory ----
     /**
      * Set up RAW_MODE keyboard handling on a terminal.
@@ -307,11 +357,10 @@
                 sendCallback(13);
             }
             else {
-                sendCallback(charCode);
-            }
-            // Local echo for backspace
-            if (charCode === 8 || charCode === 127) {
-                term.write('\b \b');
+                // Send all bytes of the sequence (escape sequences are multi-byte)
+                for (var i = 0; i < key.length; i++) {
+                    sendCallback(key.charCodeAt(i));
+                }
             }
         });
     }
@@ -353,6 +402,7 @@
     window.terminalColorThemes = colorThemes;
     window.createScaledTerminal = createScaledTerminal;
     window.fitTerminalScaled = fitTerminalScaled;
+    window.fitTerminalRetroTerm = fitTerminalRetroTerm;
     window.terminalFontOptions = fontOptions;
     window.terminalColorOptions = colorOptions;
     window.getTerminalSettings = getTerminalSettings;
