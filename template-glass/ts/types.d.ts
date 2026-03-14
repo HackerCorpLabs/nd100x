@@ -81,6 +81,7 @@ interface TerminalEntry {
   term: Terminal;
   fitAddon: any;
   container: HTMLElement;
+  wrapper?: HTMLElement;
   resizeTerminal: () => void;
   vk?: any;
   vkContainer?: HTMLElement;
@@ -118,7 +119,7 @@ declare function handleTerminalOutput(identCode: number, charCode: number): numb
 // ---- Globals from toolbar.js ----
 
 declare function makeDraggable(win: HTMLElement, header: HTMLElement, storageKey: string): void;
-declare function makeResizable(win: HTMLElement, handle: HTMLElement, storageKey: string, minW: number, minH: number): void;
+declare function makeResizable(win: HTMLElement, handle: HTMLElement, storageKey: string, minW: number, minH: number, computeHeight?: (width: number) => number): void;
 declare function openWindow(winId: string): void;
 declare function closeWindow(winId: string): void;
 

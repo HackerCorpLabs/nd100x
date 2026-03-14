@@ -185,9 +185,10 @@ function createFloatingTerminalWindow(identCode: number, name: string): HTMLElem
     if (mainColor) mainColor.value = settings.colorTheme;
   });
 
-  // Make draggable and resizable
+  // Make draggable and resizable (aspect-ratio locked via computeHeight callback)
   makeDraggable(win, header, 'float-term-' + identCode + '-pos');
-  makeResizable(win, resizeHandle, 'float-term-' + identCode + '-size', 400, 250);
+  makeResizable(win, resizeHandle, 'float-term-' + identCode + '-size', 400, 250,
+    function(w: number) { return computeTerminalHeight(identCode, w); });
 
   // Register with window manager
   windowManager.register(winId, 'Term ' + name);
@@ -266,8 +267,14 @@ function createTerminal(identCode: number, name: string): void {
   var parentWin = useFloat ? floatingTerminalWindows[identCode]
                            : document.getElementById('terminal-window');
 
+  // Create a wrapper div inside the container for the canvas.
+  // VK sits as a sibling below the wrapper so flex layout gives it space.
+  var wrapper = document.createElement('div');
+  wrapper.className = 'terminal-canvas-wrapper';
+  container.appendChild(wrapper);
+
   // Create terminal using shared factory from terminal-core
-  var inst = window.createScaledTerminal(container, {
+  var inst = window.createScaledTerminal(wrapper, {
     fontFamily: settings.fontFamily,
     colorTheme: settings.colorTheme,
     sizeDisplay: fontSizeDisplay,
@@ -281,6 +288,7 @@ function createTerminal(identCode: number, name: string): void {
     term: term,
     fitAddon: fitAddon,
     container: container,
+    wrapper: wrapper,
     resizeTerminal: resizeTerminal
   };
 
@@ -634,28 +642,52 @@ function applyAllTerminalSettings(): void {
 
 // ---- Per-terminal VirtualKeyboard integration (RetroTerm only) ----
 
-/** Auto-size console window height to fit canvas content */
+/** Auto-size console window height to fit canvas content.
+ *  Computes canvas height from aspect ratio (not current DOM measurement)
+ *  to avoid measuring a canvas that flex layout has already squeezed. */
 function fitTerminalWindowHeight(): void {
   var win = document.getElementById('terminal-window');
   if (!win) return;
+  // Skip when maximized -- flex layout handles everything
+  if (win.classList.contains('maximized')) return;
   var header = win.querySelector('.terminal-window-header') as HTMLElement;
   var body = win.querySelector('.terminal-window-body') as HTMLElement;
   if (!header || !body) return;
-  var canvas = body.querySelector('canvas.retroterm-canvas') as HTMLCanvasElement;
-  if (!canvas) return;
+  var wrapper = body.querySelector('.terminal-canvas-wrapper') as HTMLElement;
+  if (!wrapper) return;
   requestAnimationFrame(function() {
     requestAnimationFrame(function() {
-      var canvasH = canvas.getBoundingClientRect().height;
+      // Compute canvas height from wrapper width + terminal aspect ratio
+      // (wrapper width is stable; height may be squeezed by VK flex)
+      var contentW = wrapper.clientWidth;
+      var canvasRatio = (24 * 16) / (80 * 9); // fallback
+      var t = terminals[activeTerminalId];
+      if (t && t.term) {
+        var renderer = (t.term as any)._renderer || (t.term as any).renderer;
+        if (renderer) {
+          var cw = renderer.charWidth || 9;
+          var ch = renderer.charHeight || 16;
+          canvasRatio = (24 * ch) / (80 * cw);
+        }
+      }
+      var canvasH = contentW * canvasRatio;
+
       var headerH = header.getBoundingClientRect().height;
       var tabsEl = body.querySelector('.terminal-tabs') as HTMLElement;
       var tabsH = tabsEl ? tabsEl.getBoundingClientRect().height : 0;
-      // Account for VK if visible
+      // Account for VK if visible (use SVG viewBox ratio, not DOM measurement)
       var vkH = 0;
       var activeContainer = body.querySelector('.terminal-container.active') as HTMLElement;
       if (activeContainer) {
         var vkEl = activeContainer.querySelector('.terminal-vk-container') as HTMLElement;
         if (vkEl && vkEl.style.display !== 'none') {
-          vkH = vkEl.getBoundingClientRect().height;
+          var svg = vkEl.querySelector('svg.retroterm-vk') as SVGSVGElement;
+          if (svg) {
+            var vb = svg.viewBox.baseVal;
+            if (vb && vb.width > 0 && vb.height > 0) {
+              vkH = contentW * (vb.height / vb.width);
+            }
+          }
         }
       }
       var padding = 20; // resize handle + borders
@@ -696,14 +728,82 @@ function createTerminalVK(identCode: number, container: HTMLElement, term: any):
   }
 }
 
+/** Compute correct window height from width, preserving canvas aspect ratio + VK */
+function computeTerminalHeight(identCode: number, windowWidth: number): number {
+  var headerH = 39;
+  var padding = 20;
+  var bodyPadding = 0; // float-terminal-body has no padding
+  var contentWidth = windowWidth - bodyPadding;
+
+  // Canvas aspect ratio from RetroTerm renderer
+  var t = terminals[identCode];
+  var canvasRatio = (24 * 16) / (80 * 9); // fallback ~0.533
+  if (t && t.term) {
+    var renderer = (t.term as any)._renderer || (t.term as any).renderer;
+    if (renderer) {
+      var cw = renderer.charWidth || 9;
+      var ch = renderer.charHeight || 16;
+      var cols = 80, rows = 24;
+      canvasRatio = (rows * ch) / (cols * cw);
+    }
+  }
+
+  var canvasH = contentWidth * canvasRatio;
+
+  // VK height from SVG viewBox aspect ratio (if visible)
+  var vkH = 0;
+  if (t && t.vkContainer && t.vkContainer.style.display !== 'none') {
+    var svg = t.vkContainer.querySelector('svg.retroterm-vk') as SVGSVGElement;
+    if (svg) {
+      var vb = svg.viewBox.baseVal;
+      if (vb && vb.width > 0 && vb.height > 0) {
+        vkH = contentWidth * (vb.height / vb.width);
+      }
+    }
+  }
+
+  return Math.ceil(headerH + canvasH + vkH + padding);
+}
+
 /** Toggle VK visibility for a terminal */
 function toggleTerminalVK(identCode: number): void {
   var t = terminals[identCode];
   if (!t || !t.vkContainer) return;
   var showing = t.vkContainer.style.display === 'none';
   t.vkContainer.style.display = showing ? '' : 'none';
-  // Adjust window height to accommodate VK
-  fitTerminalWindowHeight();
+
+  // Floating terminal: recompute height from aspect ratio
+  var floatWin = floatingTerminalWindows[identCode];
+  if (floatWin) {
+    if (!floatWin.classList.contains('maximized')) {
+      var newH = computeTerminalHeight(identCode, floatWin.offsetWidth);
+      floatWin.style.height = newH + 'px';
+      // Persist
+      var storageKey = 'float-term-' + identCode + '-size';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          width: floatWin.style.width,
+          height: floatWin.style.height
+        }));
+      } catch(e) {}
+    }
+    setTimeout(function() { t.resizeTerminal(); }, 0);
+    return;
+  }
+
+  // Console: maximized -> flex layout + ResizeObserver handles canvas refit;
+  // normal -> grow/shrink window to fit canvas + VK
+  var consoleWin = document.getElementById('terminal-window');
+  if (consoleWin && consoleWin.classList.contains('maximized')) {
+    // Double-RAF: let flex reflow settle, then refit canvas
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        t.resizeTerminal();
+      });
+    });
+  } else {
+    fitTerminalWindowHeight();
+  }
 }
 
 // ---- Update console title based on emulator type ----
