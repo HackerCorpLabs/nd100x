@@ -1264,7 +1264,7 @@ document.getElementById('color-theme-select').addEventListener('change', functio
 // =========================================================
 // Reusable resize handle helper
 // =========================================================
-function makeResizable(win, handle, storageKey, minW, minH) {
+function makeResizable(win, handle, storageKey, minW, minH, computeHeight) {
   if (!win || !handle) return;
 
   var resizing = false;
@@ -1289,8 +1289,13 @@ function makeResizable(win, handle, storageKey, minW, minH) {
 
   document.addEventListener('mousemove', function(e) {
     if (!resizing) return;
-    win.style.width = Math.max(minW, startW + (e.clientX - startX)) + 'px';
-    win.style.height = Math.max(minH, startH + (e.clientY - startY)) + 'px';
+    var newW = Math.max(minW, startW + (e.clientX - startX));
+    win.style.width = newW + 'px';
+    if (typeof computeHeight === 'function') {
+      win.style.height = Math.max(minH, computeHeight(newW)) + 'px';
+    } else {
+      win.style.height = Math.max(minH, startH + (e.clientY - startY)) + 'px';
+    }
   });
 
   document.addEventListener('mouseup', function() {
