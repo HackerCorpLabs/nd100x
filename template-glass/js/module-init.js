@@ -124,7 +124,7 @@ function isSmdPersistenceEnabled() {
 
 // Expected minimum sizes (sanity check - reject truncated / error pages)
 var DISK_MIN_SIZES = {
-  'SMD0.IMG':   1024 * 1024,  // SMD must be at least 1MB
+  'SMD0.IMG':   1024,         // SMD must be at least 1 block (1KB)
   'FLOPPY.IMG': 512           // Floppy must be at least 1 sector
 };
 
@@ -417,8 +417,18 @@ function initializeSystem() {
       return document.fonts.ready;
     })
     .then(() => {
-      initializeTerminals();
-      console.log("Terminals initialized");
+      // initializeTerminals is defined in terminal-manager.js which loads later in the page.
+      // If WASM + disk images resolve from cache before the parser reaches that script,
+      // the function won't exist yet. Wait for DOMContentLoaded in that case.
+      if (typeof initializeTerminals === 'function') {
+        initializeTerminals();
+        console.log("Terminals initialized");
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          initializeTerminals();
+          console.log("Terminals initialized (deferred)");
+        });
+      }
     })
     .catch(error => {
       console.error("Error during initialization:", error);

@@ -17,7 +17,7 @@ bool checkAndSwitch(void);
 void private_cpu_tick(void);
 bool cpu_instruction_is_jump(void);
 int cpu_run(int ticks);
-void cpu_init(bool debuggerEnabled);
+void cpu_init(bool debuggerEnabled, int debuggerPort);
 void init_cpu_debugger(void);
 void cpu_reset(void);
 void cleanup_cpu(void);
@@ -262,3 +262,13 @@ int watchpoint_check(uint16_t address, bool isWrite);
 void watchpoint_clear(void);
 int watchpoint_get_count(void);
 int watchpoint_get(int index, uint16_t *out_addr, int *out_type);
+int phys_watchpoint_add(uint32_t address, WatchpointType type);
+void phys_watchpoint_remove(uint32_t address);
+int phys_watchpoint_check(uint32_t address, bool isWrite);
+void phys_watchpoint_clear(void);
+int phys_watchpoint_get_count(void);
+int phys_watchpoint_get(int index, uint32_t *out_addr, int *out_type);
+
+/* /home/ronny/repos/nd100x/src/cpu/expr_eval.c */
+uint16_t expr_eval_value(const char *expr, const char **error);
+bool expr_eval_condition(const char *expr, const char **error);

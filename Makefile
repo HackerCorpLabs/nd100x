@@ -109,6 +109,7 @@ wasm-glass: check-deps mkptypes ts-compile
 	@cp -r template-glass/css $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/js $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/data $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp -r template-glass/lib $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template-glass/smd-catalog.json $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template-glass/staticwebapp.config.json $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp template/Logo_ND.png template/favicon.ico template/favicon.png $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
@@ -123,6 +124,8 @@ wasm-glass: check-deps mkptypes ts-compile
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \
+	  -e "s|href=\"lib/retroterm/retroterm.css\"|href=\"lib/retroterm/retroterm.css?v=$$BUILD_TS\"|g" \
+	  -e "s|src=\"lib/retroterm/retroterm.js\"|src=\"lib/retroterm/retroterm.js?v=$$BUILD_TS\"|g" \
 	  $(BUILD_DIR_WASM_GLASS)/bin/index.html; \
 	sed -i \
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
@@ -139,13 +142,11 @@ wasm-glass: check-deps mkptypes ts-compile
 
 wasm-run: wasm
 	@echo "Starting HTTP server for standard WASM build..."
-	@echo "Open http://localhost:8000/index.html in your browser."
-	cd $(BUILD_DIR_WASM)/bin && python3 -m http.server
+	cd $(BUILD_DIR_WASM)/bin && node $(CURDIR)/tools/serve-coop.mjs 8000
 
 wasm-glass-run: wasm-glass
 	@echo "Starting HTTP server for glassmorphism WASM build..."
-	@echo "Open http://localhost:8000/index.html in your browser."
-	cd $(BUILD_DIR_WASM_GLASS)/bin && python3 $(CURDIR)/tools/serve-coop.py 8000
+	cd $(BUILD_DIR_WASM_GLASS)/bin && node $(CURDIR)/tools/serve-coop.mjs 8000
 
 riscv: check-riscv-deps mkptypes
 	@echo "Building RISC-V Linux version with DAP support..."

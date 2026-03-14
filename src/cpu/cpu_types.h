@@ -323,6 +323,8 @@ struct CpuRegs {
 
 	// Debugger enabled flag
 	bool	debugger_enabled;
+	// Debugger port
+	int	debugger_port;
 };
 
 
@@ -408,6 +410,7 @@ typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, 
 #define STS_IONI ((gReg->reg_STS >>15 ) & 0x01)	/* Interrupt system on/off indicator */
 
 #define gDebuggerEnabled gReg->debugger_enabled
+#define gDebuggerPort gReg->debugger_port
 
 /*
 
@@ -518,6 +521,14 @@ typedef struct {
     WatchpointType type;
     bool active;
 } WatchpointEntry;
+
+//********** Physical Watchpoints (physical memory address breakpoints) **********
+
+typedef struct {
+    uint32_t address;          // Physical address (21+ bits for extended memory)
+    WatchpointType type;
+    bool active;
+} PhysicalWatchpointEntry;
 
 /// @brief Enumeration of CPU stop reasons for the debugger
 /// @details This enum is used to indicate the reason for stopping the CPU in the debugger. - aligned with DAP spec

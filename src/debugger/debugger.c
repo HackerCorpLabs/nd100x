@@ -190,7 +190,7 @@ void *debugger_thread(void *arg)
     sigaction(SIGINT, &sa, NULL);
 #endif
 
-    int port = 4711;
+    int port = gDebuggerPort > 0 ? gDebuggerPort : 4711;
     int ret = ndx_server_init(port);
     if (ret != 0)
     {

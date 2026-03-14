@@ -208,10 +208,10 @@ EMSCRIPTEN_EXPORT void Init(void)
 
 #ifdef WITH_DEBUGGER
     // Initialize machine with debugger enabled
-    machine_init(1);
+    machine_init(1, 4711);
 #else
     // Initialize machine components including devices
-    machine_init(0);
+    machine_init(0, 4711);
 #endif
 
     // Add terminals 5-8 (Group 1) and 9-11 (Group 9)

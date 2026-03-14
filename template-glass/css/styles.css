@@ -2640,6 +2640,9 @@ button:disabled {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
   flex-shrink: 0;
+  /* Isolate from parent backdrop-filter so SVG url(#gradient) refs render correctly */
+  isolation: isolate;
+  background: #2a2a2a;
 }
 .float-term-header-controls {
   display: flex;

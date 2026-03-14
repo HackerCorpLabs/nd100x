@@ -670,7 +670,7 @@ int cpu_run(int ticks)
 }
 
 
-void cpu_init(bool debuggerEnabled)
+void cpu_init(bool debuggerEnabled, int debuggerPort)
 {
 	/* initialize an empty register set */
 	gReg = calloc(1, sizeof(struct CpuRegs));
@@ -695,6 +695,7 @@ void cpu_init(bool debuggerEnabled)
 	gALD = 01560; // oct 1560 (ALD position 4, Binary load from 1560) // Floppy
 
 	gDebuggerEnabled = debuggerEnabled;
+	gDebuggerPort = debuggerPort;
 
 	if (DISASM)
 		disasm_setlbl(gPC);

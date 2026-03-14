@@ -728,6 +728,13 @@ int ReadPhysicalMemory(int physicalAddress, bool privileged)
         return 0x00;
     }
 
+#ifdef WITH_DEBUGGER
+    if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, false)) {
+        set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
+        set_cpu_run_mode(CPU_BREAKPOINT);
+    }
+#endif
+
     if (IsAddressShadowMemory(physicalAddress, privileged))
     {
         int tmp = PT_Read(physicalAddress);
@@ -755,6 +762,13 @@ void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged)
 // Write to physical memory (with writemode to handle MSB/LSB/WORD)
 void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged, WriteMode wm)
 {
+#ifdef WITH_DEBUGGER
+    if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, true)) {
+        set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
+        set_cpu_run_mode(CPU_BREAKPOINT);
+    }
+#endif
+
     if (IsAddressShadowMemory(physicalAddress, privileged))
     {
         //printf("WritePhysicalMemoryWM: Shadow Memory 0x[%4X] = 0x%4X\n", physicalAddress, value);
