@@ -2620,7 +2620,14 @@ button:disabled {
 }
 .float-terminal-body .terminal-container {
   display: flex;
+  flex-direction: column;
   flex: 1;
+}
+.terminal-canvas-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 .float-terminal-body .xterm {
   width: 100% !important;
@@ -2643,6 +2650,9 @@ button:disabled {
   /* Isolate from parent backdrop-filter so SVG url(#gradient) refs render correctly */
   isolation: isolate;
   background: #2a2a2a;
+}
+.terminal-vk-container svg.retroterm-vk {
+  height: auto !important;
 }
 .float-term-header-controls {
   display: flex;
