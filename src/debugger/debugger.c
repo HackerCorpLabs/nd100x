@@ -17,6 +17,7 @@
 #include "../../external/libdap/libdap/include/dap_server_cmds.h"
 #include "../../external/libdap/libdap/include/dap_protocol.h"
 #include "../../external/libsymbols/include/symbols.h"
+#include "../../external/libsymbols/include/aout.h"
 #endif
 
 #include "debugger.h"
@@ -3145,15 +3146,39 @@ static int cmd_launch_callback(DAPServer *server)
     // Try to load symbols using different approaches
     bool symbols_loaded = false;
 
-    // Load program
+    // Load program - only if it's a valid a.out binary.
+    // For other boot types (floppy, smd, bpun) the emulator was already
+    // booted via the command line before the debugger connected.
+    bool is_aout = false;
     if (program_path)
     {
-        printf("Attempting to load program: %s\n", program_path);
-        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
-                                        "Loading program...\n");
+        FILE *probe = fopen(program_path, "rb");
+        if (probe) {
+            aout_header_t probe_hdr;
+            if (load_header(probe, &probe_hdr, false) == 0) {
+                switch (probe_hdr.a_magic) {
+                case A_MAGIC1: case A_MAGIC2: case A_MAGIC3:
+                case A_MAGIC4: case A_MAGIC5: case A_MAGIC6:
+                    is_aout = true;
+                    break;
+                default:
+                    break;
+                }
+            }
+            fclose(probe);
+        }
 
-        program_load(BOOT_AOUT, program_path, true);
-        gPC = STARTADDR;
+        if (is_aout) {
+            printf("Attempting to load a.out program: %s\n", program_path);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
+                                            "Loading a.out program...\n");
+            program_load(BOOT_AOUT, program_path, true);
+            gPC = STARTADDR;
+        } else {
+            printf("Program file is not a.out format (skipping load, using existing boot): %s\n", program_path);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
+                                            "Program is not a.out format - attaching to running system.\n");
+        }
     }
 
     // Clear old symbols and source references
@@ -3189,8 +3214,8 @@ static int cmd_launch_callback(DAPServer *server)
         }
     }
 
-    // If we have a.out file, try to update symbols from it
-    if (program_path)
+    // If we have a valid a.out file, try to update symbols from it
+    if (program_path && is_aout)
     {
         printf("Attempting to load symbols from program binary: %s\n", program_path);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
