@@ -2721,6 +2721,10 @@ button:disabled {
   height: 480px;
   min-width: 350px;
   min-height: 300px;
+  max-width: 90vw;
+  max-height: 90vh;
+  resize: both;
+  overflow: auto;
 }
 
 .smd-section-title {

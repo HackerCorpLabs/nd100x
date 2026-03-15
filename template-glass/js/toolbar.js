@@ -833,8 +833,14 @@ function completePowerOn(btn) {
   }
 
   // Enable boot device selector and boot button
+  // In persistence mode, boot button stays disabled until mounts complete
   document.getElementById('boot-select').disabled = false;
-  document.getElementById('toolbar-boot').disabled = false;
+  if (typeof isSmdPersistenceEnabled === 'function' && isSmdPersistenceEnabled() && !window._smdMountsReady) {
+    document.getElementById('toolbar-boot').disabled = true;
+    document.getElementById('toolbar-boot').title = 'Waiting for disk mounts...';
+  } else {
+    document.getElementById('toolbar-boot').disabled = false;
+  }
 
   // Update machine info status
   var machStatus = document.getElementById('machine-status');
@@ -949,6 +955,15 @@ function performBoot(bootType) {
 
   console.log("Booting type " + (bootNames[bootType] || bootType));
 
+  // Show which disk we're booting from
+  if (bootType === 1 && typeof driveRegistry !== 'undefined') {
+    var bootDrive = driveRegistry.get('smd', 0);
+    if (bootDrive && bootDrive.mounted) {
+      var statusEl = document.getElementById('status');
+      if (statusEl) statusEl.textContent = 'Booting from: ' + (bootDrive.name || 'SMD unit 0') + ' (' + bootDrive.source + ')';
+    }
+  }
+
   // Log detailed drive info for SMD boot
   if (bootType === 1) {
     logBootDriveInfo();
@@ -1047,6 +1062,16 @@ document.getElementById('toolbar-boot').addEventListener('click', function() {
   }
 
   performBoot(bootType);
+});
+
+// Listen for persistent mount completion — enable boot button
+window.addEventListener('smd-mounts-ready', function(e) {
+  window._smdMountsReady = true;
+  var bootBtn = document.getElementById('toolbar-boot');
+  if (bootBtn && isInitializedBtn) {
+    bootBtn.disabled = false;
+    bootBtn.title = '';
+  }
 });
 
 // Handle BPUN file upload

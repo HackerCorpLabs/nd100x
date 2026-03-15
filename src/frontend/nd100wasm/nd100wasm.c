@@ -270,6 +270,18 @@ EMSCRIPTEN_EXPORT int Boot(int boot_type)
     mount_smd(NULL, 2);
     mount_smd(NULL, 3);
 
+    // Log which drives are actually mounted (C-side truth)
+    {
+        MountedDriveInfo_t *smd_list = list_mount(DRIVE_SMD);
+        if (smd_list) {
+            for (int i = 0; i < 4; i++) {
+                printf("[Boot] SMD unit %d: mounted=%d opfs=%d gateway=%d name=%s\n",
+                       i, smd_list[i].is_mounted, smd_list[i].is_opfs,
+                       smd_list[i].is_gateway, smd_list[i].name);
+            }
+        }
+    }
+
     int rc;
     switch (boot_type) {
     case 1: // SMD
