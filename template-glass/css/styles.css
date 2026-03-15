@@ -2636,11 +2636,9 @@ button:disabled {
 /* RetroTerm canvas — renderer manages its own sizing via _fitCanvasToContainer() */
 .terminal-container canvas.retroterm-canvas {
   display: block;
-  will-change: transform;
 }
 .float-terminal-body canvas.retroterm-canvas {
   display: block;
-  will-change: transform;
 }
 /* Per-terminal Virtual Keyboard container */
 .terminal-vk-container {
