@@ -70,6 +70,11 @@ int dap_server_send_stopped_event(DAPServer *s, const char *reason, const char *
 {
     (void)s; (void)reason; (void)desc; return 0;
 }
+int dap_server_send_stopped_event_ex(DAPServer *s, const char *reason, const char *desc,
+                                      const int *hit_bp_ids, int hit_bp_count)
+{
+    (void)s; (void)reason; (void)desc; (void)hit_bp_ids; (void)hit_bp_count; return 0;
+}
 int dap_server_send_process_event(DAPServer *s, const char *name, int pid, bool local, const char *method)
 {
     (void)s; (void)name; (void)pid; (void)local; (void)method; return 0;
@@ -2587,8 +2592,8 @@ static int cmd_set_breakpoints(DAPServer *server)
 
     printf("Setting %d breakpoints in %s\n", breakpoint_count, source_path);
 
-    // Clear any existing breakpoints
-    breakpoint_manager_clear();
+    // Clear existing source (user) breakpoints only, preserve instruction/function/data BPs
+    breakpoint_manager_clear_type(BP_TYPE_USER);
 
     // Process each breakpoint
     for (int i = 0; i < breakpoint_count; i++)
@@ -2698,15 +2703,15 @@ static int cmd_set_instruction_breakpoints(DAPServer *server)
 
     if (count <= 0)
     {
-        // Clear all instruction breakpoints
-        breakpoint_manager_clear();
+        // Clear instruction breakpoints only, preserve source/function/data BPs
+        breakpoint_manager_clear_type(BP_TYPE_INSTRUCTION);
         dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                         "Cleared all instruction breakpoints\n");
         return 0;
     }
 
-    // Clear existing breakpoints and set new ones
-    breakpoint_manager_clear();
+    // Clear existing instruction breakpoints and set new ones
+    breakpoint_manager_clear_type(BP_TYPE_INSTRUCTION);
 
     for (int i = 0; i < count; i++)
     {
@@ -2714,7 +2719,7 @@ static int cmd_set_instruction_breakpoints(DAPServer *server)
 
         breakpoint_manager_add(
             address,
-            BP_TYPE_USER,
+            BP_TYPE_INSTRUCTION,
             ctx->conditions ? ctx->conditions[i] : NULL,
             NULL, // hit condition
             NULL  // log message
@@ -3575,8 +3580,8 @@ static int cmd_set_function_breakpoints(DAPServer *server)
 {
     int count = server->current_command.context.function_breakpoint.count;
 
-    /* Clear existing function breakpoints */
-    breakpoint_manager_clear();
+    /* Clear existing function breakpoints only, preserve source/instruction/data BPs */
+    breakpoint_manager_clear_type(BP_TYPE_FUNCTION);
 
     /* Allocate result array */
     DAPBreakpoint *results = calloc(count, sizeof(DAPBreakpoint));
