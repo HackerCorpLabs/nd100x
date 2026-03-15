@@ -17,8 +17,10 @@
         document.body.innerHTML = '<p style="color:#ff4444;padding:20px;">Error: No terminal ID specified</p>';
         return;
     }
-    document.title = 'Terminal ' + displayName + ' - ND100X';
-    document.getElementById('popout-title').textContent = 'Terminal ' + displayName;
+    var emuLabel = window.getEmulatorTypeLabel ? window.getEmulatorTypeLabel() : '';
+    var titleSuffix = emuLabel ? ' (' + emuLabel + ')' : '';
+    document.title = 'Terminal ' + displayName + titleSuffix + ' - ND100X';
+    document.getElementById('popout-title').textContent = 'Terminal ' + displayName + titleSuffix;
     // Apply saved theme
     var theme = 'dark';
     try {

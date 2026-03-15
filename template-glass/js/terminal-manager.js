@@ -636,6 +636,88 @@ function fitTerminalWindowHeight() {
         });
     });
 }
+// DOM key name -> TDV VK code mapping for special keys
+var _domSpecialKeyVK = {
+    'Escape': 27, 'Enter': 13, 'Tab': 9,
+    'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
+    'Home': 36, 'Delete': 46, 'Insert': 45,
+    'PageUp': 33, 'PageDown': 34,
+    'F1': 112, 'F2': 113, 'F3': 114, 'F4': 115,
+    'F5': 116, 'F6': 117, 'F7': 118, 'F8': 119
+};
+/** Highlight a VK key from a DOM keyboard event */
+function vkHighlightFromDom(vk, ev) {
+    // Modifier keys: map by physical position
+    switch (ev.code) {
+        case 'ShiftLeft':
+            vk.highlightGridKey('B99');
+            return;
+        case 'ShiftRight':
+            vk.highlightGridKey('B11');
+            return;
+        case 'ControlLeft':
+        case 'ControlRight':
+            vk.highlightGridKey('D0');
+            return;
+    }
+    // Space bar: direct grid (avoid KPSPACE VK conflict)
+    if (ev.key === ' ') {
+        vk.highlightGridKey('A5');
+        return;
+    }
+    // Backspace: direct grid (E13 NEWPARA)
+    if (ev.key === 'Backspace') {
+        vk.highlightGridKey('E13');
+        return;
+    }
+    // Special keys by VK code
+    var specialVK = _domSpecialKeyVK[ev.key];
+    if (specialVK) {
+        vk.highlightKey(specialVK);
+        return;
+    }
+    // Letters and digits: ASCII uppercase matches Windows VK codes
+    if (ev.key.length === 1) {
+        var ch = ev.key.toUpperCase().charCodeAt(0);
+        if ((ch >= 65 && ch <= 90) || (ch >= 48 && ch <= 57)) {
+            vk.highlightKey(ch);
+        }
+    }
+}
+/** Unhighlight a VK key from a DOM keyboard event */
+function vkUnhighlightFromDom(vk, ev) {
+    switch (ev.code) {
+        case 'ShiftLeft':
+            vk.unhighlightGridKey('B99');
+            return;
+        case 'ShiftRight':
+            vk.unhighlightGridKey('B11');
+            return;
+        case 'ControlLeft':
+        case 'ControlRight':
+            vk.unhighlightGridKey('D0');
+            return;
+    }
+    if (ev.key === ' ') {
+        vk.unhighlightGridKey('A5');
+        return;
+    }
+    if (ev.key === 'Backspace') {
+        vk.unhighlightGridKey('E13');
+        return;
+    }
+    var specialVK = _domSpecialKeyVK[ev.key];
+    if (specialVK) {
+        vk.unhighlightKey(specialVK);
+        return;
+    }
+    if (ev.key.length === 1) {
+        var ch = ev.key.toUpperCase().charCodeAt(0);
+        if ((ch >= 65 && ch <= 90) || (ch >= 48 && ch <= 57)) {
+            vk.unhighlightKey(ch);
+        }
+    }
+}
 /** Create VK container and instance for a single terminal */
 function createTerminalVK(identCode, container, term) {
     if (!isRetroTermBackend || typeof RetroTerm === 'undefined')
@@ -652,6 +734,13 @@ function createTerminalVK(identCode, container, term) {
         vk.attachTerminal(term, 'Terminal ' + name);
         terminals[identCode].vk = vk;
         terminals[identCode].vkContainer = vkContainer;
+        // PC keyboard -> VK visual sync (capture phase to see all events)
+        container.addEventListener('keydown', function (ev) {
+            vkHighlightFromDom(vk, ev);
+        }, true);
+        container.addEventListener('keyup', function (ev) {
+            vkUnhighlightFromDom(vk, ev);
+        }, true);
         // Show VK toggle button for console window
         if (identCode === 1 || !isFloatMode()) {
             var vkBtn = document.getElementById('term-vk-toggle');
