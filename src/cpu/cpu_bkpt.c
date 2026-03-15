@@ -165,6 +165,39 @@ void breakpoint_manager_clear()
     }
 }
 
+/// @brief Clear only breakpoints of a specific type
+/// @param type Breakpoint type to clear (BP_TYPE_USER, BP_TYPE_FUNCTION, etc.)
+void breakpoint_manager_clear_type(BreakpointType type)
+{
+    if (!mgr) return;
+
+    for (int h = 0; h < HASH_SIZE; h++)
+    {
+        BreakpointEntry *prev = NULL;
+        BreakpointEntry *curr = mgr->buckets[h];
+        while (curr)
+        {
+            BreakpointEntry *next = curr->next;
+            if (curr->type == type)
+            {
+                if (prev)
+                    prev->next = next;
+                else
+                    mgr->buckets[h] = next;
+                free(curr->condition);
+                free(curr->hitCondition);
+                free(curr->logMessage);
+                free(curr);
+            }
+            else
+            {
+                prev = curr;
+            }
+            curr = next;
+        }
+    }
+}
+
 /// @brief Query breakpoints at address
 /// @param address Memory address to query breakpoints from
 /// @param matches Array to store matching breakpoints
@@ -263,10 +296,15 @@ int check_for_breakpoint(void)
                     // Expand log message vars (simple demo)
                     printf("[LOGPOINT] %s\n", bp->logMessage);
                 } else {
-                    // Trigger stop event
+                    // Trigger stop event with proper reason based on breakpoint type
                     btType = bp->type;
-                    set_cpu_stop_reason(bp->type == BP_TYPE_TEMPORARY ? STOP_REASON_STEP : STOP_REASON_BREAKPOINT);
-                    set_cpu_run_mode(CPU_BREAKPOINT);                    
+                    CpuStopReason sr = (bp->type == BP_TYPE_TEMPORARY)
+                        ? STOP_REASON_STEP : stopReasonFromBreakpoint(bp->type);
+                    set_cpu_stop_reason(sr);
+                    set_cpu_run_mode(CPU_BREAKPOINT);
+                    // Record hit address for DAP hitBreakpointIds
+                    mgr->last_hit_address = pc;
+                    mgr->last_hit_valid = true;
                 }
     
                 if (bp->type == BP_TYPE_TEMPORARY) {
@@ -292,6 +330,18 @@ CpuStopReason stopReasonFromBreakpoint(BreakpointType t) {
         case BP_TYPE_INSTRUCTION: return STOP_REASON_INSTRUCTION_BREAKPOINT;
         default: return STOP_REASON_BREAKPOINT;
     }
+}
+
+/// @brief Get the address of the last breakpoint hit
+/// @param address Pointer to store the hit address
+/// @return true if a breakpoint was recently hit, false otherwise
+bool breakpoint_manager_get_last_hit(uint16_t *address) {
+    if (mgr && mgr->last_hit_valid) {
+        if (address) *address = mgr->last_hit_address;
+        mgr->last_hit_valid = false;
+        return true;
+    }
+    return false;
 }
 
 //********** Watchpoints (memory access breakpoints) **********
