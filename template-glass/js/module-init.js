@@ -258,13 +258,33 @@ function downloadImageBuffer(url) {
     };
 
     xhr.onload = function() {
-      if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
-        resolve(xhr.response);
-      } else {
-        reject(new Error('HTTP ' + xhr.status));
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error('HTTP ' + xhr.status + ' ' + xhr.statusText + ' for ' + url));
+        return;
       }
+      var buf = xhr.response;
+      if (!buf || buf.byteLength === 0) {
+        reject(new Error('Empty response body from ' + url + ' (HTTP ' + xhr.status + ')'));
+        return;
+      }
+
+      // Reject HTML error pages served with 200 status
+      var header = new Uint8Array(buf, 0, Math.min(16, buf.byteLength));
+      var headerStr = String.fromCharCode.apply(null, header);
+      if (headerStr.indexOf('<!DOC') === 0 || headerStr.indexOf('<html') === 0 ||
+          headerStr.indexOf('<HTML') === 0 || headerStr.indexOf('<?xml') === 0) {
+        reject(new Error('Server returned an HTML/XML page instead of a disk image for ' + url));
+        return;
+      }
+
+      console.log('[Download] ' + url + ': ' + formatBytes(buf.byteLength) + ' OK' +
+        ', first 8 bytes: ' + Array.from(new Uint8Array(buf, 0, Math.min(8, buf.byteLength)))
+          .map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join(' '));
+      resolve(buf);
     };
-    xhr.onerror = function() { reject(new Error('Network error')); };
+
+    xhr.onerror = function() { reject(new Error('Network error downloading ' + url)); };
+    xhr.ontimeout = function() { reject(new Error('Timeout downloading ' + url)); };
     xhr.timeout = 120000;
     xhr.send();
   });
@@ -304,6 +324,9 @@ function loadDiskImages() {
       statusElement.textContent = 'Warning: Failed to load SMD0.IMG. Check console.';
       console.warn('SMD0.IMG not found. Ensure disk image is served alongside the WASM files.');
     }
+
+    // Signal mounts ready (demo mode)
+    window.dispatchEvent(new CustomEvent('smd-mounts-ready', { detail: { mounted: smdOk ? 1 : 0 } }));
   });
 }
 
@@ -348,24 +371,27 @@ function mountPersistentUnits() {
     mountedFiles[units[u]] = u;
 
     (function(unit, fileName) {
+      var meta = smdStorage.getMetadata(fileName);
+      var displayName = meta ? meta.name : fileName;
+      console.log('[Persist] Mounting unit ' + unit + ': "' + displayName + '" (uuid=' + fileName + ')');
+
       if (emu.isWorkerMode()) {
         // Worker mode: use SyncAccessHandle (true per-block persistence)
         promises.push(
           emu.opfsMountSMD(unit, fileName).then(function(result) {
             if (result.ok) {
-              console.log('[Persist] Unit ' + unit + ' mounted from OPFS: ' + fileName);
+              console.log('[Persist] Unit ' + unit + ' mounted from OPFS: ' + displayName + ' (' + formatBytes(result.size || 0) + ')');
               if (unit === 0) diskImageStatus.smd = true;
               if (typeof driveRegistry !== 'undefined') {
-                var meta = smdStorage.getMetadata(fileName);
-                driveRegistry.mount('smd', unit, 'opfs', meta ? meta.name : fileName, fileName, result.size || 0);
+                driveRegistry.mount('smd', unit, 'opfs', displayName, fileName, result.size || 0);
               }
-              return true;
+              return { ok: true, unit: unit };
             }
-            console.error('[Persist] Failed to mount unit ' + unit);
-            return false;
+            console.error('[Persist] Failed to mount unit ' + unit + ': ' + displayName);
+            return { ok: false, unit: unit, error: 'OPFS mount failed', name: displayName };
           }).catch(function(err) {
             console.error('[Persist] Mount error unit ' + unit + ':', err);
-            return false;
+            return { ok: false, unit: unit, error: err.message, name: displayName };
           })
         );
       } else {
@@ -373,21 +399,20 @@ function mountPersistentUnits() {
         promises.push(
           smdStorage.retrieveImage(fileName).then(function(data) {
             if (!data) {
-              console.error('[Persist] Image not found in OPFS: ' + fileName);
-              return false;
+              console.error('[Persist] Image not found in OPFS: ' + displayName + ' (' + fileName + ')');
+              return { ok: false, unit: unit, error: 'Image not found in OPFS', name: displayName };
             }
             var rc = emu.mountSMDFromBuffer(unit, data);
             if (rc === 0) {
-              console.log('[Persist] Unit ' + unit + ' mounted from buffer: ' + fileName + ' (' + formatBytes(data.byteLength) + ')');
+              console.log('[Persist] Unit ' + unit + ' mounted from buffer: ' + displayName + ' (' + formatBytes(data.byteLength) + ')');
               if (unit === 0) diskImageStatus.smd = true;
               if (typeof driveRegistry !== 'undefined') {
-                var meta = smdStorage.getMetadata(fileName);
-                driveRegistry.mount('smd', unit, 'opfs', meta ? meta.name : fileName, fileName, data.byteLength || 0);
+                driveRegistry.mount('smd', unit, 'opfs', displayName, fileName, data.byteLength || 0);
               }
-              return true;
+              return { ok: true, unit: unit };
             }
             console.error('[Persist] mountSMDFromBuffer failed for unit ' + unit);
-            return false;
+            return { ok: false, unit: unit, error: 'Buffer mount failed', name: displayName };
           })
         );
       }
@@ -396,14 +421,23 @@ function mountPersistentUnits() {
 
   return Promise.all(promises).then(function(results) {
     var statusEl = document.getElementById('status');
-    var mounted = results.filter(function(r) { return r; }).length;
+    var mounted = results.filter(function(r) { return r && r.ok; }).length;
+    var failed = results.filter(function(r) { return r && !r.ok; });
+
     if (statusEl) {
-      if (mounted > 0) {
+      if (failed.length > 0) {
+        var failMsg = failed.map(function(f) { return 'Unit ' + f.unit + ' ("' + f.name + '"): ' + f.error; }).join('; ');
+        statusEl.textContent = 'Mount failed: ' + failMsg;
+        console.error('[Persist] Mount failures:', failMsg);
+      } else if (mounted > 0) {
         statusEl.textContent = 'Persistent storage: ' + mounted + ' drive(s) mounted';
       } else {
         statusEl.textContent = 'No drives mounted from persistent storage';
       }
     }
+
+    // Signal that all persistent mounts are complete (toolbar listens for this)
+    window.dispatchEvent(new CustomEvent('smd-mounts-ready', { detail: { mounted: mounted, failed: failed.length } }));
   });
 }
 

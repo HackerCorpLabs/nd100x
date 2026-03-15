@@ -78,6 +78,8 @@
           _onInitialized(msg);
           _onInitialized = null;
         }
+        // Dispatch DOM event so smd-manager (and others) can react to init
+        window.dispatchEvent(new CustomEvent('emu-initialized'));
         break;
 
       case 'booted':
