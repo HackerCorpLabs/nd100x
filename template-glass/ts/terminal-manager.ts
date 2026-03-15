@@ -243,15 +243,18 @@ function createTerminal(identCode: number, name: string): void {
       tabs.parentNode!.appendChild(container);
     }
 
-    var tab = document.createElement('div');
-    tab.className = 'terminal-tab';
-    tab.dataset.terminal = identCode.toString();
-    tab.textContent = name;
-    document.querySelector('.terminal-tabs')!.appendChild(tab);
+    // Only create tabs when in grouped (non-float) mode
+    if (!isFloatMode()) {
+      var tab = document.createElement('div');
+      tab.className = 'terminal-tab';
+      tab.dataset.terminal = identCode.toString();
+      tab.textContent = name;
+      document.querySelector('.terminal-tabs')!.appendChild(tab);
 
-    tab.addEventListener('click', function() {
-      switchTerminal(identCode);
-    });
+      tab.addEventListener('click', function() {
+        switchTerminal(identCode);
+      });
+    }
 
     container.addEventListener('mousedown', function() {
       activeTerminalId = identCode;
@@ -339,6 +342,12 @@ function initializeTerminals(): void {
     (document.querySelector('.terminal-tabs') as HTMLElement).innerHTML = '';
     document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
     createTerminal(1, '1');
+
+    // Hide tab bar in float mode (no tabs to show)
+    var earlyTabs = document.querySelector('.terminal-tabs') as HTMLElement;
+    if (earlyTabs && isFloatMode()) {
+      earlyTabs.style.display = 'none';
+    }
 
     if (terminals[1]) {
       terminals[1].term.focus();
