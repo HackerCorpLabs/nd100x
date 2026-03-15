@@ -717,10 +717,33 @@ static int SMD_Boot(Device *self, uint16_t device_id)
 
     // Read all blocks from SMD disk file into buffer
     int blocksRead = self->blockCallbacks.readFunc(self, buffer, blockCounter, 0, regs->selectedUnit);
-    if ((blocksRead < 0) || (blocksRead != blockCounter))
-    {     
+    printf("[SMD Boot] Read %d blocks (requested %d), blockSize=%d, first 16 bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+        blocksRead, blockCounter, self->blockSizeBytes,
+        buffer[0], buffer[1], buffer[2], buffer[3],
+        buffer[4], buffer[5], buffer[6], buffer[7],
+        buffer[8], buffer[9], buffer[10], buffer[11],
+        buffer[12], buffer[13], buffer[14], buffer[15]);
+    if ((blocksRead < 0) || (blocksRead != (int)blockCounter))
+    {
+        printf("[SMD Boot] Block read failed: got %d blocks, expected %d\n", blocksRead, blockCounter);
         free(buffer);
         return -1;
+    }
+
+    // Check if boot sector is all zeros (blank/unformatted disk)
+    {
+        int allZero = 1;
+        for (uint32_t i = 0; i < blockCounter * self->blockSizeBytes; i++) {
+            if (buffer[i] != 0) {
+                allZero = 0;
+                break;
+            }
+        }
+        if (allZero) {
+            printf("Error: SMD boot sector is all zeros (blank or unformatted disk)\n");
+            free(buffer);
+            return -1;
+        }
     }
 
     for (int i = 0; i < wordCounter; i++)

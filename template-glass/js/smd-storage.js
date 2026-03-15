@@ -169,10 +169,38 @@ var smdStorage = (function() {
       throw new Error('OPFS not available');
     }
 
+    // Check available quota before writing
+    try {
+      var est = await getStorageEstimate();
+      if (est.quota > 0) {
+        var available = est.quota - est.usage;
+        if (data.byteLength > available) {
+          throw new Error('Insufficient storage: need ' + formatSize(data.byteLength) +
+            ' but only ' + formatSize(available) + ' available');
+        }
+      }
+    } catch (e) {
+      // If it's our own quota error, re-throw; otherwise ignore estimate failures
+      if (e.message.indexOf('Insufficient storage') === 0) throw e;
+    }
+
+    console.log('[SMD Storage] Writing ' + uuid + ': ' + formatSize(data.byteLength) +
+      ', first 8 bytes: ' + Array.from(data.slice(0, Math.min(8, data.byteLength)))
+        .map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join(' '));
+
     var fileHandle = await _imagesDir.getFileHandle(uuid, { create: true });
     var writable = await fileHandle.createWritable();
     await writable.write(data);
     await writable.close();
+
+    // Verify the file was written correctly
+    var verifyFile = await fileHandle.getFile();
+    var verifySize = verifyFile.size;
+    if (verifySize !== data.byteLength) {
+      throw new Error('OPFS write verification failed: wrote ' + formatSize(data.byteLength) +
+        ' but file is ' + formatSize(verifySize));
+    }
+    console.log('[SMD Storage] OPFS file size verified: ' + formatSize(verifySize));
 
     _metadata[uuid] = {
       uuid: uuid,
@@ -184,7 +212,7 @@ var smdStorage = (function() {
     };
     _saveMetadata();
 
-    console.log('[SMD Storage] Stored ' + uuid + ' (' + formatSize(data.byteLength) + ')');
+    console.log('[SMD Storage] Stored ' + uuid + ' (' + formatSize(data.byteLength) + ') OK');
     return true;
   }
 
@@ -204,25 +232,27 @@ var smdStorage = (function() {
   }
 
   // Delete an image from OPFS
+  // Returns false if the image is currently mounted (caller should eject first)
   async function deleteImage(uuid) {
     if (!_available || !_imagesDir) return false;
+
+    // Check if the image is assigned to any unit - caller must eject first
+    var units = getUnitAssignments();
+    for (var u = 0; u < 4; u++) {
+      if (units[u] === uuid) {
+        throw new Error('Cannot delete: image is assigned to unit ' + u + '. Eject it first.');
+      }
+    }
 
     try {
       await _imagesDir.removeEntry(uuid);
     } catch (e) {
-      // File may not exist
+      // File may not exist or may be locked
+      console.warn('[SMD Storage] Could not remove OPFS file ' + uuid + ':', e.message);
     }
 
     delete _metadata[uuid];
     _saveMetadata();
-
-    // Remove from any unit assignments
-    var units = getUnitAssignments();
-    for (var u = 0; u < 4; u++) {
-      if (units[u] === uuid) {
-        clearUnitAssignment(u);
-      }
-    }
 
     console.log('[SMD Storage] Deleted ' + uuid);
     return true;
@@ -423,6 +453,41 @@ var smdStorage = (function() {
   }
 
   // =========================================================
+  // Disk image validation
+  // =========================================================
+
+  // Validate a disk image before storing
+  // Returns { valid: true } or { valid: false, error: 'reason' }
+  function validateDiskImage(data) {
+    if (!data || data.byteLength === 0) {
+      return { valid: false, error: 'File is empty (0 bytes)' };
+    }
+
+    if (data.byteLength < 4096) {
+      return { valid: false, error: 'File too small (' + formatSize(data.byteLength) + '). SMD images must be at least 4 KB.' };
+    }
+
+    // Check for HTML/XML error pages served as disk images
+    var headerStr = String.fromCharCode.apply(null, data.slice(0, Math.min(16, data.byteLength)));
+    if (headerStr.indexOf('<!DOC') === 0 || headerStr.indexOf('<html') === 0 ||
+        headerStr.indexOf('<HTML') === 0 || headerStr.indexOf('<?xml') === 0) {
+      return { valid: false, error: 'Data is HTML/XML, not a disk image. The server returned an error page.' };
+    }
+
+    return { valid: true };
+  }
+
+  // Check if boot sector (first 1024 bytes = 1 SMD block) is all zeros
+  function isBootSectorEmpty(data) {
+    if (!data || data.byteLength < 4) return true;
+    var checkLen = Math.min(1024, data.byteLength);
+    for (var i = 0; i < checkLen; i++) {
+      if (data[i] !== 0) return false;
+    }
+    return true;
+  }
+
+  // =========================================================
   // Helpers
   // =========================================================
 
@@ -476,6 +541,10 @@ var smdStorage = (function() {
     // OPFS handles (for Worker integration)
     getFileHandle: getFileHandle,
     getImagesDir: getImagesDir,
+
+    // Validation
+    validateDiskImage: validateDiskImage,
+    isBootSectorEmpty: isBootSectorEmpty,
 
     // Helpers
     formatSize: formatSize

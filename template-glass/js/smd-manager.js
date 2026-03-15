@@ -247,6 +247,17 @@ function smdShowRenameInline(uuid) {
 function smdAssignToUnit(uuid, unit) {
   if (unit < 0 || unit > 3) return;
 
+  // For unit 0 (boot drive), warn if the image has an empty boot sector
+  if (unit === 0) {
+    smdStorage.retrieveImage(uuid).then(function(data) {
+      if (data && smdStorage.isBootSectorEmpty(data)) {
+        alert('Warning: This disk image has an empty boot sector (all zeros).\n\n' +
+          'Booting from this image on unit 0 will not load an operating system.\n' +
+          'This is normal for blank data disks.');
+      }
+    });
+  }
+
   var currentUnits = smdStorage.getUnitAssignments();
 
   // If this image is already assigned to another unit, eject it first
@@ -266,30 +277,67 @@ function smdAssignToUnit(uuid, unit) {
 
   smdStorage.setUnitAssignment(unit, uuid);
 
+  // Resolve display name early so it's available for all branches
+  var meta = smdStorage.getMetadata(uuid);
+  var displayName = meta ? meta.name : uuid;
+
   // Update registry immediately so Machine Info reflects the assignment
   if (typeof driveRegistry !== 'undefined') {
-    var meta = smdStorage.getMetadata(uuid);
-    var displayName = meta ? meta.name : uuid;
     driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, meta ? meta.size || 0 : 0);
   }
 
-  // If emulator is initialized and persistence is on, mount live
-  if (emu && emu.isReady && emu.isReady() && isSmdPersistenceEnabled()) {
+  // Mount live if persistence is on.
+  // No isReady() gate — opfsMountSMD works as soon as the worker is running.
+  if (emu && isSmdPersistenceEnabled()) {
+    console.log('[SMD Manager] Mounting ' + displayName + ' on unit ' + unit +
+      ' (isReady=' + (emu.isReady ? emu.isReady() : 'N/A') + ')');
     if (emu.isWorkerMode()) {
       emu.opfsMountSMD(unit, uuid).then(function(r) {
-        console.log('[SMD Manager] Unit ' + unit + ' mounted: ' + displayName + (r.ok ? ' OK' : ' FAILED'));
-        if (r.ok && typeof driveRegistry !== 'undefined') {
-          driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, r.size || 0);
+        // Guard: if the assignment changed while the async mount was in flight, skip
+        if (smdStorage.getUnitAssignment(unit) !== uuid) {
+          console.log('[SMD Manager] Unit ' + unit + ' assignment changed during mount, skipping registry update');
+          return;
+        }
+        if (r.ok) {
+          console.log('[SMD Manager] Unit ' + unit + ' mounted: ' + displayName + ' (' + smdStorage.formatSize(r.size || 0) + ')');
+          if (typeof driveRegistry !== 'undefined') {
+            driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, r.size || 0);
+          }
+        } else {
+          console.error('[SMD Manager] Unit ' + unit + ' mount FAILED: ' + displayName);
+          alert('Failed to mount "' + displayName + '" on unit ' + unit + '.\n\nThe image file may be corrupted or inaccessible.');
+          smdStorage.clearUnitAssignment(unit);
+          if (typeof driveRegistry !== 'undefined') driveRegistry.eject('smd', unit);
+          smdRefreshAll();
         }
       });
     } else {
       smdStorage.retrieveImage(uuid).then(function(data) {
+        // Guard: if the assignment changed while retrieving, skip
+        if (smdStorage.getUnitAssignment(unit) !== uuid) {
+          console.log('[SMD Manager] Unit ' + unit + ' assignment changed during retrieve, skipping');
+          return;
+        }
         if (data) {
-          emu.mountSMDFromBuffer(unit, data);
-          console.log('[SMD Manager] Unit ' + unit + ' mounted from buffer: ' + displayName);
-          if (typeof driveRegistry !== 'undefined') {
-            driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, data.byteLength);
+          var rc = emu.mountSMDFromBuffer(unit, data);
+          if (rc === 0) {
+            console.log('[SMD Manager] Unit ' + unit + ' mounted from buffer: ' + displayName + ' (' + smdStorage.formatSize(data.byteLength) + ')');
+            if (typeof driveRegistry !== 'undefined') {
+              driveRegistry.mount('smd', unit, 'opfs', displayName, uuid, data.byteLength);
+            }
+          } else {
+            console.error('[SMD Manager] Unit ' + unit + ' mount from buffer FAILED (rc=' + rc + ')');
+            alert('Failed to mount "' + displayName + '" on unit ' + unit + '.');
+            smdStorage.clearUnitAssignment(unit);
+            if (typeof driveRegistry !== 'undefined') driveRegistry.eject('smd', unit);
+            smdRefreshAll();
           }
+        } else {
+          console.error('[SMD Manager] Unit ' + unit + ' - image not found in OPFS: ' + uuid);
+          alert('Image "' + displayName + '" not found in storage. It may have been deleted.');
+          smdStorage.clearUnitAssignment(unit);
+          if (typeof driveRegistry !== 'undefined') driveRegistry.eject('smd', unit);
+          smdRefreshAll();
         }
       });
     }
@@ -308,7 +356,10 @@ function smdEjectUnit(unit) {
 
   smdStorage.clearUnitAssignment(unit);
 
-  if (emu && emu.isReady && emu.isReady()) {
+  // No isReady() gate — unmount works as soon as the worker is running.
+  if (emu) {
+    console.log('[SMD Manager] Ejecting unit ' + unit +
+      ' (isReady=' + (emu.isReady ? emu.isReady() : 'N/A') + ')');
     if (emu.isWorkerMode()) {
       emu.opfsUnmountSMD(unit);
     } else {
@@ -353,8 +404,33 @@ function smdSaveUnit(unit) {
 }
 
 function smdDeleteImage(uuid) {
+  // Check if assigned to any unit - must eject first
+  // Check both unit assignments AND registry (they can be out of sync)
+  var units = smdStorage.getUnitAssignments();
+  var needsEject = false;
+  for (var u = 0; u < 4; u++) {
+    var assignedHere = (units[u] === uuid);
+    var registryHere = false;
+    if (typeof driveRegistry !== 'undefined') {
+      var regEntry = driveRegistry.get('smd', u);
+      if (regEntry && regEntry.mounted && regEntry.fileName === uuid) {
+        registryHere = true;
+      }
+    }
+    if (assignedHere || registryHere) {
+      needsEject = true;
+      if (confirm('This image is mounted on unit ' + u + '. Eject it before deleting?')) {
+        smdEjectUnit(u);
+      } else {
+        return;
+      }
+    }
+  }
+
   smdStorage.deleteImage(uuid).then(function() {
     smdRefreshAll();
+  }).catch(function(err) {
+    alert('Delete failed: ' + err.message);
   });
 }
 
@@ -390,6 +466,15 @@ function smdImportFromFile() {
     var reader = new FileReader();
     reader.onload = function(ev) {
       var data = new Uint8Array(ev.target.result);
+
+      // Validate disk image before storing
+      var validation = smdStorage.validateDiskImage(data);
+      if (!validation.valid) {
+        alert('Import failed: ' + validation.error);
+        console.error('[SMD Manager] Import rejected: ' + validation.error);
+        return;
+      }
+
       var uuid = smdStorage.generateUUID();
       var displayName = file.name;
 
@@ -400,6 +485,9 @@ function smdImportFromFile() {
       }).then(function() {
         smdRefreshAll();
         console.log('[SMD Manager] Imported ' + displayName + ' (' + smdStorage.formatSize(data.byteLength) + ')');
+      }).catch(function(err) {
+        alert('Import failed: ' + err.message);
+        console.error('[SMD Manager] Import store failed:', err);
       });
     };
     reader.readAsArrayBuffer(file);
@@ -479,6 +567,32 @@ function smdShowCopyDialog(entry) {
   var dlg = document.getElementById('smd-copy-dialog');
   if (!dlg) return;
 
+  // For non-generated entries, verify the file exists on the server first
+  if (!entry.generate && entry.url) {
+    var statusEl = document.getElementById('smd-download-status');
+    if (statusEl) statusEl.textContent = 'Checking availability of ' + entry.name + '...';
+
+    fetch(entry.url, { method: 'HEAD' }).then(function(resp) {
+      if (statusEl) statusEl.textContent = '';
+      if (!resp.ok) {
+        console.error('[SMD Manager] Catalog image not found: ' + entry.url + ' (HTTP ' + resp.status + ')');
+        alert('Image "' + entry.name + '" is not available on the server (HTTP ' + resp.status + ').\n\n' +
+          'The catalog entry may be outdated or the file has not been uploaded yet.');
+        return;
+      }
+      smdShowCopyDialogInner(entry, dlg);
+    }).catch(function(err) {
+      if (statusEl) statusEl.textContent = '';
+      console.error('[SMD Manager] Catalog image check failed: ' + entry.url, err);
+      alert('Cannot reach "' + entry.name + '" on the server.\n\n' +
+        'Network error: ' + err.message);
+    });
+  } else {
+    smdShowCopyDialogInner(entry, dlg);
+  }
+}
+
+function smdShowCopyDialogInner(entry, dlg) {
   document.getElementById('smd-copy-name').value = entry.name || '';
   document.getElementById('smd-copy-desc').value = entry.description || '';
 
@@ -500,22 +614,110 @@ function smdDoCopy(uuid, name, description, entry) {
   var statusEl = document.getElementById('smd-download-status');
   if (statusEl) statusEl.textContent = (entry.generate ? 'Creating ' : 'Copying ') + name + '...';
 
+  console.log('[SMD Copy] Starting copy: "' + name + '" uuid=' + uuid +
+    (entry.generate ? ' (GENERATING BLANK DISK ' + smdStorage.formatSize(entry.size) + ' - NOT downloading!)' :
+      ' url=' + entry.url + ' expectedSize=' + smdStorage.formatSize(entry.size || 0)));
+
   var dataPromise;
   if (entry.generate) {
+    console.log('[SMD Copy] Creating blank disk image (all zeros) - this is a data disk, not bootable');
     dataPromise = Promise.resolve(new Uint8Array(entry.size));
   } else {
+    if (!entry.url) {
+      console.error('[SMD Copy] CATALOG ERROR: entry has no URL and generate is not set');
+      if (statusEl) statusEl.textContent = 'Failed: catalog entry has no download URL';
+      alert('Catalog error: "' + name + '" has no download URL configured.\n\nThe smd-catalog.json entry needs a "url" field pointing to the image file.');
+      return;
+    }
     dataPromise = downloadImageBuffer(entry.url).then(function(buf) {
       return new Uint8Array(buf);
     });
   }
 
+  var downloadedData = null;
+
   dataPromise.then(function(data) {
+    downloadedData = data;
+
+    console.log('[SMD Copy] Downloaded: ' + smdStorage.formatSize(data.byteLength) +
+      ', first 16 bytes: ' + Array.from(data.slice(0, 16))
+        .map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join(' '));
+
+    // Validate downloaded data (skip for generated blank disks - they're intentionally all zeros)
+    if (!entry.generate) {
+      // Check downloaded size matches expected catalog size
+      if (entry.size && data.byteLength !== entry.size) {
+        throw new Error('Size mismatch: downloaded ' + smdStorage.formatSize(data.byteLength) +
+          ' but catalog says ' + smdStorage.formatSize(entry.size) +
+          '. The file on the server may be wrong.');
+      }
+
+      var validation = smdStorage.validateDiskImage(data);
+      if (!validation.valid) {
+        throw new Error('Validation failed: ' + validation.error);
+      }
+
+      // Check boot sector (first 1024 bytes = 1 block) for all zeros
+      var bootAllZero = true;
+      var checkLen = Math.min(1024, data.byteLength);
+      for (var i = 0; i < checkLen; i++) {
+        if (data[i] !== 0) { bootAllZero = false; break; }
+      }
+      if (bootAllZero) {
+        console.warn('[SMD Copy] WARNING: First ' + checkLen + ' bytes are all zeros (empty boot sector)');
+      } else {
+        console.log('[SMD Copy] Boot sector has data (non-zero within first ' + checkLen + ' bytes)');
+      }
+
+      // Check entire image for all zeros (completely blank file)
+      var allZero = true;
+      for (var j = 0; j < data.byteLength; j++) {
+        if (data[j] !== 0) { allZero = false; break; }
+      }
+      if (allZero) {
+        throw new Error('Downloaded file is entirely zeros (' + smdStorage.formatSize(data.byteLength) +
+          ' of nothing). The server returned an empty or corrupt file.');
+      }
+    }
+
+    console.log('[SMD Copy] Validation passed, storing to OPFS...');
     return smdStorage.storeImage(uuid, data, {
       name: name,
       description: description,
       sourceName: entry.name
     });
   }).then(function() {
+    // Verify: read back from OPFS and compare
+    console.log('[SMD Copy] Store complete, verifying readback...');
+    return smdStorage.retrieveImage(uuid);
+  }).then(function(readback) {
+    if (!readback) {
+      throw new Error('Readback verification failed: could not read image back from OPFS');
+    }
+    if (readback.byteLength !== downloadedData.byteLength) {
+      throw new Error('Readback size mismatch: wrote ' + smdStorage.formatSize(downloadedData.byteLength) +
+        ' but read back ' + smdStorage.formatSize(readback.byteLength));
+    }
+
+    // Compare first 4096 bytes (boot area)
+    var compareLen = Math.min(4096, readback.byteLength);
+    var mismatch = -1;
+    for (var i = 0; i < compareLen; i++) {
+      if (readback[i] !== downloadedData[i]) { mismatch = i; break; }
+    }
+    if (mismatch >= 0) {
+      console.error('[SMD Copy] READBACK MISMATCH at byte ' + mismatch +
+        ': wrote 0x' + downloadedData[mismatch].toString(16) +
+        ' but read 0x' + readback[mismatch].toString(16));
+      throw new Error('Data corruption: OPFS readback differs from downloaded data at byte ' + mismatch);
+    }
+
+    console.log('[SMD Copy] Readback OK: ' + smdStorage.formatSize(readback.byteLength) +
+      ', first 16 bytes match: ' + Array.from(readback.slice(0, 16))
+        .map(function(b) { return ('0' + b.toString(16)).slice(-2); }).join(' '));
+
+    downloadedData = null; // free memory
+
     if (statusEl) {
       statusEl.textContent = name + ' added to local library';
       setTimeout(function() {
@@ -524,7 +726,11 @@ function smdDoCopy(uuid, name, description, entry) {
     }
     smdRefreshAll();
   }).catch(function(err) {
-    if (statusEl) statusEl.textContent = 'Failed: ' + err.message;
+    downloadedData = null;
+    var errMsg = err.message || String(err);
+    if (statusEl) statusEl.textContent = 'Failed: ' + errMsg;
+    console.error('[SMD Copy] FAILED: ' + errMsg, err);
+    alert('Failed to copy "' + name + '" to library.\n\n' + errMsg);
   });
 }
 
@@ -585,20 +791,48 @@ function smdHandlePersistToggle(enabled) {
 }
 
 // =========================================================
-// Auto-save on page unload (Direct mode only)
+// Auto-save: periodic timer + page unload (Direct mode only)
 // =========================================================
 
+var _autoSaveInterval = null;
+var AUTO_SAVE_PERIOD_MS = 60000; // 60 seconds
+
+function smdStartAutoSave() {
+  if (_autoSaveInterval) return;
+  _autoSaveInterval = setInterval(function() {
+    if (!isSmdPersistenceEnabled()) return;
+    if (emu && emu.isWorkerMode && emu.isWorkerMode()) return;
+
+    var dirtyUnits = smdStorage.getDirtyUnits();
+    dirtyUnits.forEach(function(unit) {
+      console.log('[SMD Manager] Auto-saving unit ' + unit);
+      smdSaveUnit(unit);
+    });
+  }, AUTO_SAVE_PERIOD_MS);
+}
+
+function smdStopAutoSave() {
+  if (_autoSaveInterval) {
+    clearInterval(_autoSaveInterval);
+    _autoSaveInterval = null;
+  }
+}
+
+// Start auto-save when persistence is enabled and we're in Direct mode
+if (isSmdPersistenceEnabled()) {
+  smdStartAutoSave();
+}
+
+// Best-effort save on page unload (backup for auto-save)
 window.addEventListener('beforeunload', function(e) {
   if (!isSmdPersistenceEnabled()) return;
-  if (emu && emu.isWorkerMode && emu.isWorkerMode()) return; // Worker persists immediately
+  if (emu && emu.isWorkerMode && emu.isWorkerMode()) return;
 
   var dirtyUnits = smdStorage.getDirtyUnits();
   if (dirtyUnits.length > 0) {
-    // Try to save synchronously (best-effort)
     dirtyUnits.forEach(function(unit) {
       smdSaveUnit(unit);
     });
-    // Show warning if saves pending
     e.preventDefault();
     e.returnValue = 'Disk changes are being saved...';
   }
@@ -894,6 +1128,23 @@ function smdDoGatewayCopy(driveType, remoteUnit, size, name, description, btnEl)
     var uuid = smdStorage.generateUUID();
     var data = new Uint8Array(msg.buffer);
 
+    // Validate received data
+    if (size && data.byteLength !== size) {
+      console.error('[SMD Manager] Gateway copy size mismatch: got ' + smdStorage.formatSize(data.byteLength) +
+        ' but expected ' + smdStorage.formatSize(size));
+      if (actionsEl) actionsEl.innerHTML = '<span class="smd-image-meta" style="color:#f44">Copy failed: incomplete transfer</span>';
+      smdRefreshRemoteList();
+      return;
+    }
+
+    var validation = smdStorage.validateDiskImage(data);
+    if (!validation.valid) {
+      console.error('[SMD Manager] Gateway copy validation failed:', validation.error);
+      if (actionsEl) actionsEl.innerHTML = '<span class="smd-image-meta" style="color:#f44">Copy failed: ' + escapeHtml(validation.error) + '</span>';
+      smdRefreshRemoteList();
+      return;
+    }
+
     smdStorage.storeImage(uuid, data, {
       name: name,
       description: description,
@@ -913,6 +1164,49 @@ function smdDoGatewayCopy(driveType, remoteUnit, size, name, description, btnEl)
     smdRefreshRemoteList();
   });
 }
+
+// =========================================================
+// Re-sync mounts after Init completes (safety net)
+// =========================================================
+// If the user assigned disks before Power On, the worker may not have received
+// mount commands (pre-Fix: isReady() gate blocked them). After Init, re-apply
+// all unit assignments so the C side matches the JS registry.
+
+function smdSyncMountsToWorker() {
+  if (!emu || !isSmdPersistenceEnabled()) return;
+  if (!emu.isWorkerMode || !emu.isWorkerMode()) return;
+
+  var units = smdStorage.getUnitAssignments();
+  for (var u = 0; u < 4; u++) {
+    if (!units[u]) continue;
+    var meta = smdStorage.getMetadata(units[u]);
+    var displayName = meta ? meta.name : units[u];
+    console.log('[SMD Manager] Post-init sync: mounting ' + displayName + ' on unit ' + u);
+    (function(unit, uuid, name) {
+      emu.opfsMountSMD(unit, uuid).then(function(r) {
+        // Guard: if the assignment changed while mount was in flight, skip
+        if (smdStorage.getUnitAssignment(unit) !== uuid) {
+          console.log('[SMD Manager] Post-init sync: unit ' + unit + ' assignment changed, skipping');
+          return;
+        }
+        if (r.ok) {
+          console.log('[SMD Manager] Post-init sync OK: unit ' + unit + ' = ' + name + ' (' + smdStorage.formatSize(r.size || 0) + ')');
+          if (typeof driveRegistry !== 'undefined') {
+            driveRegistry.mount('smd', unit, 'opfs', name, uuid, r.size || 0);
+          }
+        } else {
+          console.error('[SMD Manager] Post-init sync FAILED: unit ' + unit + ' = ' + name);
+        }
+      });
+    })(u, units[u], displayName);
+  }
+}
+
+// Listen for the 'emu-initialized' event dispatched by emu-proxy-worker.js
+window.addEventListener('emu-initialized', function() {
+  console.log('[SMD Manager] emu-initialized event received, syncing mounts');
+  smdSyncMountsToWorker();
+});
 
 // Expose for toolbar.js
 window.smdManagerShow = smdManagerShow;
