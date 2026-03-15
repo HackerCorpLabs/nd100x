@@ -499,10 +499,14 @@ typedef struct BreakpointEntry {
 } BreakpointEntry;
 
 typedef struct {
-    BreakpointEntry* buckets[HASH_SIZE];    
-	
+    BreakpointEntry* buckets[HASH_SIZE];
+
 	// Number of instructions to step (for single stepping when we cant set a breakpoint)
 	int step_count;
+
+	// Address of last breakpoint hit (for DAP hitBreakpointIds)
+	uint16_t last_hit_address;
+	bool last_hit_valid;
 } BreakpointManager;
 
 //********** Watchpoints (memory access breakpoints) **********

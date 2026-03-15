@@ -13,6 +13,7 @@ int dap_server_send_event(DAPServer *s, const char *ev, cJSON *body);
 int dap_server_send_output(DAPServer *s, const char *msg);
 int dap_server_send_output_category(DAPServer *s, DAPOutputCategory cat, const char *msg);
 int dap_server_send_stopped_event(DAPServer *s, const char *reason, const char *desc);
+int dap_server_send_stopped_event_ex(DAPServer *s, const char *reason, const char *desc, const int *hit_bp_ids, int hit_bp_count);
 int dap_server_send_process_event(DAPServer *s, const char *name, int pid, bool local, const char *method);
 int dap_server_send_thread_event(DAPServer *s, const char *reason, int tid);
 int dap_server_send_terminated_event(DAPServer *s, bool restart);
