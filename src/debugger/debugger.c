@@ -4127,6 +4127,106 @@ static int cmd_console_write(DAPServer *server)
     return 0;
 }
 
+/**
+ * @brief Map libsymbols type to DAP symbol type string
+ */
+static const char *symbol_type_to_dap_string(symbol_type_t type)
+{
+    switch (type) {
+    case SYMBOL_TYPE_FUNCTION: return "function";
+    case SYMBOL_TYPE_VARIABLE: return "variable";
+    default:                   return "label";
+    }
+}
+
+/**
+ * @brief Symbol list callback - returns all symbols from all symbol tables
+ */
+static int cmd_symbol_list(DAPServer *server)
+{
+    if (!server) return -1;
+
+    /* Count total symbols across all tables */
+    size_t total = 0;
+
+    if (symbol_tables.debug_info) {
+        for (int f = 0; f < symbol_tables.debug_info->function_count; f++) {
+            total++;  /* the function itself */
+            total += (size_t)symbol_tables.debug_info->functions[f].variable_count;
+        }
+    }
+
+    symbol_table_t *flat_tables[] = {
+        symbol_tables.symbol_table_stabs,
+        symbol_tables.symbol_table_map,
+        symbol_tables.symbol_table_aout,
+    };
+    for (int t = 0; t < 3; t++) {
+        if (flat_tables[t])
+            total += flat_tables[t]->count;
+    }
+
+    if (total == 0) {
+        server->current_command.context.symbol_list.symbols = NULL;
+        server->current_command.context.symbol_list.symbol_count = 0;
+        return 0;
+    }
+
+    DAPSymbol *syms = calloc(total, sizeof(DAPSymbol));
+    if (!syms) return -1;
+
+    int n = 0;
+
+    /* 1. C debug info: functions and their variables */
+    if (symbol_tables.debug_info) {
+        for (int f = 0; f < symbol_tables.debug_info->function_count; f++) {
+            symbol_function_t *func = &symbol_tables.debug_info->functions[f];
+            syms[n].name        = func->name ? strdup(func->name) : strdup("(unknown)");
+            syms[n].address     = func->start_address;
+            syms[n].type        = strdup("function");
+            syms[n].source_path = NULL;
+            syms[n].line        = 0;
+            n++;
+
+            for (int v = 0; v < func->variable_count; v++) {
+                symbol_variable_t *var = &func->variables[v];
+                syms[n].name        = var->name ? strdup(var->name) : strdup("(unknown)");
+                syms[n].address     = func->start_address;
+                syms[n].type        = strdup("variable");
+                syms[n].source_path = NULL;
+                syms[n].line        = 0;
+                n++;
+            }
+        }
+    }
+
+    /* 2. Flat symbol tables (stabs, map, aout) */
+    for (int t = 0; t < 3; t++) {
+        symbol_table_t *tbl = flat_tables[t];
+        if (!tbl) continue;
+
+        for (size_t i = 0; i < tbl->count; i++) {
+            symbol_entry_t *e = &tbl->entries[i];
+
+            /* Skip file and line entries - not useful as symbols */
+            if (e->type == SYMBOL_TYPE_FILE || e->type == SYMBOL_TYPE_LINE)
+                continue;
+
+            syms[n].name        = e->name ? strdup(e->name) : strdup("(unknown)");
+            syms[n].address     = e->address;
+            syms[n].type        = strdup(symbol_type_to_dap_string(e->type));
+            syms[n].source_path = e->filename ? strdup(e->filename) : NULL;
+            syms[n].line        = e->line;
+            n++;
+        }
+    }
+
+    server->current_command.context.symbol_list.symbols      = syms;
+    server->current_command.context.symbol_list.symbol_count  = n;
+
+    return 0;
+}
+
 /// @brief Initialize the DAP server
 /// @param port The port to listen on
 /// @return 0 if successful, -1 if error
@@ -4224,6 +4324,9 @@ int ndx_server_init(int port)
     // Console I/O
     dap_server_register_command_callback(server, DAP_CMD_CONSOLE_ENABLE, cmd_console_enable);
     dap_server_register_command_callback(server, DAP_CMD_CONSOLE_WRITE, cmd_console_write);
+
+    // Symbol listing
+    dap_server_register_command_callback(server, DAP_CMD_SYMBOL_LIST, cmd_symbol_list);
 
     // Configure which capabilities are supported
     set_default_dap_capabilities(server);
@@ -4345,6 +4448,7 @@ static int ndx_server_init_wasm(void)
     dap_server_register_command_callback(server, DAP_CMD_READ_MEMORY, cmd_read_memory);
     dap_server_register_command_callback(server, DAP_CMD_CONSOLE_ENABLE, cmd_console_enable);
     dap_server_register_command_callback(server, DAP_CMD_CONSOLE_WRITE, cmd_console_write);
+    dap_server_register_command_callback(server, DAP_CMD_SYMBOL_LIST, cmd_symbol_list);
 
     printf("WASM DAP debugger initialized (in-process, no transport)\n");
     return 0;
