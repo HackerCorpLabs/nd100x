@@ -626,12 +626,32 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // If the combination of WPM, RPM and FPM are all zero, this is interpreted as page not in memory and will generate an internal interrupt as page fault
     if ((pageTableEntry & pfMask) == 0)
     {
-        UpdatePGS(pageTable, VPN, am, true);        
+        // PGS bit 14 (PM - Permit violation) must be FALSE here.
+        //
+        // Per ND-60.062.01 SINTRAN III System Documentation, page 25:
+        //   PM = 1  =>  permit violation (access denied by page permissions)
+        //   PM = 0  =>  ring protect violation (or page not present)
+        //
+        // When all three permission bits (WPM, RPM, FPM) are zero, the page
+        // is simply not mapped into memory. This is NOT a permission issue --
+        // there are no permissions to violate because the page doesn't exist.
+        // The correct interrupt is IIC=3 (page fault / page not present).
+        //
+        // Setting PM=1 here was bug #002 reported by the BSD kernel team:
+        // it made PGS indistinguishable between "page not mapped" and
+        // "page mapped but access denied", which matters for kernel code
+        // that inspects PGS to decide between growing the stack (page fault)
+        // vs sending SIGSEGV (permission violation).
+        UpdatePGS(pageTable, VPN, am, false);
         HandlePF(virtualAddress);
         return false;
     }
 
     // Check access permissions
+    // The page IS present (at least one of WPM/RPM/FPM is set), but the
+    // specific access mode requested is not permitted by the page table entry.
+    // This IS a genuine permit violation, so PM=1 is correct here.
+    // Triggers IIC=2 (memory protection violation).
     if ((pageTableEntry & accessBits) == 0)
     {
         UpdatePGS(pageTable, VPN, am, true);
@@ -773,12 +793,25 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
     {
         //printf("WritePhysicalMemoryWM: Shadow Memory 0x[%4X] = 0x%4X\n", physicalAddress, value);
 
-        if (wm != WRITEMODE_WORD)
+        switch (wm)
         {
-            printf("ouch, not implemented yet\n");
-            exit(1);
+        case WRITEMODE_MSB:
+            {
+                ushort cur = PT_Read(physicalAddress);
+                PT_Write(physicalAddress, (cur & 0xFF) | (value << 8));
+            }
+            break;
+        case WRITEMODE_LSB:
+            {
+                ushort cur = PT_Read(physicalAddress);
+                PT_Write(physicalAddress, (cur & 0xFF00) | (value & 0xFF));
+            }
+            break;
+        case WRITEMODE_WORD:
+        default:
+            PT_Write(physicalAddress, value);
+            break;
         }
-        PT_Write(physicalAddress, value);
         return;
     }
 
