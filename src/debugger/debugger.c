@@ -759,12 +759,12 @@ int step_cpu(DAPServer *server, StepType step_type)
     if (step_type == STEP_OVER)
     {
 
-        // Implement special handling for EXIT instruction
+        // Implement special handling for EXIT instruction (P = L)
         if (gReg->myreg_IR == 014614)
         {
-            // Set a temporary breakpoint at the return address
-            int return_address = find_stack_return_address();
-            if (return_address < 0)
+            // EXIT copies L to P, so L IS the return address
+            uint16_t return_address = gL;
+            if (return_address == 0)
                 return -1;
 
             breakpoint_manager_add(return_address, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
@@ -781,17 +781,30 @@ int step_cpu(DAPServer *server, StepType step_type)
             return 0;
         }
         
-        // NEW: Check if current instruction is a procedure call
+        // Check if current instruction is a procedure call (JPL)
         uint16_t current_operand = ReadVirtualMemory(current_pc, false);
         if (is_procedure_call(current_operand)) {
-            // For Step Over, we want to step OVER the call, not into it
-            // Set breakpoint at return address (next instruction after call)
-            uint16_t return_addr = current_pc + 1;  // JPL is 1 word
-            
+            // Resolve JPL target to determine return address.
+            // C calls via csav: JPL sets L = pc+1 (pointing to .word NNN),
+            // csav increments L past the .word, EXIT returns to pc+2.
+            // Leaf calls: JPL sets L = pc+1, EXIT returns to pc+1.
+            uint16_t call_target = get_jpl_target_address(current_pc, current_operand);
+            uint16_t return_addr = current_pc + 1;
+
+            // Check if calling csav (C calling convention)
+            const symbol_entry_t *csav_sym = NULL;
+            if (symbol_tables.symbol_table_aout)
+                csav_sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, "csav");
+            if (!csav_sym && symbol_tables.symbol_table_map)
+                csav_sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, "csav");
+
+            if (csav_sym && call_target == csav_sym->address)
+                return_addr = current_pc + 2;  // skip JPL + .word NNN
+
             snprintf(log_message, sizeof(log_message),
                     "Stepping over function call, return at %06o\n", return_addr);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
-            
+
             breakpoint_manager_add(return_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
             ensure_cpu_running();
             return 0;
@@ -958,14 +971,36 @@ int step_cpu(DAPServer *server, StepType step_type)
         return 0;
     }
 
-    // Step out - step to the next return address (Shift+F11)
+    // Step out - step to the return address (Shift+F11)
     if (step_type == STEP_OUT)
     {
-        // Step out - step to the next return address
-        uint16_t return_address = find_stack_return_address();
-        if (return_address != -1)
-        {
-            breakpoint_manager_add(return_address, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+        uint16_t return_addr = 0;
+
+        // Try B-chain first: if we're inside a C function (after csav
+        // prologue), the return address is at B[1] and the old B at B[0].
+        if (symbol_tables.debug_info) {
+            symbol_function_t *fn = symbols_find_function_at(
+                symbol_tables.debug_info, gPC);
+            if (fn && fn->start_address != gPC) {
+                // Past prologue - B-chain should be valid
+                uint16_t saved_ret = ReadVirtualMemory(gB + 1, false);
+                uint16_t old_b = ReadVirtualMemory(gB, false);
+                if (saved_ret > 0 && old_b > 0 && old_b != gB)
+                    return_addr = saved_ret;
+            }
+        }
+
+        // Fallback: return address is in L register.
+        // Handles leaf functions (puts, strlen) that return via EXIT,
+        // and C functions where we're still in the prologue.
+        if (return_addr == 0)
+            return_addr = gL;
+
+        if (return_addr != 0) {
+            snprintf(log_message, sizeof(log_message),
+                    "Stepping out to %06o\n", return_addr);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+            breakpoint_manager_add(return_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
             ensure_cpu_running();
             return 0;
         }
