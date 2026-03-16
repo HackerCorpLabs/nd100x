@@ -164,7 +164,7 @@ void initialize()
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
     
     
-	program_load(config.bootType, config.imageFile, config.verbose);	
+	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart);
 	gPC = STARTADDR;
 
 	/* Direct input/output enabled */

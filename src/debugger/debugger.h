@@ -51,6 +51,8 @@ typedef struct {
     uint16_t return_address;
     /// @brief Entry point of the stack frame
     uint16_t entry_point;
+    /// @brief B register value for this frame (used for variable access)
+    uint16_t b_reg;
 
     /// @brief Local variables in the current stack frame
     LocalVariables variables;
