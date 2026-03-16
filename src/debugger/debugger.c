@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifndef __EMSCRIPTEN__
 #include <pthread.h>
@@ -145,6 +146,53 @@ static ConsoleCapture console_captures[MAX_CONSOLE_CAPTURES];
 static int console_capture_count = 0;
 
 static void flush_console_output(void);
+
+/*
+ * Resolve a source filename to a full path using debugger_state.
+ * Tries: exact path, source_path directory, then each source_paths entry.
+ * Returns a strdup'd full path, or strdup(file) if unresolved.
+ * Caller must free the result.
+ */
+static char *
+resolve_source_path(DAPServer *server, const char *file)
+{
+    struct stat st;
+
+    if (!file)
+        return NULL;
+
+    /* Already an absolute path that exists? */
+    if (file[0] == '/' && stat(file, &st) == 0)
+        return strdup(file);
+
+    /* Extract basename for searching */
+    const char *basename = strrchr(file, '/');
+    basename = basename ? basename + 1 : file;
+
+    /* Try the main source_path directory */
+    if (server->debugger_state.source_path) {
+        const char *dir = server->debugger_state.source_path;
+        const char *slash = strrchr(dir, '/');
+        if (slash) {
+            char buf[4096];
+            int dirlen = (int)(slash - dir);
+            snprintf(buf, sizeof(buf), "%.*s/%s", dirlen, dir, basename);
+            if (stat(buf, &st) == 0)
+                return strdup(buf);
+        }
+    }
+
+    /* Try each source_paths entry */
+    for (int i = 0; i < server->debugger_state.source_paths_count; i++) {
+        char buf[4096];
+        snprintf(buf, sizeof(buf), "%s/%s", server->debugger_state.source_paths[i], basename);
+        if (stat(buf, &st) == 0)
+            return strdup(buf);
+    }
+
+    /* Unresolved - return as-is */
+    return strdup(file);
+}
 
 #ifdef __EMSCRIPTEN__
 /* WASM: no threads, no atomics */
@@ -1101,6 +1149,10 @@ static int cmd_continue(DAPServer *server)
  * @param server The DAP server instance
  * @return int 0 on success, non-zero on failure
  */
+// Last frame_id requested by scopes — used by add_local_variables
+// to show the correct function's variables, not always the top frame.
+static int scopes_active_frame_id = 0;
+
 static int cmd_scopes(DAPServer *server)
 {
     if (!server)
@@ -1110,6 +1162,7 @@ static int cmd_scopes(DAPServer *server)
 
     // Extract frame_id from the command context
     int frame_id = server->current_command.context.scopes.frame_id;
+    scopes_active_frame_id = frame_id;
 
     // Allocate memory for the scopes
     DAPScope *scopes = (DAPScope *)calloc(NUM_SCOPES, sizeof(DAPScope));
@@ -1123,15 +1176,20 @@ static int cmd_scopes(DAPServer *server)
     // Set up Locals scope
     int scope_index = 0;
 
-    // Show Locals scope if we have C debug info for this PC, or assembly-level locals
+    // Show Locals scope if we have C debug info for the requested frame's PC
     {
         bool has_c_locals = false;
         int c_var_count = 0;
 
+        // Use the requested frame's PC, not gPC (which is always the top frame)
+        uint16_t frame_pc = gPC;
+        if (frame_id >= 0 && frame_id < stack_trace.frame_count)
+            frame_pc = stack_trace.frames[frame_id].pc;
+
         if (symbol_tables.debug_info)
         {
             symbol_function_t *func = symbols_find_function_at(
-                symbol_tables.debug_info, gPC);
+                symbol_tables.debug_info, frame_pc);
             if (func && func->variable_count > 0)
             {
                 has_c_locals = true;
@@ -1308,8 +1366,18 @@ static void add_local_variables(DAPServer *server, char *info_message, size_t in
     // Check if we have C debug info and are in a C function
     if (symbol_tables.debug_info)
     {
+        // Use the frame's PC and B register, not the top frame's
+        uint16_t frame_pc = gPC;
+        uint16_t frame_b = gB;
+        int fid = scopes_active_frame_id;
+        if (fid >= 0 && fid < stack_trace.frame_count)
+        {
+            frame_pc = stack_trace.frames[fid].pc;
+            frame_b = stack_trace.frames[fid].b_reg;
+        }
+
         symbol_function_t *func = symbols_find_function_at(
-            symbol_tables.debug_info, gPC);
+            symbol_tables.debug_info, frame_pc);
 
         if (func)
         {
@@ -1318,10 +1386,10 @@ static void add_local_variables(DAPServer *server, char *info_message, size_t in
 
             for (int i = 0; i < var_count; i++)
             {
-                // Read value from memory relative to B register
+                // Read value from memory relative to the frame's B register
                 // Parameters: B + offset (positive offsets, e.g. B+2)
                 // Locals: B + offset (negative offsets, e.g. B-1)
-                uint16_t addr = (uint16_t)((int16_t)gB + vars[i].offset);
+                uint16_t addr = (uint16_t)((int16_t)frame_b + vars[i].offset);
                 int word = ReadVirtualMemory(addr, false);
 
                 if (word != -1)
@@ -2142,10 +2210,10 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
     {
         // We found source information
         frame->line = line;
-        frame->source_path = strdup(file);
+        frame->source_path = resolve_source_path(server, file);
 
-        // Extract source name from path
-        const char *name = strrchr(file, '/');
+        // Extract source name from resolved path
+        const char *name = frame->source_path ? strrchr(frame->source_path, '/') : NULL;
         if (name)
         {
             frame->source_name = strdup(name + 1);
@@ -2227,6 +2295,7 @@ static void rebuild_stack_from_b_chain(void)
         uint16_t pc;
         uint16_t entry_point;
         uint16_t return_address;
+        uint16_t b_reg;
     } tmp_frames[MAX_STACK_FRAMES];
     int nframes = 0;
 
@@ -2234,6 +2303,7 @@ static void rebuild_stack_from_b_chain(void)
     tmp_frames[0].pc = gPC;
     tmp_frames[0].entry_point = cur_func->start_address;
     tmp_frames[0].return_address = 0;
+    tmp_frames[0].b_reg = gB;
     nframes = 1;
 
     /* Walk B-register chain */
@@ -2257,6 +2327,7 @@ static void rebuild_stack_from_b_chain(void)
         /* Return address in the calling function */
         tmp_frames[nframes].pc = ret_addr;
         tmp_frames[nframes].return_address = ret_addr;
+        tmp_frames[nframes].b_reg = old_b;
 
         symbol_function_t *fn = symbols_find_function_at(
             symbol_tables.debug_info, ret_addr);
@@ -2286,6 +2357,7 @@ static void rebuild_stack_from_b_chain(void)
         stack_trace.frames[dst].pc = tmp_frames[i].pc;
         stack_trace.frames[dst].entry_point = tmp_frames[i].entry_point;
         stack_trace.frames[dst].return_address = tmp_frames[i].return_address;
+        stack_trace.frames[dst].b_reg = tmp_frames[i].b_reg;
         stack_trace.frames[dst].operand = 0;
     }
     stack_trace.current_frame = nframes - 1;
@@ -2490,22 +2562,12 @@ static int cmd_stack_trace(DAPServer *server)
         {
             // We found source information
             frame->line = line;
-            
-            // Check if file exists on disk
-            if (file_exists(file)) {
-                // File exists - use path directly
-                frame->source_path = strdup(file);
-                // NOTE: source_reference field removed from DAPStackFrame in libdap
-                // frame->source_reference = 0;
-            } else {
-                // File doesn't exist - use sourceReference
-                frame->source_path = NULL;
-                // NOTE: source_reference field removed from DAPStackFrame in libdap
-                // frame->source_reference = get_or_create_source_reference(file);
-            }
 
-            // Extract source name from path
-            const char *name = strrchr(file, '/');
+            // Resolve basename to full path using source_paths
+            frame->source_path = resolve_source_path(server, file);
+
+            // Extract source name from resolved path
+            const char *name = frame->source_path ? strrchr(frame->source_path, '/') : NULL;
             if (name)
             {
                 frame->source_name = strdup(name + 1);
@@ -3177,7 +3239,7 @@ static int cmd_launch_callback(DAPServer *server)
             printf("Attempting to load a.out program: %s\n", program_path);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                             "Loading a.out program...\n");
-            program_load(BOOT_AOUT, program_path, true);
+            program_load(BOOT_AOUT, program_path, true, 0);
             gPC = STARTADDR;
         } else {
             printf("Program file is not a.out format (skipping load, using existing boot): %s\n", program_path);
@@ -3908,36 +3970,57 @@ static void debugger_console_output(Device *dev, char c)
 }
 
 // Flush buffered console output as DAP events. Called from debugger thread
-// via cmd_check_cpu_events.
+// via cmd_check_cpu_events. Batches all buffered characters per terminal
+// into a single event to avoid flooding the DAP connection.
 static void flush_console_output(void)
 {
     for (int i = 0; i < console_capture_count; i++) {
         ConsoleCapture *cap = &console_captures[i];
+
+        if (cap->ring_tail == cap->ring_head) {
+            continue;  // Nothing buffered for this terminal
+        }
+
+        // Collect all buffered characters into text and hex strings
+        char text_buf[4096];
+        char hex_buf[8192];
+        int text_len = 0;
+        int hex_len = 0;
+
         while (cap->ring_tail != cap->ring_head) {
             unsigned char c = cap->ring[(int)cap->ring_tail];
             cap->ring_tail = (cap->ring_tail + 1) % CONSOLE_RING_SIZE;
 
-            char buf[2] = { (char)c, '\0' };
-            char hex_byte[3];
-            snprintf(hex_byte, sizeof(hex_byte), "%02X", c);
-
-            char data_str[64];
-            snprintf(data_str, sizeof(data_str), "{\"terminal\":%d,\"hex\":\"%s\"}",
-                     cap->terminal_address, hex_byte);
-
-            cJSON *body = cJSON_CreateObject();
-            cJSON_AddStringToObject(body, "category", "stdout");
-            if (c >= 32 && c < 127) {
-                cJSON_AddStringToObject(body, "output", buf);
-            } else if (c == '\r' || c == '\n' || c == '\t') {
-                cJSON_AddStringToObject(body, "output", buf);
-            } else {
-                cJSON_AddStringToObject(body, "output", ".");
+            // Append to hex buffer
+            if (hex_len + 2 < (int)sizeof(hex_buf)) {
+                hex_len += snprintf(hex_buf + hex_len, sizeof(hex_buf) - hex_len, "%02X", c);
             }
-            cJSON_AddStringToObject(body, "data", data_str);
-            dap_server_send_event(cap->server, "output", body);
-            // body ownership transferred to dap_server_send_event, do NOT delete
+
+            // Append to text buffer (printable or whitespace as-is, others as '.')
+            if (text_len + 1 < (int)sizeof(text_buf)) {
+                if ((c >= 32 && c < 127) || c == '\r' || c == '\n' || c == '\t') {
+                    text_buf[text_len++] = (char)c;
+                } else {
+                    text_buf[text_len++] = '.';
+                }
+            }
         }
+
+        text_buf[text_len] = '\0';
+        hex_buf[hex_len] = '\0';
+
+        // Build the data JSON string with terminal address and full hex payload
+        char data_str[8256];
+        snprintf(data_str, sizeof(data_str), "{\"terminal\":%d,\"hex\":\"%s\"}",
+                 cap->terminal_address, hex_buf);
+
+        // Send one batched event per terminal
+        cJSON *body = cJSON_CreateObject();
+        cJSON_AddStringToObject(body, "category", "stdout");
+        cJSON_AddStringToObject(body, "output", text_buf);
+        cJSON_AddStringToObject(body, "data", data_str);
+        dap_server_send_event(cap->server, "output", body);
+        // body ownership transferred to dap_server_send_event, do NOT delete
     }
 }
 

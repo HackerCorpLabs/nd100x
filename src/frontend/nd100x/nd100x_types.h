@@ -46,6 +46,8 @@ typedef struct {
     uint64_t maxInstructions;
     bool breakpointEnabled;
     uint32_t breakpointAddr;
+    bool textStartSet;
+    uint32_t textStart;
 } Config_t;
 
 #endif // CONFIG_H 

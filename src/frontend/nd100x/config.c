@@ -43,6 +43,7 @@ static struct option long_options[] = {
     {"trace",   no_argument,       0, 't'},
     {"max-instr", required_argument, 0, 'n'},
     {"breakpoint", required_argument, 0, 'B'},
+    {"text-start", required_argument, 0, 'T'},
     {0, 0, 0, 0}
 };
 
@@ -62,6 +63,8 @@ void Config_Init(Config_t *config) {
     config->maxInstructions = 0;
     config->breakpointEnabled = false;
     config->breakpointAddr = 0;
+    config->textStartSet = false;
+    config->textStart = 0;
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -81,7 +84,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -157,6 +160,15 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
 
+            case 'T':
+                config->textStartSet = true;
+                config->textStart = strtoul(optarg, &endptr, 0);
+                if (*endptr != '\0') {
+                    fprintf(stderr, "Invalid text start address: %s\n", optarg);
+                    return false;
+                }
+                break;
+
             case '?':
                 return false;
                 
@@ -205,11 +217,12 @@ void Config_PrintHelp(const char *progName) {
     printf("  -s,      --start=ADDR   Start address (default: 0)\n");
     printf("  -a,      --disasm       Enable disassembly output\n");
     printf("  -d,      --debugger     Enable DAP debugger\n");
-    printf("  -p=PORT, --port=PORT    Set debugger port (default: 4711)\n");
+    printf("  -p PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");
     printf("  -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)\n");
+    printf("  -T ADDR, --text-start=ADDR  Text segment load address for a.out (default: 0)\n");
     printf("  -v,      --verbose      Enable verbose output\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");

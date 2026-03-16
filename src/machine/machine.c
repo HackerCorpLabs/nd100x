@@ -277,7 +277,7 @@ void autoMountDrives()
 
 }
 
- int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose)
+ int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose, uint16_t text_start)
  {
      int bootAddress;
      int result;
@@ -312,7 +312,7 @@ void autoMountDrives()
          STARTADDR = bootAddress;
          break;
     case BOOT_AOUT:
-        bootAddress = load_aout(imageFile, verbose, write_memory);
+        bootAddress = load_aout(imageFile, verbose, write_memory, text_start);
         if (bootAddress < 0)
         {
             printf("Error loading AOUT file '%s'\n", imageFile);
