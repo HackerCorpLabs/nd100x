@@ -875,7 +875,9 @@ int step_cpu(DAPServer *server, StepType step_type)
             }
 
             // Scan instructions from current_pc to next_line_addr for a JPL
-            uint16_t scan_limit = (next_line_addr && next_line_addr > current_pc) ? next_line_addr : current_pc + 1;
+            // When next_line_addr is unknown, scan up to 8 instructions ahead
+            // to cover multi-instruction C statements (arg push + call)
+            uint16_t scan_limit = (next_line_addr && next_line_addr > current_pc) ? next_line_addr : current_pc + 8;
             uint16_t jpl_addr = 0;
             uint16_t jpl_operand = 0;
 
