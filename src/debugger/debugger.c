@@ -182,7 +182,15 @@ resolve_source_path(DAPServer *server, const char *file)
         }
     }
 
-    /* Try each source_paths entry */
+    /* Try each source_paths entry with full relative path first */
+    for (int i = 0; i < server->debugger_state.source_paths_count; i++) {
+        char buf[4096];
+        snprintf(buf, sizeof(buf), "%s/%s", server->debugger_state.source_paths[i], file);
+        if (stat(buf, &st) == 0)
+            return strdup(buf);
+    }
+
+    /* Try each source_paths entry with basename only */
     for (int i = 0; i < server->debugger_state.source_paths_count; i++) {
         char buf[4096];
         snprintf(buf, sizeof(buf), "%s/%s", server->debugger_state.source_paths[i], basename);
