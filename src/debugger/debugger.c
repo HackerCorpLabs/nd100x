@@ -976,25 +976,115 @@ int step_cpu(DAPServer *server, StepType step_type)
     {
         uint16_t return_addr = 0;
 
-        // Try B-chain first: if we're inside a C function (after csav
-        // prologue), the return address is at B[1] and the old B at B[0].
-        if (symbol_tables.debug_info) {
-            symbol_function_t *fn = symbols_find_function_at(
-                symbol_tables.debug_info, gPC);
-            if (fn && fn->start_address != gPC) {
-                // Past prologue - B-chain should be valid
-                uint16_t saved_ret = ReadVirtualMemory(gB + 1, false);
-                uint16_t old_b = ReadVirtualMemory(gB, false);
-                if (saved_ret > 0 && old_b > 0 && old_b != gB)
-                    return_addr = saved_ret;
-            }
+        // Look up csav/cret addresses for special handling
+        const symbol_entry_t *csav_sym = NULL;
+        const symbol_entry_t *cret_sym = NULL;
+        if (symbol_tables.symbol_table_aout) {
+            csav_sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, "csav");
+            cret_sym = symbols_lookup_by_name(symbol_tables.symbol_table_aout, "cret");
+        }
+        if (!csav_sym && symbol_tables.symbol_table_map)
+            csav_sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, "csav");
+        if (!cret_sym && symbol_tables.symbol_table_map)
+            cret_sym = symbols_lookup_by_name(symbol_tables.symbol_table_map, "cret");
+
+        // Special case: inside csav (function prologue helper).
+        // L points to .word NNN (frame size parameter). The function body
+        // resumes at L+1. Using L directly would set a breakpoint on data
+        // and crash, so we must skip past the .word.
+        if (csav_sym && cret_sym &&
+            gPC >= csav_sym->address && gPC < cret_sym->address) {
+            return_addr = gL + 1;
+            snprintf(log_message, sizeof(log_message),
+                    "Stepping out of csav to function body at %06o\n", return_addr);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+            breakpoint_manager_add(return_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+            ensure_cpu_running();
+            return 0;
         }
 
-        // Fallback: return address is in L register.
-        // Handles leaf functions (puts, strlen) that return via EXIT,
-        // and C functions where we're still in the prologue.
-        if (return_addr == 0)
-            return_addr = gL;
+        // Special case: inside cret (function epilogue helper).
+        // B still points to the current frame (not yet restored).
+        // B[1] = return address to the function's caller.
+        if (cret_sym && gPC >= cret_sym->address &&
+            gPC < cret_sym->address + 8) {
+            return_addr = ReadVirtualMemory(gB + 1, false);
+            snprintf(log_message, sizeof(log_message),
+                    "Stepping out of cret to caller at %06o\n", return_addr);
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+            breakpoint_manager_add(return_addr, BP_TYPE_TEMPORARY, NULL, NULL, NULL);
+            ensure_cpu_running();
+            return 0;
+        }
+
+        // Determine return address using both L register and B-chain,
+        // picking the right one based on whether csav has executed.
+        //
+        // Before csav: L = return address (set by JPL), B = caller's frame
+        // After csav:  L = garbage (.word addr), B = our frame, B[1] = return addr
+        //
+        // Strategy: if B[1] and L both look valid, we need to know which
+        // is correct. We detect "after csav" by checking if B[1] points
+        // into the calling function (the function that contains the address
+        // L held at function entry). If B[1] looks like a return to our
+        // direct caller and B[0] is a valid old-B, prefer B[1].
+        // Otherwise, use L.
+        {
+            uint16_t b_ret = 0;
+            uint16_t l_ret = gL;
+            bool b_chain_valid = false;
+
+            // Check B-chain
+            if (symbol_tables.debug_info) {
+                symbol_function_t *fn = symbols_find_function_at(
+                    symbol_tables.debug_info, gPC);
+                if (fn && fn->start_address != gPC) {
+                    uint16_t saved_ret = ReadVirtualMemory(gB + 1, false);
+                    uint16_t old_b = ReadVirtualMemory(gB, false);
+                    // B-chain is valid if: B[0] != B (frame pointer changed),
+                    // B[0] > B (old frame is higher in stack), and B[1]
+                    // points to a different function than we're in now.
+                    if (saved_ret > 0 && old_b > 0 && old_b != gB &&
+                        old_b > gB) {
+                        // Verify B[1] doesn't point into our own function
+                        // (which would mean csav hasn't run yet and B is
+                        // still the caller's frame)
+                        symbol_function_t *ret_fn = symbols_find_function_at(
+                            symbol_tables.debug_info, saved_ret);
+                        if (!ret_fn || ret_fn != fn) {
+                            b_ret = saved_ret;
+                            b_chain_valid = true;
+                        }
+                    }
+                }
+            }
+
+            // If B-chain is valid AND L looks like it points into our
+            // own function (meaning csav overwrote it), use B-chain.
+            // Otherwise prefer L (still contains the return address).
+            if (b_chain_valid) {
+                symbol_function_t *l_fn = symbol_tables.debug_info ?
+                    symbols_find_function_at(symbol_tables.debug_info, l_ret) :
+                    NULL;
+                symbol_function_t *cur_fn = symbol_tables.debug_info ?
+                    symbols_find_function_at(symbol_tables.debug_info, gPC) :
+                    NULL;
+
+                if (l_fn && l_fn == cur_fn) {
+                    // L points into our own function - csav overwrote it.
+                    // Use B-chain.
+                    return_addr = b_ret;
+                } else {
+                    // L points elsewhere - it's still the return address.
+                    // This means csav hasn't run yet despite being past
+                    // fn->start_address (pre-csav prologue instructions).
+                    return_addr = l_ret;
+                }
+            }
+
+            if (return_addr == 0)
+                return_addr = l_ret;
+        }
 
         if (return_addr != 0) {
             snprintf(log_message, sizeof(log_message),
