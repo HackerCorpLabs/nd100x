@@ -310,6 +310,11 @@ function createTerminal(identCode: number, name: string): void {
 
   setTimeout(resizeTerminal, 0);
 
+  // Fit console window height to match canvas aspect ratio on first creation
+  if (!useFloat && identCode === 1) {
+    setTimeout(function() { fitTerminalWindowHeight(); }, 50);
+  }
+
   // Fit floating window height to terminal content (avoid empty space below canvas)
   if (useFloat) {
     setTimeout(function() {
@@ -853,44 +858,75 @@ function computeTerminalHeight(identCode: number, windowWidth: number): number {
   return Math.ceil(headerH + canvasH + vkH + padding);
 }
 
-/** Toggle VK visibility for a terminal */
+/** Toggle VK visibility for a terminal.
+ *  To prevent flicker, the window height is set BEFORE the VK enters
+ *  the flow.  The VK is kept out of flow (display:none) while the
+ *  target height is computed from computeTerminalHeight (which knows
+ *  the VK SVG aspect ratio without it being in the DOM flow). */
 function toggleTerminalVK(identCode: number): void {
   var t = terminals[identCode];
   if (!t || !t.vkContainer) return;
   var showing = t.vkContainer.style.display === 'none';
-  t.vkContainer.style.display = showing ? '' : 'none';
 
-  // Floating terminal: recompute height from aspect ratio
+  // Floating terminal
   var floatWin = floatingTerminalWindows[identCode];
   if (floatWin) {
-    if (!floatWin.classList.contains('maximized')) {
-      var newH = computeTerminalHeight(identCode, floatWin.offsetWidth);
-      floatWin.style.height = newH + 'px';
-      // Persist
-      var storageKey = 'float-term-' + identCode + '-size';
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({
-          width: floatWin.style.width,
-          height: floatWin.style.height
-        }));
-      } catch(e) {}
+    if (showing) {
+      // Grow window FIRST (VK still hidden), then reveal VK
+      if (!floatWin.classList.contains('maximized')) {
+        // computeTerminalHeight checks vkContainer.style.display — temporarily
+        // pretend it's visible so VK height is included in the calculation
+        t.vkContainer.style.display = '';
+        var newH = computeTerminalHeight(identCode, floatWin.offsetWidth);
+        t.vkContainer.style.display = 'none';
+        floatWin.style.height = newH + 'px';
+        var storageKey = 'float-term-' + identCode + '-size';
+        try { localStorage.setItem(storageKey, JSON.stringify({ width: floatWin.style.width, height: floatWin.style.height })); } catch(e) {}
+      }
+      // Now show VK — window is already the right size
+      requestAnimationFrame(function() {
+        t.vkContainer.style.display = '';
+        t.resizeTerminal();
+      });
+    } else {
+      t.vkContainer.style.display = 'none';
+      if (!floatWin.classList.contains('maximized')) {
+        var shrunkH = computeTerminalHeight(identCode, floatWin.offsetWidth);
+        floatWin.style.height = shrunkH + 'px';
+        var storageKey2 = 'float-term-' + identCode + '-size';
+        try { localStorage.setItem(storageKey2, JSON.stringify({ width: floatWin.style.width, height: floatWin.style.height })); } catch(e) {}
+      }
+      setTimeout(function() { t.resizeTerminal(); }, 0);
     }
-    setTimeout(function() { t.resizeTerminal(); }, 0);
     return;
   }
 
-  // Console: maximized -> flex layout + ResizeObserver handles canvas refit;
-  // normal -> grow/shrink window to fit canvas + VK
+  // Console window
   var consoleWin = document.getElementById('terminal-window');
-  if (consoleWin && consoleWin.classList.contains('maximized')) {
-    // Double-RAF: let flex reflow settle, then refit canvas
+  if (showing) {
+    if (consoleWin && !consoleWin.classList.contains('maximized')) {
+      // Pre-compute target height with VK included, set it, THEN show VK
+      // so the window grows before VK enters flow (no flicker)
+      t.vkContainer.style.display = '';
+      var preH = computeTerminalHeight(identCode, consoleWin.offsetWidth);
+      t.vkContainer.style.display = 'none';
+      consoleWin.style.height = preH + 'px';
+    }
     requestAnimationFrame(function() {
+      t.vkContainer.style.display = '';
       requestAnimationFrame(function() {
         t.resizeTerminal();
       });
     });
   } else {
-    fitTerminalWindowHeight();
+    t.vkContainer.style.display = 'none';
+    if (consoleWin && consoleWin.classList.contains('maximized')) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() { t.resizeTerminal(); });
+      });
+    } else {
+      fitTerminalWindowHeight();
+    }
   }
 }
 
