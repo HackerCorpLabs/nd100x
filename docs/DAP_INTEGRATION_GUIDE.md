@@ -92,8 +92,8 @@ sequenceDiagram
     DAP->>VSCode: initialize response (capabilities)
     DAP->>VSCode: initialized event
 
-    VSCode->>DAP: launch (program, sources, stopOnEntry)
-    DAP->>CPU: Load a.out into memory
+    VSCode->>DAP: launch (program, sources, stopOnEntry, textStart)
+    DAP->>CPU: Load a.out into memory at textStart
     DAP->>DAP: Load symbol tables
     DAP->>CPU: set_cpu_run_mode(CPU_PAUSED)
     DAP->>VSCode: process event
@@ -394,8 +394,9 @@ if (!line || !file) {
 ```c:2056:2300:debugger.c
 static int cmd_launch_callback(DAPServer *server)
 {
-    // 1. Load program binary
-    program_load(BOOT_AOUT, program_path, true);
+    // 1. Load program binary at the specified text segment address
+    uint16_t text_start = (uint16_t)server->debugger_state.text_start;
+    program_load(BOOT_AOUT, program_path, true, text_start);
     gPC = STARTADDR;
     
     // 2. Clear old symbols
@@ -559,6 +560,36 @@ vscode-nd100-assembly/
         }
     ]
 }
+```
+
+### Kernel Debugging (with textStart)
+
+For programs linked at a non-zero address (e.g. kernel linked with `-T 010000`),
+use the `textStart` field to specify the text segment load address:
+
+```json
+// .vscode/launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug BSD Kernel",
+            "type": "ND-100",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/kernel/unix.out",
+            "mapFile": "${workspaceFolder}/build/kernel/unix.srcmap",
+            "textStart": 4096,
+            "stopOnEntry": true
+        }
+    ]
+}
+```
+
+The `textStart` value is in decimal (4096 = octal 010000 = hex 0x1000).
+When using the MCP `debug_launch` tool, pass it as `text_start`:
+
+```
+debug_launch(program="unix.out", text_start=0x1000, stop_on_entry=true)
 ```
 
 ### With Build Task
