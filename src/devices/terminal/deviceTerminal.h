@@ -34,7 +34,7 @@ typedef struct {
     uint8_t buffer[TERMINAL_QUEUE_SIZE];
     size_t head;
     size_t tail;
-    size_t count;
+    volatile size_t count;  /* written by DAP thread, read by CPU thread */
 } CircularBuffer;
 
 // Terminal registers
