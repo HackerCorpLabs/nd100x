@@ -3374,7 +3374,8 @@ static int cmd_launch_callback(DAPServer *server)
             printf("Attempting to load a.out program: %s\n", program_path);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE,
                                             "Loading a.out program...\n");
-            program_load(BOOT_AOUT, program_path, true, 0);
+            program_load(BOOT_AOUT, program_path, true,
+                         (uint16_t)server->debugger_state.text_start);
             gPC = STARTADDR;
         } else {
             printf("Program file is not a.out format (skipping load, using existing boot): %s\n", program_path);
