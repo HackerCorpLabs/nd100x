@@ -43,6 +43,12 @@ make run
 # Run with valgrind for memory debugging
 make runv
 
+# Build and run unit tests
+make test
+
+# Build RetroTermWeb from submodule
+make retroterm-build
+
 # Show all available options
 make help
 ```
@@ -94,6 +100,9 @@ build/bin/nd100x --boot=bpun --image=images/FILSYS-INV-Q04.BPUN
 # Boot with paper tape loaded
 build/bin/nd100x --boot=floppy --tape=images/test.bpun
 
+# Boot with telnet server for remote terminal access
+build/bin/nd100x --boot=smd --telnet=9000
+
 # Run with various options using Makefile
 BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 ```
@@ -101,14 +110,21 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 ### Command Line Options
 - `-b, --boot=TYPE`: Boot type (bp, bpun, aout, floppy, smd)
 - `-i, --image=FILE`: Image file to load
-- `-t, --tape=FILE`: Paper tape file to load into reader
+- `-e, --tape=FILE`: Paper tape file to load into reader
 - `-P, --printdir=DIR`: Directory for line printer output files (default: ./prints)
-- `-T, --tapedir=DIR`: Directory for paper tape punch output files (default: ./tapes)
+- `-D, --tapedir=DIR`: Directory for paper tape punch output files (default: ./tapes)
 - `-s, --start=ADDR`: Start address (default: 0)
 - `-a, --disasm`: Enable disassembly output
 - `-d, --debugger`: Enable DAP debugger
+- `-p, --port=PORT`: Set debugger port (default: 4711)
+- `-S, --smd-debug`: Enable SMD disk controller debug log (stderr)
+- `-t, --trace`: Enable CPU execution trace to stderr
+- `-n, --max-instr=N`: Stop after N instructions
+- `-B, --breakpoint=ADDR`: Stop at address (octal/hex/decimal)
+- `-T, --text-start=ADDR`: Text segment load address for a.out (default: 0)
 - `-r, --printer=TYPE`: Printer emulation type: text (default), escp, laser (not yet implemented)
 - `-f, --printformat=FMT`: Printer output format: txt (default), pdf
+- `-N, --telnet[=PORT]`: Enable telnet server (default port: 9000)
 - `-v, --verbose`: Enable verbose output
 - `-h, --help`: Show help message
 
@@ -132,7 +148,7 @@ The project follows a modular architecture where each component is built as a st
 - **ndlib**: Core utility library providing logging, file loading (BPUN/a.out formats), keyboard input, and download functionality
 - **cpu**: CPU emulation with full ND-100 instruction set, memory management (MMS1/MMS2), floating point operations, and breakpoint support
 - **machine**: Main emulation loop, system state management, and hardware integration
-- **devices**: I/O device implementations (console, floppy, SMD disk, real-time clock)
+- **devices**: I/O device implementations (console, floppy, SMD disk, real-time clock, line printer, paper tape reader/punch)
 - **debugger**: DAP (Debug Adapter Protocol) integration for debugging support
 - **frontend**: User interface layers (nd100x native, nd100wasm for browser)
 
@@ -180,7 +196,8 @@ The project uses CMake with a Makefile wrapper for convenience. Each module has 
 - **images/**: Binary disk images and system files (SMD0.IMG, FLOPPY.IMG)
 - **asm/**: Assembly code samples and development tools
 - **template/**: Basic web template for standard WASM build
-- **template-glass/**: Glassmorphism UI (1 HTML, 2 CSS, 21 JS modules, 1 JSON data file) - includes draggable debug windows, SINTRAN OS inspection, theme system, CPU load graph, page table viewer
+- **template-glass/**: Glassmorphism UI (1 HTML, 2 CSS, 23 JS modules, 1 JSON data file) - includes draggable debug windows, SINTRAN OS inspection, theme system, CPU load graph, page table viewer, printer and paper tape windows
+- **tests/**: Unit tests for printer, PDF writer, ESC/P parser, and print job manager
 
 ## Development Workflow
 
@@ -227,8 +244,15 @@ git submodule update --init --recursive
 
 ## Testing and Validation
 
-### No Formal Test Suite
-The project currently does not have a formal unit testing framework. Validation is done through:
+### Unit Tests
+The project has unit tests for the printer/PDF subsystem, run via CTest:
+```bash
+make test    # Build and run all tests
+```
+Test source files are in `tests/` (test_escp.c, test_pdfwriter.c, test_printjob.c).
+
+### Manual Validation
+Additional validation is done through:
 - Running BPUN test programs (like test.bpun)
 - Booting SINTRAN and verifying system functionality
 - Using DAP debugger for step-by-step validation

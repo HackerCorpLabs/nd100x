@@ -395,7 +395,7 @@ The taskbar also contains the CPU load mini-graph canvas (80x24px) and a setting
 | SMD Storage | `smd-storage.js` | OPFS persistent storage layer: UUID-keyed images, metadata, unit assignments | `window.smdStorage` |
 | Drive Registry | `drive-registry.js` | Unified mount state for all drives, onChange callbacks, Machine Info auto-update | `window.driveRegistry` |
 | SMD Manager | `smd-manager.js` | Disk Manager window: local library, catalog copy, import/export, gateway mounts | `window.smdManagerShow()`, `window.smdManagerHide()` |
-| Line Printer | `line-printer.js` | Line Printer output window, auto-scroll, 2000-line trim | `window.handlePrinterOutput()` |
+| Line Printer | `printer.js` | Line Printer output window, auto-scroll, 2000-line trim | `window.handlePrinterOutput()` |
 | Paper Tape | `paper-tape.js` | Paper Tape reader upload and writer hex/ASCII display with download | `window.handlePaperTapeWriterOutput()` |
 | Emu Proxy | `emu-proxy.js` | Direct mode: synchronous bridge from JS API to `Module._*()` calls | `window.emu` |
 | Emu Proxy Worker | `emu-proxy-worker.js` | Worker mode: async bridge from JS API to Worker via `postMessage` | `window.emu` |
