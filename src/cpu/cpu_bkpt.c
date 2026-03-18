@@ -268,13 +268,7 @@ int check_for_breakpoint(void)
     }
 
     // Check for breakpoints
-    static int check_call_count = 0;
-    if (++check_call_count <= 3) {
-        printf("[BKPT-DEBUG] check_for_breakpoint called, PC=%06o, mgr=%p, step_count=%d\n",
-               pc, (void*)mgr, mgr ? mgr->step_count : -1);
-    }
     if (breakpoint_manager_check(pc, &hits, &hitCount)) {
-        printf("[BKPT-DEBUG] HIT! PC=%06o hitCount=%d\n", pc, hitCount);
         for (int i = 0; i < hitCount; i++) {
             BreakpointEntry* bp = hits[i];
             //printf("[CPU] Hit breakpoint at %06o type=%d hitCount=%d\n", pc, bp->type, bp->hitCount);

@@ -641,13 +641,6 @@ int cpu_run(int ticks)
 					return ticks;
 				}
 			}
-			else
-			{
-				static int warn_count = 0;
-				if (++warn_count <= 3) {
-					printf("[BKPT-WARN] gDebuggerEnabled is FALSE at PC=%06o!\n", gPC);
-				}
-			}
 #endif
 		}
 
