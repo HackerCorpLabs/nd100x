@@ -137,8 +137,11 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 - **Paper Tape Punch**: I/O 0410-0413, output saved to `--tapedir` directory
 - **Line Printer**: I/O 0430-0433, output saved to `--printdir` directory
 
-### Floppy Menu and Virtual Screen Switching (Native)
-Press **F12** during emulation to open the unified menu, which offers both the Floppy Database Browser (requires internet connection) and the Virtual Screen Selector. Press **Alt+1** through **Alt+6** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch). Device screens are output-only.
+### F12 Menu and Virtual Screen Switching (Native)
+Press **F12** during emulation to open the unified menu, which offers the Floppy Database Browser (requires internet connection), Virtual Screen Selector (with telnet IP and rx/tx stats), and Pending Connections viewer (live auto-refresh with drop controls). Press **Alt+1** through **Alt+9** to switch directly between virtual screens. Device screens are output-only.
+
+### Telnet Server (Native)
+Enable with `--telnet[=PORT]` (default 9000). Non-blocking accept thread handles multiple concurrent pending clients with 60-second auto-disconnect timeout. Per-terminal rx/tx byte counters. Terminals 8-11 are released for telnet by default; others can be released via F12 > Release.
 
 ## Architecture Overview
 
