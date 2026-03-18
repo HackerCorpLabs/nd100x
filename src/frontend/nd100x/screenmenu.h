@@ -26,6 +26,7 @@ typedef enum {
     MENU_F12,
     MENU_SCREEN_SELECT,
     MENU_SCREEN_RELEASE,
+    MENU_PENDING_LIST,
     MENU_MESSAGE,
 } MenuMode;
 
@@ -34,6 +35,7 @@ typedef struct {
     MenuMode mode;
     MenuMode returnTo;          // After message timeout, transition here
     time_t messageExpiry;       // When MENU_MESSAGE auto-dismisses
+    time_t lastRefresh;         // For live-refresh views (pending list)
     VScreen *screens;
     int screenCount;
     int *activeScreen;

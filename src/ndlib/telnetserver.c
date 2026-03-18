@@ -75,6 +75,9 @@ typedef struct {
     bool clientThreadActive;
     bool locallyActive;         // Terminal claimed by local VScreen
     char clientAddrStr[48];
+    // Byte counters (total since server start, survive reconnects)
+    volatile uint64_t bytesRx;  // Bytes received from client
+    volatile uint64_t bytesTx;  // Bytes sent to client
     // Output ring buffer (emulation thread -> client thread)
     uint8_t outputBuf[TELNET_OUTPUT_BUF_SIZE];
     volatile int outputHead;
@@ -115,6 +118,7 @@ static const uint8_t telnet_init[] = {
 static void *accept_thread_func(void *arg);
 static void *client_thread_func(void *arg);
 static RegisteredTerminal *find_by_device(TelnetServer *server, struct Device *device);
+static void remove_pending(TelnetServer *server, int idx);
 
 // Ring buffer write (called from emulation thread via output handler)
 static void ringbuf_write(RegisteredTerminal *rt, uint8_t byte)
@@ -461,6 +465,16 @@ void TelnetServer_ClearDeviceCarrier(TelnetServer *server, struct Device *device
     }
 }
 
+bool TelnetServer_GetTerminalStats(TelnetServer *server, int index,
+    uint64_t *bytesRx, uint64_t *bytesTx)
+{
+    if (!server || index < 0 || index >= server->terminalCount) return false;
+    RegisteredTerminal *rt = &server->terminals[index];
+    if (bytesRx) *bytesRx = rt->bytesRx;
+    if (bytesTx) *bytesTx = rt->bytesTx;
+    return true;
+}
+
 const char *TelnetServer_GetDeviceClientAddr(TelnetServer *server, struct Device *device)
 {
     if (!server || !device) return NULL;
@@ -476,6 +490,56 @@ int TelnetServer_GetPendingCount(TelnetServer *server)
     int count = server->pendingCount;
     pthread_mutex_unlock(&server->pendingMutex);
     return count;
+}
+
+bool TelnetServer_GetPendingInfo(TelnetServer *server, int index,
+    char *addrBuf, int addrBufLen, int *ageSecs)
+{
+    if (!server) return false;
+    pthread_mutex_lock(&server->pendingMutex);
+    if (index < 0 || index >= server->pendingCount) {
+        pthread_mutex_unlock(&server->pendingMutex);
+        return false;
+    }
+    PendingClient *pc = &server->pending[index];
+    if (addrBuf && addrBufLen > 0) {
+        strncpy(addrBuf, pc->addrStr, addrBufLen - 1);
+        addrBuf[addrBufLen - 1] = '\0';
+    }
+    if (ageSecs) {
+        *ageSecs = (int)(time(NULL) - pc->connectTime);
+    }
+    pthread_mutex_unlock(&server->pendingMutex);
+    return true;
+}
+
+bool TelnetServer_DropPending(TelnetServer *server, int index)
+{
+    if (!server) return false;
+    pthread_mutex_lock(&server->pendingMutex);
+    if (index < 0 || index >= server->pendingCount) {
+        pthread_mutex_unlock(&server->pendingMutex);
+        return false;
+    }
+    const char *msg = "\r\nDisconnected by operator.\r\n";
+    send(server->pending[index].fd, msg, strlen(msg), MSG_NOSIGNAL);
+    Log(LOG_INFO, "Telnet: operator dropped pending %s\n", server->pending[index].addrStr);
+    remove_pending(server, index);
+    pthread_mutex_unlock(&server->pendingMutex);
+    return true;
+}
+
+void TelnetServer_DropAllPending(TelnetServer *server)
+{
+    if (!server) return;
+    pthread_mutex_lock(&server->pendingMutex);
+    for (int i = server->pendingCount - 1; i >= 0; i--) {
+        const char *msg = "\r\nDisconnected by operator.\r\n";
+        send(server->pending[i].fd, msg, strlen(msg), MSG_NOSIGNAL);
+        Log(LOG_INFO, "Telnet: operator dropped pending %s\n", server->pending[i].addrStr);
+        remove_pending(server, i);
+    }
+    pthread_mutex_unlock(&server->pendingMutex);
 }
 
 // Remove a pending client by index (caller must hold pendingMutex)
@@ -829,6 +893,7 @@ static void *client_thread_func(void *arg)
                 // Client disconnected
                 break;
             }
+            rt->bytesRx += n;
 
             // Process through IAC state machine, pass data bytes to terminal
             for (int i = 0; i < n; i++) {
@@ -893,6 +958,7 @@ static void *client_thread_func(void *arg)
             if (sent < 0) {
                 break;  // Client disconnected
             }
+            if (sent > 0) rt->bytesTx += sent;
         }
     }
 

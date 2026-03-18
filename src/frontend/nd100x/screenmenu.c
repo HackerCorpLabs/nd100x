@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "keyboard.h"
 #include "vscreen.h"
@@ -28,6 +29,20 @@ extern int show_floppy_menu(void);
 static void draw_f12(void);
 static void draw_screen_select(MenuState *state, void *telnetServer);
 static void draw_release_prompt(MenuState *state);
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+static void draw_pending_list(void *telnetServer);
+#endif
+
+// Human-readable byte count (e.g. "1.2 KB", "3.4 MB")
+static void format_bytes(uint64_t bytes, char *buf, int buflen)
+{
+    if (bytes < 1024)
+        snprintf(buf, buflen, "%" PRIu64 " B", bytes);
+    else if (bytes < 1024 * 1024)
+        snprintf(buf, buflen, "%.1f KB", (double)bytes / 1024.0);
+    else
+        snprintf(buf, buflen, "%.1f MB", (double)bytes / (1024.0 * 1024.0));
+}
 
 static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
 {
@@ -44,6 +59,12 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
         break;
     case MENU_SCREEN_RELEASE:
         draw_release_prompt(state);
+        break;
+    case MENU_PENDING_LIST:
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+        state->lastRefresh = time(NULL);
+        draw_pending_list(telnetServer);
+#endif
         break;
     case MENU_MESSAGE:
         break;
@@ -99,7 +120,7 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
     }
 
     for (int i = 0; i < state->screenCount; i++) {
-        char statusBuf[80];
+        char statusBuf[128];
         const char *status = "";
 
         if (i == *state->activeScreen) {
@@ -112,12 +133,32 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
             TelnetServer *ts = (TelnetServer *)telnetServer;
             if (TelnetServer_IsDeviceConnected(ts, state->screens[i].device)) {
                 const char *addr = TelnetServer_GetDeviceClientAddr(ts, state->screens[i].device);
-                if (addr && addr[0]) {
-                    snprintf(statusBuf, sizeof(statusBuf), " [Telnet %s]", addr);
-                    status = statusBuf;
-                } else {
-                    status = " [Telnet]";
+
+                // Find terminal index in server for byte stats
+                uint64_t rx = 0, tx = 0;
+                int tcount = TelnetServer_GetTerminalCount(ts);
+                for (int t = 0; t < tcount; t++) {
+                    const char *tname = NULL;
+                    bool conn = false;
+                    TelnetServer_GetTerminalStatus(ts, t, &tname, NULL, &conn, NULL, NULL, 0);
+                    if (conn && tname && strcmp(tname, state->screens[i].name) == 0) {
+                        TelnetServer_GetTerminalStats(ts, t, &rx, &tx);
+                        break;
+                    }
                 }
+
+                char rxStr[16], txStr[16];
+                format_bytes(rx, rxStr, sizeof(rxStr));
+                format_bytes(tx, txStr, sizeof(txStr));
+
+                if (addr && addr[0]) {
+                    snprintf(statusBuf, sizeof(statusBuf),
+                             " [Telnet %s] rx:%s tx:%s", addr, rxStr, txStr);
+                } else {
+                    snprintf(statusBuf, sizeof(statusBuf),
+                             " [Telnet] rx:%s tx:%s", rxStr, txStr);
+                }
+                status = statusBuf;
             } else if (!state->screens[i].localActive) {
                 status = " [Inactive]";
             } else if (state->screens[i].isInputCapable && i > 0) {
@@ -140,7 +181,8 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
     if (hasTelnet) {
         printf("\n  [R] Release terminal (virtual->inactive, or disconnect telnet)");
-        printf("\n\nPress 1-%d/a to switch, R to release, ESC to cancel: ",
+        printf("\n  [P] Pending connections (live view)");
+        printf("\n\nPress 1-%d/a to switch, R/P for options, ESC to cancel: ",
                state->screenCount > 9 ? 9 : state->screenCount);
     } else
 #endif
@@ -157,6 +199,36 @@ static void draw_release_prompt(MenuState *state)
            state->screenCount > 9 ? 9 : state->screenCount);
     fflush(stdout);
 }
+
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+static void draw_pending_list(void *telnetServer)
+{
+    TelnetServer *ts = (TelnetServer *)telnetServer;
+    int count = TelnetServer_GetPendingCount(ts);
+
+    printf("\033[2J\033[H");
+    printf("=== Pending Telnet Connections (live, port %d) ===\n\n",
+           TelnetServer_GetPort(ts));
+
+    if (count == 0) {
+        printf("  No pending connections.\n");
+    } else {
+        printf("  #  %-24s  Age\n", "Address");
+        printf("  -  %-24s  ---\n", "-------");
+        for (int i = 0; i < count; i++) {
+            char addr[48];
+            int age = 0;
+            if (TelnetServer_GetPendingInfo(ts, i, addr, sizeof(addr), &age)) {
+                printf("  %d) %-24s  %ds / 60s\n", i + 1, addr, age);
+            }
+        }
+    }
+
+    printf("\n  [D] Drop connection  [A] Drop all  [ESC] Back\n");
+    printf("\nRefreshes every 2 seconds. Press key: ");
+    fflush(stdout);
+}
+#endif
 
 // =========================================================
 // Public API
@@ -188,10 +260,20 @@ void menu_tick(MenuState *state, void *telnetServer)
     if (state->mode == MENU_MESSAGE && time(NULL) >= state->messageExpiry) {
         menu_set_mode(state, state->returnTo, telnetServer);
     }
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+    // Live refresh for pending list view (every 2 seconds)
+    if (state->mode == MENU_PENDING_LIST && telnetServer) {
+        time_t now = time(NULL);
+        if (now - state->lastRefresh >= 2) {
+            state->lastRefresh = now;
+            draw_pending_list(telnetServer);
+        }
+    }
+#endif
 }
 
 // =========================================================
-// Key handler — processes one keypress per call
+// Key handler - processes one keypress per call
 // =========================================================
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
@@ -231,6 +313,10 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
         if ((keybuf[0] == 'r' || keybuf[0] == 'R') && telnetServer) {
             menu_set_mode(state, MENU_SCREEN_RELEASE, telnetServer);
+            return;
+        }
+        if ((keybuf[0] == 'p' || keybuf[0] == 'P') && telnetServer) {
+            menu_set_mode(state, MENU_PENDING_LIST, telnetServer);
             return;
         }
 #endif
@@ -331,6 +417,44 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
 #endif
         }
         break;
+
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+    // ----- Pending connections (live view) -----
+    case MENU_PENDING_LIST:
+        if (is_escape_key(keybuf)) {
+            menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
+            return;
+        }
+        if (telnetServer) {
+            if (keybuf[0] == 'd' || keybuf[0] == 'D') {
+                int count = TelnetServer_GetPendingCount(telnetServer);
+                if (count == 0) {
+                    menu_show_message(state, "No pending connections to drop.",
+                                      MENU_PENDING_LIST);
+                } else if (count == 1) {
+                    TelnetServer_DropPending(telnetServer, 0);
+                    menu_show_message(state, "Dropped pending connection.",
+                                      MENU_PENDING_LIST);
+                } else {
+                    printf("\nDrop which connection (1-%d)? ", count);
+                    fflush(stdout);
+                    // We'll handle the digit on the next keypress via a simple approach:
+                    // For now, just prompt. The next digit key will be caught here.
+                }
+            } else if (keybuf[0] >= '1' && keybuf[0] <= '9') {
+                int idx = keybuf[0] - '1';
+                if (TelnetServer_DropPending(telnetServer, idx)) {
+                    draw_pending_list(telnetServer);
+                    state->lastRefresh = time(NULL);
+                }
+            } else if (keybuf[0] == 'a' || keybuf[0] == 'A') {
+                TelnetServer_DropAllPending(telnetServer);
+                menu_show_message(state, "All pending connections dropped.",
+                                  MENU_PENDING_LIST);
+            }
+        }
+        break;
+#endif
 
     case MENU_MESSAGE:
         break;
