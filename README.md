@@ -43,7 +43,7 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * Old IO code has been removed
 * **Supported IO Devices**
   * Real-Time Clock (20ms tick emulation pending for full SINTRAN compatibility)
-  * Console and additional terminals (up to 4 terminals)
+  * Console and additional terminals (up to 11 terminals, with telnet server for remote access)
   * Floppy (PIO and DMA) for 8" and 5.25" formats
   * SMD Hard Disk (75MB; multi-drive support in progress)
   * Paper Tape Reader (buffer-based, BPUN file loading via CLI or Glass UI upload)
@@ -177,29 +177,39 @@ The emulator supports the following command line options:
 Usage: nd100x [options]
 
 Options:
-  -b, --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)
-  -i, --image=FILE   Image file to load
-  -t, --tape=FILE    Paper tape file to load into reader
-  -P, --printdir=DIR Directory for line printer output files (default: ./prints)
-  -T, --tapedir=DIR  Directory for paper tape punch output files (default: ./tapes)
-  -s, --start=ADDR   Start address (default: 0)
-  -a, --disasm       Enable disassembly output (dump after emulator stops)
-  -d, --debugger     Enable DAP debugger
-  -v, --verbose      Enable verbose output
-  -h, --help         Show this help message
+  -b, --boot=TYPE        Boot type (bp, bpun, aout, floppy, smd)
+  -i, --image=FILE       Image file to load
+  -s, --start=ADDR       Start address (default: 0)
+  -a, --disasm           Enable disassembly output (dump after emulator stops)
+  -d, --debugger         Enable DAP debugger
+  -p, --port=PORT        Set debugger port (default: 4711)
+  -S, --smd-debug        Enable SMD disk controller debug log (stderr)
+  -t, --trace            Enable CPU execution trace to stderr
+  -n, --max-instr=N      Stop after N instructions
+  -B, --breakpoint=ADDR  Stop at address (octal/hex/decimal)
+  -T, --text-start=ADDR  Text segment load address for a.out (default: 0)
+  -e, --tape=FILE        Paper tape file to load into reader
+  -P, --printdir=DIR     Directory for line printer output files (default: ./prints)
+  -D, --tapedir=DIR      Directory for paper tape punch output files (default: ./tapes)
+  -r, --printer=TYPE     Printer emulation: text (default), escp, laser
+  -f, --printformat=FMT  Output format: txt (default), pdf
+  -N, --telnet[=PORT]    Enable telnet server (default port: 9000)
+  -v, --verbose          Enable verbose output
+  -h, --help             Show this help message
 
 Examples:
 
-  build/bin/nd100x -b aout -i a.out -v -d    # Loads an a.out file from the current directory in verbose mode and enables disassembly
+  build/bin/nd100x -b aout -i a.out -v -d    # Loads an a.out file in verbose mode with debugger
 
-  build/bin/nd100x -b bpun -i images/FILSYS-INV-Q04.BPUN      # Loads the latest version of FILSYSTEM INVESTIGATOR (Version: Q04 - 1987-10-10)
-  build/bin/nd100x -b bpun -i images/CONFIGURATIO-C08.BPUN    # Loads an old version of CONFIGURATION-C08
-  build/bin/nd100x -b bpun -i images/INSTRUCTION-B.BPUN       # Loads an old version of INSTRUCTION VERIFIER
+  build/bin/nd100x -b bpun -i images/FILSYS-INV-Q04.BPUN      # Loads FILSYSTEM INVESTIGATOR
+  build/bin/nd100x -b bpun -i images/CONFIGURATIO-C08.BPUN    # Loads CONFIGURATION-C08
+  build/bin/nd100x -b bpun -i images/INSTRUCTION-B.BPUN       # Loads INSTRUCTION VERIFIER
 
-  build/bin/nd100x -b floppy                                  # Boots from a floppy file named FLOPPY.IMG
+  build/bin/nd100x -b floppy                                   # Boots from FLOPPY.IMG
 
-  build/bin/nd100x -b floppy -t images/test.bpun               # Boots from floppy with paper tape loaded
-  build/bin/nd100x -b smd --printdir=/tmp/prints                # Boots SINTRAN, printer output to /tmp/prints/
+  build/bin/nd100x -b floppy -e images/test.bpun               # Boots from floppy with paper tape loaded
+  build/bin/nd100x -b smd --printdir=/tmp/prints               # Boots SINTRAN, printer output to /tmp/prints/
+  build/bin/nd100x -b smd --telnet=9000                        # Boots SINTRAN with telnet server on port 9000
 ```
 
 Boot Types:
@@ -258,7 +268,14 @@ Accumulates punched output in memory. In native mode, output is saved to files i
 CDC 9380 line printer emulation. In native mode, output is saved to files in the print directory (default: `./prints/`). In the Glass UI, a dedicated window shows printer output in real-time.
 
 ### Virtual Screen Switching (Native)
-Press **Alt+1** through **Alt+6** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch). Press **F12** for the unified menu offering both Floppy Database Browser and Virtual Screen Selector. Only terminal screens accept keyboard input; device screens are output-only.
+Press **Alt+1** through **Alt+9** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch, Log). Press **F12** for the unified menu offering Floppy Database Browser, Virtual Screen Selector, and Pending Connections viewer. Only terminal screens accept keyboard input; device screens are output-only.
+
+### Telnet Server (Native)
+Enable with `--telnet[=PORT]` (default port 9000). Provides remote terminal access to terminals 8-11. Multiple clients can connect simultaneously and select from available terminals. Features include:
+* Non-blocking accept with concurrent pending client handling
+* 60-second auto-disconnect for idle pending connections
+* Live monitoring of pending connections with rx/tx byte stats (via F12 menu)
+* Per-terminal rx/tx byte counters visible in the Virtual Screen Selector
 
 ## Floppy Menu
 
