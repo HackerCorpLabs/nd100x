@@ -29,10 +29,12 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h> // For read() system call
 #include <poll.h>   // For pollfd struct and POLLIN
 #include <signal.h> // For sigaction and signal handling
 #include <string.h> // For memset
+#include <pthread.h>
 
 #include <unistd.h>
 
@@ -60,10 +62,17 @@ void stop_debugger_thread();
 #include "nd100x_types.h"
 #include "nd100x_protos.h"
 #include "keyboard.h"
+#include "vscreen.h"
 
-// Function declaration for the menu
-int show_floppy_menu(void);
+#include "../../devices/papertape/devicePapertape.h"
+#include "../../devices/papertapewriter/devicePaperTapeWriter.h"
+#include "../../ndlib/printjob.h"
 
+#include "screenmenu.h"
+
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+#include "../../ndlib/telnetserver.h"
+#endif
 
 // dont include debugger.h here, it will cause other problems, but we define the function here
 void debugger_kbd_input(char c) ;
@@ -76,18 +85,47 @@ double systemtime;
 double totaltime;
 Config_t config;
 
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+static TelnetServer *telnetServer = NULL;
 
+// Carrier callback for telnet connect/disconnect
+static void set_terminal_carrier(Device *dev, bool missing)
+{
+    if (!dev) return;
+    TerminalData *data = (TerminalData *)dev->deviceData;
+    if (!data) return;
+
+    data->noCarrier = missing;
+    data->inputStatus.bits.carrierMissing = missing ? 1 : 0;
+
+    if (missing) {
+        // Queue a space character to wake SINTRAN
+        Terminal_QueueKeyCode(dev, ' ');
+    }
+}
+#endif
 
 void handle_sigint(int sig) {
     printf("\nCaught signal %d (Ctrl-C). Cleaning up...\n", sig);
 
-#ifdef WITH_DEBUGGER    
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+    if (telnetServer) {
+        TelnetServer_Stop(telnetServer);
+        TelnetServer_Destroy(telnetServer);
+        telnetServer = NULL;
+    }
+#endif
+
+#ifdef WITH_DEBUGGER
     // Stop the debugger server gracefully
     stop_debugger_thread();
 #endif
 
     // Stop the machine
-    machine_stop();    
+    machine_stop();
+
+    // Restore terminal settings before exit
+    unsetcbreak();
 
     // Exit the program
     exit(0);
@@ -162,8 +200,20 @@ void initialize()
 
     // {0360, 046, 046, "TERMINAL 7/ TET10"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
-    
-    
+
+
+    // {0370, 047, 047, "TERMINAL 8/ TET9"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 8);
+
+    // {01300, 050, 060, "TERMINAL 9"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 9);
+
+    // {01310, 051, 061, "TERMINAL 10"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 10);
+
+    // {01320, 052, 062, "TERMINAL 11"},
+    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 11);
+
 	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart);
 	gPC = STARTADDR;
 
@@ -183,14 +233,204 @@ void cleanup()
 
 
 
-// Character device output handler for terminals
-static void TerminalOutputHandler(Device *device, char c) 
+// =========================================================
+// VScreen (virtual terminal switching) state
+// =========================================================
+static VScreen screens[VSCREEN_MAX];
+static int screenCount = 0;
+static int activeScreen = 0;
+static MenuState menuState;
+
+// =========================================================
+// Log VScreen state
+// =========================================================
+static int logScreenIndex = -1;
+static pthread_mutex_t logScreenMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// =========================================================
+// Printer output state (managed by PrintJob in ndlib)
+// =========================================================
+static PrintJob *printJob = NULL;
+
+// =========================================================
+// Paper tape writer file output state
+//
+// Single-threaded: tapeWriterJobNumber increments per flush.
+// Tape data is accumulated in the device's own buffer and
+// flushed to a .bpun file on timeout or shutdown.
+// =========================================================
+static int tapeWriterJobNumber = 0;
+#define TAPE_WRITER_JOB_TIMEOUT 5  // seconds of silence = end of tape job
+
+// Helper: ensure directory exists (mkdir -p equivalent for one level)
+static void ensure_directory(const char *path)
 {
-    if (!device)
+    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+        fprintf(stderr, "Failed to create directory: %s\n", path);
+    }
+}
+
+// Get the effective tape directory
+static const char* get_tape_dir(void)
+{
+    return config.tapeDir ? config.tapeDir : "./tapes";
+}
+
+
+// VScreen output handler - routes output to the right screen buffer
+// and only prints to physical terminal if screen is active
+static void VScreenOutputHandler(Device *device, char c)
+{
+    if (!device) return;
+
+    for (int i = 0; i < screenCount; i++) {
+        if (screens[i].device == device) {
+            VScreen_Write(&screens[i], c);
+            if (i == activeScreen && !menu_is_active(&menuState)) {
+                printf("%c", c);
+            }
+            return;
+        }
+    }
+
+    // Fallback: just print (if no menu visible)
+    if (!menu_is_active(&menuState)) {
+        printf("%c", c);
+    }
+}
+
+// Dedicated printer output handler - routes to PrintJob, also feeds VScreen
+static void PrinterOutputHandler(Device *device, char c)
+{
+    if (!device) return;
+
+    // Feed character to PrintJob manager
+    if (printJob) {
+        PrintJob_PutChar(printJob, c);
+    }
+
+    // Also write to VScreen if printer has one
+    for (int i = 0; i < screenCount; i++) {
+        if (screens[i].device == device) {
+            VScreen_Write(&screens[i], c);
+            if (i == activeScreen && !menu_is_active(&menuState)) {
+                printf("%c", c);
+            }
+            return;
+        }
+    }
+}
+
+// Dedicated paper tape writer output handler - accumulates bytes
+// Tape buffer is maintained in the device itself (PaperTapeWriterData.tapeBuffer).
+// This handler stores to file on timeout or shutdown.
+static time_t tapeWriterLastOutputTime = 0;
+static bool tapeWriterActive = false;
+
+static void PaperTapeWriterOutputHandler(Device *device, char c)
+{
+    (void)c;  // Data is stored in device's tapeBuffer already
+    if (!device) return;
+    tapeWriterLastOutputTime = time(NULL);
+    tapeWriterActive = true;
+}
+
+// Flush paper tape writer output to a .bpun file
+static void flush_tape_writer(Device *ptw)
+{
+    if (!ptw || !tapeWriterActive) return;
+
+    size_t length = 0;
+    const uint8_t *data = PaperTapeWriter_GetTapeData(ptw, &length);
+    if (!data || length == 0) return;
+
+    ensure_directory(get_tape_dir());
+    tapeWriterJobNumber++;
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%s/tape-%d.bpun",
+             get_tape_dir(), tapeWriterJobNumber);
+
+    FILE *f = fopen(filename, "wb");
+    if (f) {
+        fwrite(data, 1, length, f);
+        fclose(f);
+        Log(LOG_INFO, "Paper tape job %d saved: %s (%zu bytes)\n",
+               tapeWriterJobNumber, filename, length);
+    }
+    tapeWriterActive = false;
+}
+
+// Log output handler - routes Log() messages to the Log VScreen
+static void LogScreenHandler(const char *msg)
+{
+    if (logScreenIndex < 0) return;
+
+    pthread_mutex_lock(&logScreenMutex);
+    for (const char *p = msg; *p; p++) {
+        VScreen_Write(&screens[logScreenIndex], *p);
+    }
+    if (logScreenIndex == activeScreen && !menu_is_active(&menuState)) {
+        fputs(msg, stdout);
+        fflush(stdout);
+    }
+    pthread_mutex_unlock(&logScreenMutex);
+}
+
+// Derive terminal display name using the same algorithm as the glass UI:
+// Use logicalDevice if set, otherwise fall back to identCode.
+static void make_terminal_name(char *buf, size_t bufsize, Device *dev)
+{
+    uint16_t num = dev->logicalDevice ? dev->logicalDevice : dev->identCode;
+    snprintf(buf, bufsize, "Terminal %d", num);
+}
+
+// Find screen index for a device
+static int findScreenForDevice(Device *device)
+{
+    for (int i = 0; i < screenCount; i++) {
+        if (screens[i].device == device) return i;
+    }
+    return -1;
+}
+
+// Load paper tape from file
+static void load_paper_tape_file(Device *ptr, const char *filename)
+{
+    if (!ptr || !filename) return;
+
+    FILE *f = fopen(filename, "rb");
+    if (!f) {
+        fprintf(stderr, "Failed to open paper tape file: %s\n", filename);
         return;
-   
-   printf("%c",c);
-   fflush(stdout);
+    }
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (size <= 0) {
+        fclose(f);
+        fprintf(stderr, "Paper tape file is empty: %s\n", filename);
+        return;
+    }
+
+    uint8_t *data = malloc((size_t)size);
+    if (!data) {
+        fclose(f);
+        fprintf(stderr, "Failed to allocate memory for paper tape\n");
+        return;
+    }
+
+    if (fread(data, 1, (size_t)size, f) != (size_t)size) {
+        free(data);
+        fclose(f);
+        fprintf(stderr, "Failed to read paper tape file\n");
+        return;
+    }
+    fclose(f);
+
+    PaperTape_LoadTape(ptr, data, (size_t)size);
+    free(data);
 }
 
 
@@ -227,54 +467,214 @@ int main(int argc, char *argv[])
 
     initialize();
 
-	Device *terminal = DeviceManager_GetDeviceByAddress(0300);
-	Device_SetCharacterOutput(terminal, TerminalOutputHandler);
+    // =========================================================
+    // Set up terminal devices with VScreen output handlers
+    // =========================================================
+    Device *terminal = DeviceManager_GetDeviceByAddress(0300);
+    if (!terminal) {
+        printf("Terminal device not found\n");
+        return EXIT_FAILURE;
+    }
 
-	if (!terminal)
-	{
-		printf("Terminal device not found\n");
-		return EXIT_FAILURE;
-	}
+    // Initialize VScreens for all character devices
+    screenCount = 0;
+
+    // Screen 0: Console terminal
+    VScreen_Init(&screens[screenCount], "Console", terminal, 80, true);
+    Device_SetCharacterOutput(terminal, VScreenOutputHandler);
+    screenCount++;
+
+    // Additional terminals — names derived from logicalDevice (same algorithm as glass UI)
+    static const uint16_t termAddresses[] = { 0340, 0350, 0360, 0370, 01300, 01310, 01320 };
+    Device *extraTerminals[7] = {0};
+    char tname[32];
+
+    for (int i = 0; i < 7; i++) {
+        extraTerminals[i] = DeviceManager_GetDeviceByAddress(termAddresses[i]);
+        if (extraTerminals[i]) {
+            make_terminal_name(tname, sizeof(tname), extraTerminals[i]);
+            VScreen_Init(&screens[screenCount], tname, extraTerminals[i], 80, true);
+            Device_SetCharacterOutput(extraTerminals[i], VScreenOutputHandler);
+            screenCount++;
+        }
+    }
+
+    // Create print job manager based on CLI options
+    {
+        PjPrinterType ptype = (config.printerType == PRINTER_ESCP) ? PJ_PRINTER_ESCP : PJ_PRINTER_TEXT;
+        PjOutputFormat pfmt = (config.printFormat == PRINT_FORMAT_PDF) ? PJ_FORMAT_PDF : PJ_FORMAT_TXT;
+        const char *printDir = config.printDir ? config.printDir : "./prints";
+        printJob = PrintJob_Create(ptype, pfmt, printDir);
+    }
+
+    // Screen: Line Printer (output only, file-based)
+    Device *printer = DeviceManager_GetDeviceByAddress(0430);
+    if (printer) {
+        VScreen_Init(&screens[screenCount], "Line Printer", printer, 132, false);
+        Device_SetCharacterOutput(printer, PrinterOutputHandler);
+        screenCount++;
+    }
+
+    // Screen: Paper Tape Punch (output only, file-based)
+    Device *ptw = DeviceManager_GetDeviceByAddress(0410);
+    if (ptw) {
+        VScreen_Init(&screens[screenCount], "Paper Tape Punch", ptw, 80, false);
+        Device_SetCharacterOutput(ptw, PaperTapeWriterOutputHandler);
+        screenCount++;
+    }
+
+    // Screen: Log messages (output only, no device)
+    VScreen_Init(&screens[screenCount], "Log", NULL, 120, false);
+    logScreenIndex = screenCount;
+    screenCount++;
+    Log_SetOutputHandler(LogScreenHandler);
+
+    // Load paper tape file if specified on command line
+    Device *ptr = DeviceManager_GetDeviceByAddress(0400);
+    if (ptr && config.tapeFile) {
+        load_paper_tape_file(ptr, config.tapeFile);
+    }
+
+    // Start telnet server if enabled (after all VScreen setup so origOutput is set)
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+    if (config.telnetEnabled) {
+        TelnetServerConfig tc = {
+            .port = config.telnetPort,
+            .maxConnections = 8,
+            .transport = TRANSPORT_TELNET
+        };
+        telnetServer = TelnetServer_Create(&tc);
+        if (telnetServer) {
+            // Register terminals 5-11 (not console)
+            for (int i = 0; i < 7; i++) {
+                Device *dev = extraTerminals[i];
+                if (!dev) continue;
+
+                // Use VScreen name (derived from logicalDevice) for telnet display
+                int si = findScreenForDevice(dev);
+                TelnetTerminalInfo info = {
+                    .device = dev,
+                    .identCode = dev->identCode,
+                    .ioAddress = dev->startAddress,
+                    .name = (si >= 0) ? screens[si].name : dev->memoryName,
+                    .inputFunc = Terminal_QueueKeyCode,
+                    .origOutput = dev->charCallbacks.outputFunc,
+                    .carrierFunc = set_terminal_carrier,
+                };
+                TelnetServer_RegisterTerminal(telnetServer, &info);
+
+                // Replace output handler with telnet-aware version
+                extern void telnet_output_handler(struct Device *device, char c);
+                Device_SetCharacterOutput(dev, telnet_output_handler);
+            }
+
+            // Set initial localActive state: terminals 8-11 (indices 3-6) start released for telnet
+            for (int r = 3; r < 7; r++) {
+                if (!extraTerminals[r]) continue;
+                int si = findScreenForDevice(extraTerminals[r]);
+                if (si >= 0) {
+                    screens[si].localActive = false;
+                }
+            }
+
+            // Sync locallyActive flags to telnet server (match by device pointer)
+            for (int si = 0; si < screenCount; si++) {
+                if (screens[si].device) {
+                    TelnetServer_SetDeviceLocallyActive(telnetServer, screens[si].device, screens[si].localActive);
+                }
+            }
+
+            TelnetServer_Start(telnetServer);
+        }
+    }
+#endif
 
     if (config.debuggerEnabled) {
         set_cpu_run_mode(CPU_PAUSED);
     }
 
-	// Run the machine until it stops	
-	CPURunMode runMode = get_cpu_run_mode();
+    // Initialize the menu state machine
+    menu_init(&menuState, screens, screenCount, &activeScreen);
 
-	while (runMode != CPU_SHUTDOWN)
-	{
-        
+    // Run the machine until it stops
+    CPURunMode runMode = get_cpu_run_mode();
+
+    while (runMode != CPU_SHUTDOWN)
+    {
         runMode = get_cpu_run_mode();
-        machine_run(5000);  
+        machine_run(5000);
 
-		runMode = get_cpu_run_mode();
+        runMode = get_cpu_run_mode();
 
-        // Handle keyboard input to console
-		if (runMode != CPU_SHUTDOWN)
-		{
-			// Use common keyboard input handling
+        // Check for print job timeout
+        if (printJob) {
+            PrintJob_CheckTimeout(printJob);
+        }
+
+        // Check for paper tape writer timeout (flush to file)
+        if (tapeWriterActive && ptw) {
+            time_t now = time(NULL);
+            if (tapeWriterLastOutputTime > 0 &&
+                (now - tapeWriterLastOutputTime) >= TAPE_WRITER_JOB_TIMEOUT) {
+                flush_tape_writer(ptw);
+            }
+        }
+
+        // Handle keyboard input
+        if (runMode != CPU_SHUTDOWN)
+        {
             char keybuf[16];
             int keylen = read_key_sequence(keybuf, sizeof(keybuf));
-            
-            if (keylen > 0) {
-                // Check for F12 key sequence
-                if (is_f12_key(keybuf)) {
-                    // F12 detected - show floppy menu
-                    #if defined(PLATFORM_RISCV)
-                        printf("Floppy menu not available on RISC-V build\n");
-                    #else
-                        int ret = show_floppy_menu();
-                        if (ret == -1) {
-                            printf("Failed to show floppy menu\n");
+
+            // If menu is active, route keys to menu and check timeouts
+            if (menu_is_active(&menuState)) {
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+                menu_tick(&menuState, telnetServer);
+                if (keylen > 0) {
+                    menu_process_key(&menuState, keybuf, keylen, telnetServer);
+                }
+#else
+                menu_tick(&menuState, NULL);
+                if (keylen > 0) {
+                    menu_process_key(&menuState, keybuf, keylen, NULL);
+                }
+#endif
+            } else if (keylen > 0) {
+                int altScreen = is_alt_digit_key(keybuf);
+                if (altScreen > 0 && altScreen <= screenCount) {
+                    int target = altScreen - 1;
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+                    // Block switching to telnet-connected terminal
+                    if (telnetServer &&
+                        TelnetServer_IsDeviceConnected(telnetServer, screens[target].device)) {
+                        // Terminal in use by telnet - ignore
+                    } else
+#endif
+                    {
+                        // If not locally active, re-activate it
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+                        if (telnetServer && screens[target].isInputCapable &&
+                            !screens[target].localActive) {
+                            screens[target].localActive = true;
+                            TelnetServer_SetDeviceLocallyActive(telnetServer, screens[target].device, true);
+                            set_terminal_carrier(screens[target].device, false);
                         }
-                    #endif
+#endif
+                        activeScreen = target;
+                        VScreen_Redraw(&screens[activeScreen]);
+                    }
+                } else if (is_f12_key(keybuf)) {
+                    // F12 detected - enter non-blocking menu
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+                    menu_enter(&menuState, telnetServer);
+#else
+                    menu_enter(&menuState, NULL);
+#endif
                 } else {
                     // Process regular characters
                     for (int i = 0; i < keylen; i++) {
                         char ch = keybuf[i];
-                        
+
                         // ND doesnt like \n
                         if (ch == '\n') {
                             ch = '\r';
@@ -283,7 +683,12 @@ int main(int argc, char *argv[])
                         if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
                             debugger_kbd_input(ch);
                         } else {
-                            Terminal_QueueKeyCode(terminal, ch);
+                            // Route keyboard input to the active screen's device (if input capable and locally active)
+                            if (screens[activeScreen].isInputCapable &&
+                                screens[activeScreen].localActive &&
+                                screens[activeScreen].device) {
+                                Terminal_QueueKeyCode(screens[activeScreen].device, ch);
+                            }
                         }
                     }
                 }
@@ -291,18 +696,38 @@ int main(int argc, char *argv[])
         }
     }
 
-#ifdef WITH_DEBUGGER    
+    // Flush any pending output before shutdown
+    if (printJob) {
+        PrintJob_Destroy(printJob);
+        printJob = NULL;
+    }
+    if (ptw) flush_tape_writer(ptw);
+
+    // Stop telnet server before VScreen cleanup
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
+    if (telnetServer) {
+        TelnetServer_Stop(telnetServer);
+        TelnetServer_Destroy(telnetServer);
+        telnetServer = NULL;
+    }
+#endif
+
+    // Cleanup VScreens
+    for (int i = 0; i < screenCount; i++) {
+        VScreen_Destroy(&screens[i]);
+    }
+
+#ifdef WITH_DEBUGGER
     // Stop the debugger server gracefully (if its still running)
     stop_debugger_thread();
 #endif
 
+    if (DISASM)
+        disasm_dump();
 
-	if (DISASM)
-		disasm_dump();
+    dump_stats();
+    cleanup();
 
-	dump_stats();
-	cleanup();
-
-	// exit with A register value from WAIT instruction
-	return(gCpuExitCode);
+    // exit with A register value from WAIT instruction
+    return(gCpuExitCode);
 }
