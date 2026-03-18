@@ -20,34 +20,34 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef DEVICE_PAPERTAPE_H
-#define DEVICE_PAPERTAPE_H
+#ifndef DEVICE_PAPERTAPEWRITER_H
+#define DEVICE_PAPERTAPEWRITER_H
 
 /*
- * Paper Tape Reader Interface (ND-06.015.02)
+ * Paper Tape Punch Interface (ND-06.015.02)
  *
- * TW0: 0400-0403 (ident 02, level 12)
- * TW1: 0404-0407 (ident 022, level 12)
+ * TW0: 0410-0413 (ident 02, level 10)
+ * TW1: 0414-0417 (ident 022, level 10)
  *
- * SINTRAN logical device: 3
+ * SINTRAN logical device: 4
  */
 
-// Paper tape registers
+// Paper tape writer registers
 typedef enum {
-    PAPERTAPE_READ_DATA_REGISTER = 0,    // 0400: Read data (8-bit)
-    PAPERTAPE_WRITE_DATA_BUFFER = 1,     // 0401: Not used for reader
-    PAPERTAPE_READ_STATUS_REGISTER = 2,  // 0402: Read status
-    PAPERTAPE_WRITE_CONTROL_WORD = 3     // 0403: Write control
-} PaperTapeRegisters;
+    PTW_READ_DATA_REGISTER = 0,     // +0: Read data (test mode only)
+    PTW_WRITE_DATA_BUFFER = 1,      // +1: Write data (8-bit)
+    PTW_READ_STATUS_REGISTER = 2,   // +2: Read status
+    PTW_WRITE_CONTROL_WORD = 3      // +3: Write control
+} PaperTapeWriterRegisters;
 
 // Status register bits (IOX +2, Read)
 typedef union {
     uint16_t raw;
     struct {
-        uint16_t interruptEnabled : 1;    // Bit 0: Interrupt enabled on ready
+        uint16_t interruptEnabled : 1;    // Bit 0: Interrupt enabled
         uint16_t notUsed1 : 1;            // Bit 1: Not used
-        uint16_t readActive : 1;          // Bit 2: Read is active
-        uint16_t readyForTransfer : 1;    // Bit 3: Reader ready for transfer
+        uint16_t active : 1;              // Bit 2: Device active
+        uint16_t readyForTransfer : 1;    // Bit 3: Device ready
         uint16_t notUsed4 : 1;            // Bit 4
         uint16_t notUsed5 : 1;            // Bit 5
         uint16_t notUsed6 : 1;            // Bit 6
@@ -61,45 +61,37 @@ typedef union {
         uint16_t notUsed14 : 1;           // Bit 14
         uint16_t notUsed15 : 1;           // Bit 15
     } bits;
-} PaperTapeStatus;
+} PaperTapeWriterStatus;
 
 // Control word bits (IOX +3, Write)
 typedef union {
     uint16_t raw;
     struct {
-        uint16_t interruptEnabled : 1;    // Bit 0: Enable interrupt on ready
+        uint16_t interruptEnable : 1;     // Bit 0: Enable interrupt
         uint16_t notUsed1 : 1;            // Bit 1: Not used
-        uint16_t readActive : 1;          // Bit 2: Activate read
-        uint16_t testMode : 1;            // Bit 3: Test mode (NOT readyForTransfer)
+        uint16_t activate : 1;            // Bit 2: Activate (punch char in buffer)
+        uint16_t testMode : 1;            // Bit 3: Test mode (read back buffer)
         uint16_t deviceClear : 1;         // Bit 4: Device clear
-        uint16_t notUsed5 : 1;            // Bit 5
-        uint16_t notUsed6 : 1;            // Bit 6
-        uint16_t notUsed7 : 1;            // Bit 7
-        uint16_t notUsed8 : 1;            // Bit 8
-        uint16_t notUsed9 : 1;            // Bit 9
-        uint16_t notUsed10 : 1;           // Bit 10
-        uint16_t notUsed11 : 1;           // Bit 11
-        uint16_t notUsed12 : 1;           // Bit 12
-        uint16_t notUsed13 : 1;           // Bit 13
-        uint16_t notUsed14 : 1;           // Bit 14
-        uint16_t notUsed15 : 1;           // Bit 15
+        uint16_t notUsed5 : 11;           // Bits 5-15: Not used
     } bits;
-} PaperTapeControl;
+} PaperTapeWriterControl;
 
-// Paper tape device data
+#define PTW_INITIAL_TAPE_CAPACITY 65536
+
+// Paper tape writer device data
 typedef struct {
     uint8_t characterBuffer;
-    PaperTapeStatus statusRegister;
-    PaperTapeControl controlWord;
+    PaperTapeWriterStatus statusRegister;
+    PaperTapeWriterControl controlWord;
 
-    // Tape image buffer (loaded from file or via WASM upload)
-    uint8_t *tapeData;
-    size_t tapeLength;
+    // Output tape buffer (accumulates punched bytes)
+    uint8_t *tapeBuffer;
     size_t tapePosition;
-} PaperTapeData;
+    size_t tapeCapacity;
+} PaperTapeWriterData;
 
 // Function declarations
-Device* CreatePaperTapeDevice(uint8_t thumbwheel);
-void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length);
+Device* CreatePaperTapeWriterDevice(uint8_t thumbwheel);
+const uint8_t* PaperTapeWriter_GetTapeData(Device *self, size_t *length);
 
-#endif /* DEVICE_PAPERTAPE_H */
+#endif /* DEVICE_PAPERTAPEWRITER_H */

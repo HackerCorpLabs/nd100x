@@ -46,7 +46,10 @@
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 #include "../devices/terminal/deviceTerminal.h"
+#include "../devices/papertape/devicePapertape.h"
+#include "../devices/papertapewriter/devicePaperTapeWriter.h"
 #include "../devices/devices_protos.h"
+#include "../ndlib/printjob.h"
 
 // CPU internals for debugger access
 #include "../cpu/cpu_types.h"
@@ -74,6 +77,9 @@ static int initialized = 0;
 static int running = 0;
 static int js_terminal_handler_enabled = 0;
 static int dbg_paused = 0;
+
+// Print job manager for PDF generation in WASM
+static PrintJob *wasmPrintJob = NULL;
 
 // Array of device references for quick access
 #define MAX_TERMINALS 16
@@ -153,6 +159,10 @@ static void bufferTerminalOutput(int identCode, char c) {
     }
     // If buffer is full, silently drop the character
 }
+
+// Forward declarations for device-specific output handlers
+static void WasmPrinterOutputHandler(Device *device, char c);
+static void WasmPaperTapeWriterOutputHandler(Device *device, char c);
 
 // Character device output handler for terminals
 static void WasmTerminalOutputHandler(Device *device, char c)
@@ -236,6 +246,21 @@ EMSCRIPTEN_EXPORT void Init(void)
         if (terminals[i]) {
             Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);
         }
+    }
+
+    // Set up character device output handler for the line printer
+    Device *printer = DeviceManager_GetDeviceByAddress(0430);
+    if (printer) {
+        Device_SetCharacterOutput(printer, WasmPrinterOutputHandler);
+    }
+
+    // Create print job manager for PDF generation
+    wasmPrintJob = PrintJob_Create(PJ_PRINTER_TEXT, PJ_FORMAT_PDF, "/prints");
+
+    // Set up character device output handler for the paper tape writer
+    Device *ptw = DeviceManager_GetDeviceByAddress(0410);
+    if (ptw) {
+        Device_SetCharacterOutput(ptw, WasmPaperTapeWriterOutputHandler);
     }
 
     initialized = 1;
@@ -786,6 +811,196 @@ EMSCRIPTEN_EXPORT void SetTerminalOutputCallback(int identCode, void (*callback)
             }
         }
     }    
+}
+
+// =========================================================
+// Character Device Output Ring Buffers
+// =========================================================
+// Separate ring buffers per device class so JS can poll each independently.
+// Each entry: (deviceType << 8) | (charCode & 0xFF)
+// deviceType encodes the class: TERMINAL=0, PRINTER=1, PAPERTAPE_WRITER=2, HDLC=3
+
+#define CHARDEV_BUF_SIZE 4096
+
+// Device class codes for JS routing
+#define DEVCLASS_TERMINAL        0
+#define DEVCLASS_PRINTER         1
+#define DEVCLASS_PAPERTAPE_WRITER 2
+
+// Printer output ring buffer
+static struct {
+    uint16_t entries[CHARDEV_BUF_SIZE];
+    volatile int writePos;
+    volatile int readPos;
+} printerOutputBuf = { .writePos = 0, .readPos = 0 };
+
+// Paper tape writer output ring buffer
+static struct {
+    uint16_t entries[CHARDEV_BUF_SIZE];
+    volatile int writePos;
+    volatile int readPos;
+} ptWriterOutputBuf = { .writePos = 0, .readPos = 0 };
+
+// Printer character device output handler
+static void WasmPrinterOutputHandler(Device *device, char c)
+{
+    (void)device;
+    int next = (printerOutputBuf.writePos + 1) % CHARDEV_BUF_SIZE;
+    if (next != printerOutputBuf.readPos) {
+        printerOutputBuf.entries[printerOutputBuf.writePos] = (uint16_t)(c & 0xFF);
+        printerOutputBuf.writePos = next;
+    }
+    // Feed into PDF pipeline
+    if (wasmPrintJob) {
+        PrintJob_PutChar(wasmPrintJob, c);
+    }
+}
+
+// Paper tape writer character device output handler
+static void WasmPaperTapeWriterOutputHandler(Device *device, char c)
+{
+    (void)device;
+    int next = (ptWriterOutputBuf.writePos + 1) % CHARDEV_BUF_SIZE;
+    if (next != ptWriterOutputBuf.readPos) {
+        ptWriterOutputBuf.entries[ptWriterOutputBuf.writePos] = (uint16_t)(c & 0xFF);
+        ptWriterOutputBuf.writePos = next;
+    }
+}
+
+// Poll printer output - returns charCode or -1 if empty
+EMSCRIPTEN_EXPORT int PollPrinterOutput(void)
+{
+    if (printerOutputBuf.readPos == printerOutputBuf.writePos) return -1;
+    uint16_t entry = printerOutputBuf.entries[printerOutputBuf.readPos];
+    printerOutputBuf.readPos = (printerOutputBuf.readPos + 1) % CHARDEV_BUF_SIZE;
+    return (int)entry;
+}
+
+// Poll paper tape writer output - returns charCode or -1 if empty
+EMSCRIPTEN_EXPORT int PollPaperTapeWriterOutput(void)
+{
+    if (ptWriterOutputBuf.readPos == ptWriterOutputBuf.writePos) return -1;
+    uint16_t entry = ptWriterOutputBuf.entries[ptWriterOutputBuf.readPos];
+    ptWriterOutputBuf.readPos = (ptWriterOutputBuf.readPos + 1) % CHARDEV_BUF_SIZE;
+    return (int)entry;
+}
+
+// =========================================================
+// Printer PDF Pipeline Exports
+// =========================================================
+
+// Check for job timeout — returns 1 if a job was flushed, 0 otherwise
+EMSCRIPTEN_EXPORT int PrinterCheckTimeout(void)
+{
+    if (!wasmPrintJob) return 0;
+    return PrintJob_CheckTimeout(wasmPrintJob) ? 1 : 0;
+}
+
+// Force flush the current job
+EMSCRIPTEN_EXPORT void PrinterFlushJob(void)
+{
+    if (wasmPrintJob) PrintJob_Flush(wasmPrintJob);
+}
+
+// Last completed job metadata
+EMSCRIPTEN_EXPORT int PrinterGetLastCompletedJob(void)
+{
+    return wasmPrintJob ? wasmPrintJob->lastCompletedJob : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetLastJobStartTime(void)
+{
+    return wasmPrintJob ? (int)wasmPrintJob->lastJobStartTime : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetLastJobEndTime(void)
+{
+    return wasmPrintJob ? (int)wasmPrintJob->lastJobEndTime : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetLastJobBytes(void)
+{
+    return wasmPrintJob ? wasmPrintJob->lastJobBytes : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetLastJobLines(void)
+{
+    return wasmPrintJob ? wasmPrintJob->lastJobLines : 0;
+}
+
+// Active job metadata
+EMSCRIPTEN_EXPORT int PrinterGetActiveJobBytes(void)
+{
+    return wasmPrintJob ? wasmPrintJob->jobByteCount : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetActiveJobLines(void)
+{
+    return wasmPrintJob ? wasmPrintJob->jobLineCount : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterIsJobActive(void)
+{
+    return (wasmPrintJob && wasmPrintJob->jobActive) ? 1 : 0;
+}
+
+EMSCRIPTEN_EXPORT int PrinterGetJobNumber(void)
+{
+    return wasmPrintJob ? wasmPrintJob->jobNumber : 0;
+}
+
+// Printer type management
+EMSCRIPTEN_EXPORT int PrinterGetType(void)
+{
+    return wasmPrintJob ? (int)wasmPrintJob->printerType : 0;
+}
+
+EMSCRIPTEN_EXPORT void PrinterSetType(int type)
+{
+    if (!wasmPrintJob) return;
+    if (type < 0 || type > 1) return;
+    if ((int)wasmPrintJob->printerType == type) return;
+
+    // Flush current job, preserve job counter, recreate with new type
+    int savedJobNumber = wasmPrintJob->jobNumber;
+    char *savedDir = strdup(wasmPrintJob->outputDir);
+    PrintJob_Destroy(wasmPrintJob);
+    wasmPrintJob = PrintJob_Create((PjPrinterType)type, PJ_FORMAT_PDF, savedDir);
+    if (wasmPrintJob) {
+        wasmPrintJob->jobNumber = savedJobNumber;
+    }
+    free(savedDir);
+}
+
+// =========================================================
+// Paper Tape Reader - Load tape data from JS
+// =========================================================
+EMSCRIPTEN_EXPORT void LoadPaperTape(uint8_t *data, int length)
+{
+    Device *ptr = DeviceManager_GetDeviceByAddress(0400);
+    if (ptr && data && length > 0) {
+        PaperTape_LoadTape(ptr, data, (size_t)length);
+    }
+}
+
+// =========================================================
+// Paper Tape Writer - Get punched tape data for JS download
+// =========================================================
+EMSCRIPTEN_EXPORT int GetPaperTapeWriterDataLength(void)
+{
+    Device *ptw = DeviceManager_GetDeviceByAddress(0410);
+    if (!ptw) return 0;
+    size_t length = 0;
+    PaperTapeWriter_GetTapeData(ptw, &length);
+    return (int)length;
+}
+
+EMSCRIPTEN_EXPORT uint8_t* GetPaperTapeWriterDataPtr(void)
+{
+    Device *ptw = DeviceManager_GetDeviceByAddress(0410);
+    if (!ptw) return NULL;
+    size_t length = 0;
+    return (uint8_t*)PaperTapeWriter_GetTapeData(ptw, &length);
 }
 
 /* =========================================================
