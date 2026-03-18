@@ -68,6 +68,8 @@ int TelnetServer_GetTerminalCount(TelnetServer *server);
 bool TelnetServer_GetTerminalStatus(TelnetServer *server, int index,
     const char **name, uint16_t *identCode, bool *connected, bool *locallyActive,
     char *clientAddr, int addrLen);
+bool TelnetServer_GetTerminalStats(TelnetServer *server, int index,
+    uint64_t *bytesRx, uint64_t *bytesTx);
 bool TelnetServer_DisconnectTerminal(TelnetServer *server, int index);
 bool TelnetServer_DisconnectDevice(TelnetServer *server, struct Device *device);
 int TelnetServer_GetPort(TelnetServer *server);
@@ -83,5 +85,9 @@ const char *TelnetServer_GetDeviceClientAddr(TelnetServer *server, struct Device
 
 // Pending client management (connected but not yet assigned to a terminal)
 int TelnetServer_GetPendingCount(TelnetServer *server);
+bool TelnetServer_GetPendingInfo(TelnetServer *server, int index,
+    char *addrBuf, int addrBufLen, int *ageSecs);
+bool TelnetServer_DropPending(TelnetServer *server, int index);
+void TelnetServer_DropAllPending(TelnetServer *server);
 
 #endif // TELNET_SERVER_H
