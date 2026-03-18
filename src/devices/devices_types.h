@@ -49,6 +49,8 @@ extern void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privil
 #define IODELAY_FLOPPY 300
 #define IODELAY_HDD 10
 #define IODELAY_HDD_SMD 10
+#define IODELAY_LINEPRINTER 150
+#define IODELAY_PAPERTAPE 200
 #define IODELAY_SLOW 10
 #define IODELAY_SCSI_SHORT 10
 #define IODELAY_SCSI_TIMEOUT 0xFFFF
@@ -116,6 +118,8 @@ typedef enum {
     DEVICE_TYPE_FLOPPY_PIO,
     DEVICE_TYPE_FLOPPY_DMA,    
     DEVICE_TYPE_DISC_SMD,
+    DEVICE_TYPE_LINE_PRINTER,
+    DEVICE_TYPE_PAPER_TAPE_WRITER,
     DEVICE_TYPE_MAX
 } DeviceType;
 
@@ -195,6 +199,8 @@ typedef struct {
 #include "./rtc/deviceRTC.h"
 #include "./smd/deviceSMD.h"
 #include "./terminal/deviceTerminal.h"
+#include "./lineprinter/deviceLinePrinter.h"
+#include "./papertapewriter/devicePaperTapeWriter.h"
 #include "./panel/panel.h"
 #endif // DEVICES_TYPES_H
 

@@ -43,9 +43,12 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * Old IO code has been removed
 * **Supported IO Devices**
   * Real-Time Clock (20ms tick emulation pending for full SINTRAN compatibility)
-  * Console
+  * Console and additional terminals (up to 4 terminals)
   * Floppy (PIO and DMA) for 8" and 5.25" formats
   * SMD Hard Disk (75MB; multi-drive support in progress)
+  * Paper Tape Reader (buffer-based, BPUN file loading via CLI or Glass UI upload)
+  * Paper Tape Punch (output to file and Glass UI hex/ASCII display with download)
+  * Line Printer (CDC 9380, output to file and Glass UI window)
 * **Codebase Modernization**
   * Removed requirement for libconfig and the supporting .conf file. All options are now given on the command line.
   * Refactored folder structure
@@ -156,9 +159,9 @@ Build and run locally:
 make wasm-glass-run
 ```
 
-Features include draggable/resizable floating windows, an xterm.js VT100 terminal, a full CPU debugger with breakpoints and disassembly, SINTRAN III operating system inspection tools, a hardware page table viewer, and 5 switchable color themes.
+Features include draggable/resizable floating windows, an xterm.js VT100 terminal, a full CPU debugger with breakpoints and disassembly, SINTRAN III operating system inspection tools, a hardware page table viewer, Line Printer and Paper Tape device windows, and 5 switchable color themes.
 
-The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 21 JS modules, 1 JSON data file). For the full architecture reference, see [GLASS.md](GLASS.md).
+The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 23 JS modules, 1 JSON data file). For the full architecture reference, see [GLASS.md](GLASS.md).
 
 ## Updating Git submodules
 
@@ -176,9 +179,12 @@ Usage: nd100x [options]
 Options:
   -b, --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)
   -i, --image=FILE   Image file to load
+  -t, --tape=FILE    Paper tape file to load into reader
+  -P, --printdir=DIR Directory for line printer output files (default: ./prints)
+  -T, --tapedir=DIR  Directory for paper tape punch output files (default: ./tapes)
   -s, --start=ADDR   Start address (default: 0)
   -a, --disasm       Enable disassembly output (dump after emulator stops)
-  -d, --debugger     Enable Enable DAP debugger
+  -d, --debugger     Enable DAP debugger
   -v, --verbose      Enable verbose output
   -h, --help         Show this help message
 
@@ -191,8 +197,9 @@ Examples:
   build/bin/nd100x -b bpun -i images/INSTRUCTION-B.BPUN       # Loads an old version of INSTRUCTION VERIFIER
 
   build/bin/nd100x -b floppy                                  # Boots from a floppy file named FLOPPY.IMG
-  
-  
+
+  build/bin/nd100x -b floppy -t images/test.bpun               # Boots from floppy with paper tape loaded
+  build/bin/nd100x -b smd --printdir=/tmp/prints                # Boots SINTRAN, printer output to /tmp/prints/
 ```
 
 Boot Types:
@@ -236,6 +243,22 @@ build/bin/nd100x --boot=floppy
 ```
 
 Now you have access to test programs like CONFIG, PAGING, INSTRUCTION and more.
+
+## Character Devices
+
+The emulator supports three character I/O devices ported from the RetroCore emulator:
+
+### Paper Tape Reader (I/O 0400-0403)
+Reads BPUN tape images loaded via the `--tape` CLI option or the Glass UI file upload. Used by TPE and SINTRAN as logical device 2.
+
+### Paper Tape Punch (I/O 0410-0413)
+Accumulates punched output in memory. In native mode, output is saved to files in the tape directory (default: `./tapes/`). In the Glass UI, a hex/ASCII display shows punched bytes with a download button.
+
+### Line Printer (I/O 0430-0433)
+CDC 9380 line printer emulation. In native mode, output is saved to files in the print directory (default: `./prints/`). In the Glass UI, a dedicated window shows printer output in real-time.
+
+### Virtual Screen Switching (Native)
+Press **Alt+1** through **Alt+6** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch). Press **F12** for the unified menu offering both Floppy Database Browser and Virtual Screen Selector. Only terminal screens accept keyboard input; device screens are output-only.
 
 ## Floppy Menu
 

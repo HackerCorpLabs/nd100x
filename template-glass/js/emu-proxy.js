@@ -61,6 +61,90 @@
       while ((entry = Module._PollTerminalOutput()) >= 0) {
         handler((entry >> 8) & 0xFF, entry & 0xFF);
       }
+      // Flush printer output
+      if (typeof Module._PollPrinterOutput === 'function') {
+        while ((entry = Module._PollPrinterOutput()) >= 0) {
+          if (typeof window.handlePrinterOutput === 'function') {
+            window.handlePrinterOutput(entry & 0xFF);
+          }
+        }
+      }
+      // Flush paper tape writer output
+      if (typeof Module._PollPaperTapeWriterOutput === 'function') {
+        while ((entry = Module._PollPaperTapeWriterOutput()) >= 0) {
+          if (typeof window.handlePaperTapeWriterOutput === 'function') {
+            window.handlePaperTapeWriterOutput(entry & 0xFF);
+          }
+        }
+      }
+      // Throttled printer job timeout check (~1Hz)
+      var now = performance.now();
+      if (!emu._lastPrinterCheck || now - emu._lastPrinterCheck >= 1000) {
+        emu._lastPrinterCheck = now;
+        if (emu.printerCheckTimeout() === 1) {
+          if (typeof window.onPrinterJobCompleted === 'function') {
+            window.onPrinterJobCompleted();
+          }
+        }
+      }
+    },
+
+    // --- Printer PDF pipeline ---
+    printerCheckTimeout: function() {
+      return typeof Module._PrinterCheckTimeout === 'function' ? Module._PrinterCheckTimeout() : 0;
+    },
+    printerFlushJob: function() {
+      if (typeof Module._PrinterFlushJob === 'function') Module._PrinterFlushJob();
+    },
+    printerGetLastCompletedJob: function() {
+      return typeof Module._PrinterGetLastCompletedJob === 'function' ? Module._PrinterGetLastCompletedJob() : 0;
+    },
+    printerGetLastJobStartTime: function() {
+      return typeof Module._PrinterGetLastJobStartTime === 'function' ? Module._PrinterGetLastJobStartTime() : 0;
+    },
+    printerGetLastJobEndTime: function() {
+      return typeof Module._PrinterGetLastJobEndTime === 'function' ? Module._PrinterGetLastJobEndTime() : 0;
+    },
+    printerGetLastJobBytes: function() {
+      return typeof Module._PrinterGetLastJobBytes === 'function' ? Module._PrinterGetLastJobBytes() : 0;
+    },
+    printerGetLastJobLines: function() {
+      return typeof Module._PrinterGetLastJobLines === 'function' ? Module._PrinterGetLastJobLines() : 0;
+    },
+    printerGetActiveJobBytes: function() {
+      return typeof Module._PrinterGetActiveJobBytes === 'function' ? Module._PrinterGetActiveJobBytes() : 0;
+    },
+    printerGetActiveJobLines: function() {
+      return typeof Module._PrinterGetActiveJobLines === 'function' ? Module._PrinterGetActiveJobLines() : 0;
+    },
+    printerIsJobActive: function() {
+      return typeof Module._PrinterIsJobActive === 'function' ? Module._PrinterIsJobActive() : 0;
+    },
+    printerGetJobNumber: function() {
+      return typeof Module._PrinterGetJobNumber === 'function' ? Module._PrinterGetJobNumber() : 0;
+    },
+    printerGetType: function() {
+      return typeof Module._PrinterGetType === 'function' ? Module._PrinterGetType() : 0;
+    },
+    printerSetType: function(type) {
+      if (typeof Module._PrinterSetType === 'function') Module._PrinterSetType(type);
+    },
+
+    // --- Paper tape API ---
+    loadPaperTape: function(data) {
+      if (typeof Module._LoadPaperTape !== 'function') return;
+      var ptr = Module._malloc(data.length);
+      Module.HEAPU8.set(data, ptr);
+      Module._LoadPaperTape(ptr, data.length);
+      Module._free(ptr);
+    },
+    getPaperTapeWriterData: function() {
+      if (typeof Module._GetPaperTapeWriterDataLength !== 'function') return null;
+      var length = Module._GetPaperTapeWriterDataLength();
+      if (length <= 0) return null;
+      var ptr = Module._GetPaperTapeWriterDataPtr();
+      if (!ptr) return null;
+      return new Uint8Array(Module.HEAPU8.buffer, ptr, length).slice();
     },
 
     // --- Legacy terminal callback registration ---

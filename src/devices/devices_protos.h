@@ -67,6 +67,7 @@ void Terminal_QueueKeyCode(Device *self, uint8_t keycode);
 Device *CreateTerminalDevice(uint8_t thumbwheel);
 
 /* /home/ronny/repos/nd100x/src/devices/papertape/devicePapertape.c */
+void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length);
 Device *CreatePaperTapeDevice(uint8_t thumbwheel);
 
 /* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyDMA.c */
@@ -82,3 +83,10 @@ void SMD_Destroy(Device *dev);
 
 /* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
+
+/* /home/ronny/repos/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
+Device *CreateLinePrinterDevice(uint8_t thumbwheel);
+
+/* /home/ronny/repos/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
+const uint8_t *PaperTapeWriter_GetTapeData(Device *self, size_t *length);
+Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);

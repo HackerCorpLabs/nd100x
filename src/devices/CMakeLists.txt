@@ -12,6 +12,8 @@ file(GLOB TERMINAL_SOURCES "terminal/*.c")
 file(GLOB PAPERTAPE_SOURCES "papertape/*.c")
 file(GLOB FLOPPY_SOURCES "floppy/*.c")
 file(GLOB SMD_SOURCES "smd/*.c")
+file(GLOB LINEPRINTER_SOURCES "lineprinter/*.c")
+file(GLOB PAPERTAPEWRITER_SOURCES "papertapewriter/*.c")
 
 # Combine all sources
 list(APPEND SOURCES 
@@ -19,8 +21,10 @@ list(APPEND SOURCES
     ${RTC_SOURCES} 
     ${TERMINAL_SOURCES} 
     ${PAPERTAPE_SOURCES} 
-    ${FLOPPY_SOURCES} 
+    ${FLOPPY_SOURCES}
     ${SMD_SOURCES}
+    ${LINEPRINTER_SOURCES}
+    ${PAPERTAPEWRITER_SOURCES}
 )
 
 # Generate prototypes with mktypes
@@ -44,6 +48,10 @@ add_custom_command(
     # Add SMD device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/deviceSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/diskSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add line printer device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter/deviceLinePrinter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add paper tape writer device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter/devicePaperTapeWriter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for devices"
     VERBATIM
@@ -67,6 +75,8 @@ target_include_directories(devices PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/papertape
     ${CMAKE_CURRENT_SOURCE_DIR}/floppy
     ${CMAKE_CURRENT_SOURCE_DIR}/smd
+    ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter
+    ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter
 )
 
 # Link dependencies

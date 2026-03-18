@@ -104,8 +104,14 @@ void DeviceManager_AddAllDevices(void)
     // Add the Console at octal 300-307
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 0);
 
-    // Add the PaperTape (TapeReader) at octal 400-403
-    //DeviceManager_AddDevice(DEVICE_TYPE_PAPER_TAPE, 0);
+    // Add the PaperTape Reader at octal 400-403
+    DeviceManager_AddDevice(DEVICE_TYPE_PAPER_TAPE, 0);
+
+    // Add the PaperTape Writer (Punch) at octal 410-413
+    DeviceManager_AddDevice(DEVICE_TYPE_PAPER_TAPE_WRITER, 0);
+
+    // Add the Line Printer at octal 430-433
+    DeviceManager_AddDevice(DEVICE_TYPE_LINE_PRINTER, 0);
 
     // Add the FloppyPIO at octal 1560-1567
     // DeviceManager_AddDevice(DEVICE_TYPE_FLOPPY_PIO, 0);
@@ -170,6 +176,22 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create floppy DMA device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_LINE_PRINTER:
+        dev = CreateLinePrinterDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create line printer device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_PAPER_TAPE_WRITER:
+        dev = CreatePaperTapeWriterDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create paper tape writer device\n");
             return NULL;
         }
         break;

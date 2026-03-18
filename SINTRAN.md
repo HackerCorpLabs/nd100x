@@ -62,6 +62,27 @@ log in with user "SYSTEM", no password.
  * PLANC - ND-100 PLANC COMPILER - JANUARY 20, 1984   VERSION E
  * basic - BASIC COMPILER, JANUARY 85.
 
+## Character Devices
+
+SINTRAN supports the following character I/O devices:
+
+| Logical Device | Device | Description |
+|---------------|--------|-------------|
+| 1 | Console Terminal | Main terminal (I/O 0300-0307) |
+| 2 | Paper Tape Reader | Reads BPUN tape files (I/O 0400-0403) |
+| 3 | Paper Tape Punch | Punches output to tape files (I/O 0410-0413) |
+| 5 | Line Printer | CDC 9380 line printer (I/O 0430-0433) |
+
+To print to the line printer:
+```sintran
+@LIST-FILE filename,5
+```
+
+To load a paper tape file, use the `--tape` CLI option:
+```bash
+build/bin/nd100x --boot=smd --tape=images/test.bpun
+```
+
 ## Read files
 
 Use command COPY TERM <filename>

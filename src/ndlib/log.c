@@ -36,10 +36,16 @@ const char *level_str[] = {
 
 LogLevel minLogLevel = LOG_DEBUG;
 
+static LogOutputFunc logOutputFunc = NULL;
 
 void Log_SetMinLevel(LogLevel level)
 {
     minLogLevel = level;
+}
+
+void Log_SetOutputHandler(LogOutputFunc handler)
+{
+    logOutputFunc = handler;
 }
 
 // Logging function implementation
@@ -51,9 +57,17 @@ void Log(LogLevel level, const char *format, ...)
         return;
     }
 
+    char buf[1024];
+    int offset = snprintf(buf, sizeof(buf), "[%s] ", level_str[level]);
+
     va_list args;
     va_start(args, format);
-    printf("[%s] ", level_str[level]);
-    vprintf(format, args);
+    vsnprintf(buf + offset, sizeof(buf) - offset, format, args);
     va_end(args);
+
+    if (logOutputFunc) {
+        logOutputFunc(buf);
+    } else {
+        fputs(buf, stdout);
+    }
 }

@@ -150,6 +150,12 @@ else()
     add_subdirectory(src/frontend/nd100x)
 endif()
 
+# Add test subdirectory (only for native builds)
+if(NOT (BUILD_WASM OR BUILD_RISCV))
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 # Apply Emscripten-specific settings when compiling for WASM
 if(PLATFORM_WASM OR BUILD_WASM)
     set(EMSCRIPTEN_LINK_FLAGS

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Glass UI Window Unit Tests - Line Printer &amp; Paper Tape</title>
+<style>
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+.pass { color: #4caf50; }
+.fail { color: #f44336; }
+.section { color: #64ffda; font-weight: bold; margin-top: 16px; }
+#results { white-space: pre-wrap; }
+.summary { margin-top: 20px; padding: 10px; border: 1px solid #444; }
+
+/* Minimal glass-window styles needed for the modules */
+.glass-window { position: absolute; }
+.glass-window-header { cursor: move; padding: 8px; }
+.glass-window-close { cursor: pointer; background: none; border: none; color: #e0e0e0; }
+.glass-window-body { overflow-y: auto; }
+.glass-resize-handle { position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: se-resize; }
+.toolbar-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e0e0e0; cursor: pointer; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Replicate the DOM structure from index.html -->
+
+<!-- LINE PRINTER WINDOW -->
+<div id="line-printer-window" class="glass-window" style="display: none; width: 600px; height: 400px;">
+  <div class="glass-window-header" id="line-printer-header">
+    <span class="glass-window-title">Line Printer</span>
+    <button class="glass-window-close" id="line-printer-close">X</button>
+  </div>
+  <div class="glass-resize-handle" id="line-printer-resize"></div>
+  <div class="glass-window-body" style="padding: 8px; overflow-y: auto; height: calc(100% - 40px);">
+    <pre id="line-printer-output" style="font-family: monospace; font-size: 12px; white-space: pre-wrap; margin: 0;"></pre>
+  </div>
+</div>
+
+<!-- PAPER TAPE WINDOW -->
+<div id="paper-tape-window" class="glass-window" style="display: none; width: 500px; height: 400px;">
+  <div class="glass-window-header" id="paper-tape-header">
+    <span class="glass-window-title">Paper Tape</span>
+    <button class="glass-window-close" id="paper-tape-close">X</button>
+  </div>
+  <div class="glass-resize-handle" id="paper-tape-resize"></div>
+  <div class="glass-window-body" style="padding: 12px; overflow-y: auto; height: calc(100% - 40px);">
+    <div>
+      <div style="font-weight: bold;">Reader</div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="paper-tape-load-btn" class="toolbar-btn">Load Tape (.bpun)</button>
+        <span id="paper-tape-reader-status">No tape loaded</span>
+        <input type="file" id="paper-tape-file-input" accept=".bpun,.BPUN" style="display: none;">
+      </div>
+    </div>
+    <div>
+      <div style="font-weight: bold;">Punch Output</div>
+      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <button id="paper-tape-download-btn" class="toolbar-btn">Download Tape</button>
+        <span id="paper-tape-writer-status">0 bytes punched</span>
+      </div>
+      <pre id="paper-tape-writer-output" style="font-family: monospace; font-size: 11px; white-space: pre-wrap; margin: 0; max-height: 200px; overflow-y: auto;"></pre>
+    </div>
+  </div>
+</div>
+
+<h2>Glass UI Window Unit Tests</h2>
+<div id="results"></div>
+
+<script>
+// ===== Minimal stubs for dependencies =====
+var _windowsClosed = [];
+function closeWindow(id) { _windowsClosed.push(id); }
+function makeDraggable() {}
+function makeResizable() {}
+var windowManager = {
+  _registered: [],
+  register: function(id, name) { this._registered.push({id: id, name: name}); }
+};
+</script>
+
+<!-- Load the modules under test -->
+<script src="../template-glass/js/line-printer.js"></script>
+<script src="../template-glass/js/paper-tape.js"></script>
+
+<script>
+// ===== Test Framework =====
+var results = document.getElementById('results');
+var passCount = 0;
+var failCount = 0;
+
+function log(msg, cls) {
+  var span = document.createElement('span');
+  span.className = cls || '';
+  span.textContent = msg + '\n';
+  results.appendChild(span);
+}
+
+function section(name) {
+  log('\n=== ' + name + ' ===', 'section');
+}
+
+function assert(condition, description) {
+  if (condition) {
+    passCount++;
+    log('  PASS: ' + description, 'pass');
+  } else {
+    failCount++;
+    log('  FAIL: ' + description, 'fail');
+  }
+}
+
+function assertEqual(actual, expected, description) {
+  if (actual === expected) {
+    passCount++;
+    log('  PASS: ' + description, 'pass');
+  } else {
+    failCount++;
+    log('  FAIL: ' + description + ' (expected: ' + JSON.stringify(expected) + ', got: ' + JSON.stringify(actual) + ')', 'fail');
+  }
+}
+
+// ===== Tests =====
+
+// --- Line Printer Module ---
+
+section('Line Printer - Module Loading');
+assert(typeof window.handlePrinterOutput === 'function', 'handlePrinterOutput is a global function');
+
+section('Line Printer - Window Manager Registration');
+var lpReg = windowManager._registered.find(function(r) { return r.id === 'line-printer-window'; });
+assert(!!lpReg, 'Line Printer window registered with windowManager');
+assertEqual(lpReg && lpReg.name, 'Line Printer', 'Registered with correct name');
+
+section('Line Printer - Character Output');
+var outputEl = document.getElementById('line-printer-output');
+outputEl.textContent = ''; // reset
+
+window.handlePrinterOutput(72);  // H
+window.handlePrinterOutput(69);  // E
+window.handlePrinterOutput(76);  // L
+window.handlePrinterOutput(76);  // L
+window.handlePrinterOutput(79);  // O
+assertEqual(outputEl.textContent, 'HELLO', 'Outputs ASCII characters correctly');
+
+section('Line Printer - Newline Handling');
+outputEl.textContent = '';
+window.handlePrinterOutput(65);  // A
+window.handlePrinterOutput(10);  // LF
+window.handlePrinterOutput(66);  // B
+assertEqual(outputEl.textContent, 'A\nB', 'Handles LF correctly');
+
+section('Line Printer - Line Trimming');
+outputEl.textContent = '';
+// Write 2010 lines (exceed MAX_LINES of 2000)
+for (var i = 0; i < 2010; i++) {
+  window.handlePrinterOutput(48 + (i % 10)); // digit 0-9
+  window.handlePrinterOutput(10); // LF
+}
+var lines = outputEl.textContent.split('\n');
+// Last entry after final split may be empty string
+var nonEmptyLines = lines.filter(function(l) { return l.length > 0; });
+assert(nonEmptyLines.length <= 2000, 'Line trimming keeps output at or below 2000 lines (got ' + nonEmptyLines.length + ')');
+
+section('Line Printer - Close Button');
+_windowsClosed = [];
+var lpCloseBtn = document.getElementById('line-printer-close');
+lpCloseBtn.click();
+assert(_windowsClosed.indexOf('line-printer-window') >= 0, 'Close button calls closeWindow with correct ID');
+
+
+// --- Paper Tape Module ---
+
+section('Paper Tape - Module Loading');
+assert(typeof window.handlePaperTapeWriterOutput === 'function', 'handlePaperTapeWriterOutput is a global function');
+
+section('Paper Tape - Window Manager Registration');
+var ptReg = windowManager._registered.find(function(r) { return r.id === 'paper-tape-window'; });
+assert(!!ptReg, 'Paper Tape window registered with windowManager');
+assertEqual(ptReg && ptReg.name, 'Paper Tape', 'Registered with correct name');
+
+section('Paper Tape - Writer Output');
+var writerStatus = document.getElementById('paper-tape-writer-status');
+var writerOutput = document.getElementById('paper-tape-writer-output');
+
+// Reset
+writerOutput.textContent = '';
+writerStatus.textContent = '0 bytes punched';
+
+window.handlePaperTapeWriterOutput(0x41); // A
+window.handlePaperTapeWriterOutput(0x42); // B
+window.handlePaperTapeWriterOutput(0x43); // C
+
+assert(writerStatus.textContent.indexOf('3') >= 0, 'Writer status shows byte count after 3 bytes');
+assert(writerOutput.textContent.indexOf('41') >= 0, 'Writer output contains hex 41 (A)');
+assert(writerOutput.textContent.indexOf('42') >= 0, 'Writer output contains hex 42 (B)');
+assert(writerOutput.textContent.indexOf('43') >= 0, 'Writer output contains hex 43 (C)');
+
+section('Paper Tape - Writer Hex+ASCII Format');
+// The display should show hex values and ASCII representation
+assert(writerOutput.textContent.indexOf('A') >= 0, 'Writer output contains ASCII A');
+assert(writerOutput.textContent.indexOf('B') >= 0, 'Writer output contains ASCII B');
+
+section('Paper Tape - Writer 16-byte Row');
+// Reset by reloading would be needed for a clean test, but we can append
+// Write 13 more bytes to complete a 16-byte row
+for (var b = 0x44; b <= 0x50; b++) {
+  window.handlePaperTapeWriterOutput(b);
+}
+// Should have a complete row with hex and ascii
+var outputText = writerOutput.textContent;
+assert(outputText.indexOf('\n') >= 0, 'Writer output has line breaks for 16-byte rows');
+
+section('Paper Tape - Close Button');
+_windowsClosed = [];
+var ptCloseBtn = document.getElementById('paper-tape-close');
+ptCloseBtn.click();
+assert(_windowsClosed.indexOf('paper-tape-window') >= 0, 'Close button calls closeWindow with correct ID');
+
+section('Paper Tape - Reader Status Default');
+var readerStatus = document.getElementById('paper-tape-reader-status');
+assertEqual(readerStatus.textContent, 'No tape loaded', 'Reader status shows default text');
+
+section('Paper Tape - Load Button Triggers File Input');
+var fileInput = document.getElementById('paper-tape-file-input');
+var fileInputClicked = false;
+var origClick = fileInput.click;
+fileInput.click = function() { fileInputClicked = true; };
+var loadBtn = document.getElementById('paper-tape-load-btn');
+loadBtn.click();
+assert(fileInputClicked, 'Load button triggers file input click');
+fileInput.click = origClick;
+
+section('Paper Tape - Download Button Exists');
+var downloadBtn = document.getElementById('paper-tape-download-btn');
+assert(!!downloadBtn, 'Download button exists');
+
+// Alert is called when no data - stub it
+var alertCalled = false;
+var origAlert = window.alert;
+window.alert = function(msg) { alertCalled = true; };
+downloadBtn.click();
+assert(alertCalled, 'Download with no emulator shows alert');
+window.alert = origAlert;
+
+// ===== Summary =====
+log('');
+var summaryDiv = document.createElement('div');
+summaryDiv.className = 'summary';
+if (failCount === 0) {
+  summaryDiv.innerHTML = '<span class="pass">All ' + passCount + ' tests passed.</span>';
+} else {
+  summaryDiv.innerHTML = '<span class="pass">' + passCount + ' passed</span>, <span class="fail">' + failCount + ' failed</span>';
+}
+results.appendChild(summaryDiv);
+
+// Set title to indicate result for automated checking
+document.title = (failCount === 0 ? 'PASS' : 'FAIL') + ' - Glass UI Tests (' + passCount + '/' + (passCount + failCount) + ')';
+</script>
+</body>
+</html>

@@ -28,33 +28,48 @@
 // Read a complete key sequence (non-blocking)
 int read_key_sequence(char *buf, size_t bufsize) {
     if (!buf || bufsize == 0) return 0;
-    
+
     int keylen = 0;
     struct pollfd pfd = { .fd = STDIN_FILENO, .events = POLLIN };
-    
+
     while (keylen < (int)bufsize - 1) {
-        if (poll(&pfd, 1, 0) <= 0) break;  // No more data available
-        
+        // First byte: non-blocking poll.
+        // After ESC: wait up to 50ms for the rest of the escape sequence.
+        int timeout_ms = (keylen > 0 && buf[0] == 27) ? 50 : 0;
+        if (poll(&pfd, 1, timeout_ms) <= 0) break;
+
         char ch;
         int n = read(STDIN_FILENO, &ch, 1);
         if (n <= 0) break;
-        
+
         buf[keylen++] = ch;
-        
+
         // Determine if we have a complete sequence
         if (keylen == 1 && ch != 27) break;        // Single character (not ESC)
         if (keylen == 2 && ch != '[') break;       // ESC followed by non-[ = ESC key
         if (keylen >= 3 && (ch == '~' || (ch >= 'A' && ch <= 'Z')))
             break;                                  // Likely end of escape sequence
     }
-    
+
     buf[keylen] = '\0';
     return keylen;
 }
 
+// Check if key sequence is Alt+digit (ESC followed by '1'-'9')
+// Returns the digit (1-9) or 0 if not an Alt+digit sequence
+int is_alt_digit_key(const char *keybuf) {
+    if (keybuf && strlen(keybuf) == 2 && keybuf[0] == 27 &&
+        keybuf[1] >= '1' && keybuf[1] <= '9') {
+        return keybuf[1] - '0';
+    }
+    return 0;
+}
+
 // Check if the key sequence is F12
+// Standard: \x1B[24~  Some terminals: \x1B[6~
 int is_f12_key(const char *keybuf) {
-    return (keybuf && strcmp(keybuf, "\x1B[24~") == 0);
+    return (keybuf && (strcmp(keybuf, "\x1B[24~") == 0 ||
+                       strcmp(keybuf, "\x1B[6~") == 0));
 }
 
 // Check if the key sequence is a single ESC key
