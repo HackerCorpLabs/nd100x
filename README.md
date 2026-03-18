@@ -276,6 +276,9 @@ Enable with `--telnet[=PORT]` (default port 9000). Provides remote terminal acce
 * 60-second auto-disconnect for idle pending connections
 * Live monitoring of pending connections with rx/tx byte stats (via F12 menu)
 * Per-terminal rx/tx byte counters visible in the Virtual Screen Selector
+* Press Enter to auto-connect to the first available terminal
+* Race-safe selection: if two clients pick the same terminal, the second gets a "busy" message and a refreshed list instead of a silent redirect
+* Immediate disconnect with message when no terminals are free
 
 ## Floppy Menu
 
