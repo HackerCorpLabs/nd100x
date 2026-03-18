@@ -91,6 +91,8 @@ typedef struct {
     char addrStr[48];
     time_t connectTime;
     TelnetIACState iacState;
+    uint64_t bytesRx;
+    uint64_t bytesTx;
 } PendingClient;
 
 struct TelnetServer {
@@ -493,7 +495,8 @@ int TelnetServer_GetPendingCount(TelnetServer *server)
 }
 
 bool TelnetServer_GetPendingInfo(TelnetServer *server, int index,
-    char *addrBuf, int addrBufLen, int *ageSecs)
+    char *addrBuf, int addrBufLen, int *ageSecs,
+    uint64_t *bytesRx, uint64_t *bytesTx)
 {
     if (!server) return false;
     pthread_mutex_lock(&server->pendingMutex);
@@ -509,6 +512,8 @@ bool TelnetServer_GetPendingInfo(TelnetServer *server, int index,
     if (ageSecs) {
         *ageSecs = (int)(time(NULL) - pc->connectTime);
     }
+    if (bytesRx) *bytesRx = pc->bytesRx;
+    if (bytesTx) *bytesTx = pc->bytesTx;
     pthread_mutex_unlock(&server->pendingMutex);
     return true;
 }
@@ -608,7 +613,17 @@ static void send_menu(TelnetServer *server, int clientFd)
             menuMapCount);
     }
 
-    send(clientFd, buf, pos, MSG_NOSIGNAL);
+    ssize_t sent = send(clientFd, buf, pos, MSG_NOSIGNAL);
+
+    // Track tx bytes for pending clients
+    if (sent > 0) {
+        for (int i = 0; i < server->pendingCount; i++) {
+            if (server->pending[i].fd == clientFd) {
+                server->pending[i].bytesTx += sent;
+                break;
+            }
+        }
+    }
 }
 
 // Try to assign a pending client's selection to a terminal
@@ -726,6 +741,7 @@ static void *accept_thread_func(void *arg)
                 remove_pending(server, i);
                 continue;
             }
+            server->pending[i].bytesRx += n;
 
             // Process through IAC state machine
             bool quit = false;
@@ -839,6 +855,8 @@ static void *accept_thread_func(void *arg)
                 pc->addrStr[sizeof(pc->addrStr) - 1] = '\0';
                 pc->connectTime = time(NULL);
                 pc->iacState = TELNET_STATE_DATA;
+                pc->bytesRx = 0;
+                pc->bytesTx = sizeof(telnet_init);  // Count initial negotiation
                 server->pendingCount++;
 
                 // Send menu
