@@ -50,6 +50,20 @@ mkptypes:
 	$(MAKE) -C tools/mkptypes
 
 # Build targets
+# Build RetroTermWeb from submodule and copy dist to lib
+.PHONY: retroterm-build
+retroterm-build:
+	@if [ -f template-glass/external/RetroTermWeb/package.json ]; then \
+		echo "Building RetroTermWeb from submodule..."; \
+		cd template-glass/external/RetroTermWeb && npm install --silent && npm run build; \
+		echo "Copying RetroTermWeb dist to template-glass/lib/retroterm/..."; \
+		mkdir -p ../../lib/retroterm; \
+		cp -r dist/* ../../lib/retroterm/; \
+	else \
+		echo "Error: RetroTermWeb submodule not found. Run: git submodule update --init --recursive"; \
+		exit 1; \
+	fi
+
 # Compile TypeScript terminal sources (if tsc available, else use pre-compiled JS)
 .PHONY: ts-compile
 ts-compile:
@@ -96,7 +110,7 @@ wasm: check-deps mkptypes
 	@echo "  python3 -m http.server"
 	@echo "Then open http://localhost:8000/index.html in your browser."
 
-wasm-glass: check-deps mkptypes ts-compile
+wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	@echo "Building WebAssembly version (glassmorphism UI)..."
 	@command -v emcmake >/dev/null 2>&1 || { echo "Error: emcmake not found. Please install and activate Emscripten SDK."; exit 1; }
 	@mkdir -p $(BUILD_DIR_WASM_GLASS)
