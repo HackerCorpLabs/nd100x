@@ -63,3 +63,12 @@ FLOPPY.IMG
 SMD0.IMG
 /asm/
 /glass-backup/
+
+# RetroTermWeb build output (rebuilt from submodule)
+template-glass/lib/retroterm/
+
+# TypeScript compiled output (rebuilt by ts-compile target)
+template-glass/js/terminal-core.js
+template-glass/js/terminal-manager.js
+template-glass/js/terminal-bridge.js
+template-glass/js/terminal-popout-app.js

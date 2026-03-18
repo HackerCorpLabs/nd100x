@@ -641,7 +641,13 @@ int cpu_run(int ticks)
 					return ticks;
 				}
 			}
-
+			else
+			{
+				static int warn_count = 0;
+				if (++warn_count <= 3) {
+					printf("[BKPT-WARN] gDebuggerEnabled is FALSE at PC=%06o!\n", gPC);
+				}
+			}
 #endif
 		}
 
@@ -722,8 +728,14 @@ void cpu_reset()
 	/* Initialize volatile memory to zero */
 	memset(&VolatileMemory, 0, sizeof(VolatileMemory));
 
-	// Reset registers
+	// Reset registers (preserve debugger state across reset)
+#ifdef WITH_DEBUGGER
+	bool saved_debugger_enabled = gDebuggerEnabled;
+#endif
 	memset(gReg, 0, sizeof(struct CpuRegs));
+#ifdef WITH_DEBUGGER
+	gDebuggerEnabled = saved_debugger_enabled;
+#endif
 
 	// setbit(_STS, _O, 1);
 	setbit_STS_MSB(_N100, 1);
