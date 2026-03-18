@@ -213,13 +213,18 @@ static void draw_pending_list(void *telnetServer)
     if (count == 0) {
         printf("  No pending connections.\n");
     } else {
-        printf("  #  %-24s  Age\n", "Address");
-        printf("  -  %-24s  ---\n", "-------");
+        printf("  #  %-24s  %-10s  %-10s  %s\n", "Address", "RX", "TX", "Age");
+        printf("  -  %-24s  %-10s  %-10s  %s\n", "-------", "--", "--", "---");
         for (int i = 0; i < count; i++) {
             char addr[48];
             int age = 0;
-            if (TelnetServer_GetPendingInfo(ts, i, addr, sizeof(addr), &age)) {
-                printf("  %d) %-24s  %ds / 60s\n", i + 1, addr, age);
+            uint64_t rx = 0, tx = 0;
+            if (TelnetServer_GetPendingInfo(ts, i, addr, sizeof(addr), &age, &rx, &tx)) {
+                char rxStr[16], txStr[16];
+                format_bytes(rx, rxStr, sizeof(rxStr));
+                format_bytes(tx, txStr, sizeof(txStr));
+                printf("  %d) %-24s  %-10s  %-10s  %ds / 60s\n",
+                       i + 1, addr, rxStr, txStr, age);
             }
         }
     }

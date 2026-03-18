@@ -86,7 +86,8 @@ const char *TelnetServer_GetDeviceClientAddr(TelnetServer *server, struct Device
 // Pending client management (connected but not yet assigned to a terminal)
 int TelnetServer_GetPendingCount(TelnetServer *server);
 bool TelnetServer_GetPendingInfo(TelnetServer *server, int index,
-    char *addrBuf, int addrBufLen, int *ageSecs);
+    char *addrBuf, int addrBufLen, int *ageSecs,
+    uint64_t *bytesRx, uint64_t *bytesTx);
 bool TelnetServer_DropPending(TelnetServer *server, int index);
 void TelnetServer_DropAllPending(TelnetServer *server);
 
