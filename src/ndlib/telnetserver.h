@@ -78,4 +78,10 @@ bool TelnetServer_SetDeviceLocallyActive(TelnetServer *server, struct Device *de
 bool TelnetServer_IsDeviceConnected(TelnetServer *server, struct Device *device);
 void TelnetServer_ClearDeviceCarrier(TelnetServer *server, struct Device *device);
 
+// Get the IP:port string for the client connected to a device (NULL if not connected)
+const char *TelnetServer_GetDeviceClientAddr(TelnetServer *server, struct Device *device);
+
+// Pending client management (connected but not yet assigned to a terminal)
+int TelnetServer_GetPendingCount(TelnetServer *server);
+
 #endif // TELNET_SERVER_H

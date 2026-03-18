@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <poll.h>
@@ -37,7 +38,9 @@
 #include "ndlib_protos.h"
 
 #define TELNET_MAX_TERMINALS 16
+#define TELNET_MAX_PENDING 8
 #define TELNET_OUTPUT_BUF_SIZE 4096
+#define TELNET_PENDING_TIMEOUT 60  // seconds before auto-disconnect
 
 // Telnet protocol constants
 #define IAC   255
@@ -79,10 +82,21 @@ typedef struct {
     pthread_mutex_t outputMutex;
 } RegisteredTerminal;
 
+// Pending client: connected to server but not yet assigned to a terminal
+typedef struct {
+    int fd;
+    char addrStr[48];
+    time_t connectTime;
+    TelnetIACState iacState;
+} PendingClient;
+
 struct TelnetServer {
     TelnetServerConfig config;
     RegisteredTerminal terminals[TELNET_MAX_TERMINALS];
     int terminalCount;
+    PendingClient pending[TELNET_MAX_PENDING];
+    int pendingCount;
+    pthread_mutex_t pendingMutex;
     pthread_t acceptThread;
     int listenFd;
     atomic_bool shouldExit;
@@ -189,6 +203,12 @@ TelnetServer *TelnetServer_Create(const TelnetServerConfig *config)
     for (int i = 0; i < TELNET_MAX_TERMINALS; i++) {
         server->terminals[i].clientFd = -1;
         pthread_mutex_init(&server->terminals[i].outputMutex, NULL);
+    }
+
+    server->pendingCount = 0;
+    pthread_mutex_init(&server->pendingMutex, NULL);
+    for (int i = 0; i < TELNET_MAX_PENDING; i++) {
+        server->pending[i].fd = -1;
     }
 
     return server;
@@ -331,6 +351,15 @@ void TelnetServer_Destroy(TelnetServer *server)
         pthread_mutex_destroy(&server->terminals[i].outputMutex);
     }
 
+    // Close any pending clients
+    for (int i = 0; i < TELNET_MAX_PENDING; i++) {
+        if (server->pending[i].fd >= 0) {
+            close(server->pending[i].fd);
+            server->pending[i].fd = -1;
+        }
+    }
+    pthread_mutex_destroy(&server->pendingMutex);
+
     free(server);
 }
 
@@ -432,17 +461,48 @@ void TelnetServer_ClearDeviceCarrier(TelnetServer *server, struct Device *device
     }
 }
 
+const char *TelnetServer_GetDeviceClientAddr(TelnetServer *server, struct Device *device)
+{
+    if (!server || !device) return NULL;
+    RegisteredTerminal *rt = find_by_device(server, device);
+    if (!rt || rt->clientFd < 0) return NULL;
+    return rt->clientAddrStr;
+}
+
+int TelnetServer_GetPendingCount(TelnetServer *server)
+{
+    if (!server) return 0;
+    pthread_mutex_lock(&server->pendingMutex);
+    int count = server->pendingCount;
+    pthread_mutex_unlock(&server->pendingMutex);
+    return count;
+}
+
+// Remove a pending client by index (caller must hold pendingMutex)
+static void remove_pending(TelnetServer *server, int idx)
+{
+    if (idx < 0 || idx >= server->pendingCount) return;
+    if (server->pending[idx].fd >= 0) {
+        close(server->pending[idx].fd);
+        server->pending[idx].fd = -1;
+    }
+    // Shift remaining entries down
+    for (int j = idx; j < server->pendingCount - 1; j++) {
+        server->pending[j] = server->pending[j + 1];
+    }
+    server->pendingCount--;
+    server->pending[server->pendingCount].fd = -1;
+}
+
 // Menu index mapping: displayed menu numbers -> terminal indices
 // Only available (not locally active, not connected) terminals are shown
 static int menuMap[TELNET_MAX_TERMINALS];
 static int menuMapCount = 0;
 
 // Send terminal selection menu to client (only shows available terminals)
+// If clientFd == -1, only rebuild menuMap without sending
 static void send_menu(TelnetServer *server, int clientFd)
 {
-    char buf[2048];
-    int pos = 0;
-
     // Build mapping of available terminals
     menuMapCount = 0;
     for (int i = 0; i < server->terminalCount; i++) {
@@ -451,6 +511,11 @@ static void send_menu(TelnetServer *server, int clientFd)
             menuMap[menuMapCount++] = i;
         }
     }
+
+    if (clientFd < 0) return;  // Map-only rebuild
+
+    char buf[2048];
+    int pos = 0;
 
     pos += snprintf(buf + pos, sizeof(buf) - pos,
         "\r\n"
@@ -482,197 +547,249 @@ static void send_menu(TelnetServer *server, int clientFd)
     send(clientFd, buf, pos, MSG_NOSIGNAL);
 }
 
-// Accept thread: listens for new connections, shows menu, spawns client threads
+// Try to assign a pending client's selection to a terminal
+static bool try_assign_pending(TelnetServer *server, PendingClient *pc, int selection)
+{
+    if (selection < 0 || selection >= menuMapCount) return false;
+
+    int termIdx = menuMap[selection];
+    RegisteredTerminal *rt = &server->terminals[termIdx];
+    if (rt->clientFd >= 0 || rt->locallyActive) return false;
+
+    // Wait for previous client thread to finish if needed
+    if (rt->clientThreadActive) {
+        pthread_join(rt->clientThread, NULL);
+        rt->clientThreadActive = false;
+    }
+
+    // Assign client to terminal
+    rt->clientFd = pc->fd;
+    strncpy(rt->clientAddrStr, pc->addrStr, sizeof(rt->clientAddrStr) - 1);
+    rt->clientAddrStr[sizeof(rt->clientAddrStr) - 1] = '\0';
+
+    // Clear the ring buffer
+    pthread_mutex_lock(&rt->outputMutex);
+    rt->outputHead = 0;
+    rt->outputTail = 0;
+    pthread_mutex_unlock(&rt->outputMutex);
+
+    // Send connected message
+    char connMsg[128];
+    snprintf(connMsg, sizeof(connMsg),
+             "\r\nConnected to %s\r\n\r\n", rt->info.name);
+    send(pc->fd, connMsg, strlen(connMsg), MSG_NOSIGNAL);
+
+    // Clear carrier missing
+    if (rt->info.carrierFunc) {
+        rt->info.carrierFunc(rt->info.device, false);
+    }
+
+    Log(LOG_INFO, "Telnet: %s connected to %s\n", pc->addrStr, rt->info.name);
+
+    // Spawn client I/O thread
+    if (pthread_create(&rt->clientThread, NULL, client_thread_func, rt) != 0) {
+        perror("telnet: client thread");
+        close(pc->fd);
+        rt->clientFd = -1;
+        memset(rt->clientAddrStr, 0, sizeof(rt->clientAddrStr));
+        return false;
+    }
+    rt->clientThreadActive = true;
+
+    // Mark fd as transferred (don't close in remove_pending)
+    pc->fd = -1;
+    return true;
+}
+
+// Accept thread: listens for new connections, manages pending clients
 static void *accept_thread_func(void *arg)
 {
     TelnetServer *server = (TelnetServer *)arg;
 
-    struct pollfd pfds[2];
-    pfds[0].fd = server->listenFd;
-    pfds[0].events = POLLIN;
-    pfds[1].fd = server->shutdownPipe[0];
-    pfds[1].events = POLLIN;
-
     while (!atomic_load(&server->shouldExit)) {
-        int ret = poll(pfds, 2, 1000);
+        // Build poll set: listen socket + shutdown pipe + all pending clients
+        int nfds = 2;
+        struct pollfd pfds[2 + TELNET_MAX_PENDING];
+        pfds[0].fd = server->listenFd;
+        pfds[0].events = POLLIN;
+        pfds[1].fd = server->shutdownPipe[0];
+        pfds[1].events = POLLIN;
+
+        pthread_mutex_lock(&server->pendingMutex);
+        int pc_count = server->pendingCount;
+        for (int i = 0; i < pc_count; i++) {
+            pfds[2 + i].fd = server->pending[i].fd;
+            pfds[2 + i].events = POLLIN;
+        }
+        pthread_mutex_unlock(&server->pendingMutex);
+        nfds += pc_count;
+
+        int ret = poll(pfds, nfds, 1000);
         if (ret < 0) {
             if (errno == EINTR) continue;
             break;
         }
-        if (ret == 0) continue;
 
         // Shutdown signal
         if (pfds[1].revents & POLLIN) break;
 
-        // New connection
-        if (!(pfds[0].revents & POLLIN)) continue;
-
-        struct sockaddr_in clientAddr;
-        socklen_t addrLen = sizeof(clientAddr);
-        int clientFd = accept(server->listenFd, (struct sockaddr *)&clientAddr, &addrLen);
-        if (clientFd < 0) {
-            if (errno == EINTR || errno == EBADF) continue;
-            perror("telnet: accept");
-            continue;
+        // Check for timeout on pending clients
+        pthread_mutex_lock(&server->pendingMutex);
+        time_t now = time(NULL);
+        for (int i = server->pendingCount - 1; i >= 0; i--) {
+            if (server->pending[i].fd >= 0 &&
+                (now - server->pending[i].connectTime) >= TELNET_PENDING_TIMEOUT) {
+                const char *timeout_msg = "\r\nConnection timed out.\r\n";
+                send(server->pending[i].fd, timeout_msg, strlen(timeout_msg), MSG_NOSIGNAL);
+                Log(LOG_INFO, "Telnet: %s timed out (no terminal selected)\n",
+                       server->pending[i].addrStr);
+                remove_pending(server, i);
+            }
         }
+        pthread_mutex_unlock(&server->pendingMutex);
 
-        // Enable TCP_NODELAY for responsiveness
-        int opt = 1;
-        setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-
-        // Send telnet negotiation
-        send(clientFd, telnet_init, sizeof(telnet_init), MSG_NOSIGNAL);
-
-        // Format client address string
-        char addrStr[48];
-        snprintf(addrStr, sizeof(addrStr), "%s:%d",
-                 inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-
-        Log(LOG_INFO, "Telnet: connection from %s\n", addrStr);
-
-        // Terminal selection loop
-        bool assigned = false;
-        while (!atomic_load(&server->shouldExit) && !assigned) {
-            send_menu(server, clientFd);
-
-            // Read selection with poll timeout
-            struct pollfd cpfd[2];
-            cpfd[0].fd = clientFd;
-            cpfd[0].events = POLLIN;
-            cpfd[1].fd = server->shutdownPipe[0];
-            cpfd[1].events = POLLIN;
+        // Process input from pending clients
+        pthread_mutex_lock(&server->pendingMutex);
+        for (int i = server->pendingCount - 1; i >= 0; i--) {
+            if (i + 2 >= nfds) continue;
+            if (!(pfds[2 + i].revents & POLLIN)) continue;
 
             uint8_t inputBuf[64];
-            TelnetIACState iacState = TELNET_STATE_DATA;
-            int selection = -1;
+            int n = recv(server->pending[i].fd, inputBuf, sizeof(inputBuf), 0);
+            if (n <= 0) {
+                Log(LOG_INFO, "Telnet: %s disconnected during menu\n",
+                       server->pending[i].addrStr);
+                remove_pending(server, i);
+                continue;
+            }
 
-            while (!atomic_load(&server->shouldExit) && selection == -1) {
-                int pret = poll(cpfd, 2, 5000);
-                if (pret < 0) {
-                    if (errno == EINTR) continue;
+            // Process through IAC state machine
+            bool quit = false;
+            int selection = -1;
+            for (int b = 0; b < n && !quit; b++) {
+                uint8_t byte = inputBuf[b];
+
+                switch (server->pending[i].iacState) {
+                case TELNET_STATE_DATA:
+                    if (byte == IAC) {
+                        server->pending[i].iacState = TELNET_STATE_IAC;
+                    } else if (byte == 'q' || byte == 'Q') {
+                        const char *bye = "\r\nGoodbye.\r\n";
+                        send(server->pending[i].fd, bye, strlen(bye), MSG_NOSIGNAL);
+                        Log(LOG_INFO, "Telnet: %s quit\n", server->pending[i].addrStr);
+                        quit = true;
+                    } else if (byte >= '1' && byte <= '9') {
+                        selection = byte - '1';
+                    }
+                    break;
+                case TELNET_STATE_IAC:
+                    switch (byte) {
+                    case WILL: server->pending[i].iacState = TELNET_STATE_WILL; break;
+                    case WONT: server->pending[i].iacState = TELNET_STATE_WONT; break;
+                    case DO:   server->pending[i].iacState = TELNET_STATE_DO;   break;
+                    case DONT: server->pending[i].iacState = TELNET_STATE_DONT; break;
+                    case SB:   server->pending[i].iacState = TELNET_STATE_SB;   break;
+                    case IAC:  server->pending[i].iacState = TELNET_STATE_DATA; break;
+                    default:   server->pending[i].iacState = TELNET_STATE_DATA; break;
+                    }
+                    break;
+                case TELNET_STATE_WILL:
+                case TELNET_STATE_WONT:
+                case TELNET_STATE_DO:
+                case TELNET_STATE_DONT:
+                    server->pending[i].iacState = TELNET_STATE_DATA;
+                    break;
+                case TELNET_STATE_SB:
+                    server->pending[i].iacState = TELNET_STATE_SB_DATA;
+                    break;
+                case TELNET_STATE_SB_DATA:
+                    if (byte == IAC) server->pending[i].iacState = TELNET_STATE_SB_IAC;
+                    break;
+                case TELNET_STATE_SB_IAC:
+                    if (byte == SE) server->pending[i].iacState = TELNET_STATE_DATA;
+                    else server->pending[i].iacState = TELNET_STATE_SB_DATA;
                     break;
                 }
-                if (cpfd[1].revents & POLLIN) break;
-                if (pret == 0) continue;
-                if (!(cpfd[0].revents & POLLIN)) continue;
+            }
 
-                int n = recv(clientFd, inputBuf, sizeof(inputBuf), 0);
-                if (n <= 0) {
-                    // Client disconnected during menu
-                    close(clientFd);
-                    Log(LOG_INFO, "Telnet: %s disconnected during menu\n", addrStr);
-                    goto next_connection;
-                }
+            if (quit) {
+                remove_pending(server, i);
+                continue;
+            }
 
-                // Process received bytes through IAC state machine
-                for (int i = 0; i < n; i++) {
-                    uint8_t byte = inputBuf[i];
+            if (selection >= 0) {
+                // Rebuild menu map for validation
+                send_menu(server, -1);  // -1 = just rebuild menuMap, don't send
 
-                    switch (iacState) {
-                    case TELNET_STATE_DATA:
-                        if (byte == IAC) {
-                            iacState = TELNET_STATE_IAC;
-                        } else if (byte == 'q' || byte == 'Q') {
-                            // Quit
-                            const char *bye = "\r\nGoodbye.\r\n";
-                            send(clientFd, bye, strlen(bye), MSG_NOSIGNAL);
-                            close(clientFd);
-                            Log(LOG_INFO, "Telnet: %s quit\n", addrStr);
-                            goto next_connection;
-                        } else if (byte >= '1' && byte <= '9') {
-                            selection = byte - '1';
-                        }
-                        // Ignore CR, LF, and other control chars
-                        break;
-                    case TELNET_STATE_IAC:
-                        switch (byte) {
-                        case WILL: iacState = TELNET_STATE_WILL; break;
-                        case WONT: iacState = TELNET_STATE_WONT; break;
-                        case DO:   iacState = TELNET_STATE_DO;   break;
-                        case DONT: iacState = TELNET_STATE_DONT; break;
-                        case SB:   iacState = TELNET_STATE_SB;   break;
-                        case IAC:  iacState = TELNET_STATE_DATA;  break;  // Escaped 255
-                        default:   iacState = TELNET_STATE_DATA;  break;
-                        }
-                        break;
-                    case TELNET_STATE_WILL:
-                    case TELNET_STATE_WONT:
-                    case TELNET_STATE_DO:
-                    case TELNET_STATE_DONT:
-                        // Consume the option byte and return to data state
-                        iacState = TELNET_STATE_DATA;
-                        break;
-                    case TELNET_STATE_SB:
-                        iacState = TELNET_STATE_SB_DATA;
-                        break;
-                    case TELNET_STATE_SB_DATA:
-                        if (byte == IAC) iacState = TELNET_STATE_SB_IAC;
-                        break;
-                    case TELNET_STATE_SB_IAC:
-                        if (byte == SE) iacState = TELNET_STATE_DATA;
-                        else iacState = TELNET_STATE_SB_DATA;
-                        break;
+                if (try_assign_pending(server, &server->pending[i], selection)) {
+                    // Remove from pending (fd already transferred)
+                    for (int j = i; j < server->pendingCount - 1; j++) {
+                        server->pending[j] = server->pending[j + 1];
                     }
+                    server->pendingCount--;
+                    server->pending[server->pendingCount].fd = -1;
+                } else {
+                    // Invalid selection or terminal no longer available — resend menu
+                    const char *err = "\r\nTerminal not available. Try again.\r\n";
+                    send(server->pending[i].fd, err, strlen(err), MSG_NOSIGNAL);
+                    send_menu(server, server->pending[i].fd);
                 }
             }
-
-            if (selection < 0 || selection >= menuMapCount) {
-                if (atomic_load(&server->shouldExit)) break;
-                continue;
-            }
-
-            // Map menu selection to actual terminal index
-            int termIdx = menuMap[selection];
-            RegisteredTerminal *rt = &server->terminals[termIdx];
-            if (rt->clientFd >= 0 || rt->locallyActive) {
-                // State changed since menu was shown — redisplay
-                continue;
-            }
-
-            // Wait for previous client thread to finish if needed
-            if (rt->clientThreadActive) {
-                pthread_join(rt->clientThread, NULL);
-                rt->clientThreadActive = false;
-            }
-
-            // Assign client to terminal
-            rt->clientFd = clientFd;
-            strncpy(rt->clientAddrStr, addrStr, sizeof(rt->clientAddrStr) - 1);
-            rt->clientAddrStr[sizeof(rt->clientAddrStr) - 1] = '\0';
-
-            // Clear the ring buffer
-            pthread_mutex_lock(&rt->outputMutex);
-            rt->outputHead = 0;
-            rt->outputTail = 0;
-            pthread_mutex_unlock(&rt->outputMutex);
-
-            // Send connected message
-            char connMsg[128];
-            snprintf(connMsg, sizeof(connMsg),
-                     "\r\nConnected to %s\r\n\r\n", rt->info.name);
-            send(clientFd, connMsg, strlen(connMsg), MSG_NOSIGNAL);
-
-            // Clear carrier missing
-            if (rt->info.carrierFunc) {
-                rt->info.carrierFunc(rt->info.device, false);
-            }
-
-            Log(LOG_INFO, "Telnet: %s connected to %s\n", addrStr, rt->info.name);
-
-            // Spawn client I/O thread
-            if (pthread_create(&rt->clientThread, NULL, client_thread_func, rt) != 0) {
-                perror("telnet: client thread");
-                close(clientFd);
-                rt->clientFd = -1;
-                memset(rt->clientAddrStr, 0, sizeof(rt->clientAddrStr));
-            } else {
-                rt->clientThreadActive = true;
-            }
-
-            assigned = true;
         }
-next_connection:;
+        pthread_mutex_unlock(&server->pendingMutex);
+
+        // Accept new connection
+        if (pfds[0].revents & POLLIN) {
+            struct sockaddr_in clientAddr;
+            socklen_t addrLen = sizeof(clientAddr);
+            int clientFd = accept(server->listenFd, (struct sockaddr *)&clientAddr, &addrLen);
+            if (clientFd < 0) {
+                if (errno == EINTR || errno == EBADF) continue;
+                perror("telnet: accept");
+                continue;
+            }
+
+            // Enable TCP_NODELAY
+            int opt = 1;
+            setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+            // Send telnet negotiation
+            send(clientFd, telnet_init, sizeof(telnet_init), MSG_NOSIGNAL);
+
+            char addrStr[48];
+            snprintf(addrStr, sizeof(addrStr), "%s:%d",
+                     inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+
+            Log(LOG_INFO, "Telnet: connection from %s\n", addrStr);
+
+            pthread_mutex_lock(&server->pendingMutex);
+            if (server->pendingCount >= TELNET_MAX_PENDING) {
+                const char *full = "\r\nToo many pending connections. Try again later.\r\n";
+                send(clientFd, full, strlen(full), MSG_NOSIGNAL);
+                close(clientFd);
+                Log(LOG_INFO, "Telnet: %s rejected (pending slots full)\n", addrStr);
+            } else {
+                PendingClient *pc = &server->pending[server->pendingCount];
+                pc->fd = clientFd;
+                strncpy(pc->addrStr, addrStr, sizeof(pc->addrStr) - 1);
+                pc->addrStr[sizeof(pc->addrStr) - 1] = '\0';
+                pc->connectTime = time(NULL);
+                pc->iacState = TELNET_STATE_DATA;
+                server->pendingCount++;
+
+                // Send menu
+                send_menu(server, clientFd);
+            }
+            pthread_mutex_unlock(&server->pendingMutex);
+        }
     }
+
+    // Clean up pending clients on shutdown
+    pthread_mutex_lock(&server->pendingMutex);
+    for (int i = server->pendingCount - 1; i >= 0; i--) {
+        remove_pending(server, i);
+    }
+    pthread_mutex_unlock(&server->pendingMutex);
 
     return NULL;
 }
