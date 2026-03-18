@@ -570,7 +570,8 @@ static int menuMapCount = 0;
 
 // Send terminal selection menu to client (only shows available terminals)
 // If clientFd == -1, only rebuild menuMap without sending
-static void send_menu(TelnetServer *server, int clientFd)
+// Returns number of available terminals (menuMapCount)
+static int send_menu(TelnetServer *server, int clientFd)
 {
     // Build mapping of available terminals
     menuMapCount = 0;
@@ -581,7 +582,7 @@ static void send_menu(TelnetServer *server, int clientFd)
         }
     }
 
-    if (clientFd < 0) return;  // Map-only rebuild
+    if (clientFd < 0) return menuMapCount;  // Map-only rebuild
 
     char buf[2048];
     int pos = 0;
@@ -593,10 +594,9 @@ static void send_menu(TelnetServer *server, int clientFd)
         server->config.port);
 
     if (menuMapCount == 0) {
+        // Caller should disconnect — this path shouldn't normally be reached
         pos += snprintf(buf + pos, sizeof(buf) - pos,
-            "No terminals available.\r\n"
-            "All terminals are in use by local console or other telnet clients.\r\n"
-            "\r\nPress Q to quit: ");
+            "No terminals available.\r\n");
     } else {
         pos += snprintf(buf + pos, sizeof(buf) - pos,
             "Available terminals:\r\n");
@@ -609,7 +609,7 @@ static void send_menu(TelnetServer *server, int clientFd)
         }
 
         pos += snprintf(buf + pos, sizeof(buf) - pos,
-            "\r\nSelect terminal (1-%d), or Q to quit: ",
+            "\r\nSelect terminal (1-%d), ENTER for next available, or Q to quit: ",
             menuMapCount);
     }
 
@@ -624,6 +624,8 @@ static void send_menu(TelnetServer *server, int clientFd)
             }
         }
     }
+
+    return menuMapCount;
 }
 
 // Try to assign a pending client's selection to a terminal
@@ -760,6 +762,8 @@ static void *accept_thread_func(void *arg)
                         quit = true;
                     } else if (byte >= '1' && byte <= '9') {
                         selection = byte - '1';
+                    } else if (byte == '\r' || byte == '\n') {
+                        selection = 0;  // First available terminal
                     }
                     break;
                 case TELNET_STATE_IAC:
@@ -809,10 +813,19 @@ static void *accept_thread_func(void *arg)
                     server->pendingCount--;
                     server->pending[server->pendingCount].fd = -1;
                 } else {
-                    // Invalid selection or terminal no longer available — resend menu
-                    const char *err = "\r\nTerminal not available. Try again.\r\n";
+                    // Terminal taken by another client — show busy + fresh list
+                    const char *err = "\r\nTerminal busy (taken by another client).\r\n";
                     send(server->pending[i].fd, err, strlen(err), MSG_NOSIGNAL);
-                    send_menu(server, server->pending[i].fd);
+                    server->pending[i].bytesTx += strlen(err);
+                    int avail = send_menu(server, server->pending[i].fd);
+                    if (avail == 0) {
+                        // All terminals now taken — disconnect
+                        const char *bye = "All terminals are now in use. Disconnecting.\r\n";
+                        send(server->pending[i].fd, bye, strlen(bye), MSG_NOSIGNAL);
+                        Log(LOG_INFO, "Telnet: %s disconnected (no free terminals)\n",
+                               server->pending[i].addrStr);
+                        remove_pending(server, i);
+                    }
                 }
             }
         }
@@ -849,18 +862,30 @@ static void *accept_thread_func(void *arg)
                 close(clientFd);
                 Log(LOG_INFO, "Telnet: %s rejected (pending slots full)\n", addrStr);
             } else {
-                PendingClient *pc = &server->pending[server->pendingCount];
-                pc->fd = clientFd;
-                strncpy(pc->addrStr, addrStr, sizeof(pc->addrStr) - 1);
-                pc->addrStr[sizeof(pc->addrStr) - 1] = '\0';
-                pc->connectTime = time(NULL);
-                pc->iacState = TELNET_STATE_DATA;
-                pc->bytesRx = 0;
-                pc->bytesTx = sizeof(telnet_init);  // Count initial negotiation
-                server->pendingCount++;
+                // Check if any terminals are available before adding to pending
+                send_menu(server, -1);  // Rebuild menuMap only
+                if (menuMapCount == 0) {
+                    const char *noterm =
+                        "\r\nND-100/CX Terminal Server\r\n\r\n"
+                        "No terminals available. All are in use.\r\n"
+                        "Disconnecting.\r\n";
+                    send(clientFd, noterm, strlen(noterm), MSG_NOSIGNAL);
+                    close(clientFd);
+                    Log(LOG_INFO, "Telnet: %s rejected (no free terminals)\n", addrStr);
+                } else {
+                    PendingClient *pc = &server->pending[server->pendingCount];
+                    pc->fd = clientFd;
+                    strncpy(pc->addrStr, addrStr, sizeof(pc->addrStr) - 1);
+                    pc->addrStr[sizeof(pc->addrStr) - 1] = '\0';
+                    pc->connectTime = time(NULL);
+                    pc->iacState = TELNET_STATE_DATA;
+                    pc->bytesRx = 0;
+                    pc->bytesTx = sizeof(telnet_init);  // Count initial negotiation
+                    server->pendingCount++;
 
-                // Send menu
-                send_menu(server, clientFd);
+                    // Send menu
+                    send_menu(server, clientFd);
+                }
             }
             pthread_mutex_unlock(&server->pendingMutex);
         }
