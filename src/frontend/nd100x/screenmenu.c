@@ -83,8 +83,15 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
     if (hasTelnet) {
-        printf("=== Virtual Screens (telnet port %d) ===\n\n",
-               TelnetServer_GetPort((TelnetServer *)telnetServer));
+        TelnetServer *ts = (TelnetServer *)telnetServer;
+        int pending = TelnetServer_GetPendingCount(ts);
+        if (pending > 0) {
+            printf("=== Virtual Screens (telnet port %d, %d pending) ===\n\n",
+                   TelnetServer_GetPort(ts), pending);
+        } else {
+            printf("=== Virtual Screens (telnet port %d) ===\n\n",
+                   TelnetServer_GetPort(ts));
+        }
     } else
 #endif
     {
@@ -92,6 +99,7 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
     }
 
     for (int i = 0; i < state->screenCount; i++) {
+        char statusBuf[80];
         const char *status = "";
 
         if (i == *state->activeScreen) {
@@ -102,12 +110,19 @@ static void draw_screen_select(MenuState *state, void *telnetServer)
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
         else if (hasTelnet) {
             TelnetServer *ts = (TelnetServer *)telnetServer;
-            if (TelnetServer_IsDeviceConnected(ts, state->screens[i].device))
-                status = " [Telnet]";
-            else if (!state->screens[i].localActive)
+            if (TelnetServer_IsDeviceConnected(ts, state->screens[i].device)) {
+                const char *addr = TelnetServer_GetDeviceClientAddr(ts, state->screens[i].device);
+                if (addr && addr[0]) {
+                    snprintf(statusBuf, sizeof(statusBuf), " [Telnet %s]", addr);
+                    status = statusBuf;
+                } else {
+                    status = " [Telnet]";
+                }
+            } else if (!state->screens[i].localActive) {
                 status = " [Inactive]";
-            else if (state->screens[i].isInputCapable && i > 0)
+            } else if (state->screens[i].isInputCapable && i > 0) {
                 status = " [Virtual]";
+            }
         }
 #else
         else if (!state->screens[i].localActive) {
