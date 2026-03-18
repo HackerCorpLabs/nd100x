@@ -93,6 +93,8 @@ typedef struct {
     TelnetIACState iacState;
     uint64_t bytesRx;
     uint64_t bytesTx;
+    int shownMap[TELNET_MAX_TERMINALS];  // Terminal indices as shown to this client
+    int shownMapCount;
 } PendingClient;
 
 struct TelnetServer {
@@ -628,6 +630,16 @@ static int send_menu(TelnetServer *server, int clientFd)
     return menuMapCount;
 }
 
+// Send menu to a pending client and snapshot the mapping
+static int send_menu_to_pending(TelnetServer *server, PendingClient *pc)
+{
+    int avail = send_menu(server, pc->fd);
+    // Snapshot the menu map so we validate against what was shown
+    pc->shownMapCount = menuMapCount;
+    memcpy(pc->shownMap, menuMap, menuMapCount * sizeof(int));
+    return avail;
+}
+
 // Try to assign a pending client's selection to a terminal
 static bool try_assign_pending(TelnetServer *server, PendingClient *pc, int selection)
 {
@@ -802,29 +814,44 @@ static void *accept_thread_func(void *arg)
             }
 
             if (selection >= 0) {
-                // Rebuild menu map for validation
-                send_menu(server, -1);  // -1 = just rebuild menuMap, don't send
+                PendingClient *pc = &server->pending[i];
 
-                if (try_assign_pending(server, &server->pending[i], selection)) {
-                    // Remove from pending (fd already transferred)
-                    for (int j = i; j < server->pendingCount - 1; j++) {
-                        server->pending[j] = server->pending[j + 1];
-                    }
-                    server->pendingCount--;
-                    server->pending[server->pendingCount].fd = -1;
-                } else {
-                    // Terminal taken by another client — show busy + fresh list
+                // Validate against the menu THIS client was shown
+                if (selection >= pc->shownMapCount) {
+                    const char *err = "\r\nInvalid selection.\r\n";
+                    send(pc->fd, err, strlen(err), MSG_NOSIGNAL);
+                    pc->bytesTx += strlen(err);
+                    continue;
+                }
+
+                // Look up the terminal the client intended to select
+                int termIdx = pc->shownMap[selection];
+                RegisteredTerminal *rt = &server->terminals[termIdx];
+
+                if (rt->clientFd >= 0 || rt->locallyActive) {
+                    // Terminal taken since menu was shown — busy message + fresh list
                     const char *err = "\r\nTerminal busy (taken by another client).\r\n";
-                    send(server->pending[i].fd, err, strlen(err), MSG_NOSIGNAL);
-                    server->pending[i].bytesTx += strlen(err);
-                    int avail = send_menu(server, server->pending[i].fd);
+                    send(pc->fd, err, strlen(err), MSG_NOSIGNAL);
+                    pc->bytesTx += strlen(err);
+                    int avail = send_menu_to_pending(server, pc);
                     if (avail == 0) {
-                        // All terminals now taken — disconnect
                         const char *bye = "All terminals are now in use. Disconnecting.\r\n";
-                        send(server->pending[i].fd, bye, strlen(bye), MSG_NOSIGNAL);
+                        send(pc->fd, bye, strlen(bye), MSG_NOSIGNAL);
                         Log(LOG_INFO, "Telnet: %s disconnected (no free terminals)\n",
-                               server->pending[i].addrStr);
+                               pc->addrStr);
                         remove_pending(server, i);
+                    }
+                } else {
+                    // Use menuMap for try_assign — set it to match the client's intended terminal
+                    menuMap[0] = termIdx;
+                    menuMapCount = 1;
+                    if (try_assign_pending(server, pc, 0)) {
+                        // Remove from pending (fd already transferred)
+                        for (int j = i; j < server->pendingCount - 1; j++) {
+                            server->pending[j] = server->pending[j + 1];
+                        }
+                        server->pendingCount--;
+                        server->pending[server->pendingCount].fd = -1;
                     }
                 }
             }
@@ -883,8 +910,8 @@ static void *accept_thread_func(void *arg)
                     pc->bytesTx = sizeof(telnet_init);  // Count initial negotiation
                     server->pendingCount++;
 
-                    // Send menu
-                    send_menu(server, clientFd);
+                    // Send menu and snapshot mapping
+                    send_menu_to_pending(server, pc);
                 }
             }
             pthread_mutex_unlock(&server->pendingMutex);
