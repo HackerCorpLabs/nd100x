@@ -436,7 +436,7 @@ Nnegative numbers are extended with ones with the argument in 2's complement for
 
 | Instruction | Description |
 |:------------|:------------|
-| [`BANC`](#banc) | ogical AND with bit compl |
+| [`BANC`](#banc) | logical AND with bit complement |
 | [`BAND`](#band) | Logical AND to K |
 | [`BLDA`](#blda) | Load K |
 | [`BLDC`](#bldc) | Load K and complement |
@@ -1222,6 +1222,7 @@ The stack-handling instructions are page-fault tolerant in the ND-110.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `172400` (octal) |
 | Format | `AAA <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -1276,6 +1277,7 @@ AAA 3
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `172000` (octal) |
 | Format | `AAB <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -1330,6 +1332,7 @@ AAB -26
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `173000` (octal) |
 | Format | `AAT <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -1384,6 +1387,7 @@ AAT 13
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `173400` (octal) |
 | Format | `AAX <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -1438,6 +1442,7 @@ AAX 5
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `060000` (octal) |
 | Format | `ADD <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
 | Privilege | User |
@@ -1494,6 +1499,7 @@ ADD <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140120` (octal) |
 | Format | `ADDD` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -1563,6 +1569,7 @@ ADDD
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `070000` (octal) |
 | Format | `AND <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
 | Privilege | User |
@@ -1611,6 +1618,7 @@ AND <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `177000` (octal) |
 | Format | `BANC` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1618,7 +1626,7 @@ AND <addressing_mode> <displacement>
 
 #### 📝 Description
 
-ogical AND with bit compl
+logical AND with bit complement
 
 K ⟵ K & (B)0
 
@@ -1655,6 +1663,7 @@ BANC
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `177200` (octal) |
 | Format | `BAND` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1697,6 +1706,7 @@ BAND
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140130` (octal) |
 | Format | `BFILL` |
 | Category | Byte Instructions |
 | Privilege | User |
@@ -1741,6 +1751,7 @@ BFILL
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `176600` (octal) |
 | Format | `BLDA` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1783,6 +1794,7 @@ BLDA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `176400` (octal) |
 | Format | `BLDC` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1825,6 +1837,7 @@ BLDC
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `177600` (octal) |
 | Format | `BORA` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1867,6 +1880,7 @@ BORA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `177400` (octal) |
 | Format | `BORC` |
 | Category | Bit instructions_with_destination |
 | Privilege | User |
@@ -1916,7 +1930,8 @@ BORC 60 DX
 
 | Property | Value |
 |:---------|:-------|
-| Format | `BSET <condition> <bit_no>` |
+| Opcode | `174000` (octal) |
+| Format | `BSET <condition> <bit_no> <destination>` |
 | Category | Bit instructions |
 | Privilege | User |
 | Mask | `1111_1111_1000_0000` |
@@ -1929,16 +1944,16 @@ Set specified bit in equal to specified condition
 #### 📋 Format
 
 ```
-BSET <condition> <bit_no>
+BSET <condition> <bit_no> <destination>
 ```
 
 #### Bit Layout
 
 ```
-   │ 15  14  13  12  11│ 10  9   8   7 │ 7   6   5   4   3    │
-   ├───────────────────┼───────────────┼──────────────────────┤
-   │       opcode      │   condition   │       bit_no         │
-   └───────────────────┴───────────────┴──────────────────────┘
+   │ 15  14  13  12  11│ 10  9   8   7 │ 7   6   5   4   3 │  2    1    0     │
+   ├───────────────────┼───────────────┼───────────────────┼──────────────────┤
+   │       opcode      │   condition   │       bit_no      │  destination     │
+   └───────────────────┴───────────────┴───────────────────┴──────────────────┘
 
 ```
 
@@ -1948,7 +1963,8 @@ BSET <condition> <bit_no>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
 | `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO` (`0000`): Specificed bit equals zero<br>- `ONE` (`0001`): Specified bit equals one<br>- `BAC` (`0002`): Specified bit equals K<br>- `BCM` (`0003`): Complement specified bit<br> |
-| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
+| `bit_no` | numeric | 7-3 | Specify bit number for <dsestination> = STS<br><br>**Values:**<br>- `SSPTM` (`000000`): Page table flag<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `STS` (`000000`): STS register as destination<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 📚 Examples
 
@@ -1965,6 +1981,7 @@ BSET ZRO SSO
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `175000` (octal) |
 | Format | `BSKP <condition> <bit_no>` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -1986,10 +2003,10 @@ BSKP <condition> <bit_no>
 #### Bit Layout
 
 ```
-   │ 15  14  13  12  11│ 10  9   8   7 │ 7   6   5   4   3    │
-   ├───────────────────┼───────────────┼──────────────────────┤
-   │       opcode      │   condition   │       bit_no         │
-   └───────────────────┴───────────────┴──────────────────────┘
+   │ 15  14  13  12  11│ 10  9   8   7 │ 7   6   5   4   3 │  2    1    0     │
+   ├───────────────────┼───────────────┼───────────────────┼──────────────────┤
+   │       opcode      │   condition   │       bit_no      │  destination     │
+   └───────────────────┴───────────────┴───────────────────┴──────────────────┘
 
 ```
 
@@ -1999,7 +2016,8 @@ BSKP <condition> <bit_no>
 |:-----|:-----|:-----|:------------|
 | `opcode` | opcode | 15-11 | The opcode determines what type of operation occurs |
 | `condition` | enum | 10-7 | Specify condition for BSKP and BSET<br><br>**Values:**<br>- `ZRO` (`0000`): Specificed bit equals zero<br>- `ONE` (`0001`): Specified bit equals one<br>- `BAC` (`0002`): Specified bit equals K<br>- `BCM` (`0003`): Complement specified bit<br> |
-| `bit_no` | numeric | 7-3 | Specify bit number<br><br>**Values:**<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
+| `bit_no` | numeric | 7-3 | Specify bit number for <dsestination> = STS<br><br>**Values:**<br>- `SSPTM` (`000000`): Page table flag<br>- `SSTG` (`000010`): Floating rounding flag<br>- `SSK` (`000020`): 1-bit accumulator (K)<br>- `SSZ` (`000030`): Error flag (Z)<br>- `SSQ` (`000040`): Dynamic overflow flag (Q)<br>- `SSO` (`000050`): Static overflow flag (O)<br>- `SSC` (`000060`): Page table flag<br>- `SSM` (`000070`): Page table flag<br> |
+| `destination` | enum | 2-0 | Destination register (dr)<br><br>**Values:**<br>- `STS` (`000000`): STS register as destination<br>- `DD` (`000001`): D register as destination<br>- `DP` (`000002`): P register as destination<br>- `DB` (`000003`): B register as destination<br>- `DL` (`000004`): L register as destination<br>- `DA` (`000005`): A register as destination<br>- `DT` (`000006`): T register as destination<br>- `DX` (`000007`): X register as destination<br> |
 
 #### 📚 Examples
 
@@ -2016,6 +2034,7 @@ BSKP ONE SSC
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `176200` (octal) |
 | Format | `BSTA` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -2058,6 +2077,7 @@ BSTA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `176000` (octal) |
 | Format | `BSTC` |
 | Category | Bit instructions |
 | Privilege | User |
@@ -2100,6 +2120,7 @@ BSTC
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140303` (octal) |
 | Format | `CHREENTPAGES` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2146,6 +2167,7 @@ CHREENTPAGES
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140301` (octal) |
 | Format | `CLEPT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2211,6 +2233,7 @@ CLEPT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140304` (octal) |
 | Format | `CLEPU` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2276,6 +2299,7 @@ CLEPU
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140302` (octal) |
 | Format | `CLNREENT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2319,6 +2343,7 @@ CLNREENT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140505` (octal) |
 | Format | `CLPT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2359,6 +2384,7 @@ CLPT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140504` (octal) |
 | Format | `CNREK` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2399,6 +2425,7 @@ CNREK
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140122` (octal) |
 | Format | `COMD` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -2469,6 +2496,7 @@ COMD
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146100` (octal) |
 | Format | `COPY [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -2540,6 +2568,7 @@ COPY CM2 SA DA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150417` (octal) |
 | Format | `DEPO` |
 | Category | Physical Memory Control Instructions |
 | Privilege | Privileged |
@@ -2582,6 +2611,7 @@ DEPO
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `152000` (octal) |
 | Format | `DNZ <scaling_factor>` |
 | Category | Floating Conversion (Standard Format) |
 | Privilege | User |
@@ -2651,6 +2681,7 @@ DNZ -20
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140137` (octal) |
 | Format | `ELEAV` |
 | Category | Stack Operations |
 | Privilege | User |
@@ -2704,6 +2735,7 @@ ELEAV
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140506` (octal) |
 | Format | `ENPT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -2744,6 +2776,7 @@ ENPT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140135` (octal) |
 | Format | `ENTR` |
 | Category | Stack Operations |
 | Privilege | User |
@@ -2807,6 +2840,7 @@ ENTR
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150416` (octal) |
 | Format | `EXAM` |
 | Category | Physical Memory Control Instructions |
 | Privilege | Privileged |
@@ -2849,6 +2883,7 @@ EXAM
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146142` (octal) |
 | Format | `EXIT` |
 | Category | Register Operations |
 | Privilege | User |
@@ -2902,6 +2937,7 @@ EXIT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140600` (octal) |
 | Format | `EXR <sr>` |
 | Category | Execute |
 | Privilege | User |
@@ -2961,6 +2997,7 @@ EXR SB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `100000` (octal) |
 | Format | `FAD <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -3011,6 +3048,7 @@ FAD <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `114000` (octal) |
 | Format | `FDV <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -3071,6 +3109,7 @@ FDV <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `110000` (octal) |
 | Format | `FMU <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -3125,6 +3164,7 @@ FMU <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `104000` (octal) |
 | Format | `FSB <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -3179,6 +3219,7 @@ FSB <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `142700` (octal) |
 | Format | `GECO` |
 | Category | Undocumented Instructions |
 | Privilege | User |
@@ -3224,6 +3265,7 @@ GECO
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143600` (octal) |
 | Format | ` IDENT <level_code>` |
 | Category | Interrupt Control Instructions |
 | Privilege | User |
@@ -3265,6 +3307,7 @@ Transfer IDENT code of interrupting device with highest priority on the specifie
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140134` (octal) |
 | Format | `INIT` |
 | Category | Stack Operations |
 | Privilege | User |
@@ -3334,6 +3377,7 @@ INIT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140502` (octal) |
 | Format | `INSPL` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -3374,6 +3418,7 @@ INSPL
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150401` (octal) |
 | Format | `IOF` |
 | Category | Interrupt Control Instructions |
 | Privilege | Privileged |
@@ -3417,6 +3462,7 @@ IOF
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150402` (octal) |
 | Format | `ION` |
 | Category | Interrupt Control Instructions |
 | Privilege | User |
@@ -3459,6 +3505,7 @@ ION
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `160000` (octal) |
 | Format | `IOT <device_register_address>` |
 | Category | Input and Output |
 | Privilege | Privileged |
@@ -3504,6 +3551,7 @@ IOT <device_register_address>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `164000` (octal) |
 | Format | `IOX <device_register_address>` |
 | Category | Input and Output |
 | Privilege | Privileged |
@@ -3581,6 +3629,7 @@ IOX 0305
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150415` (octal) |
 | Format | `IOXT` |
 | Category | Input and Output |
 | Privilege | Privileged |
@@ -3652,6 +3701,7 @@ IOXT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `153600` (octal) |
 | Format | `IRR <level> <register>` |
 | Category | Inter-level Instructions |
 | Privilege | Privileged |
@@ -3702,6 +3752,7 @@ IRR <level> <register>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `153400` (octal) |
 | Format | `IRW <level> <register>` |
 | Category | Inter-level Instructions |
 | Privilege | Privileged |
@@ -3752,6 +3803,7 @@ IRW <level> <register>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `131400` (octal) |
 | Format | ` JAF <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -3801,6 +3853,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `130400` (octal) |
 | Format | ` JAN <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -3850,6 +3903,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `130000` (octal) |
 | Format | ` JAP <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -3899,6 +3953,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `131000` (octal) |
 | Format | ` JAZ <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -3948,6 +4003,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `124000` (octal) |
 | Format | `JMP <address mode> <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -3993,6 +4049,7 @@ JMP <address mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `132400` (octal) |
 | Format | ` JNC <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -4045,6 +4102,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `132000` (octal) |
 | Format | ` JPC <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -4097,6 +4155,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `134000` (octal) |
 | Format | `JPL <address mode> <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -4144,6 +4203,7 @@ JPL <address mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `133400` (octal) |
 | Format | ` JXN <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -4193,6 +4253,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `133000` (octal) |
 | Format | ` JXZ <displacement>` |
 | Category | Sequencing Instructions |
 | Privilege | User |
@@ -4242,6 +4303,7 @@ If condition false, continue program execution at (P) + 1.
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140702` (octal) |
 | Format | `LACB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -4282,6 +4344,7 @@ LACB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140700` (octal) |
 | Format | `LASB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -4322,6 +4385,7 @@ LASB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140510` (octal) |
 | Format | `LBIT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -4365,6 +4429,7 @@ LBIT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140511` (octal) |
 | Format | `LBITP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -4409,6 +4474,7 @@ LBITP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `142200` (octal) |
 | Format | `LBYT` |
 | Category | Byte Instructions |
 | Privilege | User |
@@ -4457,6 +4523,7 @@ LBYT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140514` (octal) |
 | Format | `LBYTP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -4501,6 +4568,7 @@ LBYTP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `044000` (octal) |
 | Format | `LDA <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
 | Privilege | User |
@@ -4548,6 +4616,7 @@ LDA <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143300` (octal) |
 | Format | `LDATX <disp>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -4586,6 +4655,7 @@ LDATX <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143303` (octal) |
 | Format | `LDBTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -4626,6 +4696,7 @@ LDBTX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `024000` (octal) |
 | Format | `LDD <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Double word instructions |
 | Privilege | User |
@@ -4676,6 +4747,7 @@ LDD <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143302` (octal) |
 | Format | `LDDTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -4715,6 +4787,7 @@ LDDTX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `034000` (octal) |
 | Format | `LDF <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -4766,6 +4839,7 @@ LDF <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `050000` (octal) |
 | Format | `LDT <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
 | Privilege | User |
@@ -4815,6 +4889,7 @@ LDT <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `054000` (octal) |
 | Format | `LDX <addressing_mode> <disp>` |
 | Category | Memory Transfer - Load Instruction |
 | Privilege | User |
@@ -4864,6 +4939,7 @@ LDX <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143301` (octal) |
 | Format | `LDXTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -4902,6 +4978,7 @@ LDXTX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140136` (octal) |
 | Format | `LEAVE` |
 | Category | Stack Operations |
 | Privilege | User |
@@ -4951,6 +5028,7 @@ LEAVE
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `152600` (octal) |
 | Format | `LRB <level>` |
 | Category | Register Block Instructions |
 | Privilege | Privileged |
@@ -5030,6 +5108,7 @@ LRB 160
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143500` (octal) |
 | Format | `LWCS` |
 | Category | privileged |
 | Privilege | Privileged |
@@ -5084,6 +5163,7 @@ LWCS
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140705` (octal) |
 | Format | `LXCB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -5124,6 +5204,7 @@ LXCB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140704` (octal) |
 | Format | `LXSB <diplacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -5164,6 +5245,7 @@ LXSB <diplacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150200` (octal) |
 | Format | `MCL <internal_register>` |
 | Category | Register Transfer |
 | Privilege | Privileged |
@@ -5220,6 +5302,7 @@ MCL STS
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `040000` (octal) |
 | Format | `MIN <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
 | Privilege | User |
@@ -5271,6 +5354,7 @@ MIN <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143200` (octal) |
 | Format | `MIX3` |
 | Category | Register Operations |
 | Privilege | User |
@@ -5315,6 +5399,7 @@ MIX3
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `153000` (octal) |
 | Format | `MON <monitor_call_number>` |
 | Category | Monitor Calls |
 | Privilege | User |
@@ -5381,6 +5466,7 @@ MON 2
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140131` (octal) |
 | Format | `MOVB` |
 | Category | Byte Instructions |
 | Privilege | User |
@@ -5425,6 +5511,7 @@ MOVB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140132` (octal) |
 | Format | `MOVBF` |
 | Category | Byte Instructions |
 | Privilege | User |
@@ -5469,6 +5556,7 @@ MOVBF
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143100` (octal) |
 | Format | `MOVEW` |
 | Category | Word Block Instructions |
 | Privilege | User |
@@ -5549,6 +5637,7 @@ MOVEW
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `120000` (octal) |
 | Format | `MPY <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
 | Privilege | User |
@@ -5611,6 +5700,7 @@ MPY <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150300` (octal) |
 | Format | `MST <register>` |
 | Category | Register Transfer |
 | Privilege | Privileged |
@@ -5657,6 +5747,7 @@ MST <register>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `151400` (octal) |
 | Format | `NLZ <scaling_factor>` |
 | Category | Floating Conversion (Standard Format) |
 | Privilege | User |
@@ -5733,6 +5824,7 @@ NLZ +20
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150400` (octal) |
 | Format | `OPCOM` |
 | Category | Interrupt Control Instructions |
 | Privilege | Privileged |
@@ -5781,6 +5873,7 @@ OPCOM
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `074000` (octal) |
 | Format | `ORA <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
 | Privilege | User |
@@ -5829,6 +5922,7 @@ ORA <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140124` (octal) |
 | Format | `PACK` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -5893,6 +5987,7 @@ PACK
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150405` (octal) |
 | Format | `PIOF` |
 | Category | Memory Management Instructions |
 | Privilege | Privileged |
@@ -5938,6 +6033,7 @@ PIOF
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150412` (octal) |
 | Format | `PION` |
 | Category | Memory Management Instructions |
 | Privilege | User |
@@ -5980,6 +6076,7 @@ PION
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150404` (octal) |
 | Format | `POF` |
 | Category | Interrupt Control Instructions |
 | Privilege | Privileged |
@@ -6023,6 +6120,7 @@ POF
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150410` (octal) |
 | Format | `PON` |
 | Category | Memory Management Instructions |
 | Privilege | User |
@@ -6069,6 +6167,7 @@ PON
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146000` (octal) |
 | Format | `RADD [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6202,6 +6301,7 @@ RADD CM1 CLD AD1 SX DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `144400` (octal) |
 | Format | `RAND [sub-instruction(s)] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6282,6 +6382,7 @@ RAND CM1 ST DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146100` (octal) |
 | Format | `RCLR <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6343,6 +6444,7 @@ RCLR DA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146200` (octal) |
 | Format | `RDCR <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6403,6 +6505,7 @@ RDCR DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `141600` (octal) |
 | Format | `RDIV <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6464,6 +6567,7 @@ RDIV <source> <destination>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140127` (octal) |
 | Format | `RDUS` |
 | Category | Memory Examine and Test Instructions |
 | Privilege | Privileged |
@@ -6511,6 +6615,7 @@ RDUS
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140517` (octal) |
 | Format | `RDUSP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -6559,6 +6664,7 @@ RDUSP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140503` (octal) |
 | Format | `REMPL` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -6599,6 +6705,7 @@ REMPL
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140507` (octal) |
 | Format | `REPT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -6639,6 +6746,7 @@ REPT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150407` (octal) |
 | Format | `REX` |
 | Category | Memory Management Instructions |
 | Privilege | Privileged |
@@ -6679,6 +6787,7 @@ REX
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `145000` (octal) |
 | Format | `REXO [flags] <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6750,6 +6859,7 @@ REXO ST DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140501` (octal) |
 | Format | `RGLOB` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -6794,6 +6904,7 @@ RGLOB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146400` (octal) |
 | Format | `RINC <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6854,6 +6965,7 @@ RINC DA
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `141200` (octal) |
 | Format | `RMPY <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -6918,6 +7030,7 @@ RMPY SA DX
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `145400` (octal) |
 | Format | `RORA <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -7000,6 +7113,7 @@ RORA ST DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `146600` (octal) |
 | Format | `RSUB <sub-instruction> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -7077,6 +7191,7 @@ RSUB ST DB
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `170400` (octal) |
 | Format | `SAA <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -7131,6 +7246,7 @@ SAA 10
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `170000` (octal) |
 | Format | `SAB <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -7185,6 +7301,7 @@ SAB -26
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140703` (octal) |
 | Format | `SACB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7225,6 +7342,7 @@ SACB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `154600` (octal) |
 | Format | `SAD <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
 | Privilege | User |
@@ -7276,6 +7394,7 @@ SAD <shift_type> <shift_counter>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140701` (octal) |
 | Format | `SASB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7316,6 +7435,7 @@ SASB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `171000` (octal) |
 | Format | `SAT <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -7370,6 +7490,7 @@ SAT 20₈
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `171400` (octal) |
 | Format | `SAX <number>` |
 | Category | Argument Instruction |
 | Privilege | User |
@@ -7424,6 +7545,7 @@ SAX -5
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140512` (octal) |
 | Format | `SBIT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7467,6 +7589,7 @@ SBIT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140513` (octal) |
 | Format | `SBITP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7511,6 +7634,7 @@ SBITP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `142600` (octal) |
 | Format | `SBYT` |
 | Category | Byte Instructions |
 | Privilege | User |
@@ -7556,6 +7680,7 @@ SBYT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140515` (octal) |
 | Format | `SBYTP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7600,6 +7725,7 @@ SBYTP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140300` (octal) |
 | Format | `SETPT` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -7658,6 +7784,7 @@ SETPT
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150406` (octal) |
 | Format | `SEX` |
 | Category | Memory Management Instructions |
 | Privilege | Privileged |
@@ -7712,6 +7839,7 @@ SEX
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `154400` (octal) |
 | Format | `SHA <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
 | Privilege | User |
@@ -7763,6 +7891,7 @@ SHA <shift_type> <shift_counter>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `154200` (octal) |
 | Format | `SHD <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
 | Privilege | User |
@@ -7814,6 +7943,7 @@ SHD <shift_type> <shift_counter>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140126` (octal) |
 | Format | `SHDE` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -7895,6 +8025,7 @@ SHDE
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `154000` (octal) |
 | Format | `SHT <shift_type> <shift_counter>` |
 | Category | Shift Instructions |
 | Privilege | User |
@@ -7946,6 +8077,7 @@ SHT <shift_type> <shift_counter>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140000` (octal) |
 | Format | `SKP <dr> <condition> <sr>` |
 | Category | Skip Instruction |
 | Privilege | User |
@@ -8065,6 +8197,7 @@ SKP LSS SD
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `152402` (octal) |
 | Format | `SRB <level>` |
 | Category | Register Block Instructions |
 | Privilege | Privileged |
@@ -8144,6 +8277,7 @@ SRB 100
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `004000` (octal) |
 | Format | `STA <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
 | Privilege | User |
@@ -8192,6 +8326,7 @@ STA <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143304` (octal) |
 | Format | `STATX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -8230,6 +8365,7 @@ STATX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `020000` (octal) |
 | Format | `STD <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Double word instructions |
 | Privilege | User |
@@ -8280,6 +8416,7 @@ STD <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143306` (octal) |
 | Format | `STDTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -8319,6 +8456,7 @@ STDTX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `030000` (octal) |
 | Format | `STF <addressing_mode> <disp>` |
 | Category | Standard Floating Instructions |
 | Privilege | User |
@@ -8370,6 +8508,7 @@ STF <addressing_mode> <disp>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `010000` (octal) |
 | Format | `STT <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
 | Privilege | User |
@@ -8418,6 +8557,7 @@ STT <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `014000` (octal) |
 | Format | `STX <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
 | Privilege | User |
@@ -8466,6 +8606,7 @@ STX <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `000000` (octal) |
 | Format | `STZ <addressing_mode> <displacement>` |
 | Category | Memory Transfer - Store Instruction |
 | Privilege | User |
@@ -8514,6 +8655,7 @@ STZ <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `143305` (octal) |
 | Format | `STZTX <displacement>` |
 | Category | Memory Transfer Instructions |
 | Privilege | Privileged |
@@ -8552,6 +8694,7 @@ STZTX <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `064000` (octal) |
 | Format | `SUB <addressing_mode> <displacement>` |
 | Category | Arithmetic and Logical |
 | Privilege | User |
@@ -8615,6 +8758,7 @@ SUB <addressing_mode> <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140121` (octal) |
 | Format | `SUBD` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -8683,6 +8827,7 @@ SUBD
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `144000` (octal) |
 | Format | `SWAP <sub-instruction(s)> <source> <destination>` |
 | Category | Register Operations |
 | Privilege | User |
@@ -8771,6 +8916,7 @@ SWAP CLD SA DX
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140707` (octal) |
 | Format | `SZCB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -8811,6 +8957,7 @@ SZCB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140706` (octal) |
 | Format | `SZSB <displacement>` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -8851,6 +8998,7 @@ SZSB <displacement>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150000` (octal) |
 | Format | `TRA <internal_register>` |
 | Category | Register Transfer |
 | Privilege | Privileged |
@@ -8893,6 +9041,7 @@ TRA <internal_register>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `150100` (octal) |
 | Format | `TRR <internal_register>` |
 | Category | Register Transfer |
 | Privilege | Privileged |
@@ -8935,6 +9084,7 @@ TRR <internal_register>
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140123` (octal) |
 | Format | `TSET` |
 | Category | Memory Examine and Test Instructions |
 | Privilege | Privileged |
@@ -8982,6 +9132,7 @@ TSET
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140516` (octal) |
 | Format | `TSETP` |
 | Category | Control Instructions |
 | Privilege | Privileged |
@@ -9033,6 +9184,7 @@ TSETP
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140125` (octal) |
 | Format | `UPACK` |
 | Category | Decimal Instructions |
 | Privilege | User |
@@ -9096,6 +9248,7 @@ UPACK
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140133` (octal) |
 | Format | `VERSN` |
 | Category | System/CPU Information |
 | Privilege | User |
@@ -9172,6 +9325,7 @@ VERSN
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `151000` (octal) |
 | Format | `WAIT <wait_number>` |
 | Category | Interrupt Control Instructions |
 | Privilege | User |
@@ -9242,6 +9396,7 @@ WAIT 1
 
 | Property | Value |
 |:---------|:-------|
+| Opcode | `140500` (octal) |
 | Format | `WGLOB` |
 | Category | Control Instructions |
 | Privilege | Privileged |
