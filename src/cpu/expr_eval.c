@@ -6,16 +6,16 @@
  *
  * Grammar:
  *   expr       = logic_or
- *   logic_or   = logic_and ( "||" logic_and )*
- *   logic_and  = bitwise_or ( "&&" bitwise_or )*
+ *   logic_or   = logic_and ( ("||" | "or") logic_and )*
+ *   logic_and  = bitwise_or ( ("&&" | "and") bitwise_or )*
  *   bitwise_or = bitwise_xor ( "|" bitwise_xor )*
  *   bitwise_xor = bitwise_and ( "^" bitwise_and )*
  *   bitwise_and = equality ( "&" equality )*
- *   equality   = comparison ( ("==" | "!=") comparison )*
+ *   equality   = comparison ( ("==" | "=" | "!=") comparison )*
  *   comparison = additive ( (">" | "<" | ">=" | "<=") additive )*
  *   additive   = multiplicative ( ("+" | "-") multiplicative )*
  *   multiplicative = unary ( ("*" | "/" | "%") unary )*
- *   unary      = "~" unary | "!" unary | "-" unary | primary
+ *   unary      = "~" unary | ("!" | "not") unary | "-" unary | primary
  *   primary    = NUMBER | REGISTER | "(" expr ")" | "[" expr "]"
  */
 
@@ -85,6 +85,19 @@ static bool match1(Parser *p, char c, char not_followed_by)
     skip_ws(p);
     if (*p->pos == c && p->pos[1] != not_followed_by) {
         p->pos++;
+        return true;
+    }
+    return false;
+}
+
+/* Try to match a keyword (case-insensitive), only if followed by non-alnum */
+static bool match_keyword(Parser *p, const char *keyword)
+{
+    skip_ws(p);
+    int len = (int)strlen(keyword);
+    if (strncasecmp(p->pos, keyword, len) == 0 &&
+        !isalnum((unsigned char)p->pos[len]) && p->pos[len] != '_') {
+        p->pos += len;
         return true;
     }
     return false;
@@ -263,6 +276,9 @@ static uint16_t parse_unary(Parser *p)
     if (match1(p, '!', '='))
         return parse_unary(p) ? 0 : 1;
 
+    if (match_keyword(p, "not"))
+        return parse_unary(p) ? 0 : 1;
+
     if (match1(p, '-', '\0')) {
         /* Check it's not a negative sign before a number handled elsewhere */
         return (uint16_t)(-(int16_t)parse_unary(p));
@@ -351,6 +367,8 @@ static uint16_t parse_equality(Parser *p)
         skip_ws(p);
         if (match2(p, '=', '=')) {
             left = (left == parse_comparison(p)) ? 1 : 0;
+        } else if (match1(p, '=', '=')) {
+            left = (left == parse_comparison(p)) ? 1 : 0;
         } else if (match2(p, '!', '=')) {
             left = (left != parse_comparison(p)) ? 1 : 0;
         } else {
@@ -428,6 +446,9 @@ static uint16_t parse_logic_and(Parser *p)
         if (match2(p, '&', '&')) {
             uint16_t right = parse_bitwise_or(p);
             left = (left && right) ? 1 : 0;
+        } else if (match_keyword(p, "and")) {
+            uint16_t right = parse_bitwise_or(p);
+            left = (left && right) ? 1 : 0;
         } else {
             break;
         }
@@ -436,7 +457,7 @@ static uint16_t parse_logic_and(Parser *p)
     return left;
 }
 
-/* logic_or = logic_and ( "||" logic_and )* */
+/* logic_or = logic_and ( ("||" | "or") logic_and )* */
 static uint16_t parse_logic_or(Parser *p)
 {
     uint16_t left = parse_logic_and(p);
@@ -445,6 +466,9 @@ static uint16_t parse_logic_or(Parser *p)
     for (;;) {
         skip_ws(p);
         if (match2(p, '|', '|')) {
+            uint16_t right = parse_logic_and(p);
+            left = (left || right) ? 1 : 0;
+        } else if (match_keyword(p, "or")) {
             uint16_t right = parse_logic_and(p);
             left = (left || right) ? 1 : 0;
         } else {
