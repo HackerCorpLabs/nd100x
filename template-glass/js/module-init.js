@@ -115,6 +115,26 @@ function setupTerminalOutputHandler() {
 // Track which disk images loaded successfully
 var diskImageStatus = { smd: false };
 
+// ?image=basename.img — sanitized basename or null (forces HTTP demo load + optional auto SMD boot)
+function sanitizeUrlImageQuery(raw) {
+  if (raw == null || typeof raw !== 'string') return null;
+  var s = raw.trim();
+  if (!s) return null;
+  var base = s.replace(/\\/g, '/').split('/').pop();
+  if (base.indexOf('..') >= 0) return null;
+  if (!/^[A-Za-z0-9._-]+\.(img|IMG)$/.test(base)) return null;
+  return base;
+}
+
+(function initUrlImageFromSearch() {
+  try {
+    var q = new URLSearchParams(window.location.search).get('image');
+    window.__nd100xUrlImage = sanitizeUrlImageQuery(q);
+  } catch (e) {
+    window.__nd100xUrlImage = null;
+  }
+})();
+
 // Persistence mode: opt-in via Config toggle
 var SMD_PERSIST_KEY = 'nd100x-smd-persist';
 
@@ -303,6 +323,29 @@ function loadDiskImages() {
     return Promise.resolve();
   }
 
+  // ?image= forces same-origin HTTP load into /SMD0.IMG (bypasses OPFS persistence this session)
+  if (window.__nd100xUrlImage) {
+    var urlBase = window.__nd100xUrlImage;
+    return loadDiskImage(urlBase, '/SMD0.IMG').then(function(smdOk) {
+      diskImageStatus.smd = smdOk;
+      if (smdOk && typeof driveRegistry !== 'undefined') {
+        driveRegistry.mount('smd', 0, 'demo', urlBase, urlBase, 0);
+      }
+
+      var statusEl = document.getElementById('status');
+      if (statusEl) {
+        if (diskImageStatus.smd) {
+          statusEl.textContent = 'WebAssembly module loaded! (' + urlBase + ')';
+        } else {
+          statusEl.textContent = 'Warning: Failed to load ' + urlBase + '. Check console.';
+          console.warn(urlBase + ' not found. Serve the file next to the WASM page.');
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent('smd-mounts-ready', { detail: { mounted: smdOk ? 1 : 0 } }));
+    });
+  }
+
   // Check if persistence is enabled
   if (isSmdPersistenceEnabled()) {
     return loadDiskImagesPersistent();
@@ -454,14 +497,26 @@ function initializeSystem() {
       // initializeTerminals is defined in terminal-manager.js which loads later in the page.
       // If WASM + disk images resolve from cache before the parser reaches that script,
       // the function won't exist yet. Wait for DOMContentLoaded in that case.
-      if (typeof initializeTerminals === 'function') {
-        initializeTerminals();
-        console.log("Terminals initialized");
-      } else {
-        document.addEventListener('DOMContentLoaded', function() {
+      return new Promise(function(resolve) {
+        function runTerminals() {
           initializeTerminals();
-          console.log("Terminals initialized (deferred)");
-        });
+          console.log("Terminals initialized");
+          resolve();
+        }
+        if (typeof initializeTerminals === 'function') {
+          runTerminals();
+        } else {
+          document.addEventListener('DOMContentLoaded', function() {
+            initializeTerminals();
+            console.log("Terminals initialized (deferred)");
+            resolve();
+          });
+        }
+      });
+    })
+    .then(() => {
+      if (typeof scheduleAutoUrlImageBoot === 'function') {
+        scheduleAutoUrlImageBoot();
       }
     })
     .catch(error => {

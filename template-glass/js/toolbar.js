@@ -1040,6 +1040,38 @@ function performBoot(bootType) {
   startEmulation(bootNames[bootType] || 'unknown');
 }
 
+// ?image= — after disk load + terminals, auto Power On and SMD boot (see module-init.js)
+var _autoUrlImageBootRan = false;
+
+function scheduleAutoUrlImageBoot() {
+  if (_autoUrlImageBootRan) return;
+  if (!window.__nd100xUrlImage || typeof diskImageStatus === 'undefined' || !diskImageStatus.smd) return;
+
+  var bootSel = document.getElementById('boot-select');
+  if (bootSel) bootSel.value = 'smd';
+
+  var btn = document.getElementById('toolbar-power');
+  if (!btn || typeof emu === 'undefined' || !emu) return;
+
+  if (isInitializedBtn) return;
+
+  _autoUrlImageBootRan = true;
+
+  console.log('Auto power-on + SMD boot (?image=' + window.__nd100xUrlImage + ')');
+
+  if (emu.isWorkerMode()) {
+    emu.onInitialized = function() {
+      completePowerOn(btn);
+      performBoot(1);
+    };
+    emu.init();
+  } else {
+    emu.init();
+    completePowerOn(btn);
+    performBoot(1);
+  }
+}
+
 document.getElementById('toolbar-boot').addEventListener('click', function() {
   var bootDevice = document.getElementById('boot-select').value;
 
