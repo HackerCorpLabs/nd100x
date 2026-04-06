@@ -245,6 +245,8 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
 void HandleMemoryOutOfRange(uint physicalAddress);
 void HandleMPV(uint virtualAddress);
 void HandlePF(uint virtualAddress);
+int Dbg_ReadPhysicalMemory(uint32_t physicalAddress);
+int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value);
 
 /* /home/ronny/repos/nd100x/src/cpu/cpu_bkpt.c */
 void breakpoint_manager_init(void);

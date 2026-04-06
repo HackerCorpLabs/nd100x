@@ -791,8 +791,6 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
 
     if (IsAddressShadowMemory(physicalAddress, privileged))
     {
-        //printf("WritePhysicalMemoryWM: Shadow Memory 0x[%4X] = 0x%4X\n", physicalAddress, value);
-
         switch (wm)
         {
         case WRITEMODE_MSB:
@@ -871,6 +869,34 @@ void HandlePF(uint virtualAddress)
 {
     //printf("HandlePF: %06o\n", virtualAddress);
     interrupt(14, 1 << 3); // PF - PAGE_FAULT bit 3
+}
+
+// ---------------------------------------------------------------------------
+// Debugger-only physical memory accessors.
+//
+// These bypass the MMU, watchpoint hooks, and protection traps so that the
+// DAP debugger can inspect/modify any 22-bit physical address (e.g. kernel
+// data above 64K in a split I/D 0411 binary) without disturbing CPU state.
+//
+// IMPORTANT: these are NOT called from the CPU hot path - only from
+// debugger.c command handlers when WITH_DEBUGGER is enabled. The runtime
+// memory access path (ReadPhysicalMemory / WritePhysicalMemoryWM) is
+// unchanged, so when no watchpoints are active there is zero added cost
+// per memory access.
+// ---------------------------------------------------------------------------
+int Dbg_ReadPhysicalMemory(uint32_t physicalAddress)
+{
+    if (physicalAddress >= (uint32_t)ND_Memsize)
+        return -1;
+    return (int)VolatileMemory.n_Array[physicalAddress];
+}
+
+int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value)
+{
+    if (physicalAddress >= (uint32_t)ND_Memsize)
+        return -1;
+    VolatileMemory.n_Array[physicalAddress] = value;
+    return 0;
 }
 
 // Check if privileged instruction execution is allowed
