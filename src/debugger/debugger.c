@@ -105,6 +105,13 @@ char *base64_encode(const uint8_t *data, size_t len) { (void)data; (void)len; re
 #define SCOPE_ID_MEM_PT 1201
 #define SCOPE_ID_MEM_APT 1202
 
+// Per-PIL register sub-scopes. The "Interrupt levels" scope (SCOPE_ID_LEVELS)
+// emits one expandable child per interrupt level whose variablesReference is
+// SCOPE_ID_PIL_BASE+pil. cmd_variables() handles refs in this range by
+// returning the full register bank for that PIL (STS, P, B, L, A, T, X, D).
+#define SCOPE_ID_PIL_BASE 1300
+#define SCOPE_ID_PIL_END  1315 // inclusive: 1300..1315 = PIL 0..15
+
 #define NUM_SCOPES 8 // Locals, Registers, Levels, Internal read, Internal write, status flags, memory PT, memory APT
 
 // DAP server instance
@@ -1639,15 +1646,51 @@ static void add_level_variables(DAPServer *server, char *info_message, size_t in
 
         add_variable_to_array(
             server,
-            name,                   // name
-            value_str,              // value
-            "integer",              // type
-            rP,                     // memoryReference
-            0,                      // variablesReference
-            DAP_VARIABLE_KIND_DATA, // kind
-            DAP_VARIABLE_ATTR_NONE  // attributes
+            name,                       // name
+            value_str,                  // value
+            "integer",                  // type
+            rP,                         // memoryReference
+            SCOPE_ID_PIL_BASE + i,      // variablesReference -> expandable per-PIL bank
+            DAP_VARIABLE_KIND_DATA,     // kind
+            DAP_VARIABLE_ATTR_NONE      // attributes
         );
     }
+}
+
+/// @brief Emit the full register bank for a single interrupt level (PIL).
+/// Used by the per-PIL sub-scope so the user can inspect any level's
+/// registers, not just the current one.
+static void add_pil_register_variables(DAPServer *server, int pil)
+{
+    if (!server || pil < 0 || pil > 15) return;
+
+    char value_str[32];
+    static const struct { const char *name; int idx; } regs[] = {
+        {"STS", _STS}, {"P", _P}, {"B", _B}, {"L", _L},
+        {"A", _A},     {"T", _T}, {"X", _X}, {"D", 1},
+    };
+    // Note: "D" lives at index 1 in reg[level][] (slot between STS and P).
+
+    for (size_t r = 0; r < sizeof(regs)/sizeof(regs[0]); r++) {
+        ushort v = gReg->reg[pil][regs[r].idx];
+        snprintf(value_str, sizeof(value_str), "%06o", v);
+        add_variable_to_array(
+            server,
+            regs[r].name,
+            value_str,
+            "integer",
+            v,
+            0,
+            DAP_VARIABLE_KIND_DATA,
+            DAP_VARIABLE_ATTR_NONE);
+    }
+
+    // Also include the per-level paging control register so callers can
+    // verify ring/PT/APT/priority/PTM-readiness for that level.
+    snprintf(value_str, sizeof(value_str), "%06o", gReg->reg_PCR[pil]);
+    add_variable_to_array(
+        server, "PCR", value_str, "integer", 0, 0,
+        DAP_VARIABLE_KIND_DATA, DAP_VARIABLE_ATTR_NONE);
 }
 
 /**
@@ -2294,7 +2337,11 @@ static int cmd_variables(DAPServer *server)
     }
 
     default:
-        dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Unknown variable reference\n");
+        if (variables_reference >= SCOPE_ID_PIL_BASE && variables_reference <= SCOPE_ID_PIL_END) {
+            add_pil_register_variables(server, variables_reference - SCOPE_ID_PIL_BASE);
+        } else {
+            dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, "Unknown variable reference\n");
+        }
         break;
     }
 
@@ -3847,8 +3894,10 @@ static int cmd_read_memory(DAPServer *server)
     uint32_t memory_reference = server->current_command.context.read_memory.memory_reference;
     uint32_t offset = server->current_command.context.read_memory.offset;
     size_t byteCount = server->current_command.context.read_memory.count;
+    bool is_physical = (server->current_command.context.read_memory.address_space
+                        == DAP_DATA_BP_ADDR_PHYSICAL);
 
-    uint32_t virtualAddress = memory_reference + offset;
+    uint32_t address = memory_reference + offset;
 
     server->current_command.context.read_memory.base64_data = NULL;
     server->current_command.context.read_memory.unreadable_bytes = byteCount;
@@ -3869,11 +3918,16 @@ static int cmd_read_memory(DAPServer *server)
 
     memset(data, 0, byteCount);
 
-    // Loop through the data and read each word, split the word in two so we add bytes to the data. Use ReadVirtualMemory to read the data.
+    // For physical reads we use Dbg_ReadPhysicalMemory which bypasses the
+    // MMU, watchpoints, and protection traps - this is what the BSD kernel
+    // team needs to reach data above 64K (PPN 64+) on split I/D builds.
+    // For virtual reads we use ReadVirtualMemory which honors PT/APT and
+    // PTM via the current CPU state.
 
     for (size_t i = 0; i < byteCount / 2; i++)
     {
-        int word = ReadVirtualMemory(virtualAddress, false);
+        int word = is_physical ? Dbg_ReadPhysicalMemory(address)
+                               : ReadVirtualMemory(address, false);
         if (word == -1)
         {
             server->current_command.context.read_memory.unreadable_bytes = byteCount - i * 2;
@@ -3883,7 +3937,7 @@ static int cmd_read_memory(DAPServer *server)
         data[i * 2] = (uint8_t)(word >> 8);
         data[i * 2 + 1] = (uint8_t)(word & 0xFF);
         server->current_command.context.read_memory.unreadable_bytes -= 2;
-        virtualAddress++;
+        address++;
     }
 
     // encode data to base64
@@ -3959,11 +4013,18 @@ static int cmd_write_memory(DAPServer *server)
 
     uint32_t addr = memory_reference + offset;
     int words_written = 0;
+    bool is_physical = (server->current_command.context.write_memory.address_space
+                        == DAP_DATA_BP_ADDR_PHYSICAL);
 
     /* Write word-by-word (ND-100 is word-addressed, 2 bytes per word) */
     for (int i = 0; i + 1 < byte_count; i += 2) {
         uint16_t word = ((uint16_t)buf[i] << 8) | buf[i + 1];
-        WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
+        if (is_physical) {
+            if (Dbg_WritePhysicalMemory(addr, word) < 0)
+                break;
+        } else {
+            WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
+        }
         addr++;
         words_written++;
     }
