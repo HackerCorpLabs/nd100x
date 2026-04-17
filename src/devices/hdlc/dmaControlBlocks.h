@@ -40,9 +40,9 @@ typedef void (*DMAControlBlocks_WriteCallback)(void *context, uint32_t address, 
 typedef void (*DMAControlBlocks_SendFrameCallback)(void *context, void *frame);
 typedef void (*DMAControlBlocks_InterruptCallback)(void *context, uint8_t bit);
 
-// HDLCFrame is defined in dmaEngine.h
+#include "dmaParamBuf.h"
 
-// DMA Control Blocks structure (match the actual C implementation)
+// DMA Control Blocks structure
 typedef struct {
     // Buffer pointers
     uint8_t *outboundBuffer;
@@ -61,6 +61,9 @@ typedef struct {
 
     // HDLC frame for receiving
     HDLCFrame *hdlcReceiveFrame;
+
+    // Parameter buffer reference (owned by DMAEngine, pointed to here)
+    ParameterBuffer *parameters;
 
     // DMA state machine
     int dmaSenderState;

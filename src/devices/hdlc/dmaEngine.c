@@ -85,8 +85,11 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
     dma->enabled = false;
     dma->currentDMAAddress = 0;
 
-    // Initialize parameter buffer
+    // Initialize parameter buffer and link to DMA control blocks
     ParameterBuffer_Init(&dma->parameterBuffer);
+    if (dma->dmaCB) {
+        ((DMAControlBlocks *)dma->dmaCB)->parameters = &dma->parameterBuffer;
+    }
 
     // Set up DMA control blocks callbacks
     if (dma->dmaCB) {

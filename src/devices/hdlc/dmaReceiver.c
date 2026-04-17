@@ -274,17 +274,15 @@ bool DMAReceiver_FindNextReceiveBuffer(DMAReceiver *receiver)
 
 DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_t data)
 {
-    if (!receiver || !receiver->dmaCB || !receiver->hdlcDevice) return DMA_RECEIVE_NO_BUFFER;
-
-    HDLCData *hdlcData = (HDLCData *)receiver->hdlcDevice->deviceData;
-    if (!hdlcData || !hdlcData->dmaEngine) return DMA_RECEIVE_NO_BUFFER;
+    if (!receiver || !receiver->dmaCB) return DMA_RECEIVE_NO_BUFFER;
 
     DMAControlBlocks *dmaCB = receiver->dmaCB;
     if (!dmaCB->rxDCB) return DMA_RECEIVE_NO_BUFFER;
 
+    int maxBlockLen = dmaCB->parameters ? dmaCB->parameters->maxReceiverBlockLength : 0;
+
     // Check if buffer is full BEFORE writing
-    if (dmaCB->rxDCB->dmaBytesWritten >=
-        hdlcData->dmaEngine->parameterBuffer.maxReceiverBlockLength) {
+    if (maxBlockLen > 0 && dmaCB->rxDCB->dmaBytesWritten >= maxBlockLen) {
         // Mark with RSOM only (frame continues to next buffer)
         DMAControlBlocks_MarkBufferReceived(dmaCB, 0x01);
         DMAReceiver_SetRXDMAFlag(receiver,

@@ -28,6 +28,7 @@
 #include <stdarg.h>
 
 #include "dmaControlBlocks.h"
+#include "dmaParamBuf.h"
 #include "hdlcFrame.h"
 #include "dmaDCB.h"
 #include "dmaEnum.h"
@@ -78,6 +79,7 @@ void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice)
     dcbs->dmaSenderState = 0; // DMA_SENDER_STOPPED
     dcbs->dmaSendBlockState = 0; // DMA_BLOCK_IDLE
     dcbs->dmaWaitTicks = -1;
+    dcbs->parameters = NULL;
 
     // Initialize callbacks
     dcbs->onReadDMA = NULL;
@@ -238,15 +240,35 @@ bool DMAControlBlocks_LoadNextRXBuffer(DMAControlBlocks *dmaCB)
 
     dmaCB->rxListPointerOffset++;
 
-    if (dmaCB->rxListPointerOffset > 128) { // Assuming max 128 buffers in the list (for safety)
-        // We have reached the end of the RX buffer list
-        // We need to restart from the beginning
+    if (dmaCB->rxListPointerOffset > 128) {
         dmaCB->rxListPointerOffset = 0;
     }
 
     DMAControlBlocks_LoadRXBuffer(dmaCB);
 
-    return (dmaCB->rxDCB && DCB_GetKey(dmaCB->rxDCB) == KEYFLAG_EMPTY_RECEIVER_BLOCK);
+    if (!dmaCB->rxDCB) return false;
+
+    // Handle NewListPointer - loop back to offset 0 of the buffer ring
+    if (DCB_GetKey(dmaCB->rxDCB) == KEYFLAG_NEW_LIST_POINTER) {
+#ifdef DMA_DEBUG
+        DMAControlBlocks_Log(dmaCB, "NewListPointer at offset %d, looping back to offset 0",
+                           dmaCB->rxListPointerOffset);
+#endif
+        dmaCB->rxListPointerOffset = 0;
+        DMAControlBlocks_LoadRXBuffer(dmaCB);
+
+        if (!dmaCB->rxDCB) return false;
+
+        // If first buffer after wrap is not empty, list is exhausted
+        if (DCB_GetKey(dmaCB->rxDCB) != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+#ifdef DMA_DEBUG
+            DMAControlBlocks_Log(dmaCB, "Buffer after NewListPointer is not empty - list exhausted");
+#endif
+            return false;
+        }
+    }
+
+    return (DCB_GetKey(dmaCB->rxDCB) == KEYFLAG_EMPTY_RECEIVER_BLOCK);
 }
 
 bool DMAControlBlocks_IsNextRXbufValid(DMAControlBlocks *dmaCB)
@@ -255,7 +277,7 @@ bool DMAControlBlocks_IsNextRXbufValid(DMAControlBlocks *dmaCB)
 
     uint32_t listpointer = dmaCB->rxListPointer + (uint32_t)((dmaCB->rxListPointerOffset + 1) * 4);
     uint16_t keyValue = (uint16_t)DMAControlBlocks_DMARead(dmaCB, listpointer);
-    KeyFlags key = (KeyFlags)(keyValue & 0x00FF);
+    KeyFlags key = (KeyFlags)(keyValue & KEYFLAG_MASK_KEY);
 
     return (key == KEYFLAG_EMPTY_RECEIVER_BLOCK);
 }
@@ -353,12 +375,12 @@ DCB* DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t li
     uint16_t displacement;
     const char *disp;
     if (offset == 0) {
-        // First buffer in the list, so we use Displacement1
-        displacement = 0; // TODO: Parameters.Displacement1;
+        // First buffer in the list uses Displacement1
+        displacement = dmaCB->parameters ? (uint16_t)dmaCB->parameters->displacement1 : 0;
         disp = "1";
     } else {
-        // All other buffers in the list, so we use Displacement2
-        displacement = 0; // TODO: Parameters.Displacement2;
+        // All other buffers use Displacement2
+        displacement = dmaCB->parameters ? (uint16_t)dmaCB->parameters->displacement2 : 0;
         disp = "2";
     }
     DCB_SetDisplacement(description, displacement);
