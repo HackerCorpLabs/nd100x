@@ -61,14 +61,3 @@ endif()
 set_target_properties(cpu PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
-
-# Install targets
-install(TARGETS cpu
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-# Install headers
-install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
-    DESTINATION include/cpu
-) 

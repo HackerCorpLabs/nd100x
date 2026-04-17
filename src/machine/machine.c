@@ -213,11 +213,11 @@ void machine_stop()
 /// @brief Callback function to write to memory. Used by aout loader.  
 /// @param address Address to write to
 /// @param value Value to write
-void write_memory(uint16_t address, uint16_t value)
+void write_memory(uint32_t address, uint16_t value)
 {
-    // Write the value to the memory at the given address
-    WritePhysicalMemory(address, value, false);
-    if (DISASM) disasm_addword(address, value);
+    // Write the value to physical memory at the given address
+    WritePhysicalMemory((int)address, value, false);
+    if (DISASM && address <= 0xFFFF) disasm_addword((uint16_t)address, value);
 }
 
 
