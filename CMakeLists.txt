@@ -105,7 +105,7 @@ if(DEBUGGER_ENABLED)
     # Add libdap if it exists (skip for WASM - no pthreads/sockets)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libdap" AND NOT PLATFORM_WASM)
         set(BUILD_DAP_TEST_TOOLS ${BUILD_DAP_TOOLS} CACHE BOOL "Build libdap test tools" FORCE)
-        add_subdirectory(external/libdap)
+        add_subdirectory(external/libdap EXCLUDE_FROM_ALL)
         if(TARGET dap_objects)
             target_link_libraries(dap_objects PRIVATE cjson_objects)
         endif()
@@ -117,7 +117,7 @@ endif()
 
 # Add libsymbols if it exists - always include this for a.out support
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libsymbols")
-    add_subdirectory(external/libsymbols)
+    add_subdirectory(external/libsymbols EXCLUDE_FROM_ALL)
     message(STATUS "Symbol library support enabled")
 endif()
 
