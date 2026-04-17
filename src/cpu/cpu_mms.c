@@ -506,7 +506,14 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     // The PCR ring bits should always be greater than or equal to the PT ring bits. If not, an internal interrupt (MPV) will be generated.
 
     if (ring < pageTableRing)
-    {        
+    {
+        static int ring_mpv = 0;
+        if (ring_mpv < 5) {
+            uint16_t pcr_now = gReg->reg_PCR[CurrLEVEL];
+            printf("\r\nRING_MPV: PT=%d VPN=%d ring=%d ptRing=%d PCR=0%06o PCR_ring=%d PIL=%d VA=%06o am=%d\r\n",
+                   pageTable, VPN, ring, pageTableRing, pcr_now, pcr_now & 3, CurrLEVEL, virtualAddress, am);
+        }
+        ring_mpv++;
         UpdatePGS(pageTable, VPN, am, false);                
 #ifdef DEBUG_MMS
         printf("[%d] Ring Protection Violation. Ring=%d PTRing=%d Accessmode=%d PGS=%06o PT=%d VPN=%d PTe=0x%08X\n", 
@@ -673,11 +680,11 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // Triggers IIC=2 (memory protection violation).
     if ((pageTableEntry & accessBits) == 0)
     {
-        if (VPN == 25 && pageTable == 0) {
+        if (1) {  /* trace ALL access-denied MPVs */
             static int mpv25 = 0;
-            if (mpv25 < 3)
-                printf("\r\nMPV25: PTe=0x%08X access=0x%08lX am=%d PIL=%d\r\n",
-                       pageTableEntry, (unsigned long)accessBits, am, CurrLEVEL);
+            if (mpv25 < 5)
+                printf("\r\nACCESS_DENIED: PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d UseAPT=%d PIL=%d VA=%06o\r\n",
+                       pageTable, VPN, pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
             mpv25++;
         }
         UpdatePGS(pageTable, VPN, am, true);
@@ -886,10 +893,20 @@ void HandleMemoryOutOfRange(uint physicalAddress)
 void HandleMPV(uint virtualAddress)
 {
     static int mpv_count = 0;
+    uint VPN = (virtualAddress >> 10) & 0x3F;
     if (mpv_count < 5) {
-        uint VPN = (virtualAddress >> 10) & 0x3F;
-        printf("\r\nHandleMPV: VA=%06o VPN=%d PIL=%d PC=%06o\r\n",
-               virtualAddress, VPN, CurrLEVEL, gPC);
+        /* Also dump the PTE that was used */
+        uint16_t pcr = gReg->reg_PCR[CurrLEVEL];
+        int useAPT = STS_PTM; /* data access uses APT when PTM=1 */
+        uint pt;
+        if (useAPT) {
+            pt = ((pcr & (1<<2)) && (mmsType == MMS2)) ? (pcr >> 7) & 0xF : (pcr >> 7) & 0x3;
+        } else {
+            pt = ((pcr & (1<<2)) && (mmsType == MMS2)) ? (pcr >> 11) & 0xF : (pcr >> 9) & 0x3;
+        }
+        uint32_t pte = GetPageTableEntry(pt, VPN, Sixteen);
+        printf("\r\nHandleMPV: VA=%06o VPN=%d PT=%d PTe=0x%08X PIL=%d PC=%06o\r\n",
+               virtualAddress, VPN, pt, pte, CurrLEVEL, gPC);
     }
     mpv_count++;
     interrupt(14, 1 << 2);            

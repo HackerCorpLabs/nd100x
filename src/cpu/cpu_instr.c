@@ -2081,6 +2081,13 @@ void DoTRR(ushort instr)
 		{
 			temp &= ~(1 << 2); // Force Clear bit 2 for MMS1 mode
 		}
+		if (level == 0) {
+			static int pcr0_write = 0;
+			if (pcr0_write < 20)
+				printf("\r\nPCR0_WRITE: old=%06o new=%06o PIL=%d PC=%06o\r\n",
+				       gReg->reg_PCR[0], temp, CurrLEVEL, gPC);
+			pcr0_write++;
+		}
 		gReg->reg_PCR[level] = temp;
 
 		break;
