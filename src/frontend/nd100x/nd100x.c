@@ -467,9 +467,12 @@ int main(int argc, char *argv[])
 
     initialize();
 
-    // Add HDLC device if enabled via command line
-    if (config.hdlcEnabled) {
-        machine_add_hdlc(config.hdlcServer, config.hdlcAddress, config.hdlcPort);
+    // Add HDLC devices if configured via command line
+    for (int i = 0; i < config.hdlcCount; i++) {
+        machine_add_hdlc(config.hdlc[i].deviceNum,
+                         config.hdlc[i].isServer,
+                         config.hdlc[i].address,
+                         config.hdlc[i].port);
     }
 
     // =========================================================

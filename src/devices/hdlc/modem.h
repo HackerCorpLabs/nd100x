@@ -29,6 +29,9 @@
 // Forward declaration
 typedef struct Device Device;
 
+// Receive buffer size for TCP reads
+#define MODEM_RECV_BUF_SIZE 4096
+
 // Modem signal callback function types
 typedef void (*ModemDataCallback)(Device *device, const uint8_t *data, int length);
 typedef void (*ModemSignalCallback)(Device *device, bool pinValue);
@@ -48,6 +51,11 @@ typedef struct {
     char address[256];
     int port;
     bool connected;
+
+    // TCP socket state
+    int listenFd;           // Server: listening socket (-1 if unused)
+    int clientFd;           // Active data socket (-1 if not connected)
+    bool networkStarted;    // True after Modem_StartModem called
 
     // Callbacks to HDLC device
     Device *hdlcDevice;

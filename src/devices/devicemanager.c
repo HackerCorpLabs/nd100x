@@ -126,21 +126,23 @@ void DeviceManager_AddAllDevices(void)
     // based on command line configuration
 }
 
-bool DeviceManager_AddHDLCDevice(void)
+bool DeviceManager_AddHDLCDevice_WithConfig(int thumbwheel, bool isServer, const char *address, int port)
 {
-    // Add HDLC device at octal 1640-1657 (thumbwheel 1)
-    return DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
-}
-
-bool DeviceManager_AddHDLCDevice_WithConfig(bool isServer, const char *address, int port)
-{
-    bool success = DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
+    bool success = DeviceManager_AddDevice(DEVICE_TYPE_HDLC, (uint8_t)thumbwheel);
 
     if (success) {
-        Log(LOG_INFO, "HDLC device network configuration: %s mode %s:%d\n",
-            isServer ? "server" : "client",
-            address ? address : "localhost",
-            port);
+        // Find the just-added device and start its modem with TCP config
+        // HDLC base addresses: thumbwheel 1=01640, 2=01660, 3=01700, 4=01720
+        static const uint16_t hdlcBaseAddr[] = { 0, 01640, 01660, 01700, 01720 };
+        if (thumbwheel >= 1 && thumbwheel <= 4) {
+            Device *dev = DeviceManager_GetDeviceByAddress(hdlcBaseAddr[thumbwheel]);
+            if (dev && dev->deviceData) {
+                HDLCData *data = (HDLCData *)dev->deviceData;
+                if (data->modem) {
+                    Modem_StartModem(data->modem, isServer, address, port);
+                }
+            }
+        }
     }
 
     return success;
