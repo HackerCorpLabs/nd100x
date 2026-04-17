@@ -7,7 +7,7 @@ void cleanup_machine(void);
 void machine_run(int ticks);
 void machine_stop(void);
 void setdefaultconfig(void);
-void write_memory(uint16_t address, uint16_t value);
+void write_memory(uint32_t address, uint16_t value);
 void mount_floppy(const char *imageFile, int unit);
 void mount_smd(const char *imageFile, int unit);
 void autoMountDrives(void);

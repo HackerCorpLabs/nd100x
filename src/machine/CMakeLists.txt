@@ -44,14 +44,3 @@ target_link_libraries(machine
 set_target_properties(machine PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
-
-# Install targets
-install(TARGETS machine
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-# Install headers
-install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/machine_protos.h
-    DESTINATION include/machine
-) 

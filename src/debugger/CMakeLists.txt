@@ -128,13 +128,3 @@ set_target_properties(debugger PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-# Install targets
-install(TARGETS debugger
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-# Install headers
-install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
-    DESTINATION include/debugger
-)

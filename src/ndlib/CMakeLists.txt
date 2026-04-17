@@ -83,14 +83,3 @@ elseif(PLATFORM_WASM)
 elseif(PLATFORM_RISCV)
     target_compile_definitions(ndlib PUBLIC PLATFORM_RISCV)
 endif()
-
-# Install targets
-install(TARGETS ndlib
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-# Install headers
-install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
-    DESTINATION include/ndlib
-) 

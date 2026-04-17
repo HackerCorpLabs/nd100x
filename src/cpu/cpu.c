@@ -577,6 +577,43 @@ bool cpu_instruction_is_jump()
 
 /// @brief run the CPU for a number of ticks. 
 /// @details This function runs the CPU for a number of ticks. It handles interrupts and checks for level switches.
+/* Ring buffer for last N instructions before exit */
+#define RING_SIZE 32
+static struct { unsigned short pc; unsigned short opcode; unsigned char pil; } ring_buf[RING_SIZE];
+static int ring_idx = 0;
+
+static void ring_record(unsigned short pc, unsigned char pil, unsigned short opcode) {
+    ring_buf[ring_idx].pc = pc;
+    ring_buf[ring_idx].pil = pil;
+    ring_buf[ring_idx].opcode = opcode;
+    ring_idx = (ring_idx + 1) % RING_SIZE;
+}
+
+static void ring_dump(void) {
+    int i;
+    printf("\r\n--- CPU state at exit ---\r\n");
+    printf("PIL=%d PC=%06o A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o\r\n",
+           gPIL, gPC, gA, gD, gT, gX, gB, gL);
+    for (i = 0; i < 16; i++)
+        printf("PCR[%2d]=%06o ", i, gReg->reg_PCR[i]);
+    /* Check physical memory at page 11 offset ~742 (PC was 013742) */
+    printf("\r\nPhys at page 11 (VPN 11 identity): ");
+    {
+        int phys_base = 11 * 1024;
+        extern int ReadPhysicalMemory(int addr, bool privileged);
+        printf("@%06o=%06o @%06o=%06o @%06o=%06o\r\n",
+               phys_base + 742, ReadPhysicalMemory(phys_base + 742, true),
+               phys_base + 743, ReadPhysicalMemory(phys_base + 743, true),
+               phys_base + 744, ReadPhysicalMemory(phys_base + 744, true));
+    }
+    printf("\r\n--- Last %d instructions before exit ---\r\n", RING_SIZE);
+    for (i = 0; i < RING_SIZE; i++) {
+        int idx = (ring_idx + i) % RING_SIZE;
+        if (ring_buf[idx].pc || ring_buf[idx].pil)
+            printf("  [%2d] PIL=%2d PC=%06o OP=%06o\r\n", i, ring_buf[idx].pil, ring_buf[idx].pc, ring_buf[idx].opcode);
+    }
+}
+
 /// @param ticks Number of ticks to run the CPU. Use -1 for infinite.
 /// @return Returns the number of ticks left to run.
 int cpu_run(int ticks)
@@ -623,6 +660,7 @@ int cpu_run(int ticks)
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
 			private_cpu_tick();
+			ring_record(gPC, gPIL, gReg->myreg_IR);
 
 			// Tick IO devices pr cpu tick
 			IO_Tick();
@@ -646,7 +684,7 @@ int cpu_run(int ticks)
 
         else if (current_run_mode == CPU_STOPPED)
         {
-            // OPCOM MODE ?
+            ring_dump();
             printf("CPU: WAS STOPPED, SHUTTING DOWN\r\n");
 			set_cpu_run_mode(CPU_SHUTDOWN);            
 			break;

@@ -98,14 +98,3 @@ elseif(PLATFORM_WINDOWS)
 elseif(PLATFORM_WASM)
     target_compile_definitions(devices PRIVATE PLATFORM_WASM)
 endif()
-
-# Install targets
-install(TARGETS devices
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-
-# Install headers
-install(FILES ${HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
-    DESTINATION include/devices
-) 
