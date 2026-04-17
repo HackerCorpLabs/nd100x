@@ -68,6 +68,11 @@ typedef struct {
     int telnetPort;      // Default: 9000
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
+    // HDLC configuration
+    bool hdlcEnabled;
+    char *hdlcAddress;   // IP address or hostname for client mode
+    int hdlcPort;        // Port number for server or client mode
+    bool hdlcServer;     // true = server mode, false = client mode
 } Config_t;
 
 #endif // CONFIG_H 

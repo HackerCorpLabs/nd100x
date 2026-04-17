@@ -121,6 +121,29 @@ void DeviceManager_AddAllDevices(void)
 
     // Add the SMD at octal 1540-1547
     DeviceManager_AddDevice(DEVICE_TYPE_DISC_SMD, 0);
+
+    // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
+    // based on command line configuration
+}
+
+bool DeviceManager_AddHDLCDevice(void)
+{
+    // Add HDLC device at octal 1640-1657 (thumbwheel 1)
+    return DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
+}
+
+bool DeviceManager_AddHDLCDevice_WithConfig(bool isServer, const char *address, int port)
+{
+    bool success = DeviceManager_AddDevice(DEVICE_TYPE_HDLC, 1);
+
+    if (success) {
+        Log(LOG_INFO, "HDLC device network configuration: %s mode %s:%d\n",
+            isServer ? "server" : "client",
+            address ? address : "localhost",
+            port);
+    }
+
+    return success;
 }
 
 static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
@@ -192,6 +215,14 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create paper tape writer device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_HDLC:
+        dev = CreateHDLCDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create HDLC device\n");
             return NULL;
         }
         break;
@@ -305,7 +336,7 @@ int DeviceManager_Ident(uint16_t level)
     for (int i = 0; i < deviceManager.deviceCount; i++)
     {
         Device *dev = deviceManager.devices[i].device;
-        if (dev)
+        if (dev && (dev->interruptBits & (1 << level)))
         {
             uint16_t id = Device_Ident(dev, level);
             if (id > 0)

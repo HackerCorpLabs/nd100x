@@ -3,6 +3,7 @@
 /* /home/ronny/repos/nd100x/src/machine/machine.c */
 void init_drive_arrays(void);
 void machine_init(bool debuggerEnabled, int debuggerPort);
+void machine_add_hdlc(bool isServer, const char *address, int port);
 void cleanup_machine(void);
 void machine_run(int ticks);
 void machine_stop(void);

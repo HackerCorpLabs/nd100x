@@ -467,6 +467,11 @@ int main(int argc, char *argv[])
 
     initialize();
 
+    // Add HDLC device if enabled via command line
+    if (config.hdlcEnabled) {
+        machine_add_hdlc(config.hdlcServer, config.hdlcAddress, config.hdlcPort);
+    }
+
     // =========================================================
     // Set up terminal devices with VScreen output handlers
     // =========================================================
