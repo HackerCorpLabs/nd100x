@@ -629,35 +629,11 @@ void DMAEngine_BlastReceiveDataBuffer(DMAEngine *dma, const uint8_t *data, int l
     DMAEngine_Log(dma, "BlastReceiveDataBuffer: %d bytes", length);
 #endif
 
-    /*
-     * This function handles high-speed data reception in blast mode.
-     * The data is processed through the DMA receiver which handles
-     * HDLC frame assembly and buffer management.
-     *
-     * This is a simplified implementation - the full C# version
-     * includes complex HDLC frame state management, buffer switching,
-     * and FCS validation.
-     */
-
+    // Non-blocking enqueue into ring buffer.
+    // Data is processed pull-based by DMAReceiver_Tick via ProcessBufferedData.
     if (dma->receiver) {
-        // Pass the data to the DMA receiver for processing
-        // The receiver will handle HDLC frame assembly and DMA buffer management
-        for (int i = 0; i < length; i++) {
-            // Process each byte through HDLC frame receiver
-            DMAReceiver_ProcessByte(dma->receiver, data[i]);
-        }
+        DMAReceiver_ReceiveDataFromModem(dma->receiver, data, length);
     }
-
-    // For now, basic logging to show the function is called
-#ifdef DMA_DEBUG
-    if (length <= 16) {
-        char hex_str[64] = {0};
-        for (int i = 0; i < length && i < 8; i++) {
-            snprintf(hex_str + strlen(hex_str), sizeof(hex_str) - strlen(hex_str), "0x%02X ", data[i]);
-        }
-        DMAEngine_Log(dma, "TCP_DATA: %s%s", hex_str, length > 8 ? "..." : "");
-    }
-#endif
 }
 
 // Debug functions

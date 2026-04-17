@@ -564,7 +564,7 @@ void DMATransmitter_SetEngineSenderState(DMATransmitter *transmitter, int state)
     transmitter->dmaCB->dmaSenderState = state;
 
     if (state == DMA_SENDER_BLOCK_READY_TO_SEND) {
-        transmitter->dmaCB->dmaWaitTicks = 500; // Wait before starting
+        transmitter->dmaCB->dmaWaitTicks = 10; // Wait before starting (matches C# RetroCore)
     }
 }
 
