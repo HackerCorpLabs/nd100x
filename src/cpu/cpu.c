@@ -594,6 +594,10 @@ static void ring_dump(void) {
     printf("\r\n--- CPU state at exit ---\r\n");
     printf("PIL=%d PC=%06o A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o\r\n",
            gPIL, gPC, gA, gD, gT, gX, gB, gL);
+    printf("STS per-level: ");
+    for (i = 0; i < 16; i++)
+        printf("[%d]=%03o ", i, gReg->reg[i][0] & 0xFF);
+    printf("\r\n");
     for (i = 0; i < 16; i++)
         printf("PCR[%2d]=%06o ", i, gReg->reg_PCR[i]);
     /* Check physical memory at page 11 offset ~742 (PC was 013742) */
