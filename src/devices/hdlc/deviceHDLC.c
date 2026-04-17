@@ -601,12 +601,11 @@ static void HDLC_OnModemReceivedData(Device *device, const uint8_t *data, int le
     if (!device || !data) return;
 
     HDLCData *hdlcData = (HDLCData *)device->deviceData;
-    if (!hdlcData || !hdlcData->dmaEngine) return;
+    if (!hdlcData || !hdlcData->dmaEngine || !hdlcData->dmaEngine->receiver) return;
 
-    // Equivalent to C# Modem_OnReceivedData
-    if (hdlcData->dmaEngine) {
-        DMAEngine_BlastReceiveDataBuffer(hdlcData->dmaEngine, data, length);
-    }
+    // Non-blocking enqueue into ring buffer.
+    // Processed pull-based by DMAReceiver_Tick.
+    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
 }
 
 static void HDLC_OnModemRingIndicator(Device *device, bool pinValue)
@@ -819,13 +818,8 @@ static void HDLC_OnCOM5025PinValueChanged(Device *device, COM5025SignalPinOut pi
         case COM5025_PIN_OUT_TBMT: // Transmitter Buffer Empty
             if (value) {
                 data->txTransferStatus.bits.transmitBufferEmpty = 1;
-                // Handle DMA transmitter operations
-                if (data->txTransferControl.bits.enableTransmitterDMA) {
-                    // Trigger DMA engine transmitter operation (equivalent to C# dmaEngine.Transmitter.DMA_SendChar(false))
-                    if (data->dmaEngine && data->dmaEngine->transmitter) {
-                        DMATransmitter_SendChar(data->dmaEngine->transmitter, false);
-                    }
-                }
+                // In burst mode, TX is handled by DMATransmitter_Tick/SendAllBuffers
+                // COM5025 character-mode SendChar is not used
             } else {
                 data->txTransferStatus.bits.transmitBufferEmpty = 0;
             }
@@ -1076,15 +1070,8 @@ static void HDLC_UpdateFromCOM5025Pins(Device *self)
         HDLC_CheckTriggerInterrupt(self);
     }
 
-    // Handle DMA operations if enabled
-    if (data->txTransferControl.bits.enableTransmitterDMA) {
-        if (tbmt) {
-            // DMA engine transmitter operation (equivalent to C# dmaEngine.Transmitter.DMA_SendChar(false))
-            if (data->dmaEngine && data->dmaEngine->transmitter) {
-                DMATransmitter_SendChar(data->dmaEngine->transmitter, false);
-            }
-        }
-    }
+    // In burst mode, TX is handled by DMATransmitter_Tick/SendAllBuffers
+    // COM5025 character-mode SendChar is not used
 }
 
 static void HDLC_SetBaudRate(Device *self, HDLCBaudRate baudRate)

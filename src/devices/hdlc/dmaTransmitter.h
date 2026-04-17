@@ -26,10 +26,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Forward declarations
 struct Device;
 
-// Include for COM5025State and DMAControlBlocks
 #include "chipCOM5025.h"
 #include "dmaControlBlocks.h"
 #include "hdlcFrame.h"
@@ -40,12 +38,8 @@ typedef void (*DMATransmitterSetInterruptCallback)(uint8_t bit);
 
 // DMA Transmitter state structure
 typedef struct {
-    // State management
     bool active;
-    uint32_t currentAddress;
     int bytesSent;
-    bool burstMode;
-    int stopDelayTicks;
 
     // Hardware references
     COM5025State *com5025;
@@ -58,7 +52,7 @@ typedef struct {
 
 } DMATransmitter;
 
-// Core DMA Transmitter functions
+// Core functions
 void DMATransmitter_Init(DMATransmitter *transmitter, void *com5025, DMAControlBlocks *dmaCB, struct Device *hdlcDevice);
 void DMATransmitter_Destroy(DMATransmitter *transmitter);
 void DMATransmitter_Clear(DMATransmitter *transmitter);
@@ -66,23 +60,13 @@ void DMATransmitter_Tick(DMATransmitter *transmitter);
 
 // State management
 void DMATransmitter_SetSenderState(DMATransmitter *transmitter, int senderState);
-
-// Data transmission
-bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter);
-void DMATransmitter_SendChar(DMATransmitter *transmitter, bool isFirstChar);
-void DMATransmitter_SetTXDMAFlag(DMATransmitter *transmitter, uint16_t flag);
-
-// Internal state machines
-void DMATransmitter_ProcessBlockReadyToSend(DMATransmitter *transmitter);
-void DMATransmitter_ProcessFrameSent(DMATransmitter *transmitter);
-void DMATransmitter_TickSendEngine(DMATransmitter *transmitter);
-void DMATransmitter_TickSendBlastEngine(DMATransmitter *transmitter);
-
-// State setters
-void DMATransmitter_SetBlockSendState(DMATransmitter *transmitter, int state);
 void DMATransmitter_SetEngineSenderState(DMATransmitter *transmitter, int state);
 
-// Callback setup functions
+// Data transmission (burst mode)
+bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter);
+void DMATransmitter_SetTXDMAFlag(DMATransmitter *transmitter, uint16_t flag);
+
+// Callback setup
 void DMATransmitter_SetSendFrameCallback(DMATransmitter *transmitter, DMATransmitterSendFrameCallback callback);
 void DMATransmitter_SetInterruptCallback(DMATransmitter *transmitter, DMATransmitterSetInterruptCallback callback);
 

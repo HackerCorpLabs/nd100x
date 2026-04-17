@@ -66,7 +66,6 @@ typedef struct {
     int dmaSenderState;
     int dmaSendBlockState;
     int dmaWaitTicks;
-    bool burstMode;
 
     // Callbacks
     DMAControlBlocks_ReadCallback onReadDMA;
@@ -84,7 +83,7 @@ typedef struct {
 void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice);
 void DMAControlBlocks_Destroy(DMAControlBlocks *dmaCB);
 void DMAControlBlocks_Clear(DMAControlBlocks *dmaCB);
-void DMAControlBlocks_SetBurstMode(DMAControlBlocks *dmaCB, bool burstEnabled);
+
 void DMAControlBlocks_SetTXPointer(DMAControlBlocks *dmaCB, uint32_t listPointer, int offset);
 void DMAControlBlocks_DebugTXFrames(DMAControlBlocks *dmaCB);
 void DMAControlBlocks_LoadTXBuffer(DMAControlBlocks *dmaCB);

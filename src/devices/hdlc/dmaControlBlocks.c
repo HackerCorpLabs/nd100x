@@ -78,7 +78,6 @@ void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice)
     dcbs->dmaSenderState = 0; // DMA_SENDER_STOPPED
     dcbs->dmaSendBlockState = 0; // DMA_BLOCK_IDLE
     dcbs->dmaWaitTicks = -1;
-    dcbs->burstMode = false;
 
     // Initialize callbacks
     dcbs->onReadDMA = NULL;
@@ -142,12 +141,6 @@ void DMAControlBlocks_Clear(DMAControlBlocks *dmaCB)
 
     // Clear parameters would go here if ParameterBuffer was implemented
     // dmaCB->parameters.Clear();
-}
-
-void DMAControlBlocks_SetBurstMode(DMAControlBlocks *dmaCB, bool burstEnabled)
-{
-    if (!dmaCB) return;
-    dmaCB->burstMode = burstEnabled;
 }
 
 // TX Functions

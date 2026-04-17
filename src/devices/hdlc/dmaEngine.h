@@ -63,7 +63,6 @@ typedef struct {
     struct Device *hdlcDevice;
 
     // State management
-    bool burstMode;
     bool enabled;
 
     // DMA register array (256 16-bit registers)
@@ -126,9 +125,6 @@ void DMAEngine_SetInterruptCallback(DMAEngine *dma, DMASetInterruptCallback call
 void DMAEngine_SetSendFrameCallback(DMAEngine *dma, DMASendFrameCallback callback);
 void DMAEngine_SetUpdateReceiverStatusCallback(DMAEngine *dma, DMAUpdateReceiverStatusCallback callback);
 void DMAEngine_SetClearCommandCallback(DMAEngine *dma, DMAClearCommandCallback callback);
-
-// Missing function declarations
-void DMAEngine_BlastReceiveDataBuffer(DMAEngine *dma, const uint8_t *data, int length);
 
 // Debug functions
 void DMAEngine_Log(DMAEngine *dma, const char *format, ...);

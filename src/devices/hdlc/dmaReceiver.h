@@ -29,7 +29,6 @@
 // Forward declarations
 struct Device;
 
-// Include for COM5025State and DMAControlBlocks
 #include "chipCOM5025.h"
 #include "dmaControlBlocks.h"
 #include "tcpReceiveBuffer.h"
@@ -47,29 +46,26 @@ typedef enum {
 
 // DMA Receiver state structure
 typedef struct {
-    // State management
     bool active;
-    uint32_t currentAddress;
     int bytesReceived;
-    bool burstMode;
 
     // Tick-based delay for rate-limiting frame processing
     int processTcpBufDelay;
 
-    // High-speed ring buffer for TCP receive data (pull-based architecture)
+    // Ring buffer for TCP receive data (pull-based architecture)
     TcpReceiveBuffer tcpReceiveBuffer;
 
     // Hardware references
     COM5025State *com5025;
     DMAControlBlocks *dmaCB;
-    struct Device *hdlcDevice; // Reference to HDLC device for register access
+    struct Device *hdlcDevice;
 
     // Callbacks
     DMAReceiverSetInterruptCallback onSetInterruptBit;
 
 } DMAReceiver;
 
-// Core DMA Receiver functions
+// Core functions
 void DMAReceiver_Init(DMAReceiver *receiver, void *com5025, DMAControlBlocks *dmaCB, struct Device *hdlcDevice);
 void DMAReceiver_Destroy(DMAReceiver *receiver);
 void DMAReceiver_Clear(DMAReceiver *receiver);
@@ -78,35 +74,19 @@ void DMAReceiver_Tick(DMAReceiver *receiver);
 // State management
 void DMAReceiver_SetReceiverState(DMAReceiver *receiver);
 
-// Data processing - COM5025 path (character mode)
-void DMAReceiver_ProcessByte(DMAReceiver *receiver, uint8_t data);
-void DMAReceiver_DataAvailableFromCOM5025(DMAReceiver *receiver);
-void DMAReceiver_ReceiveByteFromCOM5025(DMAReceiver *receiver, uint8_t data);
-void DMAReceiver_StatusAvailableFromCOM5025(DMAReceiver *receiver);
-
-// Data processing - Burst mode (TCP ring buffer path)
-// Enqueues TCP data into ring buffer. Returns immediately.
+// Data processing - TCP ring buffer path (burst mode, always active)
 void DMAReceiver_ReceiveDataFromModem(DMAReceiver *receiver, const uint8_t *data, int length);
-// Pull-based: processes ONE complete HDLC frame from ring buffer per call.
-// Returns bytes processed (0 = incomplete frame, waiting for more data).
 int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver);
-// Process a complete HDLC frame from the ring buffer into DMA buffers.
 bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver);
-// Centralized frame state cleanup.
 void DMAReceiver_ClearReceiveFrameState(DMAReceiver *receiver);
-
-// Legacy: old blocking blast function (kept for reference, calls new path)
-void DMAReceiver_BlastReceiveDataBuffer(DMAReceiver *receiver, const uint8_t *data, int length);
 
 // Buffer management
 bool DMAReceiver_FindNextReceiveBuffer(DMAReceiver *receiver);
 DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_t data);
 
-// Internal functions
+// Flag and interrupt management
 void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag);
 void DMAReceiver_EnableHDLCReceiver(DMAReceiver *receiver, bool enable);
-
-// Callback setup functions
 void DMAReceiver_SetInterruptCallback(DMAReceiver *receiver, DMAReceiverSetInterruptCallback callback);
 
 #endif // DMA_RECEIVER_H

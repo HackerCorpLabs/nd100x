@@ -57,7 +57,7 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
     if (!dma->dmaCB) return;
 
     DMAControlBlocks_Init((DMAControlBlocks *)dma->dmaCB, hdlcDevice);
-    DMAControlBlocks_SetBurstMode((DMAControlBlocks *)dma->dmaCB, burstMode);
+    // burstMode parameter kept for API compatibility but always true
 
     // Store references
     dma->hdlcDevice = hdlcDevice;
@@ -82,7 +82,6 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
     }
 
     // Initialize state
-    dma->burstMode = burstMode;
     dma->enabled = false;
     dma->currentDMAAddress = 0;
 
@@ -617,23 +616,6 @@ void DMAEngine_SetClearCommandCallback(DMAEngine *dma, DMAClearCommandCallback c
 {
     if (!dma) return;
     dma->onClearCommand = callback;
-}
-
-// Missing functions
-
-void DMAEngine_BlastReceiveDataBuffer(DMAEngine *dma, const uint8_t *data, int length)
-{
-    if (!dma || !data || length <= 0) return;
-
-#ifdef DMA_DEBUG
-    DMAEngine_Log(dma, "BlastReceiveDataBuffer: %d bytes", length);
-#endif
-
-    // Non-blocking enqueue into ring buffer.
-    // Data is processed pull-based by DMAReceiver_Tick via ProcessBufferedData.
-    if (dma->receiver) {
-        DMAReceiver_ReceiveDataFromModem(dma->receiver, data, length);
-    }
 }
 
 // Debug functions
