@@ -457,6 +457,8 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
         }
     }
 
+    /* no debug trace */
+
     // Find the PageTableEntry, PTe
     uint32_t pageTableEntry = GetPageTableEntry(pageTable, VPN, ptm);
 

@@ -663,8 +663,8 @@ int cpu_run(int ticks)
         
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
+			ring_record(gPC, gPIL, 0);  /* record BEFORE tick */
 			private_cpu_tick();
-			ring_record(gPC, gPIL, gReg->myreg_IR);
 
 			// Tick IO devices pr cpu tick
 			IO_Tick();
