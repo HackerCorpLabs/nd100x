@@ -638,6 +638,13 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // If the combination of WPM, RPM and FPM are all zero, this is interpreted as page not in memory and will generate an internal interrupt as page fault
     if ((pageTableEntry & pfMask) == 0)
     {
+        if (VPN == 25 && pageTable == 0) {
+            static int pf25 = 0;
+            if (pf25 < 3)
+                printf("\r\nPF25: PTe=0x%08X pfMask=0x%08lX PIL=%d am=%d\r\n",
+                       pageTableEntry, (unsigned long)pfMask, CurrLEVEL, am);
+            pf25++;
+        }
         // PGS bit 14 (PM - Permit violation) must be FALSE here.
         //
         // Per ND-60.062.01 SINTRAN III System Documentation, page 25:
@@ -666,6 +673,13 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // Triggers IIC=2 (memory protection violation).
     if ((pageTableEntry & accessBits) == 0)
     {
+        if (VPN == 25 && pageTable == 0) {
+            static int mpv25 = 0;
+            if (mpv25 < 3)
+                printf("\r\nMPV25: PTe=0x%08X access=0x%08lX am=%d PIL=%d\r\n",
+                       pageTableEntry, (unsigned long)accessBits, am, CurrLEVEL);
+            mpv25++;
+        }
         UpdatePGS(pageTable, VPN, am, true);
         HandleMPV(virtualAddress);
         return false;
@@ -871,8 +885,14 @@ void HandleMemoryOutOfRange(uint physicalAddress)
 /// @param virtualAddress 
 void HandleMPV(uint virtualAddress)
 {
-    //printf("HandleMPV: %06o\n", virtualAddress);
-    interrupt(14, 1 << 2); // MPV - MEMORY_PROTECTION_VIOLATION bit 2            
+    static int mpv_count = 0;
+    if (mpv_count < 5) {
+        uint VPN = (virtualAddress >> 10) & 0x3F;
+        printf("\r\nHandleMPV: VA=%06o VPN=%d PIL=%d PC=%06o\r\n",
+               virtualAddress, VPN, CurrLEVEL, gPC);
+    }
+    mpv_count++;
+    interrupt(14, 1 << 2);            
 }
 
 /// @brief Handle page fault. Will TRAP the instruction

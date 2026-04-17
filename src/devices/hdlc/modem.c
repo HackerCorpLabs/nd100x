@@ -130,6 +130,7 @@ void Modem_Init(ModemState *modem, Device *hdlcDevice)
     modem->networkStarted = false;
     modem->listenFd = -1;
     modem->clientFd = -1;
+    modem->pollTickCounter = 0;
 
     modem->hdlcDevice = hdlcDevice;
 
@@ -277,9 +278,17 @@ void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int
 #endif
 }
 
+// Poll interval: check socket every 1000 CPU ticks (~25us at 40MHz)
+// Avoids millions of syscalls/sec while keeping latency low
+#define MODEM_POLL_INTERVAL 1000
+
 void Modem_Tick(ModemState *modem)
 {
     if (!modem || !modem->networkStarted) return;
+
+    // Rate-limit socket polling
+    if (++modem->pollTickCounter < MODEM_POLL_INTERVAL) return;
+    modem->pollTickCounter = 0;
 
 #ifndef __EMSCRIPTEN__
     // Server mode: try to accept a new connection if none active

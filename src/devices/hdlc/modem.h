@@ -56,6 +56,7 @@ typedef struct {
     int listenFd;           // Server: listening socket (-1 if unused)
     int clientFd;           // Active data socket (-1 if not connected)
     bool networkStarted;    // True after Modem_StartModem called
+    int pollTickCounter;    // Only poll socket every N ticks
 
     // Callbacks to HDLC device
     Device *hdlcDevice;
