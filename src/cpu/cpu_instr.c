@@ -1089,7 +1089,7 @@ void ndfunc_opcom(ushort operand)
 {
 	if (!CheckPriv())
 		return;
-
+	printf("\r\nOPCOM at PIL[%d] PC[%6o] A[%6o]\r\n", gPIL, gPC, gA);
 	set_cpu_run_mode(CPU_STOPPED);
 }
 
@@ -2018,6 +2018,7 @@ void DoWAIT(ushort instr)
  */
 void ndfunc_halt(ushort operand)
 {
+	printf("\r\nHALT opcode at PIL[%d] PC[%6o] A[%6o]\r\n", gPIL, gPC, gA);
 	gCpuExitCode = (int)(short)gA;
 	set_cpu_run_mode(CPU_STOPPED);
 }
