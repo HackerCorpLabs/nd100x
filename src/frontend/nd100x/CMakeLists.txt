@@ -80,9 +80,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
     )
 endif()
 
-# Add installation rule to copy config file
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
-        DESTINATION ${CMAKE_BINARY_DIR}/etc)
+# Copy config file to build output directory
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
+    ${CMAKE_BINARY_DIR}/etc/nd100x.conf COPYONLY)
 
 # Create the prototypes header using mkptypes
 add_custom_command(
