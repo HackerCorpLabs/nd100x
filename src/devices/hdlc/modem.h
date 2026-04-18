@@ -27,59 +27,55 @@
 #include <stdbool.h>
 
 #ifndef __EMSCRIPTEN__
-#include <netinet/in.h>
+#include <pthread.h>
+#include <stdatomic.h>
 #endif
 
-// Forward declaration
 typedef struct Device Device;
 
-// Receive buffer size for TCP reads
-#define MODEM_RECV_BUF_SIZE 4096
+// Thread-safe byte queue for RX/TX between worker thread and emulation
+#define MODEM_QUEUE_SIZE 65536
+
+typedef struct {
+    uint8_t buf[MODEM_QUEUE_SIZE];
+    int head;           // written by producer
+    int tail;           // read by consumer
+    pthread_mutex_t mtx;
+} ModemQueue;
 
 // Modem signal callback function types
 typedef void (*ModemDataCallback)(Device *device, const uint8_t *data, int length);
 typedef void (*ModemSignalCallback)(Device *device, bool pinValue);
 
-// Client connection state machine
-typedef enum {
-    CLIENT_IDLE,            // Not started or DNS failed permanently
-    CLIENT_CONNECTING,      // Non-blocking connect in progress
-    CLIENT_CONNECTED,       // TCP connected
-    CLIENT_WAIT_RECONNECT   // Waiting before next reconnect attempt
-} ClientConnState;
-
 // Modem state structure
 typedef struct {
-    // Signal states
-    bool ringIndicator;     // RI
-    bool dataSetReady;      // DSR
-    bool signalDetector;    // SD
-    bool clearToSend;       // CTS
-    bool requestToSend;     // RTS
-    bool dataTerminalReady; // DTR
+    // Modem signal states (read by emulation, set by callbacks)
+    bool ringIndicator;
+    bool dataSetReady;
+    bool signalDetector;
+    bool clearToSend;
+    bool requestToSend;
+    bool dataTerminalReady;
 
-    // Connection config
+    // Config (set once at startup, read-only after)
     bool isServer;
     char address[256];
     int port;
-    bool connected;
 
-    // TCP socket state
-    int listenFd;           // Server: listening socket (-1 if unused)
-    int clientFd;           // Active data socket (-1 if not connected)
-    bool networkStarted;    // True after Modem_StartModem called
-    int pollTickCounter;    // Only poll socket every N ticks
+    // Shared state between worker thread and emulation
+    atomic_bool connected;      // true when TCP link is up
+    atomic_bool networkStarted; // true after StartModem called
+    atomic_bool shutdownReq;    // signal worker to exit
 
-    // Client reconnect state
-    ClientConnState clientState;
-#ifndef __EMSCRIPTEN__
-    struct sockaddr_in resolvedAddr;  // Cached DNS result
-#endif
-    bool addrResolved;      // True if DNS succeeded
-    int connectTickTimer;   // Countdown for connect timeout / reconnect delay
-    int reconnectAttempts;  // Number of reconnect attempts (for backoff)
+    // Thread-safe queues
+    ModemQueue rxQueue;         // worker writes, Tick reads
+    ModemQueue txQueue;         // SendBytes writes, worker reads
 
-    // Callbacks to HDLC device
+    // Worker thread handle
+    pthread_t workerThread;
+    bool workerRunning;
+
+    // Callbacks to HDLC device (called from emulation thread only)
     Device *hdlcDevice;
     ModemDataCallback onReceivedData;
     ModemSignalCallback onRingIndicator;
@@ -91,23 +87,19 @@ typedef struct {
 
 } ModemState;
 
-// Function declarations
 void Modem_Init(ModemState *modem, Device *hdlcDevice);
 void Modem_Destroy(ModemState *modem);
 void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int port);
 void Modem_Tick(ModemState *modem);
 
-// Signal control functions
 void Modem_SetDTR(ModemState *modem, bool value);
 void Modem_SetRTS(ModemState *modem, bool value);
 void Modem_SetDSR(ModemState *modem, bool value);
 void Modem_SetCTS(ModemState *modem, bool value);
 
-// Data transmission functions
 void Modem_SendByte(ModemState *modem, uint8_t data);
 void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length);
 
-// Callback setup functions
 void Modem_SetReceivedDataCallback(ModemState *modem, ModemDataCallback callback);
 void Modem_SetRingIndicatorCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetDataSetReadyCallback(ModemState *modem, ModemSignalCallback callback);
