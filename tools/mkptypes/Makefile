@@ -1,28 +1,27 @@
-BINDIR=/afs/.athena/contrib/watchmaker/`/bin/athena/machtype`bin
-MANDIR=/afs/.athena/contrib/watchmaker/man/man1
+# mkptypes — portable build
 #
-# Makefile for mkptypes. Edit the lines below to suit your tastes; the default
-# is for my computer (Atari ST running the gcc 1.37); a Unix configuration is
-# also provided.
+# Respects CC/CFLAGS from the environment so MinGW, clang, cross-compilers
+# all work. Emits mkptypes.exe on Windows, mkptypes elsewhere.
 
-CC = cc
-PROG = mkptypes
-MANPAGE=mkptypes.1
-CFLAGS = -O -DBSD
+CC      ?= gcc
+CFLAGS  ?= -O2
 
-#CC = gcc
-#PROG = mkptypes.ttp
-#CFLAGS = -mshort -O
+ifeq ($(OS),Windows_NT)
+    PROG = mkptypes.exe
+else
+    PROG = mkptypes
+endif
 
-$(PROG) : mkptypes.c mkptypes.h
+MANPAGE = mkptypes.1
+RM      = rm -f
+
+all: $(PROG)
+
+$(PROG): mkptypes.c mkptypes.h
 	$(CC) $(CFLAGS) -o $(PROG) mkptypes.c
 
 clean:
-	rm -f mkptypes.o
+	-$(RM) mkptypes.o mkptypes mkptypes.exe
 
 realclean: clean
-	rm -f $(PROG) report core
-
-install: $(PROG) $(MANPAGE)
-	install -c -s $(PROG) $(BINDIR)/$(PROG)
-	install -c $(MANPAGE) $(MANDIR)/$(MANPAGE)
+	-$(RM) report core

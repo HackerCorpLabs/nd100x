@@ -1515,8 +1515,7 @@ int show_floppy_menu() {
         printf("\n  Download failed. Check your network connection.\n");
         printf("  Press any key to return.\n");
         fflush(stdout);
-        char keybuf[16];
-        read_key_sequence(keybuf, sizeof(keybuf));
+        (void)read_key_event();
         return -1;
     }
     

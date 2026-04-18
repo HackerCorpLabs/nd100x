@@ -53,7 +53,7 @@
 #elif defined(_WIN32)
     #include <windows.h>
 	volatile LONG cpu_run_mode;
-	volatile LONG debugger_stop_reason;
+	volatile LONG cpu_stop_reason;
 	volatile LONG debugger_request_pause;
 	volatile LONG debugger_control_granted;
 #else
@@ -625,7 +625,7 @@ int cpu_run(int ticks)
 #ifdef WITH_DEBUGGER
 	if (get_debugger_control_granted()) {
 #ifndef __EMSCRIPTEN__
-		usleep(100000); // Sleep 100ms
+		sleep_ms(100); // Portable (POSIX nanosleep / Windows Sleep)
 #endif
 		return ticks; // Debugger has control, return immediately
 	}

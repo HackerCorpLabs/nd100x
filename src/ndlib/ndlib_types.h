@@ -32,6 +32,27 @@
 #include <stdbool.h>
 
 
+// ** KEYBOARD EVENTS **
+// Classified keyboard input produced by read_key_event(). Placed here rather
+// than in keyboard.h so the mkptypes-generated ndlib_protos.h — which declares
+// read_key_event() — can see the full definition regardless of include order.
+typedef enum {
+    KEY_NONE = 0,      // No key available
+    KEY_CHAR,          // Ordinary typed character (evt.ch)
+    KEY_ESCAPE,        // ESC key pressed alone
+    KEY_F12,           // F12 function key
+    KEY_ALT_DIGIT,     // Alt+1..9 (evt.ch is '1'..'9')
+    KEY_UNKNOWN,       // Multi-byte input we did not classify (raw in evt.seq)
+} KeyType;
+
+typedef struct {
+    KeyType type;
+    char    ch;        // Ordinary character (KEY_CHAR) or Alt digit (KEY_ALT_DIGIT)
+    char    seq[8];    // Raw byte sequence — populated for passthrough/KEY_UNKNOWN
+    int     seqLen;
+} KeyEvent;
+
+
 // Physical memory functions in cpu_mms.c
 extern int ReadPhysicalMemory(int physicalAddress, bool privileged);
 extern void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged);

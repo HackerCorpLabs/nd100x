@@ -17,8 +17,10 @@
 #include "vscreen.h"
 #include "screenmenu.h"
 
-// Forward declaration for floppy menu (conditionally available)
-#if !defined(PLATFORM_RISCV)
+// Forward declaration for floppy menu (conditionally available).
+// The floppy-DB browser in menu.c depends on ncurses + libcurl and is not
+// compiled on RISC-V or Windows builds, so gate the extern the same way.
+#if !defined(PLATFORM_RISCV) && !defined(PLATFORM_WINDOWS) && !defined(_WIN32)
 extern int show_floppy_menu(void);
 #endif
 
@@ -282,55 +284,60 @@ void menu_tick(MenuState *state, void *telnetServer)
 // =========================================================
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
-void menu_process_key(MenuState *state, const char *keybuf, int keylen, TelnetServer *telnetServer)
+void menu_process_key(MenuState *state, const KeyEvent *key, TelnetServer *telnetServer)
 #else
-void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *telnetServer)
+void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
 #endif
 {
-    if (keylen <= 0) return;
+    if (!key || key->type == KEY_NONE) return;
+
+    // The menu only cares about ESC or typed characters. Function keys and
+    // multi-byte unknown sequences are ignored.
+    bool is_esc = (key->type == KEY_ESCAPE);
+    char ch     = (key->type == KEY_CHAR) ? key->ch : '\0';
 
     switch (state->mode) {
 
     // ----- F12 top-level menu -----
     case MENU_F12:
-        if (is_escape_key(keybuf)) {
+        if (is_esc) {
             menu_set_mode(state, MENU_NONE, telnetServer);
-        } else if (keybuf[0] == '1') {
-#if defined(PLATFORM_RISCV)
-            printf("\nFloppy menu not available on RISC-V build\n");
+        } else if (ch == '1') {
+#if defined(PLATFORM_RISCV) || defined(PLATFORM_WINDOWS) || defined(_WIN32)
+            printf("\nFloppy menu not available on this build\n");
             fflush(stdout);
 #else
             int ret = show_floppy_menu();
             if (ret == -1) printf("Failed to show floppy menu\n");
 #endif
             menu_set_mode(state, MENU_NONE, telnetServer);
-        } else if (keybuf[0] == '2') {
+        } else if (ch == '2') {
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
         }
         break;
 
     // ----- Screen selector -----
     case MENU_SCREEN_SELECT:
-        if (is_escape_key(keybuf)) {
+        if (is_esc) {
             menu_set_mode(state, MENU_NONE, telnetServer);
             return;
         }
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
-        if ((keybuf[0] == 'r' || keybuf[0] == 'R') && telnetServer) {
+        if ((ch == 'r' || ch == 'R') && telnetServer) {
             menu_set_mode(state, MENU_SCREEN_RELEASE, telnetServer);
             return;
         }
-        if ((keybuf[0] == 'p' || keybuf[0] == 'P') && telnetServer) {
+        if ((ch == 'p' || ch == 'P') && telnetServer) {
             menu_set_mode(state, MENU_PENDING_LIST, telnetServer);
             return;
         }
 #endif
         {
             int choice = -1;
-            if (keybuf[0] >= '1' && keybuf[0] <= '9')
-                choice = keybuf[0] - '1';
-            else if (keybuf[0] >= 'a' && keybuf[0] <= 'z')
-                choice = 9 + (keybuf[0] - 'a');
+            if (ch >= '1' && ch <= '9')
+                choice = ch - '1';
+            else if (ch >= 'a' && ch <= 'z')
+                choice = 9 + (ch - 'a');
 
             if (choice >= 0 && choice < state->screenCount) {
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
@@ -359,16 +366,16 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
 
     // ----- Release prompt (unified close/disconnect) -----
     case MENU_SCREEN_RELEASE:
-        if (is_escape_key(keybuf)) {
+        if (is_esc) {
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
             return;
         }
         {
             int choice = -1;
-            if (keybuf[0] >= '1' && keybuf[0] <= '9')
-                choice = keybuf[0] - '1';
-            else if (keybuf[0] >= 'a' && keybuf[0] <= 'z')
-                choice = 9 + (keybuf[0] - 'a');
+            if (ch >= '1' && ch <= '9')
+                choice = ch - '1';
+            else if (ch >= 'a' && ch <= 'z')
+                choice = 9 + (ch - 'a');
 
             if (choice < 0 || choice >= state->screenCount) {
                 menu_show_message(state, "Invalid selection.",
@@ -426,12 +433,12 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
     // ----- Pending connections (live view) -----
     case MENU_PENDING_LIST:
-        if (is_escape_key(keybuf)) {
+        if (is_esc) {
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
             return;
         }
         if (telnetServer) {
-            if (keybuf[0] == 'd' || keybuf[0] == 'D') {
+            if (ch == 'd' || ch == 'D') {
                 int count = TelnetServer_GetPendingCount(telnetServer);
                 if (count == 0) {
                     menu_show_message(state, "No pending connections to drop.",
@@ -446,13 +453,13 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
                     // We'll handle the digit on the next keypress via a simple approach:
                     // For now, just prompt. The next digit key will be caught here.
                 }
-            } else if (keybuf[0] >= '1' && keybuf[0] <= '9') {
-                int idx = keybuf[0] - '1';
+            } else if (ch >= '1' && ch <= '9') {
+                int idx = ch - '1';
                 if (TelnetServer_DropPending(telnetServer, idx)) {
                     draw_pending_list(telnetServer);
                     state->lastRefresh = time(NULL);
                 }
-            } else if (keybuf[0] == 'a' || keybuf[0] == 'A') {
+            } else if (ch == 'a' || ch == 'A') {
                 TelnetServer_DropAllPending(telnetServer);
                 menu_show_message(state, "All pending connections dropped.",
                                   MENU_PENDING_LIST);

@@ -21,7 +21,7 @@ set(CPU_SOURCE_FILES
 # Generate prototypes with mktypes - use string replacement instead of wildcard
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
-    COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
+    COMMAND ${CMAKE_COMMAND} -E echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_instr.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_mopc.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
@@ -51,8 +51,15 @@ target_link_libraries(cpu
     PRIVATE m
 )
 
-# Add debugger support for Linux and Windows builds
-if(PLATFORM_LINUX OR PLATFORM_WINDOWS)
+# Windows: link winmm for timeBeginPeriod(1) used by sleep_ms() to raise
+# the system timer resolution from ~15.6ms default to 1ms.
+if(PLATFORM_WINDOWS)
+    target_link_libraries(cpu PUBLIC winmm)
+endif()
+
+# Add debugger support for Linux and Windows builds when the root project
+# has not explicitly disabled it via -DDEBUGGER_ENABLED=OFF.
+if((PLATFORM_LINUX OR PLATFORM_WINDOWS) AND DEBUGGER_ENABLED)
     target_compile_definitions(cpu PRIVATE WITH_DEBUGGER)
     message(STATUS "CPU module: Debugger support enabled")
 endif()

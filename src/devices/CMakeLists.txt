@@ -30,7 +30,7 @@ list(APPEND SOURCES
 # Generate prototypes with mktypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
-    COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_COMMAND} -E echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add root directory sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/device.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/devicemanager.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h

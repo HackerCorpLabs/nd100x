@@ -23,12 +23,16 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
-#include <stddef.h>
+#include "ndlib_types.h"   // KeyType, KeyEvent
 
-// Keyboard input functions
-int read_key_sequence(char *buf, size_t bufsize);
-int is_alt_digit_key(const char *keybuf);
-int is_f12_key(const char *keybuf);
-int is_escape_key(const char *keybuf);
+// Read the next keyboard event (non-blocking).
+//
+// POSIX: parses xterm-style byte sequences from stdin and classifies them.
+// Windows: uses ReadConsoleInputW() to read native key events and classifies
+//          them directly from VK_* codes and control-key modifiers — no
+//          synthetic escape sequences.
+//
+// Returns a KeyEvent; type == KEY_NONE when no input is available.
+KeyEvent read_key_event(void);
 
-#endif // KEYBOARD_H 
+#endif // KEYBOARD_H

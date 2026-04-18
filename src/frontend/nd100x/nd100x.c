@@ -23,28 +23,30 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <termios.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <unistd.h> // For read() system call
-#include <poll.h>   // For pollfd struct and POLLIN
-#include <signal.h> // For sigaction and signal handling
+#include <signal.h> // For signal / sigaction
 #include <string.h> // For memset
 #include <pthread.h>
-
-#include <unistd.h>
-
-#include <sys/resource.h>
 #include <limits.h>
-#include <string.h>
+#include <time.h>   // for time()
 
-#include <time.h>       // for time()
-#include <sys/time.h>   // for timeval
-#include <sys/resource.h> // for struct rusage
+#ifdef _WIN32
+#  include <windows.h>   /* Sleep, GetProcessTimes, CreateDirectoryA */
+#  include <direct.h>    /* _mkdir */
+#  define ND_MKDIR(p) _mkdir(p)
+#else
+#  include <termios.h>
+#  include <unistd.h>
+#  include <poll.h>
+#  include <sys/resource.h>  /* getrusage, struct rusage */
+#  include <sys/time.h>      /* struct timeval */
+#  define ND_MKDIR(p) mkdir((p), 0755)
+#endif
 
 
 #include "../ndlib/ndlib_types.h"
@@ -77,8 +79,9 @@ void stop_debugger_thread();
 // dont include debugger.h here, it will cause other problems, but we define the function here
 void debugger_kbd_input(char c) ;
 
+#ifndef _WIN32
 struct rusage *used;
-//extern double instr_counter;  // likely from cpu.h
+#endif
 
 double usertime;
 double systemtime;
@@ -165,15 +168,31 @@ void register_signals()
 
 void dump_stats()
 {
-	getrusage(RUSAGE_SELF, used);	/* Read how much resources we used */
+#ifdef _WIN32
+    FILETIME creation, exit, kernel, user;
+    if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
+        ULARGE_INTEGER u, k;
+        u.LowPart  = user.dwLowDateTime;  u.HighPart  = user.dwHighDateTime;
+        k.LowPart  = kernel.dwLowDateTime; k.HighPart = kernel.dwHighDateTime;
+        /* FILETIME is in 100ns units. */
+        usertime   = (double)u.QuadPart / 10000000.0;
+        systemtime = (double)k.QuadPart / 10000000.0;
+    } else {
+        usertime = systemtime = 0.0;
+    }
+#else
+    getrusage(RUSAGE_SELF, used); /* Read how much resources we used */
+    usertime   = used->ru_utime.tv_sec + ((float)used->ru_utime.tv_usec / 1000000);
+    systemtime = used->ru_stime.tv_sec + ((float)used->ru_stime.tv_usec / 1000000);
+#endif
+    totaltime = (float)usertime + (float)systemtime;
 
-	usertime=used->ru_utime.tv_sec+((float)used->ru_utime.tv_usec/1000000);
-	systemtime=used->ru_stime.tv_sec+((float)used->ru_stime.tv_usec/1000000);
-	totaltime=(float)usertime + (float)systemtime;
-
-	printf("Number of instructions run: %lu, time used: %f\n",instr_counter,totaltime); // maybe us macro PRIu64  for instr_counter?
-	printf("usertime: %f  systemtime: %f\n",usertime,systemtime);
-	printf("Current cpu cycle time is:%f microsecs\n",(totaltime/((double)instr_counter/1000000.0)));
+    printf("Number of instructions run: %lu, time used: %f\n", instr_counter, totaltime);
+    printf("usertime: %f  systemtime: %f\n", usertime, systemtime);
+    if (instr_counter > 0) {
+        printf("Current cpu cycle time is:%f microsecs\n",
+               (totaltime / ((double)instr_counter / 1000000.0)));
+    }
 }
 
 /// @brief Initialize the emulator. Add devices and load program
@@ -181,7 +200,9 @@ void dump_stats()
 void initialize()
 {
    srand ( time(NULL) ); /* Generate PRNG Seed */
+#ifndef _WIN32
    used=calloc(1,sizeof(struct rusage)); /* Perf counter stuff */
+#endif
 
 
 	//blocksignals();
@@ -265,7 +286,7 @@ static int tapeWriterJobNumber = 0;
 // Helper: ensure directory exists (mkdir -p equivalent for one level)
 static void ensure_directory(const char *path)
 {
-    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+    if (ND_MKDIR(path) != 0 && errno != EEXIST) {
         fprintf(stderr, "Failed to create directory: %s\n", path);
     }
 }
@@ -623,24 +644,23 @@ int main(int argc, char *argv[])
         // Handle keyboard input
         if (runMode != CPU_SHUTDOWN)
         {
-            char keybuf[16];
-            int keylen = read_key_sequence(keybuf, sizeof(keybuf));
+            KeyEvent key = read_key_event();
 
             // If menu is active, route keys to menu and check timeouts
             if (menu_is_active(&menuState)) {
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
                 menu_tick(&menuState, telnetServer);
-                if (keylen > 0) {
-                    menu_process_key(&menuState, keybuf, keylen, telnetServer);
+                if (key.type != KEY_NONE) {
+                    menu_process_key(&menuState, &key, telnetServer);
                 }
 #else
                 menu_tick(&menuState, NULL);
-                if (keylen > 0) {
-                    menu_process_key(&menuState, keybuf, keylen, NULL);
+                if (key.type != KEY_NONE) {
+                    menu_process_key(&menuState, &key, NULL);
                 }
 #endif
-            } else if (keylen > 0) {
-                int altScreen = is_alt_digit_key(keybuf);
+            } else if (key.type == KEY_ALT_DIGIT) {
+                int altScreen = key.ch - '0';
                 if (altScreen > 0 && altScreen <= screenCount) {
                     int target = altScreen - 1;
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
@@ -663,32 +683,34 @@ int main(int argc, char *argv[])
                         activeScreen = target;
                         VScreen_Redraw(&screens[activeScreen]);
                     }
-                } else if (is_f12_key(keybuf)) {
-                    // F12 detected - enter non-blocking menu
+                }
+            } else if (key.type == KEY_F12) {
+                // F12 - enter non-blocking menu
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
-                    menu_enter(&menuState, telnetServer);
+                menu_enter(&menuState, telnetServer);
 #else
-                    menu_enter(&menuState, NULL);
+                menu_enter(&menuState, NULL);
 #endif
-                } else {
-                    // Process regular characters
-                    for (int i = 0; i < keylen; i++) {
-                        char ch = keybuf[i];
+            } else if (key.type != KEY_NONE) {
+                // Process regular characters — forward every raw byte in the
+                // event (covers KEY_CHAR, KEY_ESCAPE, KEY_UNKNOWN multi-byte
+                // escape sequences the emulated terminal may want to consume).
+                for (int i = 0; i < key.seqLen; i++) {
+                    char ch = key.seq[i];
 
-                        // ND doesnt like \n
-                        if (ch == '\n') {
-                            ch = '\r';
-                        }
+                    // ND doesnt like \n
+                    if (ch == '\n') {
+                        ch = '\r';
+                    }
 
-                        if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
-                            debugger_kbd_input(ch);
-                        } else {
-                            // Route keyboard input to the active screen's device (if input capable and locally active)
-                            if (screens[activeScreen].isInputCapable &&
-                                screens[activeScreen].localActive &&
-                                screens[activeScreen].device) {
-                                Terminal_QueueKeyCode(screens[activeScreen].device, ch);
-                            }
+                    if ((runMode == CPU_PAUSED)||(runMode == CPU_BREAKPOINT)) {
+                        debugger_kbd_input(ch);
+                    } else {
+                        // Route keyboard input to the active screen's device (if input capable and locally active)
+                        if (screens[activeScreen].isInputCapable &&
+                            screens[activeScreen].localActive &&
+                            screens[activeScreen].device) {
+                            Terminal_QueueKeyCode(screens[activeScreen].device, ch);
                         }
                     }
                 }

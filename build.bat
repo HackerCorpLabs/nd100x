@@ -1,118 +1,99 @@
 @echo off
-rem Script to build the ND100X project using CMake on Windows
+REM ============================================================================
+REM build.bat - Build the 64-bit Windows nd100x.exe using w64devkit.
+REM
+REM Usage:
+REM   build.bat              - debug build (default, matches `make debug`)
+REM   build.bat debug        - debug build, explicit
+REM   build.bat release      - release build
+REM   build.bat clean        - delete build\ and build_release\
+REM
+REM Requirements:
+REM   - w64devkit (64-bit) extracted somewhere on disk.
+REM     Default path: C:\Utils\w64devkit
+REM     Override by setting the W64DEVKIT env var before running this script:
+REM       set W64DEVKIT=D:\tools\w64devkit
+REM       build.bat
+REM
+REM   - For HTTP image loads (floppy-DB downloads), libcurl-devel must be
+REM     reachable by pkg-config. w64devkit alone does NOT ship libcurl. If
+REM     you need URL image loads on Windows, use MSYS2 MINGW64 with
+REM     mingw-w64-x86_64-curl instead. Without libcurl, download_file()
+REM     compiles as a stub and local disk images still work.
+REM
+REM This script does NOT permanently modify your PATH. It only prepends
+REM w64devkit\bin for the duration of this build.
+REM ============================================================================
 
-setlocal enabledelayedexpansion
+setlocal enableextensions enabledelayedexpansion
 
-rem Default build type
-set BUILD_TYPE=Debug
-set BUILD_DIR=build
-set INSTALL_PREFIX=C:\Program Files\ND100X
-set BUILD_WASM=0
-set BUILD_DAP_TOOLS=0
+REM --- Locate w64devkit ------------------------------------------------------
+if "%W64DEVKIT%"=="" set "W64DEVKIT=C:\Utils\w64devkit"
 
-rem Parse command line arguments
-:parse_args
-if "%~1"=="" goto :done_parsing
-if /i "%~1"=="--release" (
-    set BUILD_TYPE=Release
-    shift
-    goto :parse_args
-)
-if /i "%~1"=="--build-dir" (
-    set BUILD_DIR=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if /i "%~1"=="--install-prefix" (
-    set INSTALL_PREFIX=%~2
-    shift
-    shift
-    goto :parse_args
-)
-if /i "%~1"=="--wasm" (
-    set BUILD_WASM=1
-    shift
-    goto :parse_args
-)
-if /i "%~1"=="--with-dap-tools" (
-    set BUILD_DAP_TOOLS=1
-    shift
-    goto :parse_args
-)
-if /i "%~1"=="--help" (
-    echo Usage: %0 [options]
-    echo Options:
-    echo   --release          Build in Release mode (default: Debug)
-    echo   --build-dir DIR    Set build directory (default: build)
-    echo   --install-prefix P Set installation prefix (default: C:\Program Files\ND100X)
-    echo   --wasm             Build WebAssembly version
-    echo                      (Note: Debugger support is disabled in WASM builds)
-    echo   --with-dap-tools   Build DAP test tools (dap_debugger and dap_mock_server)
-    echo                      (Note: Only available on Windows/Linux builds)
-    echo   --help             Show this help message
+if not exist "%W64DEVKIT%\bin\gcc.exe" (
+    echo ERROR: w64devkit not found at "%W64DEVKIT%".
     echo.
-    echo Platform-specific features:
-    echo   - Windows/Linux: Automatically defines WITH_DEBUGGER for CPU/debugger modules
-    echo   - Windows/Linux: Enables DAP (Debug Adapter Protocol) integration
-    echo   - WebAssembly:   No debugger support, optimized for browser performance
+    echo Either install w64devkit there, or point this script at your install:
+    echo     set W64DEVKIT=D:\path\to\w64devkit
+    echo     build.bat
+    exit /b 1
+)
+
+REM Prepend w64devkit\bin so gcc, make, cmake, ninja, sh, pkg-config resolve
+REM to w64devkit first (ahead of any MSYS2 / Cygwin installs already on PATH).
+set "PATH=%W64DEVKIT%\bin;%PATH%"
+
+REM --- Sanity-check the toolchain --------------------------------------------
+where gcc   >nul 2>&1 || ( echo ERROR: gcc not found on PATH after adding w64devkit. & exit /b 1 )
+where make  >nul 2>&1 || ( echo ERROR: make not found on PATH after adding w64devkit. & exit /b 1 )
+where sh    >nul 2>&1 || ( echo ERROR: sh not found on PATH after adding w64devkit. & exit /b 1 )
+where ninja >nul 2>&1 || ( echo ERROR: ninja not found on PATH after adding w64devkit. & exit /b 1 )
+where cmake >nul 2>&1 || ( echo ERROR: cmake not found on PATH after adding w64devkit. & exit /b 1 )
+
+echo.
+echo Using w64devkit at: %W64DEVKIT%
+for /f "tokens=*" %%v in ('gcc --version ^| findstr /r "^gcc"') do echo   %%v
+echo.
+
+REM --- Pick the target -------------------------------------------------------
+set "TARGET=debug"
+if /i "%~1"=="debug"   set "TARGET=debug"
+if /i "%~1"=="release" set "TARGET=release"
+if /i "%~1"=="clean"   set "TARGET=clean"
+
+if "%TARGET%"=="clean" (
+    echo Cleaning build directories...
+    make clean
+    if errorlevel 1 exit /b 1
+    echo Done.
     exit /b 0
 )
-echo Unknown option: %~1
-exit /b 1
 
-:done_parsing
-
-if %BUILD_WASM%==1 (
-    rem Check if emcmake is available
-    where emcmake >nul 2>&1
-    if errorlevel 1 (
-        echo Error: emcmake not found. Please install and activate Emscripten SDK.
-        exit /b 1
-    )
-    
-    rem Create WASM build directory
-    set WASM_BUILD_DIR=%BUILD_DIR%_wasm
-    if not exist "%WASM_BUILD_DIR%" mkdir "%WASM_BUILD_DIR%"
-    
-    echo Configuring WebAssembly build in %WASM_BUILD_DIR%...
-    emcmake cmake -B "%WASM_BUILD_DIR%" -S . ^
-        -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
-        -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-        -DBUILD_DAP_TOOLS=%BUILD_DAP_TOOLS% ^
-        -DBUILD_WASM=ON
-    
-    echo Building WebAssembly targets...
-    cmake --build "%WASM_BUILD_DIR%" --config %BUILD_TYPE%
-    
-    rem Copy index.html template to bin directory
-    echo Copying index.html template to WASM build directory...
-    if not exist "%WASM_BUILD_DIR%\bin" mkdir "%WASM_BUILD_DIR%\bin"
-    copy ".vscode\template\index.html" "%WASM_BUILD_DIR%\bin\"
-) else (
-    rem Create native build directory
-    if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-    
-    echo Configuring native build in %BUILD_DIR%...
-    cmake -B "%BUILD_DIR%" -S . ^
-        -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
-        -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
-        -DBUILD_DAP_TOOLS=%BUILD_DAP_TOOLS%
-    
-    echo Building native targets...
-    cmake --build "%BUILD_DIR%" --config %BUILD_TYPE%
+REM --- Build -----------------------------------------------------------------
+echo Building %TARGET%...
+make %TARGET%
+if errorlevel 1 (
+    echo.
+    echo BUILD FAILED.
+    exit /b 1
 )
 
-echo Build completed successfully!
-if %BUILD_WASM%==1 (
-    echo To test WASM build in a browser, run:
-    echo   cd "%WASM_BUILD_DIR%\bin"
-    echo   python -m http.server
-    echo   # Then open http://localhost:8000/index.html in your browser
-    echo To install, run: cmake --install "%WASM_BUILD_DIR%" --config %BUILD_TYPE%
+if "%TARGET%"=="release" (
+    set "OUTDIR=build_release\bin"
 ) else (
-    echo To install, run: cmake --install %BUILD_DIR% --config %BUILD_TYPE%
-    echo Note: This build includes debugger support with WITH_DEBUGGER flag
+    set "OUTDIR=build\bin"
 )
 
-endlocal 
+echo.
+echo ============================================================
+echo Build complete.
+echo   Binary: %OUTDIR%\nd100x.exe
+echo.
+echo Run it:
+echo   Boot from SMD disk:
+echo     %OUTDIR%\nd100x.exe --boot=smd
+echo   Boot from floppy:
+echo     %OUTDIR%\nd100x.exe --boot=floppy --image=FLOPPY.IMG
+echo ============================================================
+
+endlocal
