@@ -40,7 +40,7 @@
 
 /* Forward declarations for ring buffer diagnostics */
 static uint16_t last_device_irq_bits = 0;
-static void ring_dump(void);
+void ring_dump(void);
 
 
 
@@ -305,15 +305,11 @@ void interrupt(ushort lvl, ushort sub)
 		}
 		const char *iic_name = (iic_bit >= 0 && iic_bit <= 10) ? iic_names[iic_bit] : "?";
 
-		// Log if this would trigger TDTLEV ERRFATAL from device levels (PIL 12-15)
-		// PIL 0-5 are normal (kernel/background levels handle their own faults)
+		// Log internal interrupts on device levels (12-15) that cause TDTLEV ERRFATAL
 		if (gPIL >= 12)
 		{
-			fprintf(stderr, "*** INT14_FATAL: %s (sub=0x%x bit=%d) on PIL=%d PC=%06o PID=%04x PIE=%04x IID=%04x IIE=%04x A=%06o\n",
-				iic_name, sub, iic_bit, gPIL, gPC, gPID, gPIE, gIID, gIIE, gA);
-			fprintf(stderr, "    DevBits=%04x STS=%04x PVL=%d - THIS WILL CAUSE TDTLEV ERRFATAL!\n",
-				last_device_irq_bits, gSTSr, gPVL);
-			ring_dump();
+			fprintf(stderr, "*** INT14_FATAL: %s (sub=0x%x) PIL=%d PC=%06o PVL=%d\n",
+				iic_name, sub, gPIL, gPC, gPVL);
 		}
 
 		gIID |= sub;
@@ -637,7 +633,7 @@ static void ring_record(unsigned short pc, unsigned char pil, unsigned short opc
     ring_idx = (ring_idx + 1) % RING_SIZE;
 }
 
-static void ring_dump(void) {
+void ring_dump(void) {
     int i;
     char disasm_str[128];
 
@@ -746,7 +742,6 @@ int cpu_run(int ticks)
 
         else if (current_run_mode == CPU_STOPPED)
         {
-            ring_dump();
             printf("CPU: WAS STOPPED, SHUTTING DOWN\r\n");
 			set_cpu_run_mode(CPU_SHUTDOWN);            
 			break;
