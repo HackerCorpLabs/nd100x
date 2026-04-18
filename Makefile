@@ -18,6 +18,36 @@ NODE = /usr/bin/node
 # By default, enable debugger in Linux/Windows builds
 DEBUGGER_ENABLED ?= ON
 
+# Host-OS detection — Windows via MSYS/MinGW/w64devkit vs. Unix-likes.
+UNAME_S := $(shell uname -s 2>/dev/null)
+ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
+    HOST_WINDOWS := 1
+endif
+ifeq ($(findstring MSYS,$(UNAME_S)),MSYS)
+    HOST_WINDOWS := 1
+endif
+ifeq ($(OS),Windows_NT)
+    HOST_WINDOWS := 1
+endif
+
+# CMake generator selection.
+# On Windows (w64devkit / MSYS2) force Ninja — otherwise CMake defaults to
+# the Visual Studio generator, which needs MSVC and breaks under MinGW.
+# Elsewhere, let CMake pick its default (Unix Makefiles).
+ifdef HOST_WINDOWS
+    CMAKE_GENERATOR_FLAG := -G Ninja
+else
+    CMAKE_GENERATOR_FLAG :=
+endif
+
+# Parallel build: nproc is POSIX-only. Fall back to NUMBER_OF_PROCESSORS on
+# Windows, and a safe default of 4 if neither is available.
+ifdef HOST_WINDOWS
+    JOBS := $(or $(NUMBER_OF_PROCESSORS),4)
+else
+    JOBS := $(shell nproc 2>/dev/null || echo 4)
+endif
+
 # Default target is debug
 .PHONY: all
 all: debug
@@ -28,6 +58,9 @@ check-deps:
 	@echo "Checking dependencies..."
 	@command -v cmake >/dev/null 2>&1 || { echo "Error: cmake not found. Please install cmake."; exit 1; }
 	@command -v gcc >/dev/null 2>&1 || { echo "Error: gcc not found. Please install gcc."; exit 1; }
+ifdef HOST_WINDOWS
+	@command -v ninja >/dev/null 2>&1 || { echo "Error: ninja not found on PATH. w64devkit and MSYS2 ship it — make sure the toolchain bin dir is on PATH."; exit 1; }
+endif
 	@echo "All core dependencies found."
 
 # Check for RISC-V specific dependencies
@@ -79,20 +112,20 @@ ts-compile:
 debug: check-deps mkptypes
 	@echo "Building debug version..."
 	@mkdir -p $(BUILD_DIR_DEBUG)
-	cd $(BUILD_DIR_DEBUG) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	cd $(BUILD_DIR_DEBUG) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
+	cd $(BUILD_DIR_DEBUG) && $(CMAKE) .. $(CMAKE_GENERATOR_FLAG) -DCMAKE_BUILD_TYPE=Debug -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_DEBUG) && $(CMAKE) --build . -- -j$(JOBS)
 
 release: check-deps mkptypes
 	@echo "Building release version..."
 	@mkdir -p $(BUILD_DIR_RELEASE)
-	cd $(BUILD_DIR_RELEASE) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Release -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	cd $(BUILD_DIR_RELEASE) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
+	cd $(BUILD_DIR_RELEASE) && $(CMAKE) .. $(CMAKE_GENERATOR_FLAG) -DCMAKE_BUILD_TYPE=Release -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_RELEASE) && $(CMAKE) --build . -- -j$(JOBS)
 
 sanitize: check-deps mkptypes
 	@echo "Building with sanitizers..."
 	@mkdir -p $(BUILD_DIR_SANITIZE)
-	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
-	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
+	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) .. $(CMAKE_GENERATOR_FLAG) -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" -DDEBUGGER_ENABLED=$(DEBUGGER_ENABLED)
+	cd $(BUILD_DIR_SANITIZE) && $(CMAKE) --build . -- -j$(JOBS)
 
 wasm: check-deps mkptypes
 	@echo "Building WebAssembly version..."
@@ -194,8 +227,8 @@ riscv: check-riscv-deps mkptypes
 dap-tools: check-deps mkptypes
 	@echo "Building with DAP tools..."
 	@mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && $(CMAKE) .. -DBUILD_DAP_TOOLS=ON -DDEBUGGER_ENABLED=ON
-	cd $(BUILD_DIR) && $(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
+	cd $(BUILD_DIR) && $(CMAKE) .. $(CMAKE_GENERATOR_FLAG) -DBUILD_DAP_TOOLS=ON -DDEBUGGER_ENABLED=ON
+	cd $(BUILD_DIR) && $(CMAKE) --build . -- -j$(JOBS)
 
 clean:
 	@echo "Cleaning build directories..."

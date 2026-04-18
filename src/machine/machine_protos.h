@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* /home/ronny/repos/nd100x/src/machine/machine.c */
+/* E:/Dev/Emulators/ND/nd100x/src/machine/machine.c */
 void init_drive_arrays(void);
 void machine_init(bool debuggerEnabled, int debuggerPort);
 void cleanup_machine(void);
@@ -22,7 +22,7 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
 int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_protected, int unit);
 
-/* /home/ronny/repos/nd100x/src/machine/io.c */
+/* E:/Dev/Emulators/ND/nd100x/src/machine/io.c */
 void IO_Init(void);
 void IO_Destroy(void);
 uint16_t IO_Read(uint32_t address);

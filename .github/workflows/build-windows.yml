@@ -1,0 +1,158 @@
+name: Build Windows
+
+on:
+  push:
+    branches:
+      - main
+      - windows-port
+    tags:
+      - 'v*'          # tagged pushes trigger a GitHub Release
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag (e.g. v0.2.0). Leave empty for CI-only.'
+        required: false
+        default: ''
+
+jobs:
+  build-windows:
+    name: Build windows-${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            msystem: MINGW64
+            prefix: mingw-w64-x86_64
+            mingw_bin: /mingw64/bin
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout (without submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0   # tags are needed for the release step
+
+      - name: Setup MSYS2 (${{ matrix.msystem }})
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            base-devel
+            git
+            ${{ matrix.prefix }}-gcc
+            ${{ matrix.prefix }}-cmake
+            ${{ matrix.prefix }}-ninja
+            ${{ matrix.prefix }}-pkgconf
+            ${{ matrix.prefix }}-curl
+
+      - name: Initialise submodules (tolerate libdap pin drift)
+        run: |
+          set -e
+          # cJSON / RetroTermWeb pins are intact — initialise normally.
+          git submodule update --init --recursive \
+            external/cJSON \
+            template-glass/external/RetroTermWeb
+          # libdap and libsymbols are skipped by CMake on Windows until their
+          # own Windows ports land; best-effort init so CI on Linux and any
+          # later Windows re-enable still works without changing the workflow.
+          git submodule update --init external/libsymbols || \
+            echo "::warning::libsymbols init failed — will be skipped on Windows anyway."
+          git submodule update --init external/libdap || \
+            echo "::warning::libdap pin orphaned — DAP debugger disabled in this build."
+
+      - name: Show toolchain versions
+        run: |
+          gcc --version | head -1
+          cmake --version | head -1
+          ninja --version
+          pkg-config --modversion libcurl || echo "libcurl not found"
+
+      - name: Build release
+        run: make release
+
+      - name: Stage Windows artifact
+        run: |
+          set -e
+          STAGE="dist/nd100x-windows-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp build_release/bin/nd100x.exe "$STAGE/"
+          # Discover and copy every non-system DLL the exe depends on. This
+          # catches libcurl + its transitive deps (openssl, zstd, brotli,
+          # nghttp2, ...) plus the MinGW runtime (libgcc_s_seh-1, libwinpthread-1)
+          # without hardcoding a list.
+          ldd "$STAGE/nd100x.exe" \
+            | awk '{print $3}' \
+            | grep -Ei '^(/mingw64|/c/msys64/mingw64)/' \
+            | sort -u \
+            | while read -r dll; do
+                [ -f "$dll" ] && cp "$dll" "$STAGE/"
+              done
+          # Ship bundled images that live in the repo.
+          if [ -d images ]; then
+            mkdir -p "$STAGE/images"
+            cp -r images/. "$STAGE/images/" 2>/dev/null || true
+          fi
+          cp README.md "$STAGE/" 2>/dev/null || true
+          cp LICENSE "$STAGE/" 2>/dev/null || true
+          echo "=== Staged contents ==="
+          ls -la "$STAGE"
+
+      - name: Upload build artifact
+        # Upload the staging DIRECTORY, not a pre-zipped file. GitHub wraps
+        # artifact contents in a zip on download, so uploading a zip would
+        # yield a zip-inside-a-zip. Pointing at the dir puts the exe + DLLs
+        # at the root of the downloaded zip.
+        uses: actions/upload-artifact@v4
+        with:
+          name: nd100x-windows-${{ matrix.arch }}
+          path: dist/nd100x-windows-${{ matrix.arch }}/
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    # Only publish on actual tag pushes — workflow_dispatch runs without a
+    # real tag don't create releases even if `inputs.tag` is set.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Zip each artifact for release
+        # download-artifact extracts each artifact into dist/<artifact-name>/.
+        # Zip each one back up so softprops/action-gh-release has a single
+        # file per platform to attach. The zip contains a <artifact-name>/
+        # subdirectory so users see a clean folder after extraction, not
+        # loose files scattered into the current directory.
+        run: |
+          set -e
+          cd dist
+          for d in */; do
+            name="${d%/}"
+            zip -r "${name}.zip" "$name"
+          done
+          ls -la *.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -24,9 +24,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(PLATFORM_WASM) || defined(__EMSCRIPTEN__) || defined(PLATFORM_RISCV)
+#if defined(PLATFORM_WASM) || defined(__EMSCRIPTEN__) || defined(PLATFORM_RISCV) || !defined(HAVE_CURL)
 
-// WASM/RISCV build: CURL is not available. Provide stubs.
+// No libcurl on this platform. Provide stubs so machine.c / menu.c still link.
+// Triggered on WASM, RISC-V, and any build where CMake did not find CURL
+// (e.g. w64devkit without libcurl).
 
 // Get the actual size of downloaded data (not supported in WASM)
 size_t get_downloaded_size(void) {

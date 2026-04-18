@@ -97,17 +97,23 @@ typedef enum
 /// +-----------+--------+----------+-------+------------+------------+
 /// |DISP.PRESS |INP PDY | RPAN VAL |PAN INT|   PFUNC    |   RPAN     |
 /// +-----------+--------+----------+-------+------------+------------+
+// NOTE on bit-field storage type: every bit-field must share the same
+// underlying storage type (uint16_t). Using an enum (`PANEL_STATUS_FUNCTIONS`)
+// for `pfunc` broke the layout on Windows/MinGW — GCC defaults to
+// -mms-bitfields there, which places different-typed bit-fields in separate
+// storage units, so the `raw` uint16_t overlay no longer covered `pfunc`.
+// Comparisons against the enum values still work via implicit promotion.
 typedef union
 {
 	uint16_t raw;
 	struct
 	{
-		uint16_t rpan : 8;				  // Bits 0-7: RPAN (return from Panel)
-		PANEL_STATUS_FUNCTIONS pfunc : 4; // Bits 8-10: PFUNC (Panel function code returned))
-		uint16_t pan_interrupt : 1;		  // Bit 12: Panel Interrupt (set to 1 when responding) - Also known as "COM RDY", The command in PCOM has been processed
-		uint16_t read_panel_valid : 1;	  // Bit 13: RPAN Valid (If 1, then last command PAP processed was a READ, data is in bit 0-7)
-		uint16_t input_pending : 1;		  // Bit 14: Input Pending (When 0, the PAC fifo is full. Is status stays at 0 for more than 2 ms then PAP (Panel Processor) is not working)
-		uint16_t panel_present : 1;		  // Bit 15: Panel Pressent (1=Display is present)
+		uint16_t rpan : 8;				// Bits 0-7: RPAN (return from Panel)
+		uint16_t pfunc : 4;				// Bits 8-11: PFUNC (Panel function code; see PANEL_STATUS_FUNCTIONS)
+		uint16_t pan_interrupt : 1;		// Bit 12: Panel Interrupt (set to 1 when responding) - Also known as "COM RDY", The command in PCOM has been processed
+		uint16_t read_panel_valid : 1;	// Bit 13: RPAN Valid (If 1, then last command PAP processed was a READ, data is in bit 0-7)
+		uint16_t input_pending : 1;		// Bit 14: Input Pending (When 0, the PAC fifo is full. If status stays at 0 for more than 2 ms then PAP (Panel Processor) is not working)
+		uint16_t panel_present : 1;		// Bit 15: Panel Present (1=Display is present)
 	} bits;
 } PANS_Register;
 
@@ -119,17 +125,20 @@ typedef union
 /// +---+---+--------------+----+-----------+------------+
 /// | 0 | 0 | Read Request |N.A.|  PFUNC    |   WPAN     |
 /// +---+---+--------------+----+-----------+------------+
+// Same bit-field-storage-type constraint as PANS_Register — keep every
+// field as uint16_t so the `raw` overlay matches the bits view on both
+// Linux (packed) and Windows/MinGW (-mms-bitfields) ABIs.
 typedef union
 {
 	uint16_t raw;
 	struct
 	{
-		uint16_t wpan : 8;				  // Bits 07: WPAN (Write to Panel)
-		PANEL_STATUS_FUNCTIONS pfunc : 4; // Bits 8-11: PFUNC (Panel function code)
-		uint16_t reserved12 : 1;		  // Bit 12: N.A.
-		uint16_t read_request : 1;		  // Bit 13: Read Request
-		uint16_t reserved14 : 1;		  // Bits 14: Reserved
-		uint16_t reserved15 : 1;		  // Bits 15: Reserved
+		uint16_t wpan : 8;				// Bits 0-7: WPAN (Write to Panel)
+		uint16_t pfunc : 4;				// Bits 8-11: PFUNC (Panel function code; see PANEL_STATUS_FUNCTIONS)
+		uint16_t reserved12 : 1;		// Bit 12: N.A.
+		uint16_t read_request : 1;		// Bit 13: Read Request
+		uint16_t reserved14 : 1;		// Bit 14: Reserved
+		uint16_t reserved15 : 1;		// Bit 15: Reserved
 	} bits;
 } PANC_Register;
 

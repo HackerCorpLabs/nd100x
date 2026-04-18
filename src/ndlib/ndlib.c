@@ -23,52 +23,72 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <termios.h>
-#include <signal.h>
 #include "ndlib_types.h"
 #include "ndlib_protos.h"
 
-
-struct termios saved_tty; 
 struct config_t *pCFG = NULL;
 
-/* 
- * 
- * 
- *  TERMINAL HANDLING
- * 
- * 
- */
+/* Terminal raw-mode handling (console "cbreak" mode). */
+
+#ifdef _WIN32
+/* ---- Windows: SetConsoleMode on stdin ---- */
+
+#include <windows.h>
+
+static DWORD  saved_console_mode = 0;
+static HANDLE saved_console_handle = NULL;
 
 void unsetcbreak(void)
-{ /* prepare to exit this program. */
-	tcsetattr(0, TCSADRAIN, &saved_tty);
+{
+    if (saved_console_handle) {
+        SetConsoleMode(saved_console_handle, saved_console_mode);
+    }
 }
 
 void setcbreak(void)
-{ /* set console input to raw mode. */
-	struct termios tty;
+{
+    saved_console_handle = GetStdHandle(STD_INPUT_HANDLE);
+    if (!saved_console_handle || saved_console_handle == INVALID_HANDLE_VALUE) return;
 
-	/*
-	 * Ignore SIGTTOU so tcsetattr() won't stop us when running
-	 * as a background process (e.g. under timeout(1) or make).
-	 */
-	signal(SIGTTOU, SIG_IGN);
+    DWORD mode = 0;
+    if (!GetConsoleMode(saved_console_handle, &mode)) return;
+    saved_console_mode = mode;
 
-	tcgetattr(0, &saved_tty);
-	tcgetattr(0, &tty);
-	tty.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
-	tty.c_cc[VTIME] = (cc_t)0; /* inter-character timer unused */
-	tty.c_cc[VMIN] = (cc_t)0;  /* Dont wait for chars - non-blocking read */
-	tcsetattr(0, TCSADRAIN, &tty);
-
-	/* After this is set:
-	   - Use read() or getchar_unlocked() for non-blocking reads
-	   - read() will return -1 with errno=EAGAIN if no data
-	   - getchar_unlocked() will return EOF if no data
-	   - Both functions return immediately without waiting
-	*/
+    /* Clear line-input and echo so keys arrive one at a time without being
+     * echoed. Window/menu events are read and discarded by read_key_event()
+     * in keyboard.c. */
+    mode &= ~(DWORD)(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+    mode |=  ENABLE_WINDOW_INPUT;
+    SetConsoleMode(saved_console_handle, mode);
 }
 
+#else
+/* ---- POSIX: termios ---- */
 
+#include <termios.h>
+#include <signal.h>
 
+struct termios saved_tty;
+
+void unsetcbreak(void)
+{
+    tcsetattr(0, TCSADRAIN, &saved_tty);
+}
+
+void setcbreak(void)
+{
+    struct termios tty;
+
+    /* Ignore SIGTTOU so tcsetattr() won't stop us when running as a
+     * background process (e.g. under timeout(1) or make). */
+    signal(SIGTTOU, SIG_IGN);
+
+    tcgetattr(0, &saved_tty);
+    tcgetattr(0, &tty);
+    tty.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
+    tty.c_cc[VTIME] = (cc_t)0;
+    tty.c_cc[VMIN]  = (cc_t)0;
+    tcsetattr(0, TCSADRAIN, &tty);
+}
+
+#endif
