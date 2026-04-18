@@ -12,6 +12,7 @@ file(GLOB TERMINAL_SOURCES "terminal/*.c")
 file(GLOB PAPERTAPE_SOURCES "papertape/*.c")
 file(GLOB FLOPPY_SOURCES "floppy/*.c")
 file(GLOB SMD_SOURCES "smd/*.c")
+file(GLOB HDLC_SOURCES "hdlc/*.c")
 file(GLOB LINEPRINTER_SOURCES "lineprinter/*.c")
 file(GLOB PAPERTAPEWRITER_SOURCES "papertapewriter/*.c")
 
@@ -23,6 +24,7 @@ list(APPEND SOURCES
     ${PAPERTAPE_SOURCES} 
     ${FLOPPY_SOURCES}
     ${SMD_SOURCES}
+    ${HDLC_SOURCES}
     ${LINEPRINTER_SOURCES}
     ${PAPERTAPEWRITER_SOURCES}
 )
@@ -52,6 +54,19 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter/deviceLinePrinter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add paper tape writer device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter/devicePaperTapeWriter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add HDLC device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/deviceHDLC.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/chipCOM5025.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/chipCOM5025Registers.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/hdlc_crc.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/modem.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaEngine.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaDCB.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaControlBlocks.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaParamBuf.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaTransmitter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/tcpReceiveBuffer.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/hdlc/dmaReceiver.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for devices"
     VERBATIM
@@ -75,6 +90,7 @@ target_include_directories(devices PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/papertape
     ${CMAKE_CURRENT_SOURCE_DIR}/floppy
     ${CMAKE_CURRENT_SOURCE_DIR}/smd
+    ${CMAKE_CURRENT_SOURCE_DIR}/hdlc
     ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter
     ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter
 )

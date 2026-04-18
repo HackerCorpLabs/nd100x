@@ -68,6 +68,15 @@ typedef struct {
     int telnetPort;      // Default: 9000
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
+    // HDLC configuration (up to 4 devices, thumbwheels 1-4)
+    #define MAX_HDLC_DEVICES 4
+    int hdlcCount;                           // Number of configured HDLC devices
+    struct {
+        int deviceNum;       // Thumbwheel number (1-4)
+        bool isServer;       // true = server (listen), false = client (connect)
+        char *address;       // IP/hostname for client mode (NULL for server)
+        int port;            // TCP port
+    } hdlc[MAX_HDLC_DEVICES];
 } Config_t;
 
 #endif // CONFIG_H 

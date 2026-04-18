@@ -488,6 +488,14 @@ int main(int argc, char *argv[])
 
     initialize();
 
+    // Add HDLC devices if configured via command line
+    for (int i = 0; i < config.hdlcCount; i++) {
+        machine_add_hdlc(config.hdlc[i].deviceNum,
+                         config.hdlc[i].isServer,
+                         config.hdlc[i].address,
+                         config.hdlc[i].port);
+    }
+
     // =========================================================
     // Set up terminal devices with VScreen output handlers
     // =========================================================

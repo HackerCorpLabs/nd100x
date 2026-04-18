@@ -836,7 +836,6 @@ void ndfunc_fad(ushort operand)
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
 	ushort a[3], b[3], r[3];
-	int res;
 
 	a[0] = gT;
 	a[1] = gA;
@@ -844,12 +843,10 @@ void ndfunc_fad(ushort operand)
 	b[0] = MemoryRead(gEA + 0, gUseAPT);
 	b[1] = MemoryRead(gEA + 1, gUseAPT);
 	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	res = NDFloat_Add(a, b, r);
+	NDFloat_Add(a, b, r);
 	gT = r[0];
 	gA = r[1];
 	gD = r[2];
-	if (res == -1)
-		setbit(_STS, _TG, 1);
 }
 
 /* FSB
@@ -860,7 +857,6 @@ void ndfunc_fsb(ushort operand)
 
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	b[0] = gT;
 	a[0] = gT;
 	a[1] = gA;
 	a[2] = gD;
@@ -907,11 +903,10 @@ void ndfunc_fdv(ushort operand)
 	b[0] = MemoryRead(gEA + 0, gUseAPT);
 	b[1] = MemoryRead(gEA + 1, gUseAPT);
 	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	NDFloat_Div(a, b, r);
-
-	// printf("FDV: %06o %06o %06o %06o %06o %06o ==> %06o %06o %06o\n", a[0], a[1], a[2], b[0], b[1], b[2], r[0], r[1], r[2]);
-	// This fails: FDV: 042000 100000 000000 040001 140000 000000 ==> 042000 100007 000000
-
+	if (NDFloat_Div(a, b, r)) {
+		/* Division by zero - set error indicator Z */
+		setbit(_STS, _Z, 1);
+	}
 	gT = r[0];
 	gA = r[1];
 	gD = r[2];
@@ -2081,6 +2076,7 @@ void DoTRR(ushort instr)
 		{
 			temp &= ~(1 << 2); // Force Clear bit 2 for MMS1 mode
 		}
+		/* PCR0_WRITE tracing removed - was temporary overlay debugging */
 		gReg->reg_PCR[level] = temp;
 
 		break;
@@ -3143,35 +3139,7 @@ void StoreBCD(ushort address)
 	MemoryWrite((address + 1) & 0xFFFF, D2, true, WRITEMODE_WORD);
 }
 
-/* ADDD  */
-void ndfunc_addd(ushort instr)
-{
-}
-
-/* SUBD  */
-void ndfunc_subd(ushort instr)
-{
-}
-
-/* COMD  */
-void ndfunc_comd(ushort instr)
-{
-}
-
-/* PACK  */
-void ndfunc_pack(ushort instr)
-{
-}
-
-/* UPACK */
-void ndfunc_unpack(ushort instr)
-{
-}
-
-/* SHDE  */
-void ndfunc_shde(ushort instr)
-{
-}
+/* ADDD, SUBD, COMD, PACK, UPACK, SHDE are in bcd.c */
 
 
 /*************************** INITIALIZATION ***************************/
