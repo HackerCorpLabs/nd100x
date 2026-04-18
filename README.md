@@ -376,10 +376,6 @@ The push triggers the workflow, which builds the binary, re-zips the staged dire
 
 `Actions → Build Windows → Run workflow` triggers a dry build (zip uploaded as a workflow artifact, no release published).
 
-### Artifact layout
-
-The download from the Actions UI is a single-layer zip — `nd100x.exe` and the DLLs sit at the root of the archive, not nested inside another zip.
-
 ## License
 
 See the [LICENSE](LICENSE) file for detailed licensing information.
