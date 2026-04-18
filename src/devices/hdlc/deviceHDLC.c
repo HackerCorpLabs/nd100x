@@ -20,8 +20,8 @@
  * distribution in the file COPYING); if not, see <http://www.gnu.org/licenses/>.
  */
 
-#define DEBUG_DETAIL_PLUS_DESCRIPTION
-#define DEBUG_DETAIL
+// Uncomment to enable HDLC debug logging (register reads/writes, interrupts, DMA commands)
+//#define HDLC_DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +34,111 @@
 #include "hdlcFrame.h"
 #include "chipCOM5025.h"
 #include "dmaEnum.h"
+
+#ifdef HDLC_DEBUG
+
+static const char *hdlc_reg_name[] = {
+    "RxDR",         // 0  IOX+0  Read Receiver Data
+    "PCSARH",       // 1  IOX+1  Write Parameter Control
+    "RxSR",         // 2  IOX+2  Read Receiver Status
+    "SAR",          // 3  IOX+3  Write Sync/Address
+    "CL",           // 4  IOX+4  Write Character Length
+    "TxDR",         // 5  IOX+5  Write Transmitter Data
+    "TxSR",         // 6  IOX+6  Read Transmitter Status
+    "TxCW",         // 7  IOX+7  Write TX Control
+    "RRTS",         // 8  IOX+10 Read RX Transfer Status
+    "WRTC",         // 9  IOX+11 Write RX Transfer Control
+    "RTTS",         // 10 IOX+12 Read TX Transfer Status
+    "WTTC",         // 11 IOX+13 Write TX Transfer Control
+    "RDMA_ADDR",    // 12 IOX+14 Read DMA Address
+    "WDMA_ADDR",    // 13 IOX+15 Write DMA Address
+    "RDMA_CMD",     // 14 IOX+16 Read DMA Command
+    "WDMA_CMD"      // 15 IOX+17 Write DMA Command
+};
+
+static const char *hdlc_dma_cmd_name[] = {
+    "DEVICE_CLEAR", "INITIALIZE", "RECEIVER_START", "RECEIVER_CONTINUE",
+    "TRANSMITTER_START", "DUMP_DATA_MODULE", "DUMP_REGISTERS", "LOAD_REGISTERS"
+};
+
+static void hdlc_log_rrts(uint16_t val)
+{
+    fprintf(stderr, "  RRTS=0x%04X [", val);
+    if (val & (1<<0))  fprintf(stderr, "DataAvail ");
+    if (val & (1<<1))  fprintf(stderr, "StatusAvail ");
+    if (val & (1<<2))  fprintf(stderr, "RxActive ");
+    if (val & (1<<3))  fprintf(stderr, "SyncFlag ");
+    if (val & (1<<4))  fprintf(stderr, "DMAReq ");
+    if (val & (1<<5))  fprintf(stderr, "SD ");
+    if (val & (1<<6))  fprintf(stderr, "DSR ");
+    if (val & (1<<7))  fprintf(stderr, "RI ");
+    if (val & (1<<8))  fprintf(stderr, "BlockEnd ");
+    if (val & (1<<9))  fprintf(stderr, "FrameEnd ");
+    if (val & (1<<10)) fprintf(stderr, "ListEnd ");
+    if (val & (1<<11)) fprintf(stderr, "ListEmpty ");
+    if (val & (1<<15)) fprintf(stderr, "RxOverrun ");
+    fprintf(stderr, "]\n");
+}
+
+static void hdlc_log_wrtc(uint16_t val)
+{
+    fprintf(stderr, "  WRTC=0x%04X [", val);
+    if (val & (1<<0)) fprintf(stderr, "DataAvailIE ");
+    if (val & (1<<1)) fprintf(stderr, "StatusAvailIE ");
+    if (val & (1<<2)) fprintf(stderr, "RxEnable ");
+    if (val & (1<<3)) fprintf(stderr, "RxDMA ");
+    if (val & (1<<4)) fprintf(stderr, "DMAModuleIE ");
+    if (val & (1<<5)) fprintf(stderr, "DevClear/Maint ");
+    if (val & (1<<6)) fprintf(stderr, "DTR ");
+    if (val & (1<<7)) fprintf(stderr, "ModemChgIE ");
+    if (val & (1<<8)) fprintf(stderr, "BlockEndIE ");
+    if (val & (1<<9)) fprintf(stderr, "FrameEndIE ");
+    if (val & (1<<10)) fprintf(stderr, "ListEndIE ");
+    fprintf(stderr, "]\n");
+}
+
+static void hdlc_log_rtts(uint16_t val)
+{
+    fprintf(stderr, "  RTTS=0x%04X [", val);
+    if (val & (1<<0)) fprintf(stderr, "TxBufEmpty ");
+    if (val & (1<<1)) fprintf(stderr, "TxUnderrun ");
+    if (val & (1<<2)) fprintf(stderr, "TxActive ");
+    if (val & (1<<4)) fprintf(stderr, "DMAReq ");
+    if (val & (1<<6)) fprintf(stderr, "RFS ");
+    if (val & (1<<8)) fprintf(stderr, "BlockEnd ");
+    if (val & (1<<9)) fprintf(stderr, "FrameEnd ");
+    if (val & (1<<10)) fprintf(stderr, "ListEnd ");
+    if (val & (1<<11)) fprintf(stderr, "TxFinished ");
+    if (val & (1<<15)) fprintf(stderr, "Illegal ");
+    fprintf(stderr, "]\n");
+}
+
+static void hdlc_log_wttc(uint16_t val)
+{
+    fprintf(stderr, "  WTTC=0x%04X [", val);
+    if (val & (1<<0)) fprintf(stderr, "TxBufEmptyIE ");
+    if (val & (1<<1)) fprintf(stderr, "TxUnderrunIE ");
+    if (val & (1<<2)) fprintf(stderr, "TxEnable ");
+    if (val & (1<<3)) fprintf(stderr, "TxDMA ");
+    if (val & (1<<4)) fprintf(stderr, "DMAModuleIE ");
+    if (val & (1<<5)) fprintf(stderr, "HalfDuplex ");
+    if (val & (1<<6)) fprintf(stderr, "RTS ");
+    if (val & (1<<7)) fprintf(stderr, "ModemChgIE ");
+    if (val & (1<<8)) fprintf(stderr, "BlockEndIE ");
+    if (val & (1<<9)) fprintf(stderr, "FrameEndIE ");
+    if (val & (1<<10)) fprintf(stderr, "ListEndIE ");
+    fprintf(stderr, "]\n");
+}
+
+#define HDLC_LOG(fmt, ...) fprintf(stderr, "HDLC: " fmt "\n", ##__VA_ARGS__)
+#define HDLC_LOG_IRQ(level, reason) fprintf(stderr, "HDLC: >>> IRQ %d triggered: %s\n", level, reason)
+
+#else
+
+#define HDLC_LOG(fmt, ...) ((void)0)
+#define HDLC_LOG_IRQ(level, reason) ((void)0)
+
+#endif /* HDLC_DEBUG */
 
 // Forward declarations
 static void HDLC_CheckTriggerIRQ12(Device *self);
@@ -65,11 +170,6 @@ static void HDLC_OnCOM5025TransmitterOutput(Device *device, uint8_t serialOutput
 // COM5025 pin value changed callback
 static void HDLC_OnCOM5025PinValueChanged(Device *device, COM5025SignalPinOut pin, bool value);
 
-// Debug flags (convert from C# #define)
-//#define DEBUG_DETAIL
-//#define DEBUG_DETAIL_PLUS_DESCRIPTION
-//#define DMA_DEBUG
-//#define RX_BLAST_LOGGING
 
 // Device definitions array for HDLC devices
 static const struct {
@@ -179,10 +279,6 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
     uint16_t value = 0;
     uint32_t reg = Device_RegisterAddress(self, address);
 
-#ifdef DEBUG_DETAIL
-    printf("HDLC Read from register %d (address %o)\n", reg, address);
-#endif
-
     switch (reg) {
         case HDLC_READ_RX_DATA:                // IOX +0: Read Receiver Data Register
             value = COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_RECEIVER_DATA_BUFFER);
@@ -193,9 +289,8 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
             break;
 
         case HDLC_WRITE_CHAR_LENGTH:           // IOX +4: Character Length (read operation)
-            // Write character length register (use 8 bits default)
             COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_DATA_LENGTH_SELECT, 0);
-            value = 0; // Default to 8 bits
+            value = 0;
             break;
 
         case HDLC_READ_TX_STATUS:              // IOX +6: Read Transmitter Status Register
@@ -203,10 +298,6 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
             break;
 
         case HDLC_READ_RX_TRANSFER_STATUS:     // IOX +10: Read Receiver Transfer Status
-#ifdef DEBUG_DETAIL_PLUS_DESCRIPTION
-            printf("Read RRTS: 0x%04X\n", data->rxTransferStatus.raw);
-#endif
-            // Clear DMA Module Request before reading
             data->rxTransferStatus.bits.dmaModuleRequest = 0;
 
             // Latch modem signals (RI, SD, DSR) on read of this register
@@ -224,10 +315,6 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
             break;
 
         case HDLC_READ_TX_TRANSFER_STATUS:     // IOX +12: Read Transmitter Transfer Status
-#ifdef DEBUG_DETAIL_PLUS_DESCRIPTION
-            printf("Read RTTS: 0x%04X\n", data->txTransferStatus.raw);
-#endif
-            // Clear DMA Module Request before reading
             data->txTransferStatus.bits.dmaModuleRequest = 0;
 
             // Latch ReadyForSending (CTS) on read of this register
@@ -255,12 +342,13 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
             break;
 
         default:
-            // Invalid register
             break;
     }
 
-#ifdef DEBUG_DETAIL
-    printf("HDLC Read from register %d returned 0x%04X\n", reg, value);
+#ifdef HDLC_DEBUG
+    HDLC_LOG("READ  IOX+%o %-10s => 0x%04X", reg, reg < 16 ? hdlc_reg_name[reg] : "?", value);
+    if (reg == HDLC_READ_RX_TRANSFER_STATUS)  hdlc_log_rrts(value);
+    if (reg == HDLC_READ_TX_TRANSFER_STATUS)  hdlc_log_rtts(value);
 #endif
 
     return value;
@@ -273,16 +361,13 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
     HDLCData *data = (HDLCData *)self->deviceData;
     uint32_t reg = Device_RegisterAddress(self, address);
 
-#ifdef DEBUG_DETAIL
-    printf("HDLC Write to register %d (address %o) value 0x%04X\n", reg, address, value);
+#ifdef HDLC_DEBUG
+    HDLC_LOG("WRITE IOX+%o %-10s <= 0x%04X", reg, reg < 16 ? hdlc_reg_name[reg] : "?", value);
 #endif
 
     switch (reg) {
         case HDLC_WRITE_PARAMETER_CONTROL:     // IOX +1: Write Parameter Control Register
             data->parameterControlRegister = (uint8_t)value;
-#ifdef DEBUG_DETAIL_PLUS_DESCRIPTION
-            printf("Writing Parameter Control Register = 0x%02X\n", (uint8_t)value);
-#endif
             // Configure COM5025 MODE register
             COM5025_WriteByte(data->com5025, COM5025_REG_BYTE_MODE_CONTROL, (uint8_t)value);
             break;
@@ -307,7 +392,9 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
         case HDLC_WRITE_RX_TRANSFER_CONTROL:   // IOX +11: Write Receiver Transfer Control
             data->rxTransferControl.raw = value;
-
+#ifdef HDLC_DEBUG
+            hdlc_log_wrtc(value);
+#endif
             if (value == 0) {
                 // Clear maintenance/loopback mode
                 data->maintenanceMode = false;
@@ -315,9 +402,7 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
             // Handle device clear/maintenance mode
             if (!data->maintenanceMode && data->rxTransferControl.bits.deviceClearSelectMaint) {
-#ifdef DEBUG_DETAIL
-                printf("HDLC Device Clear\n");
-#endif
+                HDLC_LOG("Device Clear");
                 HDLC_Reset(self);
                 data->rxTransferControl.bits.deviceClearSelectMaint = 0;
                 data->maintenanceMode = true;
@@ -344,6 +429,9 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
         case HDLC_WRITE_TX_TRANSFER_CONTROL:   // IOX +13: Write Transmitter Transfer Control
             data->txTransferControl.raw = value;
+#ifdef HDLC_DEBUG
+            hdlc_log_wttc(value);
+#endif
 
             // Configure COM5025 transmitter enable pin
             COM5025_SetInputPin(data->com5025, COM5025_PIN_IN_TXENA, data->txTransferControl.bits.transmitterEnabled);
@@ -365,8 +453,9 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
         case HDLC_WRITE_DMA_COMMAND:           // IOX +17: Write DMA Command
             data->dmaCommand = (value >> 8) & 0x07;
-#ifdef DMA_DEBUG
-            printf("HDLC DMA Command: %d\n", data->dmaCommand);
+#ifdef HDLC_DEBUG
+            HDLC_LOG("DMA Command: %d (%s)", data->dmaCommand,
+                     data->dmaCommand < 8 ? hdlc_dma_cmd_name[data->dmaCommand] : "?");
 #endif
             // Execute DMA command
             if (data->dmaEngine) {
@@ -418,9 +507,7 @@ static uint16_t HDLC_Ident(Device *self, uint16_t level)
 {
     if (!self) return 0;
 
-#ifdef DEBUG_DETAIL
-    printf("HDLC IDENT level %d\n", level);
-#endif
+    HDLC_LOG("IDENT level %d", level);
 
     HDLCData *data = (HDLCData *)self->deviceData;
 
@@ -586,10 +673,8 @@ Device* CreateHDLCDevice(uint8_t thumbwheel)
     DMAEngine_SetUpdateReceiverStatusCallback(data->dmaEngine, HDLC_OnDMAUpdateReceiverStatus);
     DMAEngine_SetClearCommandCallback(data->dmaEngine, HDLC_OnDMAClearCommand);
 
-#ifdef DEBUG_DETAIL
-    printf("HDLC: Created device thumbwheel=%d address=%o-%o ident=%o\n",
-           thumbwheel, dev->startAddress, dev->endAddress, dev->identCode);
-#endif
+    HDLC_LOG("Created device thumbwheel=%d address=%o-%o ident=%o",
+             thumbwheel, dev->startAddress, dev->endAddress, dev->identCode);
 
     return dev;
 }
@@ -718,7 +803,7 @@ static void HDLC_OnDMASetInterruptBit(Device *device, uint8_t bit)
 {
     if (!device) return;
 
-    // Equivalent to C# DmaEngine_OnSetInterruptBit
+    HDLC_LOG_IRQ(bit, bit == 12 ? "DMA TX" : bit == 13 ? "DMA RX" : "DMA ?");
     Device_SetInterruptStatus(device, true, bit);
 }
 
@@ -901,6 +986,7 @@ static void HDLC_CheckTriggerIRQ12(Device *self)
     // TMCS (Transmit Modem Status Change) set => Trigger interrupt 12 on change
     bool TMCS = (write_signals != modem_signals);
     if (TMCS) {
+        HDLC_LOG_IRQ(12, "TX modem status change");
         Device_SetInterruptStatus(self, true, 12);
     }
 }
@@ -922,6 +1008,7 @@ static void HDLC_CheckTriggerIRQ13(Device *self)
     // RMSC (Receive Modem Status Change) set => Trigger interrupt 13 on change
     bool RMSC = (read_signals != modem_signals);
     if (RMSC) {
+        HDLC_LOG_IRQ(13, "RX modem status change");
         Device_SetInterruptStatus(self, true, 13);
     }
 }
@@ -934,29 +1021,29 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
     if (!data) return;
 
     /*** LEVEL 13 RX ***/
-    if (data->rxTransferStatus.bits.dataAvailable) {
-        if (data->rxTransferControl.bits.dataAvailableIE) {
-            Device_SetInterruptStatus(self, true, 13);
-        }
+    if (data->rxTransferStatus.bits.dataAvailable &&
+        data->rxTransferControl.bits.dataAvailableIE) {
+        HDLC_LOG_IRQ(13, "RX DataAvailable + DataAvailableIE");
+        Device_SetInterruptStatus(self, true, 13);
     }
 
-    if (data->rxTransferStatus.bits.statusAvailable) {
-        if (data->rxTransferControl.bits.statusAvailableIE) {
-            Device_SetInterruptStatus(self, true, 13);
-        }
+    if (data->rxTransferStatus.bits.statusAvailable &&
+        data->rxTransferControl.bits.statusAvailableIE) {
+        HDLC_LOG_IRQ(13, "RX StatusAvailable + StatusAvailableIE");
+        Device_SetInterruptStatus(self, true, 13);
     }
 
     /*** LEVEL 12 TX ***/
-    if (data->txTransferStatus.bits.transmitBufferEmpty) {
-        if (data->txTransferControl.bits.transmitBufferEmptyIE) {
-            Device_SetInterruptStatus(self, true, 12);
-        }
+    if (data->txTransferStatus.bits.transmitBufferEmpty &&
+        data->txTransferControl.bits.transmitBufferEmptyIE) {
+        HDLC_LOG_IRQ(12, "TX BufferEmpty + BufferEmptyIE");
+        Device_SetInterruptStatus(self, true, 12);
     }
 
-    if (data->txTransferStatus.bits.transmitterUnderrun) {
-        if (data->txTransferControl.bits.transmitterUnderrunIE) {
-            Device_SetInterruptStatus(self, true, 12);
-        }
+    if (data->txTransferStatus.bits.transmitterUnderrun &&
+        data->txTransferControl.bits.transmitterUnderrunIE) {
+        HDLC_LOG_IRQ(12, "TX Underrun + UnderrunIE");
+        Device_SetInterruptStatus(self, true, 12);
     }
 }
 
