@@ -21,7 +21,7 @@
  */
 
 // Uncomment to enable HDLC debug logging (register reads/writes, interrupts, DMA commands)
-//#define HDLC_DEBUG
+#define HDLC_DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +34,8 @@
 #include "hdlcFrame.h"
 #include "chipCOM5025.h"
 #include "dmaEnum.h"
+#include "dmaControlBlocks.h"
+#include "dmaReceiver.h"
 
 #ifdef HDLC_DEBUG
 
@@ -249,16 +251,9 @@ static uint16_t HDLC_Tick(Device *self)
     // Increment tick counter for timing
     data->tickCounter++;
 
-    // Clock the COM5025 chip with timing divider
-    data->cpuTicks++;
-    if (data->cpuTicks >= data->cpuTicksPerTx) {
-        data->cpuTicks = 0;
-        COM5025_ClockTransmitter(data->com5025);
-        COM5025_ClockReceiver(data->com5025);
-    }
-
-    // Update HDLC controller based on COM5025 pin changes
-    HDLC_UpdateFromCOM5025Pins(self);
+    // COM5025 chip is NOT clocked in burst mode — all data goes
+    // through DMA/TCP path. Clocking it would generate spurious
+    // status pin changes that trigger IRQ 13 unexpectedly.
 
     // Tick modem and DMA engine
     if (data->modem) {
@@ -816,6 +811,7 @@ static void HDLC_OnDMASendHDLCFrame(Device *device, HDLCFrame *frame)
 
     // Equivalent to C# DmaEngine_OnSendHDLCFrame
     if (frame->frameBuffer && frame->frameLength > 0) {
+        data->framesTx++;
         Modem_SendBytes(data->modem, frame->frameBuffer, frame->frameLength);
     }
 }
@@ -1205,6 +1201,37 @@ static void HDLC_SetBaudRate(Device *self, HDLCBaudRate baudRate)
 }
 
 // Core HDLC functionality implementation complete.
+// =========================================================
+// Public accessors for external inspection (menu, debugging)
+// =========================================================
+
+bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status)
+{
+    if (!data || !status) return false;
+    memset(status, 0, sizeof(*status));
+
+    if (!data->dmaEngine || !data->dmaEngine->dmaCB) return false;
+
+    status->rxDmaEnabled = data->rxTransferControl.bits.enableReceiverDMA;
+
+    DMAControlBlocks *cb = (DMAControlBlocks *)data->dmaEngine->dmaCB;
+    HDLCFrame *rxFrame = cb->hdlcReceiveFrame;
+    if (rxFrame) {
+        status->state = (int)rxFrame->state;
+        status->frameLength = rxFrame->frameLength;
+    }
+    status->rxDcbReady = (cb->rxDCB != NULL);
+
+    // Cast needed: dmaEngine.h uses opaque 'struct DMAReceiver *' but
+    // dmaReceiver.h defines 'typedef struct { ... } DMAReceiver' (anonymous).
+    DMAReceiver *rx = (DMAReceiver *)data->dmaEngine->receiver;
+    if (rx) {
+        status->tcpQueueUsed = TcpReceiveBuffer_Available(&rx->tcpReceiveBuffer);
+    }
+
+    return true;
+}
+
 // Additional functions are implemented in their respective modules:
 // - COM5025 chip: chipCOM5025.c
 // - Modem: modem.c
