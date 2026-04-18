@@ -6,8 +6,10 @@ set(SOURCES
     vscreen.c
 )
 
-# Include menu.c only when not building for WASM or RISC-V
-if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
+# Include menu.c (F12 floppy-DB browser) when curl + ncurses are available.
+# Excluded on WASM, RISC-V, and Windows (ncurses not available on Windows
+# under w64devkit; port to PDCurses not done yet — phase 5).
+if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV OR PLATFORM_WINDOWS))
     list(APPEND SOURCES menu.c)
     set(NEED_MENU TRUE)
 else()
@@ -60,7 +62,7 @@ target_compile_definitions(nd100x PRIVATE
 # If debugger is enabled, add external library dependencies
 if(DEBUGGER_ENABLED )
     # If libdap is available, link with it
-    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap/CMakeLists.txt")
         target_include_directories(nd100x PRIVATE
             ${CMAKE_SOURCE_DIR}/external/libdap/libdap/include
         )
@@ -70,8 +72,9 @@ if(DEBUGGER_ENABLED )
     endif()
 endif()
 
-# Always link with libsymbols for a.out support
-if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+# Link libsymbols for a.out support — only when the library was actually
+# enabled in the root CMakeLists (skipped on Windows pending a port).
+if(TARGET symbols_objects)
     target_include_directories(nd100x PRIVATE
         ${CMAKE_SOURCE_DIR}/external/libsymbols/include
     )
@@ -87,7 +90,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
 # Create the prototypes header using mkptypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
-    COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
+    COMMAND ${CMAKE_COMMAND} -E echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/config.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/nd100x.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/menu.c >> ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h

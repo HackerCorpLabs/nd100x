@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include "vscreen.h"
+#include "../../ndlib/ndlib_types.h"   // KeyEvent
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 #include "../../ndlib/telnetserver.h"
@@ -53,11 +54,11 @@ static inline bool menu_is_active(const MenuState *state) {
 // Enter the F12 menu system
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 void menu_enter(MenuState *state, TelnetServer *telnetServer);
-void menu_process_key(MenuState *state, const char *keybuf, int keylen, TelnetServer *telnetServer);
+void menu_process_key(MenuState *state, const KeyEvent *key, TelnetServer *telnetServer);
 void menu_tick(MenuState *state, TelnetServer *telnetServer);
 #else
 void menu_enter(MenuState *state, void *telnetServer);
-void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *telnetServer);
+void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer);
 void menu_tick(MenuState *state, void *telnetServer);
 #endif
 

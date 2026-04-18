@@ -18,7 +18,7 @@ set(NDLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/src/ndlib")
 # Generate prototypes with mktypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
-    COMMAND echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
+    COMMAND ${CMAKE_COMMAND} -E echo "/* AUTO-GENERATED FILE. DO NOT EDIT! */" > ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/debugger.c >> ${CMAKE_CURRENT_SOURCE_DIR}/debugger_protos.h
     DEPENDS ${SOURCES}
     COMMENT "Generating prototypes for debugger"
@@ -54,7 +54,7 @@ if(DEBUGGER_ENABLED)
 
     if(PLATFORM_WASM)
         # WASM: Include libdap/libsymbols headers for type definitions only (no linking)
-        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap/CMakeLists.txt")
             target_include_directories(debugger
                 PRIVATE ${LIBDAP_INCLUDE_DIR}
             )
@@ -73,10 +73,12 @@ if(DEBUGGER_ENABLED)
             message(STATUS "Debugger module: Symbol support enabled for WASM")
         endif()
     else()
-        # Native: Full DAP and symbols library linking
-
-        # Check if libdap exists
-        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libdap")
+        # Native: Full DAP and symbols library linking.
+        # Gate on the target existing, which is set/cleared by the root
+        # CMakeLists based on submodule presence and platform support.
+        # Filesystem-existence is not sufficient — on Windows libdap is
+        # present but skipped because its source is POSIX-only.
+        if(TARGET dap_objects)
             # Include libdap
             target_include_directories(debugger
                 PRIVATE ${LIBDAP_INCLUDE_DIR}
@@ -95,11 +97,11 @@ if(DEBUGGER_ENABLED)
 
             message(STATUS "Debugger module: DAP support enabled (using libdap)")
         else()
-            message(STATUS "Debugger module: DAP support disabled (libdap not found)")
+            message(STATUS "Debugger module: DAP support disabled (libdap not built for this target)")
         endif()
 
-        # Check if libsymbols exists
-        if(EXISTS "${CMAKE_SOURCE_DIR}/external/libsymbols")
+        # Check if libsymbols target was built (may be absent on Windows etc.)
+        if(TARGET symbols_objects)
             # Set libsymbols include directory
             set(LIBSYMBOLS_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/libsymbols/include")
 

@@ -7,17 +7,11 @@
 #include "symbols.h"
 #endif
 
-#ifdef _WIN32
-    #define THREAD_FUNC DWORD WINAPI
-    
-    #define THREAD_RETURN(val) return val
-    #define WIN_RESULT DWORD WINAPI 
-#else
-    #define THREAD_FUNC void *
-    #define LPVOID void *
-    #define THREAD_RETURN(val) return (void *)(val)
-    #define WIN_RESULT void*
-#endif
+/* Native thread entry uses pthreads on both POSIX and Windows (via
+ * winpthreads from MinGW-w64). The THREAD_* macros are kept for the
+ * debugger_thread return-statement so the file reads uniformly. */
+#define THREAD_FUNC void *
+#define THREAD_RETURN(val) return (void *)(uintptr_t)(val)
 
 
 /// @brief Variable in the current stack frame
