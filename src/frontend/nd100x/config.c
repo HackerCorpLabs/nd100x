@@ -28,6 +28,7 @@
 
 #include "nd100x_types.h"
 #include "../../machine/machine_types.h"
+#include "../../devices/hdlc/hdlc_constants.h"
 
 // Long options
 static struct option long_options[] = {
@@ -50,6 +51,7 @@ static struct option long_options[] = {
     {"telnet",     optional_argument, 0, 'N'},
     {"printer",    required_argument, 0, 'r'},
     {"printformat",required_argument, 0, 'f'},
+    {"hdlc",       required_argument, 0, 'H'},
     {0, 0, 0, 0}
 };
 
@@ -78,6 +80,14 @@ void Config_Init(Config_t *config) {
     config->telnetPort = 9000;
     config->printerType = PRINTER_TEXT;
     config->printFormat = PRINT_FORMAT_TXT;
+    // HDLC configuration
+    config->hdlcCount = 0;
+    for (int i = 0; i < MAX_HDLC_DEVICES; i++) {
+        config->hdlc[i].deviceNum = 0;
+        config->hdlc[i].isServer = false;
+        config->hdlc[i].address = NULL;
+        config->hdlc[i].port = HDLC_DEFAULT_PORT;
+    }
 }
 
 static BOOT_TYPE parseBootType(const char *bootStr) {
@@ -92,12 +102,91 @@ static BOOT_TYPE parseBootType(const char *bootStr) {
     return BOOT_NONE;
 }
 
+// Parse HDLC config: "N:PORT" (server) or "N:HOST:PORT" (client)
+// N = device number 1-4
+static bool parseHDLCConfig(Config_t *config, const char *hdlcStr) {
+    if (!hdlcStr || !config) return false;
+    if (config->hdlcCount >= MAX_HDLC_DEVICES) {
+        fprintf(stderr, "Too many HDLC devices (max %d)\n", MAX_HDLC_DEVICES);
+        return false;
+    }
+
+    char *str = strdup(hdlcStr);
+    if (!str) return false;
+
+    // First token: device number
+    char *first_colon = strchr(str, ':');
+    if (!first_colon) {
+        fprintf(stderr, "HDLC config must start with device number: N:PORT or N:HOST:PORT\n");
+        free(str);
+        return false;
+    }
+
+    *first_colon = '\0';
+    char *endptr;
+    int devNum = (int)strtol(str, &endptr, 10);
+    if (*endptr != '\0' || devNum < 1 || devNum > 4) {
+        fprintf(stderr, "HDLC device number must be 1-4, got: %s\n", str);
+        free(str);
+        return false;
+    }
+
+    // Check for duplicate device number
+    for (int i = 0; i < config->hdlcCount; i++) {
+        if (config->hdlc[i].deviceNum == devNum) {
+            fprintf(stderr, "HDLC device %d already configured\n", devNum);
+            free(str);
+            return false;
+        }
+    }
+
+    char *rest = first_colon + 1;
+    char *second_colon = strchr(rest, ':');
+
+    int idx = config->hdlcCount;
+    config->hdlc[idx].deviceNum = devNum;
+
+    if (second_colon) {
+        // Client mode: "HOST:PORT"
+        *second_colon = '\0';
+        char *portStr = second_colon + 1;
+
+        config->hdlc[idx].address = strdup(rest);
+        if (!config->hdlc[idx].address) {
+            free(str);
+            return false;
+        }
+
+        config->hdlc[idx].port = (int)strtol(portStr, &endptr, 10);
+        if (*endptr != '\0' || config->hdlc[idx].port <= 0 || config->hdlc[idx].port > 65535) {
+            free(config->hdlc[idx].address);
+            config->hdlc[idx].address = NULL;
+            free(str);
+            return false;
+        }
+        config->hdlc[idx].isServer = false;
+    } else {
+        // Server mode: just PORT
+        config->hdlc[idx].port = (int)strtol(rest, &endptr, 10);
+        if (*endptr != '\0' || config->hdlc[idx].port <= 0 || config->hdlc[idx].port > 65535) {
+            free(str);
+            return false;
+        }
+        config->hdlc[idx].address = NULL;
+        config->hdlc[idx].isServer = true;
+    }
+
+    config->hdlcCount++;
+    free(str);
+    return true;
+}
+
 bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int option_index = 0;
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -197,7 +286,14 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             case 'h':
                 config->showHelp = true;
                 return true;
-                
+
+            case 'H':
+                if (!parseHDLCConfig(config, optarg)) {
+                    fprintf(stderr, "Invalid HDLC configuration: %s\n", optarg);
+                    return false;
+                }
+                break;
+
             case 'S':
                 config->smdDebug = true;
                 break;
@@ -266,6 +362,16 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
         printf("  Image file: %s\n", config->imageFile);
         printf("  Start address: 0x%x\n", config->startAddress);
         printf("  Disassembly: %s\n", config->disasmEnabled ? "enabled" : "disabled");
+        for (int i = 0; i < config->hdlcCount; i++) {
+            if (config->hdlc[i].isServer) {
+                printf("  HDLC %d: Server mode on port %d\n",
+                       config->hdlc[i].deviceNum, config->hdlc[i].port);
+            } else {
+                printf("  HDLC %d: Client mode to %s:%d\n",
+                       config->hdlc[i].deviceNum,
+                       config->hdlc[i].address, config->hdlc[i].port);
+            }
+        }
     }
     
 
@@ -293,9 +399,15 @@ void Config_PrintHelp(const char *progName) {
     printf("  -N[PORT],--telnet[=PORT] Enable telnet server (default port: 9000)\n");
     printf("  -r TYPE, --printer=TYPE  Printer emulation: text (default), escp, laser\n");
     printf("  -f FMT,  --printformat=FMT  Output format: txt (default), pdf\n");
+    printf("  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)\n");
+    printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
+    printf("                          Client: --hdlc=N:HOST:PORT\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);
     printf("  %s --boot=floppy --image=disk.img --start=0x1000 --disasm\n", progName);
     printf("  %s --debugger\n", progName);
+    printf("  %s --hdlc=1:%d                  # HDLC 1 server on port %d\n", progName, HDLC_DEFAULT_PORT, HDLC_DEFAULT_PORT);
+    printf("  %s --hdlc=1:192.168.1.10:%d     # HDLC 1 client\n", progName, HDLC_DEFAULT_PORT);
+    printf("  %s --hdlc=1:5000 --hdlc=2:5001  # Two HDLC devices\n", progName);
 } 

@@ -462,6 +462,8 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     // Find the PageTableEntry, PTe
     uint32_t pageTableEntry = GetPageTableEntry(pageTable, VPN, ptm);
 
+    /* DEBUG VPN25 tracing removed - was temporary overlay debugging */
+
 #ifdef DEBUG_MMS_MAPPING
     printf("mapVirtualToPhysical - PT=%d VPN=%d => Entry=0x%08X (%s)\n",  pageTable, VPN, pageTableEntry, GetPageTableEntryDebugInfo(pageTableEntry));
 #endif    
@@ -476,13 +478,13 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     uint8_t pageTableRing = (pageTableEntry >> 25) & 0x03;
 
 #ifdef _DEGRADE_
-    // Degrade ?
-
-    // If a program in ring 3 executes instructions assigned to rings 0,1 or 2, its ring number is reduced accordingly.
-    // Such accessess are detected by hardware which automatically changes the ring number in the PCR register for the current program level.
-    // NB! This degrading only occurs when lower ring instruction codes are executed, but not when data is accessed
     if ((am & FETCH) && (pageTableRing < ring) && (ring == 3))
     {
+        static int degrade_count = 0;
+        if (degrade_count < 3)
+            printf("\r\nDEGRADE: PIL=%d PC=%06o PT=%d VPN=%d ptRing=%d ring=%d->%d PTe=0x%08X\r\n",
+                   CurrLEVEL, gPC, pageTable, VPN, pageTableRing, ring, pageTableRing, pageTableEntry);
+        degrade_count++;
         ring = pageTableRing;
         gReg->reg_PCR[CurrLEVEL] = (gReg->reg_PCR[CurrLEVEL] & 0xFFFC) | ring;
     }
@@ -496,7 +498,14 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     // The PCR ring bits should always be greater than or equal to the PT ring bits. If not, an internal interrupt (MPV) will be generated.
 
     if (ring < pageTableRing)
-    {        
+    {
+        static int ring_mpv = 0;
+        if (ring_mpv < 5) {
+            uint16_t pcr_now = gReg->reg_PCR[CurrLEVEL];
+            printf("\r\nRING_MPV: PT=%d VPN=%d ring=%d ptRing=%d PCR=0%06o PCR_ring=%d PIL=%d VA=%06o am=%d\r\n",
+                   pageTable, VPN, ring, pageTableRing, pcr_now, pcr_now & 3, CurrLEVEL, virtualAddress, am);
+        }
+        ring_mpv++;
         UpdatePGS(pageTable, VPN, am, false);                
 #ifdef DEBUG_MMS
         printf("[%d] Ring Protection Violation. Ring=%d PTRing=%d Accessmode=%d PGS=%06o PT=%d VPN=%d PTe=0x%08X\n", 
@@ -628,6 +637,13 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // If the combination of WPM, RPM and FPM are all zero, this is interpreted as page not in memory and will generate an internal interrupt as page fault
     if ((pageTableEntry & pfMask) == 0)
     {
+        if (VPN == 25 && pageTable == 0) {
+            static int pf25 = 0;
+            if (pf25 < 3)
+                printf("\r\nPF25: PTe=0x%08X pfMask=0x%08lX PIL=%d am=%d\r\n",
+                       pageTableEntry, (unsigned long)pfMask, CurrLEVEL, am);
+            pf25++;
+        }
         // PGS bit 14 (PM - Permit violation) must be FALSE here.
         //
         // Per ND-60.062.01 SINTRAN III System Documentation, page 25:
@@ -656,6 +672,13 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // Triggers IIC=2 (memory protection violation).
     if ((pageTableEntry & accessBits) == 0)
     {
+        if (1) {  /* trace ALL access-denied MPVs */
+            static int mpv25 = 0;
+            if (mpv25 < 5)
+                printf("\r\nACCESS_DENIED: PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d UseAPT=%d PIL=%d VA=%06o\r\n",
+                       pageTable, VPN, pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
+            mpv25++;
+        }
         UpdatePGS(pageTable, VPN, am, true);
         HandleMPV(virtualAddress);
         return false;
@@ -861,8 +884,24 @@ void HandleMemoryOutOfRange(uint physicalAddress)
 /// @param virtualAddress 
 void HandleMPV(uint virtualAddress)
 {
-    //printf("HandleMPV: %06o\n", virtualAddress);
-    interrupt(14, 1 << 2); // MPV - MEMORY_PROTECTION_VIOLATION bit 2            
+    static int mpv_count = 0;
+    uint VPN = (virtualAddress >> 10) & 0x3F;
+    if (mpv_count < 5) {
+        /* Also dump the PTE that was used */
+        uint16_t pcr = gReg->reg_PCR[CurrLEVEL];
+        int useAPT = STS_PTM; /* data access uses APT when PTM=1 */
+        uint pt;
+        if (useAPT) {
+            pt = ((pcr & (1<<2)) && (mmsType == MMS2)) ? (pcr >> 7) & 0xF : (pcr >> 7) & 0x3;
+        } else {
+            pt = ((pcr & (1<<2)) && (mmsType == MMS2)) ? (pcr >> 11) & 0xF : (pcr >> 9) & 0x3;
+        }
+        uint32_t pte = GetPageTableEntry(pt, VPN, Sixteen);
+        printf("\r\nHandleMPV: VA=%06o VPN=%d PT=%d PTe=0x%08X PIL=%d PC=%06o\r\n",
+               virtualAddress, VPN, pt, pte, CurrLEVEL, gPC);
+    }
+    mpv_count++;
+    interrupt(14, 1 << 2);            
 }
 
 /// @brief Handle page fault. Will TRAP the instruction
