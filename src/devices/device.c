@@ -261,12 +261,6 @@ void Device_GenerateInterrupt(Device *dev, uint16_t level)
         if ((dev->interruptBits & (1 << level)) == 0)
         {
             dev->interruptBits |= (1 << level);
-#ifdef HDLC_DEBUG
-            if (dev->type == DEVICE_TYPE_HDLC) {
-                fprintf(stderr, "HDLC_IRQ: Device '%s' SET interrupt level %d (bits=0x%04X)\n",
-                        dev->memoryName, level, dev->interruptBits);
-            }
-#endif
         }
     }
 }
@@ -367,13 +361,13 @@ int32_t Device_IO_BufferWriteWord(Device *dev,uint8_t *buf, int32_t word_offset,
     return 0;
 }
 
-void Device_DMAWrite(uint32_t coreAddress, uint16_t data) {    
-    WritePhysicalMemory(coreAddress, data, false);    
+void Device_DMAWrite(uint32_t coreAddress, uint16_t data) {
+    WritePhysicalMemory(coreAddress & 0xFFFFFF, data, false);
 }
 
 int32_t Device_DMARead(uint32_t coreAddress)
 {
-    return ReadPhysicalMemory(coreAddress, false);
+    return ReadPhysicalMemory(coreAddress & 0xFFFFFF, false);
 }
 
 // Character Device Functions

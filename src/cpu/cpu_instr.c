@@ -2487,20 +2487,20 @@ void DoMOVEW(ushort instr)
 	{
 	case 2:
 	case 5:
-		destinationAddress |= (gX << 16);
+		destinationAddress = (destinationAddress | (gX << 16)) & 0xFFFFFF;
 		isDestinationPhysical = true;
 		break;
 
 	case 6:
 	case 7:
-		sourceAddress |= (gA << 16);
+		sourceAddress = (sourceAddress | (gA << 16)) & 0xFFFFFF;
 		isSourcePhysical = true;
 		break;
 	case 8:
-		destinationAddress |= (gX << 16);
+		destinationAddress = (destinationAddress | (gX << 16)) & 0xFFFFFF;
 		isDestinationPhysical = true;
 
-		sourceAddress |= (gA << 16);
+		sourceAddress = (sourceAddress | (gA << 16)) & 0xFFFFFF;
 		isSourcePhysical = true;
 		break;
 	}
