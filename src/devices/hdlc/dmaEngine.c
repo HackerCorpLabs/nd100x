@@ -42,7 +42,7 @@
 // Debug flags (convert from C# #define)
 #define DEBUG_DETAIL
 #define DEBUG_DETAIL_PLUS_DESCRIPTION
-#define DMA_DEBUG
+// #define DMA_DEBUG
 
 // Remove static declaration since it's declared public in header
 
