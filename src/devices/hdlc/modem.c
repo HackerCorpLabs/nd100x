@@ -263,6 +263,18 @@ void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int
                    address ? address : "localhost", port);
         }
     }
+
+    // Signal DSR and SD immediately so SINTRAN sees the hardware as present.
+    // TCP connection state is separate from hardware presence.
+    modem->dataSetReady = true;
+    modem->signalDetector = true;
+    if (modem->onDataSetReady) {
+        modem->onDataSetReady(modem->hdlcDevice, true);
+    }
+    if (modem->onSignalDetector) {
+        modem->onSignalDetector(modem->hdlcDevice, true);
+    }
+
 #else
     // WASM: no TCP sockets, simulate connected for loopback testing
     modem->networkStarted = true;
