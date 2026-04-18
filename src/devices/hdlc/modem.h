@@ -26,11 +26,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Networking is only available on POSIX platforms (not WASM, not Windows)
-#if !defined(__EMSCRIPTEN__) && !defined(PLATFORM_WINDOWS) && !defined(_WIN32)
+// Networking is available on every native target — POSIX directly, Windows
+// via the net_compat.h shim over Winsock2. Only WASM is stubbed out (no
+// sockets / threads in the browser).
+#if !defined(__EMSCRIPTEN__)
 #define MODEM_HAS_NETWORKING 1
-#include <pthread.h>
-#include <stdatomic.h>
+#include <pthread.h>     /* libpthread on POSIX, winpthreads on MinGW */
+#include <stdatomic.h>   /* C11 atomics — works on both toolchains */
 #endif
 
 typedef struct Device Device;
