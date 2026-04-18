@@ -40,8 +40,10 @@
 #endif
 
 // ============================================================================
-// Thread-safe queue operations
+// Thread-safe queue operations (POSIX only)
 // ============================================================================
+
+#ifdef MODEM_HAS_NETWORKING
 
 static void queue_init(ModemQueue *q)
 {
@@ -95,6 +97,8 @@ static bool queue_has_data(ModemQueue *q)
 {
     return q->head != q->tail;
 }
+
+#endif /* MODEM_HAS_NETWORKING */
 
 // ============================================================================
 // Socket helpers
