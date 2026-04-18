@@ -412,7 +412,7 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
             menu_set_mode(state, MENU_NONE, telnetServer);
         } else if (ch == '2') {
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
-        } else if (keybuf[0] == '3') {
+        } else if (ch == '3') {
             menu_set_mode(state, MENU_HDLC_STATUS, telnetServer);
         }
         break;
@@ -571,7 +571,7 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
 
     // ----- HDLC status (live view) -----
     case MENU_HDLC_STATUS:
-        if (is_escape_key(keybuf)) {
+        if (is_esc) {
             menu_set_mode(state, MENU_F12, telnetServer);
         }
         break;

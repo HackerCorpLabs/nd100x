@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/device.c */
+/* /home/ronny/repos/nd100x/src/devices/device.c */
 uint8_t Device_GetOddParity(uint8_t value);
 void Device_Init(Device *dev, uint8_t thumbwheel, DeviceClass deviceClass, size_t blockSize);
 void Device_Destroy(Device *dev);
@@ -34,7 +34,7 @@ void Device_SetBlockDiskInfo(Device *dev, BlockDeviceDiskInfoFunc infoFunc, void
 int Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 int Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/devicemanager.c */
+/* /home/ronny/repos/nd100x/src/devices/devicemanager.c */
 void DeviceManager_Init(LogLevel level);
 void DeviceManager_Destroy(void);
 void DeviceManager_AddAllDevices(void);
@@ -50,7 +50,7 @@ int DeviceManager_GetDeviceCount(void);
 Device *DeviceManager_GetDeviceByIndex(int index);
 int DeviceManager_Boot(uint16_t device_id);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/panel/panel.c */
+/* /home/ronny/repos/nd100x/src/devices/panel/panel.c */
 void setup_pap(void);
 void ProcessMessageControl(PANC_Register panc);
 void ProcessTerminalPanc(void);
@@ -60,35 +60,35 @@ void panel_thread(void);
 void panel_event(void);
 void panel_processor_thread(void);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/rtc/deviceRTC.c */
+/* /home/ronny/repos/nd100x/src/devices/rtc/deviceRTC.c */
 Device *CreateRTCDevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/terminal/deviceTerminal.c */
+/* /home/ronny/repos/nd100x/src/devices/terminal/deviceTerminal.c */
 void Terminal_QueueKeyCode(Device *self, uint8_t keycode);
 Device *CreateTerminalDevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/papertape/devicePapertape.c */
+/* /home/ronny/repos/nd100x/src/devices/papertape/devicePapertape.c */
 void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length);
 Device *CreatePaperTapeDevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/floppy/deviceFloppyDMA.c */
+/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyDMA.c */
 Device *CreateFloppyDMADevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/floppy/deviceFloppyPIO.c */
+/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyPIO.c */
 void FloppyPIO_ExecuteGo(Device *self, FloppyPIOCommand command);
 Device *CreateFloppyPIODevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/smd/deviceSMD.c */
+/* /home/ronny/repos/nd100x/src/devices/smd/deviceSMD.c */
 Device *CreateSMDDevice(uint8_t thumbwheel);
 void SMD_Destroy(Device *dev);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/smd/diskSMD.c */
+/* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
+/* /home/ronny/repos/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
 Device *CreateLinePrinterDevice(uint8_t thumbwheel);
 
-/* E:/Dev/Emulators/ND/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
+/* /home/ronny/repos/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
 const uint8_t *PaperTapeWriter_GetTapeData(Device *self, size_t *length);
 Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);
 
@@ -205,37 +205,37 @@ void DMAEngine_SetClearCommandCallback(DMAEngine *dma, DMAClearCommandCallback c
 void DMAEngine_Log(DMAEngine *dma, const char *format, ...);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/dmaDCB.c */
-void DCB_Init(DCB *dcb);
-void DCB_Clear(DCB *dcb);
-KeyFlags DCB_GetKey(const DCB *dcb);
-bool DCB_HasRSOMFlag(const DCB *dcb);
-bool DCB_HasREOMFlag(const DCB *dcb);
-uint16_t DCB_GetDataFlowCost(const DCB *dcb);
-uint32_t DCB_GetDataMemoryAddress(const DCB *dcb);
-void DCB_SetDataMemoryAddress(DCB *dcb, uint32_t address);
-void DCB_SetBufferAddress(DCB *dcb, uint32_t address);
-uint32_t DCB_GetBufferAddress(const DCB *dcb);
-void DCB_SetOffsetFromLP(DCB *dcb, uint16_t offset);
-uint16_t DCB_GetOffsetFromLP(const DCB *dcb);
-void DCB_SetKeyValue(DCB *dcb, uint16_t keyValue);
-uint16_t DCB_GetKeyValue(const DCB *dcb);
-void DCB_SetByteCount(DCB *dcb, uint16_t byteCount);
-uint16_t DCB_GetByteCount(const DCB *dcb);
-void DCB_SetDisplacement(DCB *dcb, uint16_t displacement);
-uint16_t DCB_GetDisplacement(const DCB *dcb);
-void DCB_SetListPointer(DCB *dcb, uint32_t listPointer);
-uint32_t DCB_GetListPointer(const DCB *dcb);
-void DCB_SetDMAAddress(DCB *dcb, uint32_t address);
-uint32_t DCB_GetDMAAddress(const DCB *dcb);
-void DCB_SetDMABytesRead(DCB *dcb, int bytesRead);
-int DCB_GetDMABytesRead(const DCB *dcb);
-void DCB_SetDMABytesWritten(DCB *dcb, int bytesWritten);
-int DCB_GetDMABytesWritten(const DCB *dcb);
-void DCB_SetDMAReadData(DCB *dcb, int data);
-int DCB_GetDMAReadData(const DCB *dcb);
-bool DCB_IsDMAReadDataValid(const DCB *dcb);
-void DCB_ClearDMAReadData(DCB *dcb);
-void DCB_Print(const DCB *dcb);
+void DCB_Init(HdlcDCB *dcb);
+void DCB_Clear(HdlcDCB *dcb);
+KeyFlags DCB_GetKey(const HdlcDCB *dcb);
+bool DCB_HasRSOMFlag(const HdlcDCB *dcb);
+bool DCB_HasREOMFlag(const HdlcDCB *dcb);
+uint16_t DCB_GetDataFlowCost(const HdlcDCB *dcb);
+uint32_t DCB_GetDataMemoryAddress(const HdlcDCB *dcb);
+void DCB_SetDataMemoryAddress(HdlcDCB *dcb, uint32_t address);
+void DCB_SetBufferAddress(HdlcDCB *dcb, uint32_t address);
+uint32_t DCB_GetBufferAddress(const HdlcDCB *dcb);
+void DCB_SetOffsetFromLP(HdlcDCB *dcb, uint16_t offset);
+uint16_t DCB_GetOffsetFromLP(const HdlcDCB *dcb);
+void DCB_SetKeyValue(HdlcDCB *dcb, uint16_t keyValue);
+uint16_t DCB_GetKeyValue(const HdlcDCB *dcb);
+void DCB_SetByteCount(HdlcDCB *dcb, uint16_t byteCount);
+uint16_t DCB_GetByteCount(const HdlcDCB *dcb);
+void DCB_SetDisplacement(HdlcDCB *dcb, uint16_t displacement);
+uint16_t DCB_GetDisplacement(const HdlcDCB *dcb);
+void DCB_SetListPointer(HdlcDCB *dcb, uint32_t listPointer);
+uint32_t DCB_GetListPointer(const HdlcDCB *dcb);
+void DCB_SetDMAAddress(HdlcDCB *dcb, uint32_t address);
+uint32_t DCB_GetDMAAddress(const HdlcDCB *dcb);
+void DCB_SetDMABytesRead(HdlcDCB *dcb, int bytesRead);
+int DCB_GetDMABytesRead(const HdlcDCB *dcb);
+void DCB_SetDMABytesWritten(HdlcDCB *dcb, int bytesWritten);
+int DCB_GetDMABytesWritten(const HdlcDCB *dcb);
+void DCB_SetDMAReadData(HdlcDCB *dcb, int data);
+int DCB_GetDMAReadData(const HdlcDCB *dcb);
+bool DCB_IsDMAReadDataValid(const HdlcDCB *dcb);
+void DCB_ClearDMAReadData(HdlcDCB *dcb);
+void DCB_Print(const HdlcDCB *dcb);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/dmaControlBlocks.c */
 void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice);
@@ -251,7 +251,7 @@ void DMAControlBlocks_LoadRXBuffer(DMAControlBlocks *dmaCB);
 bool DMAControlBlocks_LoadNextRXBuffer(DMAControlBlocks *dmaCB);
 bool DMAControlBlocks_IsNextRXbufValid(DMAControlBlocks *dmaCB);
 void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStatus);
-DCB *DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX);
+HdlcDCB *DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX);
 uint8_t DMAControlBlocks_ReadNextByteDMA(DMAControlBlocks *dmaCB, bool isRx);
 void DMAControlBlocks_WriteNextByteDMA(DMAControlBlocks *dmaCB, uint8_t data, bool isRx);
 void DMAControlBlocks_SetReadDMACallback(DMAControlBlocks *dmaCB, DMAControlBlocks_ReadCallback callback, void *context);

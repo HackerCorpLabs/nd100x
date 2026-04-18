@@ -97,107 +97,107 @@ typedef struct {
      */
     int dmaReadData;
 
-} DCB;
+} HdlcDCB;
 
 // Function declarations
 
 /**
- * @brief Initialize a DCB structure to default values
- * @param dcb Pointer to DCB structure to initialize
+ * @brief Initialize a HdlcDCB structure to default values
+ * @param dcb Pointer to HdlcDCB structure to initialize
  */
-void DCB_Init(DCB *dcb);
+void DCB_Init(HdlcDCB *dcb);
 
 /**
- * @brief Clear a DCB structure (same as Init)
- * @param dcb Pointer to DCB structure to clear
+ * @brief Clear a HdlcDCB structure (same as Init)
+ * @param dcb Pointer to HdlcDCB structure to clear
  */
-void DCB_Clear(DCB *dcb);
+void DCB_Clear(HdlcDCB *dcb);
 
 /**
  * @brief Get the Key flags from the KeyValue
- * @param dcb Pointer to DCB structure
+ * @param dcb Pointer to HdlcDCB structure
  * @return Key flags masked with KEYFLAG_MASK_KEY
  */
-KeyFlags DCB_GetKey(const DCB *dcb);
+KeyFlags DCB_GetKey(const HdlcDCB *dcb);
 
 /**
- * @brief Check if DCB has Receiver Start of Message flag
- * @param dcb Pointer to DCB structure
+ * @brief Check if HdlcDCB has Receiver Start of Message flag
+ * @param dcb Pointer to HdlcDCB structure
  * @return true if RSOM flag is set, false otherwise
  */
-bool DCB_HasRSOMFlag(const DCB *dcb);
+bool DCB_HasRSOMFlag(const HdlcDCB *dcb);
 
 /**
- * @brief Check if DCB has Receiver End of Message flag
- * @param dcb Pointer to DCB structure
+ * @brief Check if HdlcDCB has Receiver End of Message flag
+ * @param dcb Pointer to HdlcDCB structure
  * @return true if REOM flag is set, false otherwise
  */
-bool DCB_HasREOMFlag(const DCB *dcb);
+bool DCB_HasREOMFlag(const HdlcDCB *dcb);
 
 /**
  * @brief Get the DataFlow Cost from KeyValue
- * @param dcb Pointer to DCB structure
+ * @param dcb Pointer to HdlcDCB structure
  * @return DataFlow Cost value
  */
-uint16_t DCB_GetDataFlowCost(const DCB *dcb);
+uint16_t DCB_GetDataFlowCost(const HdlcDCB *dcb);
 
 /**
  * @brief Get the combined 24-bit data memory address
- * @param dcb Pointer to DCB structure
+ * @param dcb Pointer to HdlcDCB structure
  * @return Combined address from mostAddress and leastAddress
  */
-uint32_t DCB_GetDataMemoryAddress(const DCB *dcb);
+uint32_t DCB_GetDataMemoryAddress(const HdlcDCB *dcb);
 
 /**
  * @brief Set the 24-bit data memory address
- * @param dcb Pointer to DCB structure
+ * @param dcb Pointer to HdlcDCB structure
  * @param address 24-bit address to set
  */
-void DCB_SetDataMemoryAddress(DCB *dcb, uint32_t address);
+void DCB_SetDataMemoryAddress(HdlcDCB *dcb, uint32_t address);
 
 // Accessor functions
 
-void DCB_SetBufferAddress(DCB *dcb, uint32_t address);
-uint32_t DCB_GetBufferAddress(const DCB *dcb);
+void DCB_SetBufferAddress(HdlcDCB *dcb, uint32_t address);
+uint32_t DCB_GetBufferAddress(const HdlcDCB *dcb);
 
-void DCB_SetOffsetFromLP(DCB *dcb, uint16_t offset);
-uint16_t DCB_GetOffsetFromLP(const DCB *dcb);
+void DCB_SetOffsetFromLP(HdlcDCB *dcb, uint16_t offset);
+uint16_t DCB_GetOffsetFromLP(const HdlcDCB *dcb);
 
-void DCB_SetKeyValue(DCB *dcb, uint16_t keyValue);
-uint16_t DCB_GetKeyValue(const DCB *dcb);
+void DCB_SetKeyValue(HdlcDCB *dcb, uint16_t keyValue);
+uint16_t DCB_GetKeyValue(const HdlcDCB *dcb);
 
-void DCB_SetByteCount(DCB *dcb, uint16_t byteCount);
-uint16_t DCB_GetByteCount(const DCB *dcb);
+void DCB_SetByteCount(HdlcDCB *dcb, uint16_t byteCount);
+uint16_t DCB_GetByteCount(const HdlcDCB *dcb);
 
-void DCB_SetDisplacement(DCB *dcb, uint16_t displacement);
-uint16_t DCB_GetDisplacement(const DCB *dcb);
+void DCB_SetDisplacement(HdlcDCB *dcb, uint16_t displacement);
+uint16_t DCB_GetDisplacement(const HdlcDCB *dcb);
 
-void DCB_SetListPointer(DCB *dcb, uint32_t listPointer);
-uint32_t DCB_GetListPointer(const DCB *dcb);
+void DCB_SetListPointer(HdlcDCB *dcb, uint32_t listPointer);
+uint32_t DCB_GetListPointer(const HdlcDCB *dcb);
 
 // DMA helper functions
 
-void DCB_SetDMAAddress(DCB *dcb, uint32_t address);
-uint32_t DCB_GetDMAAddress(const DCB *dcb);
+void DCB_SetDMAAddress(HdlcDCB *dcb, uint32_t address);
+uint32_t DCB_GetDMAAddress(const HdlcDCB *dcb);
 
-void DCB_SetDMABytesRead(DCB *dcb, int bytesRead);
-int DCB_GetDMABytesRead(const DCB *dcb);
+void DCB_SetDMABytesRead(HdlcDCB *dcb, int bytesRead);
+int DCB_GetDMABytesRead(const HdlcDCB *dcb);
 
-void DCB_SetDMABytesWritten(DCB *dcb, int bytesWritten);
-int DCB_GetDMABytesWritten(const DCB *dcb);
+void DCB_SetDMABytesWritten(HdlcDCB *dcb, int bytesWritten);
+int DCB_GetDMABytesWritten(const HdlcDCB *dcb);
 
-void DCB_SetDMAReadData(DCB *dcb, int data);
-int DCB_GetDMAReadData(const DCB *dcb);
+void DCB_SetDMAReadData(HdlcDCB *dcb, int data);
+int DCB_GetDMAReadData(const HdlcDCB *dcb);
 
-bool DCB_IsDMAReadDataValid(const DCB *dcb);
-void DCB_ClearDMAReadData(DCB *dcb);
+bool DCB_IsDMAReadDataValid(const HdlcDCB *dcb);
+void DCB_ClearDMAReadData(HdlcDCB *dcb);
 
 // Debug/utility functions
 
 /**
- * @brief Print DCB contents for debugging
- * @param dcb Pointer to DCB structure to print
+ * @brief Print HdlcDCB contents for debugging
+ * @param dcb Pointer to HdlcDCB structure to print
  */
-void DCB_Print(const DCB *dcb);
+void DCB_Print(const HdlcDCB *dcb);
 
 #endif // DMA_DCB_H

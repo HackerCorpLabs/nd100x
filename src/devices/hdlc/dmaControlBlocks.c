@@ -341,13 +341,13 @@ void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStat
 
 // Buffer Description Loading
 
-DCB* DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX)
+HdlcDCB* DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX)
 {
     if (!dmaCB || listPointer == 0) return NULL;
 
     uint32_t actualListPointer = listPointer + (uint32_t)(offset * 4);
 
-    DCB *description = malloc(sizeof(DCB));
+    HdlcDCB *description = malloc(sizeof(HdlcDCB));
     if (!description) return NULL;
 
     DCB_Init(description);
@@ -440,7 +440,7 @@ uint8_t DMAControlBlocks_ReadNextByteDMA(DMAControlBlocks *dmaCB, bool isRx)
 {
     if (!dmaCB) return 0;
 
-    DCB *description;
+    HdlcDCB *description;
     if (isRx) {
         description = dmaCB->rxDCB;
     } else {
@@ -493,7 +493,7 @@ void DMAControlBlocks_WriteNextByteDMA(DMAControlBlocks *dmaCB, uint8_t data, bo
 {
     if (!dmaCB) return;
 
-    DCB *description;
+    HdlcDCB *description;
     if (isRx) {
         description = dmaCB->rxDCB;
     } else {

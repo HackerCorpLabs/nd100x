@@ -29,11 +29,11 @@
 #include "dmaDCB.h"
 #include "hdlc_constants.h"
 
-void DCB_Init(DCB *dcb)
+void DCB_Init(HdlcDCB *dcb)
 {
     if (!dcb) return;
 
-    memset(dcb, 0, sizeof(DCB));
+    memset(dcb, 0, sizeof(HdlcDCB));
 
     // Initialize to default values
     dcb->bufferAddress = 0;
@@ -52,42 +52,42 @@ void DCB_Init(DCB *dcb)
     dcb->dmaReadData = -1; // -1 indicates not read
 }
 
-void DCB_Clear(DCB *dcb)
+void DCB_Clear(HdlcDCB *dcb)
 {
     if (!dcb) return;
 
     DCB_Init(dcb);
 }
 
-KeyFlags DCB_GetKey(const DCB *dcb)
+KeyFlags DCB_GetKey(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return (KeyFlags)(dcb->keyValue & KEYFLAG_MASK_KEY);
 }
 
-bool DCB_HasRSOMFlag(const DCB *dcb)
+bool DCB_HasRSOMFlag(const HdlcDCB *dcb)
 {
     if (!dcb) return false;
 
     return (dcb->keyValue & KEYFLAG_RCOST_RSOM) != 0;
 }
 
-bool DCB_HasREOMFlag(const DCB *dcb)
+bool DCB_HasREOMFlag(const HdlcDCB *dcb)
 {
     if (!dcb) return false;
 
     return (dcb->keyValue & KEYFLAG_RCOST_REOM) != 0;
 }
 
-uint16_t DCB_GetDataFlowCost(const DCB *dcb)
+uint16_t DCB_GetDataFlowCost(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return (uint16_t)(dcb->keyValue & KEYFLAG_MASK_DATAFLOW_COST);
 }
 
-uint32_t DCB_GetDataMemoryAddress(const DCB *dcb)
+uint32_t DCB_GetDataMemoryAddress(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
@@ -95,7 +95,7 @@ uint32_t DCB_GetDataMemoryAddress(const DCB *dcb)
     return (uint32_t)(dcb->mostAddress & 0x00FF) << 16 | dcb->leastAddress;
 }
 
-void DCB_SetDataMemoryAddress(DCB *dcb, uint32_t address)
+void DCB_SetDataMemoryAddress(HdlcDCB *dcb, uint32_t address)
 {
     if (!dcb) return;
 
@@ -103,84 +103,84 @@ void DCB_SetDataMemoryAddress(DCB *dcb, uint32_t address)
     dcb->mostAddress = (uint16_t)((address >> 16) & 0x00FF);
 }
 
-void DCB_SetBufferAddress(DCB *dcb, uint32_t address)
+void DCB_SetBufferAddress(HdlcDCB *dcb, uint32_t address)
 {
     if (!dcb) return;
 
     dcb->bufferAddress = address;
 }
 
-uint32_t DCB_GetBufferAddress(const DCB *dcb)
+uint32_t DCB_GetBufferAddress(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->bufferAddress;
 }
 
-void DCB_SetOffsetFromLP(DCB *dcb, uint16_t offset)
+void DCB_SetOffsetFromLP(HdlcDCB *dcb, uint16_t offset)
 {
     if (!dcb) return;
 
     dcb->offsetFromLP = offset;
 }
 
-uint16_t DCB_GetOffsetFromLP(const DCB *dcb)
+uint16_t DCB_GetOffsetFromLP(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->offsetFromLP;
 }
 
-void DCB_SetKeyValue(DCB *dcb, uint16_t keyValue)
+void DCB_SetKeyValue(HdlcDCB *dcb, uint16_t keyValue)
 {
     if (!dcb) return;
 
     dcb->keyValue = keyValue;
 }
 
-uint16_t DCB_GetKeyValue(const DCB *dcb)
+uint16_t DCB_GetKeyValue(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->keyValue;
 }
 
-void DCB_SetByteCount(DCB *dcb, uint16_t byteCount)
+void DCB_SetByteCount(HdlcDCB *dcb, uint16_t byteCount)
 {
     if (!dcb) return;
 
     dcb->byteCount = byteCount;
 }
 
-uint16_t DCB_GetByteCount(const DCB *dcb)
+uint16_t DCB_GetByteCount(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->byteCount;
 }
 
-void DCB_SetDisplacement(DCB *dcb, uint16_t displacement)
+void DCB_SetDisplacement(HdlcDCB *dcb, uint16_t displacement)
 {
     if (!dcb) return;
 
     dcb->displacement = displacement;
 }
 
-uint16_t DCB_GetDisplacement(const DCB *dcb)
+uint16_t DCB_GetDisplacement(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->displacement;
 }
 
-void DCB_SetListPointer(DCB *dcb, uint32_t listPointer)
+void DCB_SetListPointer(HdlcDCB *dcb, uint32_t listPointer)
 {
     if (!dcb) return;
 
     dcb->listPointer = listPointer;
 }
 
-uint32_t DCB_GetListPointer(const DCB *dcb)
+uint32_t DCB_GetListPointer(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
@@ -189,70 +189,70 @@ uint32_t DCB_GetListPointer(const DCB *dcb)
 
 // DMA helper functions
 
-void DCB_SetDMAAddress(DCB *dcb, uint32_t address)
+void DCB_SetDMAAddress(HdlcDCB *dcb, uint32_t address)
 {
     if (!dcb) return;
 
     dcb->dmaAddress = address;
 }
 
-uint32_t DCB_GetDMAAddress(const DCB *dcb)
+uint32_t DCB_GetDMAAddress(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->dmaAddress;
 }
 
-void DCB_SetDMABytesRead(DCB *dcb, int bytesRead)
+void DCB_SetDMABytesRead(HdlcDCB *dcb, int bytesRead)
 {
     if (!dcb) return;
 
     dcb->dmaBytesRead = bytesRead;
 }
 
-int DCB_GetDMABytesRead(const DCB *dcb)
+int DCB_GetDMABytesRead(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->dmaBytesRead;
 }
 
-void DCB_SetDMABytesWritten(DCB *dcb, int bytesWritten)
+void DCB_SetDMABytesWritten(HdlcDCB *dcb, int bytesWritten)
 {
     if (!dcb) return;
 
     dcb->dmaBytesWritten = bytesWritten;
 }
 
-int DCB_GetDMABytesWritten(const DCB *dcb)
+int DCB_GetDMABytesWritten(const HdlcDCB *dcb)
 {
     if (!dcb) return 0;
 
     return dcb->dmaBytesWritten;
 }
 
-void DCB_SetDMAReadData(DCB *dcb, int data)
+void DCB_SetDMAReadData(HdlcDCB *dcb, int data)
 {
     if (!dcb) return;
 
     dcb->dmaReadData = data;
 }
 
-int DCB_GetDMAReadData(const DCB *dcb)
+int DCB_GetDMAReadData(const HdlcDCB *dcb)
 {
     if (!dcb) return -1;
 
     return dcb->dmaReadData;
 }
 
-bool DCB_IsDMAReadDataValid(const DCB *dcb)
+bool DCB_IsDMAReadDataValid(const HdlcDCB *dcb)
 {
     if (!dcb) return false;
 
     return dcb->dmaReadData != -1;
 }
 
-void DCB_ClearDMAReadData(DCB *dcb)
+void DCB_ClearDMAReadData(HdlcDCB *dcb)
 {
     if (!dcb) return;
 
@@ -261,7 +261,7 @@ void DCB_ClearDMAReadData(DCB *dcb)
 
 // Debug/utility functions
 
-void DCB_Print(const DCB *dcb)
+void DCB_Print(const HdlcDCB *dcb)
 {
     if (!dcb) {
         printf("DCB: (null)\n");

@@ -50,8 +50,8 @@ typedef struct {
     int outboundBufferCapacity;
 
     // DCB pointers
-    DCB *txDCB;
-    DCB *rxDCB;
+    HdlcDCB *txDCB;
+    HdlcDCB *rxDCB;
 
     // List pointer management
     uint32_t txListPointer;
@@ -97,7 +97,7 @@ void DMAControlBlocks_LoadRXBuffer(DMAControlBlocks *dmaCB);
 bool DMAControlBlocks_LoadNextRXBuffer(DMAControlBlocks *dmaCB);
 bool DMAControlBlocks_IsNextRXbufValid(DMAControlBlocks *dmaCB);
 void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStatus);
-DCB *DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX);
+HdlcDCB *DMAControlBlocks_LoadBufferDescription(DMAControlBlocks *dmaCB, uint32_t listPointer, uint16_t offset, bool isRX);
 uint8_t DMAControlBlocks_ReadNextByteDMA(DMAControlBlocks *dmaCB, bool isRx);
 void DMAControlBlocks_WriteNextByteDMA(DMAControlBlocks *dmaCB, uint8_t data, bool isRx);
 void DMAControlBlocks_SetReadDMACallback(DMAControlBlocks *dmaCB, DMAControlBlocks_ReadCallback callback, void *context);
