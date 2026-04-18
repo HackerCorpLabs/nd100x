@@ -149,6 +149,30 @@ make sanitize
 * Support for WebAssembly builds has been added, for more information see the [How to build WASM document](docs/HOWTO_BUILD_WASM.md)
 * Support for Risc-V builds has been added, for more information see the [How to build RISC-V document](docs/HOWTO_BUILD_RISCV.md)
 
+### Building on Windows
+
+A native Windows build is produced via **MinGW-w64** — either [w64devkit](https://github.com/skeeto/w64devkit) (portable, no installer) or MSYS2 MINGW64. The CMake root picks up `_WIN32` automatically and forces the Ninja generator.
+
+**Quick path (w64devkit):**
+
+1. Download and extract [w64devkit](https://github.com/skeeto/w64devkit/releases) to `C:\Utils\w64devkit\` (or set `W64DEVKIT` to wherever you unpacked it).
+2. From a regular `cmd.exe` at the repo root:
+
+   ```cmd
+   build.bat debug
+   ```
+
+   That stages `w64devkit\bin` on PATH for the session, runs `make debug`, and leaves `build\bin\nd100x.exe` ready to run. Use `build.bat release` for an optimised build, `build.bat clean` to wipe build directories.
+
+**Current limitations on Windows** (these are gated at build time; Linux is unaffected):
+
+- `--debugger` (DAP server) is unavailable — `external/libdap` uses POSIX-only socket headers and hasn't been ported yet.
+- `--boot=aout` is unavailable — `external/libsymbols` needs the same treatment.
+- The F12 floppy-database browser is compiled out — it uses ncurses, which w64devkit doesn't ship. Use `--boot=bpun`, `--boot=floppy`, or `--boot=smd` with a local image instead.
+- `libcurl` is optional. If missing, HTTP image-URL loads fall back to stubs; local disk images still work. Install `mingw-w64-x86_64-curl` under MSYS2 to restore URL loads.
+
+BPUN, SMD, floppy boot and the telnet server all work natively on Windows.
+
 ## Glass Web UI
 
 The emulator includes a glassmorphism browser frontend (the "Glass UI") that runs the full ND-100 emulator in your browser. The live version at **<https://nd100x.hackercorp.no/>** has been upgraded to use this layout.
@@ -328,6 +352,33 @@ Overview of all [assembly instructions](docs/cpu_documentation.md)
 
 The nd100x emulator has been compuiled and tested on multiple different systems.
 For more information, read the [Tested systems](docs/SYSTEMS.md) document
+
+## Releases (GitHub Actions)
+
+Pre-built Windows binaries are produced automatically by `.github/workflows/build-windows.yml`. The workflow runs on every push to `main` / `windows-port` and on pull requests (CI signal only), and additionally publishes a GitHub Release when a tag matching `v*` is pushed.
+
+| Artifact | Target | How it's built |
+|----------|--------|----------------|
+| `nd100x-windows-x64.zip` | Windows 64-bit | `windows-latest`, MSYS2 MINGW64 (`mingw-w64-x86_64-gcc` + `ninja`), `make release` |
+
+Each zip contains `nd100x.exe` plus every non-system DLL the exe depends on (libcurl + its transitive deps, `libgcc_s_seh-1`, `libwinpthread-1`, ...), the repo's bundled `images/` directory, `README.md`, and `LICENSE`. DLL discovery is driven by `ldd` so the bundle tracks whatever MSYS2 ships — no hardcoded list to maintain.
+
+### Cutting a release
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The push triggers the workflow, which builds the binary, re-zips the staged directory, and uploads the zip to a new GitHub Release with auto-generated release notes.
+
+### Manual dispatch
+
+`Actions → Build Windows → Run workflow` triggers a dry build (zip uploaded as a workflow artifact, no release published).
+
+### Artifact layout
+
+The download from the Actions UI is a single-layer zip — `nd100x.exe` and the DLLs sit at the root of the archive, not nested inside another zip.
 
 ## License
 
