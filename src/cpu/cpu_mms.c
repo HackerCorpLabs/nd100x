@@ -486,13 +486,13 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     uint8_t pageTableRing = (pageTableEntry >> 25) & 0x03;
 
 #ifdef _DEGRADE_
-    // Degrade ?
-
-    // If a program in ring 3 executes instructions assigned to rings 0,1 or 2, its ring number is reduced accordingly.
-    // Such accessess are detected by hardware which automatically changes the ring number in the PCR register for the current program level.
-    // NB! This degrading only occurs when lower ring instruction codes are executed, but not when data is accessed
     if ((am & FETCH) && (pageTableRing < ring) && (ring == 3))
     {
+        static int degrade_count = 0;
+        if (degrade_count < 3)
+            printf("\r\nDEGRADE: PIL=%d PC=%06o PT=%d VPN=%d ptRing=%d ring=%d->%d PTe=0x%08X\r\n",
+                   CurrLEVEL, gPC, pageTable, VPN, pageTableRing, ring, pageTableRing, pageTableEntry);
+        degrade_count++;
         ring = pageTableRing;
         gReg->reg_PCR[CurrLEVEL] = (gReg->reg_PCR[CurrLEVEL] & 0xFFFC) | ring;
     }
