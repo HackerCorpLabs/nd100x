@@ -21,7 +21,7 @@
  */
 
 // Uncomment to enable HDLC debug logging (register reads/writes, interrupts, DMA commands)
-#define HDLC_DEBUG
+// #define HDLC_DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -218,9 +218,11 @@ static void HDLC_Reset(Device *self)
     data->maintenanceMode = false;
     data->tickCounter = 0;
 
-    // Initialize COM5025 chip
+    // Initialize COM5025 chip (re-register callbacks after Init since it memsets the state)
     if (data->com5025) {
         COM5025_Init(data->com5025);
+        COM5025_SetTransmitterOutputCallback(data->com5025, (void (*)(void *, uint8_t))HDLC_OnCOM5025TransmitterOutput, self);
+        COM5025_SetPinValueChangedCallback(data->com5025, (void (*)(void *, COM5025SignalPinOut, bool))HDLC_OnCOM5025PinValueChanged, self);
         COM5025_Reset(data->com5025);
     }
 
@@ -248,19 +250,22 @@ static uint16_t HDLC_Tick(Device *self)
     // Process I/O delays
     Device_TickIODelay(self);
 
-    // Increment tick counter for timing
-    data->tickCounter++;
-
-    // COM5025 chip is NOT clocked in burst mode — all data goes
-    // through DMA/TCP path. Clocking it would generate spurious
-    // status pin changes that trigger IRQ 13 unexpectedly.
-
     // Tick modem and DMA engine
     if (data->modem) {
         Modem_Tick(data->modem);
     }
     if (data->dmaEngine) {
         DMAEngine_Tick(data->dmaEngine);
+    }
+
+    // Clock COM5025 TX/RX at baud rate interval (matches C# Clock() method)
+    data->cpuTicks++;
+    if (data->cpuTicks >= data->cpuTicksPerTx) {
+        data->cpuTicks = 0;
+        if (data->com5025) {
+            COM5025_ClockTransmitter(data->com5025);
+            COM5025_ClockReceiver(data->com5025);
+        }
     }
 
     return self->interruptBits;
@@ -434,8 +439,9 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
             // Update RQTS signal logic
             HDLC_UpdateRQTS(self);
 
-            // Check for interrupt triggers
+            // Check for interrupt triggers (modem status + TX buffer/underrun)
             HDLC_CheckTriggerIRQ12(self);
+            HDLC_CheckTriggerInterrupt(self);
             break;
 
         case HDLC_WRITE_DMA_ADDRESS:           // IOX +15: Write DMA Address
