@@ -35,9 +35,9 @@
 #include "hdlc_constants.h"
 
 // Debug flags (convert from C# #define)
-#define DEBUG_DETAIL
-#define DEBUG_DETAIL_PLUS_DESCRIPTION
-#define DMA_DEBUG
+// #define DEBUG_DETAIL
+// #define DEBUG_DETAIL_PLUS_DESCRIPTION
+// #define DMA_DEBUG
 //#define RX_BLAST_LOGGING
 
 // Static function declarations
