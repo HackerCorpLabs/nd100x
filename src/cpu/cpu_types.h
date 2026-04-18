@@ -28,15 +28,26 @@
 #include <math.h>
 #include <limits.h>
 
-// Sleep function for Windows and Linux
-
+// Sleep function for Windows and Linux.
+//
+// On Windows, Sleep()'s granularity defaults to one system tick (~15.6ms),
+// which badly distorts the CPU idle-loop pacing and starves the RTC
+// interrupt — the emulated 20ms RTC tick then fires every ~300ms and TPE
+// reports "The clock is not updated". We raise the timer resolution to 1ms
+// once per process (via timeBeginPeriod on winmm) on the first sleep_ms
+// call so Sleep(1) actually sleeps ~1ms.
 #if defined(_WIN32) || defined(_WIN64)
   #include <windows.h>
+  #include <mmsystem.h>   /* timeBeginPeriod — requires linking winmm */
   static void sleep_ms(unsigned int ms) {
+      static LONG period_raised = 0;
+      if (InterlockedCompareExchange(&period_raised, 1, 0) == 0) {
+          timeBeginPeriod(1);
+      }
       Sleep(ms);
   }
-#else  
-  #include <time.h> // for usleep
+#else
+  #include <time.h> // for nanosleep
   static void sleep_ms(unsigned int ms) {
       struct timespec req = {
           .tv_sec  = ms / 1000,

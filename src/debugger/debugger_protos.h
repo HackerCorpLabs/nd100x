@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* /home/ronny/repos/nd100x/src/debugger/debugger.c */
+/* E:/Dev/Emulators/ND/nd100x/src/debugger/debugger.c */
 DAPServer *dap_server_create(const DAPServerConfig *c);
 void dap_server_free(DAPServer *s);
 int dap_server_start(DAPServer *s);
@@ -20,7 +20,7 @@ int dap_server_send_terminated_event(DAPServer *s, bool restart);
 int dap_server_send_exited_event(DAPServer *s, int code);
 int dap_server_set_capabilities(DAPServer *s, ...);
 char *base64_encode(const uint8_t *data, size_t len);
-int debugger_thread_win(LPVOID lpParam);
+void *debugger_thread(void *arg);
 void start_debugger(void);
 void ndx_server_terminate(int sig);
 void stop_debugger_thread(void);

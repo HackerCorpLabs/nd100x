@@ -35,6 +35,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 
+#ifdef _WIN32
+#  include <direct.h>    /* _mkdir */
+#  define ND_MKDIR(p) _mkdir(p)
+#else
+#  define ND_MKDIR(p) mkdir((p), 0755)
+#endif
+
 #include "printjob.h"
 #include "ndlib_types.h"
 #include "ndlib_protos.h"
@@ -78,7 +85,7 @@ PrintJob *PrintJob_Create(PjPrinterType printerType, PjOutputFormat format,
 
 static void ensure_directory(const char *path)
 {
-    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+    if (ND_MKDIR(path) != 0 && errno != EEXIST) {
         fprintf(stderr, "PrintJob: failed to create directory: %s\n", path);
     }
 }

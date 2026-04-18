@@ -15,11 +15,16 @@ set(NDLIB_SOURCE_FILES
     pdfwriter.c
     escp.c
     printjob.c
+    net_compat.c
 )
 
-# Add telnet server for platforms with pthreads/sockets (not WASM)
+# Telnet server: POSIX and Windows use net_compat.h to reach sockets via the
+# same code. Excluded only on WASM — the browser has no sockets or pthreads.
 if(NOT (PLATFORM_WASM OR BUILD_WASM))
     list(APPEND NDLIB_SOURCE_FILES telnetserver.c)
+else()
+    list(FILTER SOURCES EXCLUDE REGEX "telnetserver\\.c$")
+    list(FILTER SOURCES EXCLUDE REGEX "net_compat\\.c$")
 endif()
 
 # Generate prototypes with mktypes
@@ -52,18 +57,28 @@ set_target_properties(ndlib PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-# Link pthread for platforms with telnet server (not WASM)
+# Link pthread for the telnet server.
+# - POSIX: libpthread.
+# - Windows: winpthreads (bundled with MinGW-w64 gcc).  The `pthread` CMake
+#   link flag resolves to libwinpthread on MinGW, so the same line works on
+#   both platforms.
+# - WASM: no pthreads in the browser.
 if(NOT (PLATFORM_WASM OR BUILD_WASM))
     target_link_libraries(ndlib PUBLIC pthread)
 endif()
 
-# Link CURL for platforms where it's available so headers and linkage are visible
-if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
-    # Prefer imported target when available
+# Winsock on Windows (ws2_32 provides socket(), WSAPoll, WSAStartup, etc.)
+if(PLATFORM_WINDOWS)
+    target_link_libraries(ndlib PUBLIC ws2_32)
+endif()
+
+# Link CURL only when the parent find_package(CURL) succeeded.
+# On Windows CURL is optional (find_package is QUIET) and download_file()
+# compiles as a stub (!defined(HAVE_CURL)) when curl is missing.
+if(CURL_FOUND AND NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
     if(TARGET CURL::libcurl)
         target_link_libraries(ndlib PUBLIC CURL::libcurl)
     else()
-        # Fallback to variables set by FindCURL
         if(DEFINED CURL_INCLUDE_DIRS)
             target_include_directories(ndlib PUBLIC ${CURL_INCLUDE_DIRS})
         endif()

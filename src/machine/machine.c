@@ -38,8 +38,10 @@
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
 
-#include "../../external/libsymbols/include/symbols.h"
-#include "../../external/libsymbols/include/aout.h"
+#ifndef _WIN32
+#  include "../../external/libsymbols/include/symbols.h"
+#  include "../../external/libsymbols/include/aout.h"
+#endif
 
 
 // Global arrays for mounted drive information
@@ -161,7 +163,7 @@ void  machine_run (int ticks)
                 return;
             }
 #else
-            usleep(100000); // Sleep 100ms
+            sleep_ms(100); // Portable (POSIX nanosleep / Windows Sleep)
 #endif
             if ((get_cpu_run_mode() == CPU_PAUSED) || (get_cpu_run_mode() == CPU_BREAKPOINT))
             {
@@ -312,6 +314,10 @@ void autoMountDrives()
          STARTADDR = bootAddress;
          break;
     case BOOT_AOUT:
+#ifdef _WIN32
+        printf("Error: AOUT boot not available on Windows (libsymbols not ported yet)\n");
+        exit(1);
+#else
         bootAddress = load_aout(imageFile, verbose, write_memory, text_start);
         if (bootAddress < 0)
         {
@@ -323,6 +329,7 @@ void autoMountDrives()
 #endif
         }
         STARTADDR = bootAddress;
+#endif
         break;
      case BOOT_FLOPPY:
         // Record mount state for UI/menus; device still boots via BPUN for now

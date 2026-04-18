@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* /home/ronny/repos/nd100x/src/devices/device.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/device.c */
 uint8_t Device_GetOddParity(uint8_t value);
 void Device_Init(Device *dev, uint8_t thumbwheel, DeviceClass deviceClass, size_t blockSize);
 void Device_Destroy(Device *dev);
@@ -34,7 +34,7 @@ void Device_SetBlockDiskInfo(Device *dev, BlockDeviceDiskInfoFunc infoFunc, void
 int Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 int Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 
-/* /home/ronny/repos/nd100x/src/devices/devicemanager.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/devicemanager.c */
 void DeviceManager_Init(LogLevel level);
 void DeviceManager_Destroy(void);
 void DeviceManager_AddAllDevices(void);
@@ -49,7 +49,7 @@ int DeviceManager_GetDeviceCount(void);
 Device *DeviceManager_GetDeviceByIndex(int index);
 int DeviceManager_Boot(uint16_t device_id);
 
-/* /home/ronny/repos/nd100x/src/devices/panel/panel.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/panel/panel.c */
 void setup_pap(void);
 void ProcessMessageControl(PANC_Register panc);
 void ProcessTerminalPanc(void);
@@ -59,34 +59,34 @@ void panel_thread(void);
 void panel_event(void);
 void panel_processor_thread(void);
 
-/* /home/ronny/repos/nd100x/src/devices/rtc/deviceRTC.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/rtc/deviceRTC.c */
 Device *CreateRTCDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/terminal/deviceTerminal.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/terminal/deviceTerminal.c */
 void Terminal_QueueKeyCode(Device *self, uint8_t keycode);
 Device *CreateTerminalDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/papertape/devicePapertape.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/papertape/devicePapertape.c */
 void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length);
 Device *CreatePaperTapeDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyDMA.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/floppy/deviceFloppyDMA.c */
 Device *CreateFloppyDMADevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyPIO.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/floppy/deviceFloppyPIO.c */
 void FloppyPIO_ExecuteGo(Device *self, FloppyPIOCommand command);
 Device *CreateFloppyPIODevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/smd/deviceSMD.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/smd/deviceSMD.c */
 Device *CreateSMDDevice(uint8_t thumbwheel);
 void SMD_Destroy(Device *dev);
 
-/* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/smd/diskSMD.c */
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
 
-/* /home/ronny/repos/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
 Device *CreateLinePrinterDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
+/* E:/Dev/Emulators/ND/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
 const uint8_t *PaperTapeWriter_GetTapeData(Device *self, size_t *length);
 Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);
