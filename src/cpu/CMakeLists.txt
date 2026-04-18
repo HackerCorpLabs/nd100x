@@ -12,6 +12,7 @@ set(CPU_SOURCE_FILES
     cpu_mopc.c
     cpu_disasm.c
     float.c
+    bcd.c
     cpu_regs.c
     cpu_mms.c
     cpu_bkpt.c
@@ -27,6 +28,7 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_mopc.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_disasm.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/float.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/bcd.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_regs.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_mms.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cpu_bkpt.c >> ${CMAKE_CURRENT_SOURCE_DIR}/cpu_protos.h

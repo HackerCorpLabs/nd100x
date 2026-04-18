@@ -101,6 +101,21 @@ machine_init (bool debuggerEnabled, int debuggerPort)
     set_cpu_run_mode(CPU_RUNNING);
 }
 
+void machine_add_hdlc(int deviceNum, bool isServer, const char *address, int port)
+{
+    bool success = DeviceManager_AddHDLCDevice_WithConfig(deviceNum, isServer, address, port);
+    if (success) {
+        if (isServer) {
+            Log(LOG_INFO, "HDLC %d added (server mode on port %d)\n", deviceNum, port);
+        } else {
+            Log(LOG_INFO, "HDLC %d added (client mode to %s:%d)\n",
+                deviceNum, address, port);
+        }
+    } else {
+        Log(LOG_ERROR, "Failed to add HDLC device %d\n", deviceNum);
+    }
+}
+
 void 
 cleanup_machine (void)
 {

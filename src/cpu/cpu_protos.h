@@ -159,12 +159,6 @@ void rmpy(ushort instr);
 void mpy(ushort operand);
 void GetBCD(ushort address);
 void StoreBCD(ushort address);
-void ndfunc_addd(ushort instr);
-void ndfunc_subd(ushort instr);
-void ndfunc_comd(ushort instr);
-void ndfunc_pack(ushort instr);
-void ndfunc_unpack(ushort instr);
-void ndfunc_shde(ushort instr);
 void Instruction_Add(int opcode, void *funcpointer);
 void Instruction_Add_Range(int start, int stop, void *funcpointer);
 void print_mask_binary(unsigned short mask);
@@ -191,23 +185,27 @@ ushort extract_opcode(ushort instr);
 ushort decode_140k(ushort instr);
 ushort decode_150k(ushort instr);
 
-/* E:/Dev/Emulators/ND/nd100x/src/cpu/float.c */
+/* /home/ronny/repos/nd100x/src/cpu/float.c */
 long double pow2l(int i);
 int MUL32(unsigned long int *a, unsigned long int *b, unsigned long int *r);
 int old_NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
 int old_NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
 int NDFloat_Add(ushort *p_a, ushort *p_b, ushort *p_r);
-void old_DoNLZ(char scaling);
-void old_DoDNZ(char scaling);
-unsigned int ld_to_ndmant(long double mant);
-void ndmant_to_ld(unsigned int ndmant, long double *val);
-int NDFloat_Div(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
-int NDFloat_Mul(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
 int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
+int NDFloat_Mul(ushort *p_a, ushort *p_b, ushort *p_r);
+int NDFloat_Div(ushort *p_a, ushort *p_b, ushort *p_r);
 void DoNLZ(char scaling);
 void DoDNZ(char scaling);
 
-/* E:/Dev/Emulators/ND/nd100x/src/cpu/cpu_regs.c */
+/* /home/ronny/repos/nd100x/src/cpu/bcd.c */
+void ndfunc_addd(ushort instr);
+void ndfunc_subd(ushort instr);
+void ndfunc_comd(ushort instr);
+void ndfunc_shde(ushort instr);
+void ndfunc_pack(ushort instr);
+void ndfunc_unpack(ushort instr);
+
+/* /home/ronny/repos/nd100x/src/cpu/cpu_regs.c */
 bool setPIL(char newLevel);
 void setPEA(ushort pea);
 void setPES(ushort pes);

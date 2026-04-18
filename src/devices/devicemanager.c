@@ -121,6 +121,31 @@ void DeviceManager_AddAllDevices(void)
 
     // Add the SMD at octal 1540-1547
     DeviceManager_AddDevice(DEVICE_TYPE_DISC_SMD, 0);
+
+    // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
+    // based on command line configuration
+}
+
+bool DeviceManager_AddHDLCDevice_WithConfig(int thumbwheel, bool isServer, const char *address, int port)
+{
+    bool success = DeviceManager_AddDevice(DEVICE_TYPE_HDLC, (uint8_t)thumbwheel);
+
+    if (success) {
+        // Find the just-added device and start its modem with TCP config
+        // HDLC base addresses: thumbwheel 1=01640, 2=01660, 3=01700, 4=01720
+        static const uint16_t hdlcBaseAddr[] = { 0, 01640, 01660, 01700, 01720 };
+        if (thumbwheel >= 1 && thumbwheel <= 4) {
+            Device *dev = DeviceManager_GetDeviceByAddress(hdlcBaseAddr[thumbwheel]);
+            if (dev && dev->deviceData) {
+                HDLCData *data = (HDLCData *)dev->deviceData;
+                if (data->modem) {
+                    Modem_StartModem(data->modem, isServer, address, port);
+                }
+            }
+        }
+    }
+
+    return success;
 }
 
 static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
@@ -192,6 +217,14 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create paper tape writer device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_HDLC:
+        dev = CreateHDLCDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create HDLC device\n");
             return NULL;
         }
         break;
@@ -305,7 +338,7 @@ int DeviceManager_Ident(uint16_t level)
     for (int i = 0; i < deviceManager.deviceCount; i++)
     {
         Device *dev = deviceManager.devices[i].device;
-        if (dev)
+        if (dev && (dev->interruptBits & (1 << level)))
         {
             uint16_t id = Device_Ident(dev, level);
             if (id > 0)
