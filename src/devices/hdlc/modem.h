@@ -26,6 +26,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef __EMSCRIPTEN__
+#include <netinet/in.h>
+#endif
+
 // Forward declaration
 typedef struct Device Device;
 
@@ -35,6 +39,14 @@ typedef struct Device Device;
 // Modem signal callback function types
 typedef void (*ModemDataCallback)(Device *device, const uint8_t *data, int length);
 typedef void (*ModemSignalCallback)(Device *device, bool pinValue);
+
+// Client connection state machine
+typedef enum {
+    CLIENT_IDLE,            // Not started or DNS failed permanently
+    CLIENT_CONNECTING,      // Non-blocking connect in progress
+    CLIENT_CONNECTED,       // TCP connected
+    CLIENT_WAIT_RECONNECT   // Waiting before next reconnect attempt
+} ClientConnState;
 
 // Modem state structure
 typedef struct {
@@ -46,7 +58,7 @@ typedef struct {
     bool requestToSend;     // RTS
     bool dataTerminalReady; // DTR
 
-    // Connection state
+    // Connection config
     bool isServer;
     char address[256];
     int port;
@@ -57,6 +69,15 @@ typedef struct {
     int clientFd;           // Active data socket (-1 if not connected)
     bool networkStarted;    // True after Modem_StartModem called
     int pollTickCounter;    // Only poll socket every N ticks
+
+    // Client reconnect state
+    ClientConnState clientState;
+#ifndef __EMSCRIPTEN__
+    struct sockaddr_in resolvedAddr;  // Cached DNS result
+#endif
+    bool addrResolved;      // True if DNS succeeded
+    int connectTickTimer;   // Countdown for connect timeout / reconnect delay
+    int reconnectAttempts;  // Number of reconnect attempts (for backoff)
 
     // Callbacks to HDLC device
     Device *hdlcDevice;
