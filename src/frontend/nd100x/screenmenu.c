@@ -12,10 +12,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdatomic.h>
 
 #include "keyboard.h"
 #include "vscreen.h"
 #include "screenmenu.h"
+#include "../../devices/devices_types.h"
+#include "../../devices/devices_protos.h"
+#include "../../devices/hdlc/deviceHDLC.h"
 
 // Forward declaration for floppy menu (conditionally available)
 #if !defined(PLATFORM_RISCV)
@@ -29,6 +33,7 @@ extern int show_floppy_menu(void);
 static void draw_f12(void);
 static void draw_screen_select(MenuState *state, void *telnetServer);
 static void draw_release_prompt(MenuState *state);
+static void draw_hdlc_status(void);
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static void draw_pending_list(void *telnetServer);
 #endif
@@ -59,6 +64,10 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
         break;
     case MENU_SCREEN_RELEASE:
         draw_release_prompt(state);
+        break;
+    case MENU_HDLC_STATUS:
+        state->lastRefresh = time(NULL);
+        draw_hdlc_status();
         break;
     case MENU_PENDING_LIST:
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
@@ -92,7 +101,89 @@ static void draw_f12(void)
     printf("=== ND100X Menu ===\n\n");
     printf("  [1] Floppy Database Browser\n");
     printf("  [2] Virtual Screen Selector\n");
-    printf("\nPress 1-2 to select, ESC to cancel: ");
+    printf("  [3] HDLC Status\n");
+    printf("\nPress 1-3 to select, ESC to cancel: ");
+    fflush(stdout);
+}
+
+static void draw_hdlc_status(void)
+{
+    // Home cursor and clear entire screen (repaint in place)
+    printf("\033[H\033[J");
+    printf("=== HDLC Device Status ===\n\n");
+
+    int count = DeviceManager_GetDeviceCount();
+    int found = 0;
+
+    printf("  %-6s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %s\n",
+           "Dev#", "I/O Addr", "Bytes TX", "Bytes RX",
+           "Frames TX", "Frames RX", "CRC Errs", "RX Frame", "RX Queue", "Connected");
+    printf("  %-6s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %s\n",
+           "----", "--------", "--------", "--------",
+           "---------", "---------", "--------", "--------", "--------", "---------");
+
+    for (int i = 0; i < count; i++) {
+        Device *dev = DeviceManager_GetDeviceByIndex(i);
+        if (!dev || dev->type != DEVICE_TYPE_HDLC) continue;
+
+        HDLCData *data = (HDLCData *)dev->deviceData;
+        if (!data) continue;
+
+        found++;
+
+        char txBytesStr[16], rxBytesStr[16];
+        format_bytes(data->modem ? data->modem->bytesTx : 0, txBytesStr, sizeof(txBytesStr));
+        format_bytes(data->modem ? data->modem->bytesRx : 0, rxBytesStr, sizeof(rxBytesStr));
+
+        bool connected = data->modem ? atomic_load(&data->modem->connected) : false;
+
+        // RX frame assembly state and queue depth
+        char rxFrameBuf[24];
+        char rxQueueBuf[16];
+        const char *rxFrame = "Idle";
+        const char *rxQueue = "-";
+
+        HDLCRxFrameStatus rxStatus;
+        if (HDLC_GetRxFrameStatus(data, &rxStatus)) {
+            if (!rxStatus.rxDmaEnabled) {
+                rxFrame = "DMA off";
+            } else if (!rxStatus.rxDcbReady) {
+                rxFrame = "No DCB";
+            } else {
+                switch (rxStatus.state) {
+                case 1: // HDLC_STATE_RECEIVING
+                case 2: // HDLC_STATE_ESCAPE
+                    snprintf(rxFrameBuf, sizeof(rxFrameBuf), "Rx %d B", rxStatus.frameLength);
+                    rxFrame = rxFrameBuf;
+                    break;
+                case 3: // HDLC_STATE_ERROR
+                    rxFrame = "Error";
+                    break;
+                }
+            }
+            format_bytes(rxStatus.tcpQueueUsed, rxQueueBuf, sizeof(rxQueueBuf));
+            rxQueue = rxQueueBuf;
+        }
+
+        char addrStr[16];
+        snprintf(addrStr, sizeof(addrStr), "%04o-%04o",
+                 dev->startAddress, dev->endAddress);
+
+        printf("  %-6d  %-10s  %-10s  %-10s  %-10" PRIu64 "  %-10" PRIu64 "  %-10" PRIu64 "  %-10s  %-10s  %s\n",
+               data->thumbwheel,
+               addrStr,
+               txBytesStr, rxBytesStr,
+               data->framesTx, data->framesRx, data->framesRxErrors,
+               rxFrame, rxQueue,
+               connected ? "Yes" : "No");
+    }
+
+    if (found == 0) {
+        printf("\n  No HDLC devices configured.\n");
+        printf("  Use --hdlc=N:PORT (server) or --hdlc=N:HOST:PORT (client)\n");
+    }
+
+    printf("\n  Refreshes every second. Press ESC to return.\n");
     fflush(stdout);
 }
 
@@ -275,6 +366,14 @@ void menu_tick(MenuState *state, void *telnetServer)
         }
     }
 #endif
+    // Live refresh for HDLC status view (every 1 second)
+    if (state->mode == MENU_HDLC_STATUS) {
+        time_t now = time(NULL);
+        if (now - state->lastRefresh >= 1) {
+            state->lastRefresh = now;
+            draw_hdlc_status();
+        }
+    }
 }
 
 // =========================================================
@@ -306,6 +405,8 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
             menu_set_mode(state, MENU_NONE, telnetServer);
         } else if (keybuf[0] == '2') {
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
+        } else if (keybuf[0] == '3') {
+            menu_set_mode(state, MENU_HDLC_STATUS, telnetServer);
         }
         break;
 
@@ -460,6 +561,13 @@ void menu_process_key(MenuState *state, const char *keybuf, int keylen, void *te
         }
         break;
 #endif
+
+    // ----- HDLC status (live view) -----
+    case MENU_HDLC_STATUS:
+        if (is_escape_key(keybuf)) {
+            menu_set_mode(state, MENU_F12, telnetServer);
+        }
+        break;
 
     case MENU_MESSAGE:
         break;

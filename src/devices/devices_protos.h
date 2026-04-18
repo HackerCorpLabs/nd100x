@@ -94,6 +94,7 @@ Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/deviceHDLC.c */
 Device *CreateHDLCDevice(uint8_t thumbwheel);
+bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/chipCOM5025.c */
 void COM5025_Init(COM5025State *chip);
@@ -158,12 +159,12 @@ void Modem_Init(ModemState *modem, Device *hdlcDevice);
 void Modem_Destroy(ModemState *modem);
 void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int port);
 void Modem_Tick(ModemState *modem);
+void Modem_SendByte(ModemState *modem, uint8_t data);
+void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length);
 void Modem_SetDTR(ModemState *modem, bool value);
 void Modem_SetRTS(ModemState *modem, bool value);
 void Modem_SetDSR(ModemState *modem, bool value);
 void Modem_SetCTS(ModemState *modem, bool value);
-void Modem_SendByte(ModemState *modem, uint8_t data);
-void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length);
 void Modem_SetReceivedDataCallback(ModemState *modem, ModemDataCallback callback);
 void Modem_SetRingIndicatorCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetDataSetReadyCallback(ModemState *modem, ModemSignalCallback callback);

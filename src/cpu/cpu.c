@@ -38,6 +38,10 @@
 #include "cpu_types.h"
 #include "cpu_protos.h"
 
+/* Forward declarations for ring buffer diagnostics */
+static uint16_t last_device_irq_bits = 0;
+static void ring_dump(void);
+
 
 
 #ifdef WITH_DEBUGGER
@@ -286,8 +290,32 @@ void calcPK()
 void interrupt(ushort lvl, ushort sub)
 {
 	int s;
+
+	// Diagnostic: log internal interrupts that would cause TDTLEV ERRFATAL
+	// SINTRAN expects internal interrupts only from levels 6-11 (RT program levels)
+	// Levels 0-5 and 12-15 cause ERRFATAL
 	if (lvl == 14)
 	{
+		static const char *iic_names[] = {
+			"n/a", "MC", "MPV", "PF", "II", "Z", "PI", "IOX", "PTY", "MOR", "POW"
+		};
+		int iic_bit = -1;
+		for (int b = 10; b >= 0; b--) {
+			if (sub & (1 << b)) { iic_bit = b; break; }
+		}
+		const char *iic_name = (iic_bit >= 0 && iic_bit <= 10) ? iic_names[iic_bit] : "?";
+
+		// Log if this would trigger TDTLEV ERRFATAL from device levels (PIL 12-15)
+		// PIL 0-5 are normal (kernel/background levels handle their own faults)
+		if (gPIL >= 12)
+		{
+			fprintf(stderr, "*** INT14_FATAL: %s (sub=0x%x bit=%d) on PIL=%d PC=%06o PID=%04x PIE=%04x IID=%04x IIE=%04x A=%06o\n",
+				iic_name, sub, iic_bit, gPIL, gPC, gPID, gPIE, gIID, gIIE, gA);
+			fprintf(stderr, "    DevBits=%04x STS=%04x PVL=%d - THIS WILL CAUSE TDTLEV ERRFATAL!\n",
+				last_device_irq_bits, gSTSr, gPVL);
+			ring_dump();
+		}
+
 		gIID |= sub;
 		if (gIID & gIIE)
 			gPID |= (1 << 14);
@@ -318,6 +346,8 @@ void interrupt(ushort lvl, ushort sub)
 
 void device_interrupt(ushort interruptBits)
 {
+	last_device_irq_bits = interruptBits;
+
 	// Only process bits 10-13 and 15 for device interrupts
 	ushort validBits = interruptBits & 0xBC00; // Mask for bits 10-13,15 (0b1111010000000000)
 
@@ -578,43 +608,67 @@ bool cpu_instruction_is_jump()
 /// @brief run the CPU for a number of ticks. 
 /// @details This function runs the CPU for a number of ticks. It handles interrupts and checks for level switches.
 /* Ring buffer for last N instructions before exit */
-#define RING_SIZE 32
-static struct { unsigned short pc; unsigned short opcode; unsigned char pil; } ring_buf[RING_SIZE];
+#define RING_SIZE 256
+static struct {
+    unsigned short pc;
+    unsigned short opcode;
+    unsigned char  pil;
+    unsigned short a_reg;
+    unsigned short sts;
+    unsigned short pid;
+    unsigned short pie;
+    unsigned short iid;
+    unsigned short iie;
+    unsigned short devbits;  /* device interrupt bits from last IO_Tick */
+} ring_buf[RING_SIZE];
 static int ring_idx = 0;
 
 static void ring_record(unsigned short pc, unsigned char pil, unsigned short opcode) {
     ring_buf[ring_idx].pc = pc;
     ring_buf[ring_idx].pil = pil;
     ring_buf[ring_idx].opcode = opcode;
+    ring_buf[ring_idx].a_reg = gA;
+    ring_buf[ring_idx].sts = gSTSr;
+    ring_buf[ring_idx].pid = gPID;
+    ring_buf[ring_idx].pie = gPIE;
+    ring_buf[ring_idx].iid = gIID;
+    ring_buf[ring_idx].iie = gIIE;
+    ring_buf[ring_idx].devbits = last_device_irq_bits;
     ring_idx = (ring_idx + 1) % RING_SIZE;
 }
 
 static void ring_dump(void) {
     int i;
+    char disasm_str[128];
+
     printf("\r\n--- CPU state at exit ---\r\n");
     printf("PIL=%d PC=%06o A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o\r\n",
            gPIL, gPC, gA, gD, gT, gX, gB, gL);
+    printf("STS=%04x PID=%04x PIE=%04x IID=%04x IIE=%04x PVL=%d\r\n",
+           gSTSr, gPID, gPIE, gIID, gIIE, gPVL);
     printf("STS per-level: ");
     for (i = 0; i < 16; i++)
         printf("[%d]=%03o ", i, gReg->reg[i][0] & 0xFF);
     printf("\r\n");
+    printf("PC per-level:  ");
     for (i = 0; i < 16; i++)
-        printf("PCR[%2d]=%06o ", i, gReg->reg_PCR[i]);
-    /* Check physical memory at page 11 offset ~742 (PC was 013742) */
-    printf("\r\nPhys at page 11 (VPN 11 identity): ");
-    {
-        int phys_base = 11 * 1024;
-        extern int ReadPhysicalMemory(int addr, bool privileged);
-        printf("@%06o=%06o @%06o=%06o @%06o=%06o\r\n",
-               phys_base + 742, ReadPhysicalMemory(phys_base + 742, true),
-               phys_base + 743, ReadPhysicalMemory(phys_base + 743, true),
-               phys_base + 744, ReadPhysicalMemory(phys_base + 744, true));
-    }
+        printf("[%d]=%06o ", i, gReg->reg[i][_P]);
+    printf("\r\n");
+
     printf("\r\n--- Last %d instructions before exit ---\r\n", RING_SIZE);
+    printf("  [  ] PIL    PC   OPCODE  DISASM                    A    STS   PID   PIE   IID   IIE  DEVBITS\r\n");
     for (i = 0; i < RING_SIZE; i++) {
         int idx = (ring_idx + i) % RING_SIZE;
-        if (ring_buf[idx].pc || ring_buf[idx].pil)
-            printf("  [%2d] PIL=%2d PC=%06o OP=%06o\r\n", i, ring_buf[idx].pil, ring_buf[idx].pc, ring_buf[idx].opcode);
+        if (ring_buf[idx].pc || ring_buf[idx].pil) {
+            OpToStr(disasm_str, sizeof(disasm_str), ring_buf[idx].opcode);
+            printf("  [%3d] %2d %06o %06o %-24s %06o %04x %04x %04x %04x %04x %04x\r\n",
+                   i, ring_buf[idx].pil, ring_buf[idx].pc, ring_buf[idx].opcode,
+                   disasm_str,
+                   ring_buf[idx].a_reg, ring_buf[idx].sts,
+                   ring_buf[idx].pid, ring_buf[idx].pie,
+                   ring_buf[idx].iid, ring_buf[idx].iie,
+                   ring_buf[idx].devbits);
+        }
     }
 }
 
@@ -663,8 +717,12 @@ int cpu_run(int ticks)
         
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
 		{
-			ring_record(gPC, gPIL, (unsigned short)MemoryFetch(gPC, false));  /* record BEFORE tick */
-			private_cpu_tick();
+			{
+				ushort pre_pc = gPC;
+				ushort pre_pil = gPIL;
+				private_cpu_tick();
+				ring_record(pre_pc, pre_pil, operand);
+			}
 
 			// Tick IO devices pr cpu tick
 			IO_Tick();

@@ -462,15 +462,7 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     // Find the PageTableEntry, PTe
     uint32_t pageTableEntry = GetPageTableEntry(pageTable, VPN, ptm);
 
-    /* DEBUG: trace ALL VPN 25 PT0 fetches */
-    if (VPN == 25 && pageTable == 0 && (am & FETCH)) {
-        static int vpn25_count = 0;
-        if (vpn25_count < 3) {
-            printf("\r\nDEBUG VPN25: PTe=0x%08X ptm=%d ring=%d PIL=%d\r\n",
-                   pageTableEntry, ptm, ring, CurrLEVEL);
-            vpn25_count++;
-        }
-    }
+    /* DEBUG VPN25 tracing removed - was temporary overlay debugging */
 
 #ifdef DEBUG_MMS_MAPPING
     printf("mapVirtualToPhysical - PT=%d VPN=%d => Entry=0x%08X (%s)\n",  pageTable, VPN, pageTableEntry, GetPageTableEntryDebugInfo(pageTableEntry));
