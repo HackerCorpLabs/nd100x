@@ -107,17 +107,15 @@ jobs:
           echo "=== Staged contents ==="
           ls -la "$STAGE"
 
-      - name: Create zip (PowerShell)
-        shell: pwsh
-        run: |
-          $name = "nd100x-windows-${{ matrix.arch }}"
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip" -Force
-
       - name: Upload build artifact
+        # Upload the staging DIRECTORY, not a pre-zipped file. GitHub wraps
+        # artifact contents in a zip on download, so uploading a zip would
+        # yield a zip-inside-a-zip. Pointing at the dir puts the exe + DLLs
+        # at the root of the downloaded zip.
         uses: actions/upload-artifact@v4
         with:
           name: nd100x-windows-${{ matrix.arch }}
-          path: dist/nd100x-windows-${{ matrix.arch }}.zip
+          path: dist/nd100x-windows-${{ matrix.arch }}/
           if-no-files-found: error
 
   publish-release:
@@ -135,14 +133,26 @@ jobs:
         with:
           path: dist
 
-      - name: List artifacts
-        run: find dist -type f -name '*.zip' -print
+      - name: Zip each artifact for release
+        # download-artifact extracts each artifact into dist/<artifact-name>/.
+        # Zip each one back up so softprops/action-gh-release has a single
+        # file per platform to attach. The zip contains a <artifact-name>/
+        # subdirectory so users see a clean folder after extraction, not
+        # loose files scattered into the current directory.
+        run: |
+          set -e
+          cd dist
+          for d in */; do
+            name="${d%/}"
+            zip -r "${name}.zip" "$name"
+          done
+          ls -la *.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/*.zip
+            dist/*.zip
           generate_release_notes: true
           draft: false
           prerelease: false
