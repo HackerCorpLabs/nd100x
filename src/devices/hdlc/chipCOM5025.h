@@ -232,7 +232,7 @@ typedef enum {
 } COM5025MPCCMode;
 
 // COM5025 chip state structure
-typedef struct {
+typedef struct COM5025State {
     // Registers
     uint8_t receiverDataBuffer;
     uint16_t receiverStatusRegister;

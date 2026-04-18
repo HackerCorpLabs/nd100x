@@ -45,7 +45,7 @@ typedef enum {
 } DMAReceiveStatus;
 
 // DMA Receiver state structure
-typedef struct {
+typedef struct DMAReceiver {
     bool active;
     int bytesReceived;
 

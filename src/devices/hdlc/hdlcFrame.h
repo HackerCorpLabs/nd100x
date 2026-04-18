@@ -38,7 +38,7 @@ typedef enum {
     HDLC_STATE_ERROR
 } HDLCReceiveState;
 
-typedef struct {
+typedef struct HDLCFrame {
     HDLCReceiveState state;
     uint8_t frameBuffer[HDLC_MAX_FRAME_SIZE];
     int frameLength;

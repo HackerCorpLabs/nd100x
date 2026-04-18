@@ -37,7 +37,7 @@ typedef void (*DMATransmitterSendFrameCallback)(HDLCFrame *frame);
 typedef void (*DMATransmitterSetInterruptCallback)(uint8_t bit);
 
 // DMA Transmitter state structure
-typedef struct {
+typedef struct DMATransmitter {
     bool active;
     int bytesSent;
 

@@ -48,7 +48,7 @@ typedef void (*ModemDataCallback)(Device *device, const uint8_t *data, int lengt
 typedef void (*ModemSignalCallback)(Device *device, bool pinValue);
 
 // Modem state structure
-typedef struct {
+typedef struct ModemState {
     // Modem signal states (read by emulation, set by callbacks)
     bool ringIndicator;
     bool dataSetReady;

@@ -43,7 +43,7 @@ typedef void (*DMAControlBlocks_InterruptCallback)(void *context, uint8_t bit);
 #include "dmaParamBuf.h"
 
 // DMA Control Blocks structure
-typedef struct {
+typedef struct DMAControlBlocks {
     // Buffer pointers
     uint8_t *outboundBuffer;
     int outboundBufferSize;

@@ -49,7 +49,7 @@ typedef void (*DMAClearCommandCallback)(struct Device *device);
 // DMA Engine state enums are defined in dmaEnum.h
 
 // DMA Engine state structure
-typedef struct {
+typedef struct DMAEngine {
     // DMA Control Blocks - main coordination structure
     struct DMAControlBlocks *dmaCB;
 
