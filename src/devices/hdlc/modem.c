@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -475,6 +476,7 @@ void Modem_Tick(ModemState *modem)
         uint8_t buf[4096];
         int n = queue_read(&modem->rxQueue, buf, sizeof(buf));
         if (n > 0) {
+            modem->bytesRx += n;
             modem->onReceivedData(modem->hdlcDevice, buf, n);
         }
     }
@@ -484,10 +486,19 @@ void Modem_Tick(ModemState *modem)
 // Called from emulation. Enqueues to TX queue, worker sends it.
 void Modem_SendByte(ModemState *modem, uint8_t data)
 {
-    if (!modem || !atomic_load(&modem->connected)) return;
+    if (!modem) return;
+    if (!atomic_load(&modem->connected)) {
+        // Not connected — byte dropped (SINTRAN may send before TCP connects)
+        return;
+    }
 
 #ifndef __EMSCRIPTEN__
     queue_write(&modem->txQueue, &data, 1);
+    modem->bytesTx++;
+    // Debug: print every 1000 bytes to confirm counting
+    if ((modem->bytesTx % 1000) == 0) {
+        fprintf(stderr, "Modem: bytesTx=%" PRIu64 "\n", modem->bytesTx);
+    }
 #endif
 }
 
@@ -497,6 +508,7 @@ void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length)
 
 #ifndef __EMSCRIPTEN__
     queue_write(&modem->txQueue, data, length);
+    modem->bytesTx += length;
 #endif
 }
 

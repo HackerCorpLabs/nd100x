@@ -282,9 +282,24 @@ typedef struct {
     // Clock timing
     int cpuTicks;
     int cpuTicksPerTx;
+
+    // Statistics
+    uint64_t framesTx;
+    uint64_t framesRx;
+    uint64_t framesRxErrors;
 } HDLCData;
+
+// RX frame status for external inspection (menu, debugging)
+typedef struct {
+    int state;          // HDLCReceiveState: 0=IDLE, 1=RECEIVING, 2=ESCAPE, 3=ERROR
+    int frameLength;    // bytes accumulated in current frame
+    int tcpQueueUsed;   // bytes waiting in TCP receive buffer
+    bool rxDmaEnabled;  // receiver DMA enabled by SINTRAN
+    bool rxDcbReady;    // RX DMA control block available
+} HDLCRxFrameStatus;
 
 // Function declarations
 Device* CreateHDLCDevice(uint8_t thumbwheel);
+bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status);
 
 #endif // DEVICE_HDLC_H

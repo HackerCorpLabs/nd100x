@@ -176,6 +176,10 @@ bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver)
 #ifdef RX_BLAST_LOGGING
         printf("DMAReceive: FRAME_FCS_ERROR: discarded (%d bytes)\n", frameLength);
 #endif
+        if (receiver->hdlcDevice && receiver->hdlcDevice->deviceData) {
+            HDLCData *hdlcData = (HDLCData *)receiver->hdlcDevice->deviceData;
+            hdlcData->framesRxErrors++;
+        }
         DMAReceiver_ClearReceiveFrameState(receiver);
         return true;
     }
@@ -210,6 +214,12 @@ bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver)
         DMAReceiver_SetRXDMAFlag(receiver,
             RTS_FRAME_END | RTS_BLOCK_END | RTS_DATA_AVAILABLE |
             RTS_RECEIVER_ACTIVE | RTS_SYNC_FLAG_RECEIVED);
+
+        // Track frame statistics
+        if (receiver->hdlcDevice && receiver->hdlcDevice->deviceData) {
+            HDLCData *hdlcData = (HDLCData *)receiver->hdlcDevice->deviceData;
+            hdlcData->framesRx++;
+        }
     }
 
     DMAReceiver_ClearReceiveFrameState(receiver);

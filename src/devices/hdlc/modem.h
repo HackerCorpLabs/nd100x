@@ -75,6 +75,10 @@ typedef struct {
     pthread_t workerThread;
     bool workerRunning;
 
+    // Traffic statistics (updated from emulation thread)
+    uint64_t bytesTx;
+    uint64_t bytesRx;
+
     // Callbacks to HDLC device (called from emulation thread only)
     Device *hdlcDevice;
     ModemDataCallback onReceivedData;
