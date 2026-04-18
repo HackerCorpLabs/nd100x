@@ -21,12 +21,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <time.h>
+
+#include "../devices_types.h"
+#include "modem.h"
+
+#ifdef MODEM_HAS_NETWORKING
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <time.h>
-
-#ifndef __EMSCRIPTEN__
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -34,12 +37,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
-#include <pthread.h>
-#include <stdatomic.h>
 #endif
-
-#include "../devices_types.h"
-#include "modem.h"
 
 // ============================================================================
 // Thread-safe queue operations
@@ -102,7 +100,7 @@ static bool queue_has_data(ModemQueue *q)
 // Socket helpers
 // ============================================================================
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
 
 static void set_nodelay(int fd)
 {
@@ -386,7 +384,7 @@ disconnected:
     return NULL;
 }
 
-#endif /* !__EMSCRIPTEN__ */
+#endif /* MODEM_HAS_NETWORKING */
 
 // ============================================================================
 // Public API — called from emulation thread
@@ -398,7 +396,7 @@ void Modem_Init(ModemState *modem, Device *hdlcDevice)
     memset(modem, 0, sizeof(ModemState));
     modem->hdlcDevice = hdlcDevice;
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     queue_init(&modem->rxQueue);
     queue_init(&modem->txQueue);
     atomic_store(&modem->connected, false);
@@ -411,7 +409,7 @@ void Modem_Destroy(ModemState *modem)
 {
     if (!modem) return;
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     // Signal worker to stop and wait for it
     atomic_store(&modem->shutdownReq, true);
     if (modem->workerRunning) {
@@ -437,7 +435,7 @@ void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int
         modem->address[sizeof(modem->address) - 1] = '\0';
     }
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     atomic_store(&modem->networkStarted, true);
 
     // Spawn worker thread — ALL socket ops happen there
@@ -470,7 +468,7 @@ void Modem_Tick(ModemState *modem)
 {
     if (!modem || !atomic_load(&modem->networkStarted)) return;
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     // Drain RX queue into HDLC receiver (no syscalls, just memcpy from queue)
     if (queue_has_data(&modem->rxQueue) && modem->onReceivedData) {
         uint8_t buf[4096];
@@ -492,7 +490,7 @@ void Modem_SendByte(ModemState *modem, uint8_t data)
         return;
     }
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     queue_write(&modem->txQueue, &data, 1);
     modem->bytesTx++;
     // Debug: print every 1000 bytes to confirm counting
@@ -506,7 +504,7 @@ void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length)
 {
     if (!modem || !data || length <= 0 || !atomic_load(&modem->connected)) return;
 
-#ifndef __EMSCRIPTEN__
+#ifdef MODEM_HAS_NETWORKING
     queue_write(&modem->txQueue, data, length);
     modem->bytesTx += length;
 #endif

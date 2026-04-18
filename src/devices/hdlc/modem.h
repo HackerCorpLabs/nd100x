@@ -26,7 +26,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef __EMSCRIPTEN__
+// Networking is only available on POSIX platforms (not WASM, not Windows)
+#if !defined(__EMSCRIPTEN__) && !defined(PLATFORM_WINDOWS) && !defined(_WIN32)
+#define MODEM_HAS_NETWORKING 1
 #include <pthread.h>
 #include <stdatomic.h>
 #endif
@@ -36,12 +38,14 @@ typedef struct Device Device;
 // Thread-safe byte queue for RX/TX between worker thread and emulation
 #define MODEM_QUEUE_SIZE 65536
 
+#ifdef MODEM_HAS_NETWORKING
 typedef struct {
     uint8_t buf[MODEM_QUEUE_SIZE];
     int head;           // written by producer
     int tail;           // read by consumer
     pthread_mutex_t mtx;
 } ModemQueue;
+#endif
 
 // Modem signal callback function types
 typedef void (*ModemDataCallback)(Device *device, const uint8_t *data, int length);
@@ -62,6 +66,7 @@ typedef struct ModemState {
     char address[256];
     int port;
 
+#ifdef MODEM_HAS_NETWORKING
     // Shared state between worker thread and emulation
     atomic_bool connected;      // true when TCP link is up
     atomic_bool networkStarted; // true after StartModem called
@@ -74,6 +79,17 @@ typedef struct ModemState {
     // Worker thread handle
     pthread_t workerThread;
     bool workerRunning;
+#else
+    /* No atomics on non-networking platforms - single-threaded access */
+    bool connected;
+    bool networkStarted;
+    #ifndef atomic_store
+    #define atomic_store(ptr, val) (*(ptr) = (val))
+    #endif
+    #ifndef atomic_load
+    #define atomic_load(ptr) (*(ptr))
+    #endif
+#endif
 
     // Traffic statistics (updated from emulation thread)
     uint64_t bytesTx;
