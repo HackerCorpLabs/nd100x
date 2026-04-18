@@ -528,10 +528,10 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
         PPN = (uint16_t)(pageTableEntry & 0x1FF);
     }
 
-    // Calculate physical address
-    int physicalAddress = (PPN << 10) | DIP;
+    // Calculate physical address (24-bit bus)
+    int physicalAddress = ((PPN << 10) | DIP) & 0xFFFFFF;
 
-    // Check if memory is out of range (Zero based range, so make sure it's not greater than ND_Memsize)
+    // Check if memory is out of range
     if (physicalAddress >= ND_Memsize)
     {
         UpdatePGS(pageTable, VPN, am, false);
@@ -729,18 +729,20 @@ bool IsAddressShadowMemory(uint addr, bool privileged)
 
 // Read from virtual memory
 int ReadVirtualMemory(uint virtualAddress, bool UseAPT)
-{    
+{
     if (DISASM)
 		disasm_set_isdata(virtualAddress);
 
     int pa = mapVirtualToPhysical(virtualAddress, READ, UseAPT);
+    if (pa == -1) return 0;
     return ReadPhysicalMemory(pa, false);
 }
 
 // Read indirect from virtual memory (used only for effective address calculation)
 int ReadIndirectVirtualMemory(uint virtualAddress, bool UseAPT)
-{    
+{
     int pa = mapVirtualToPhysical(virtualAddress, READ_FETCH, UseAPT);
+    if (pa == -1) return 0;
     return ReadPhysicalMemory(pa, false);
 }
 
@@ -748,6 +750,7 @@ int ReadIndirectVirtualMemory(uint virtualAddress, bool UseAPT)
 int FetchVirtualMemory(uint virtualAddress, bool UseAPT)
 {
     int pa = mapVirtualToPhysical(virtualAddress, FETCH, UseAPT);
+    if (pa == -1) return 0;
     return ReadPhysicalMemory(pa, false);
 }
 
@@ -758,6 +761,7 @@ void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMod
 		disasm_set_isdata(virtualAddress);
 
     int pa = mapVirtualToPhysical(virtualAddress, WRITE, UseAPT);
+    if (pa == -1) return;
     WritePhysicalMemoryWM(pa, value, false,wm);
 }
 
@@ -767,7 +771,7 @@ void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMod
 // Read from physical memory
 int ReadPhysicalMemory(int physicalAddress, bool privileged)
 {
-    if (physicalAddress <0)
+    if (physicalAddress < 0)
     {
         //printf("Memory Protection!! But it wasn't caught. Should have been aborted!\n");
         return 0x00;
@@ -839,9 +843,8 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
     }
 
     // Check memory bounds
-    if ((physicalAddress > ND_Memsize)||(physicalAddress < 0))
+    if ((physicalAddress >= ND_Memsize)||(physicalAddress < 0))
     {
-        //printf("Memory out of range error: address %d is outside valid range [0, %d]\n", physicalAddress, ND_Memsize);
         HandleMemoryOutOfRange(physicalAddress);
         return;
     }
@@ -872,8 +875,13 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
 }
 
 // Handle memory out of range error
+extern void ring_dump(void);
+
 void HandleMemoryOutOfRange(uint physicalAddress)
 {
+    // Uncomment ring_dump() to trace instructions leading to MOR
+    // ring_dump();
+
     setPEA(physicalAddress & 0xFFFF);
     setPES((physicalAddress >> 16) & 0xFF);
 
