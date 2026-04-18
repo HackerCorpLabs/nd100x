@@ -261,10 +261,12 @@ void Device_GenerateInterrupt(Device *dev, uint16_t level)
         if ((dev->interruptBits & (1 << level)) == 0)
         {
             dev->interruptBits |= (1 << level);
+#ifdef HDLC_DEBUG
             if (dev->type == DEVICE_TYPE_HDLC) {
                 fprintf(stderr, "HDLC_IRQ: Device '%s' SET interrupt level %d (bits=0x%04X)\n",
                         dev->memoryName, level, dev->interruptBits);
             }
+#endif
         }
     }
 }
