@@ -258,15 +258,12 @@ static uint16_t HDLC_Tick(Device *self)
         DMAEngine_Tick(data->dmaEngine);
     }
 
-    // Clock COM5025 at baud rate interval.
-    // Needed for maintenance/loopback test during SINTRAN initialization.
-    // Once DMA is running (after INITIALIZE + RECEIVER_START), the DMA engine
-    // handles all framing. COM5025 clocking then only generates spurious
-    // TBMT/TSA pin changes. Gate it on whether DMA has been initialized.
-    if (data->com5025 && !data->dmaEngine->enabled) {
-        data->cpuTicks++;
-        if (data->cpuTicks >= data->cpuTicksPerTx) {
-            data->cpuTicks = 0;
+    // Clock COM5025 TX/RX at baud rate interval (matches C# Clock() method).
+    // Must keep clocking even in burst/DMA mode so RSA/RDA pins clear naturally.
+    data->cpuTicks++;
+    if (data->cpuTicks >= data->cpuTicksPerTx) {
+        data->cpuTicks = 0;
+        if (data->com5025) {
             COM5025_ClockTransmitter(data->com5025);
             COM5025_ClockReceiver(data->com5025);
         }
@@ -490,12 +487,8 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
                         break;
                     case DMA_CMD_INITIALIZE:
                         DMAEngine_CommandInitialize(data->dmaEngine);
-                        // After INITIALIZE, COM5025 is no longer clocked (burst mode).
-                        // Set TBMT=1 (transmit buffer empty) so SINTRAN sees "transmitter idle"
-                        // when reading RTTS. Without this, TBMT=0 makes SINTRAN think the
-                        // transmitter is still busy, triggering retransmissions.
-                        data->txTransferStatus.bits.transmitBufferEmpty = 1;
-                        data->txTransferStatus.bits.transmitterUnderrun = 0;
+                        // COM5025 keeps clocking (matching C#), so TBMT/RSA/RDA
+                        // are managed naturally by the chip. No manual overrides needed.
                         break;
                     case DMA_CMD_RECEIVER_START:
                         DMAEngine_CommandReceiverStart(data->dmaEngine);

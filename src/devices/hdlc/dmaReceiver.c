@@ -215,9 +215,7 @@ bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver)
     }
 
     if (writeSuccess) {
-        // Set RSOM|REOM in COM5025 receiver status (triggers RSA pin → status available)
-        // Note: COM5025_WriteByte to receiver status is a no-op (read-only register).
-        // Must use SetReceiverStatus which updates status and triggers pin callbacks.
+        // Matches C# exactly: SetReceiverStatus, MarkBufferReceived, SetRXDMAFlag
         COM5025_SetReceiverStatus(receiver->com5025,
             COM5025_RX_STATUS_RSOM | COM5025_RX_STATUS_REOM);
         DMAControlBlocks_MarkBufferReceived(receiver->dmaCB, 0x03);
