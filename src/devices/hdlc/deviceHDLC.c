@@ -1034,13 +1034,14 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
     HDLCData *data = (HDLCData *)self->deviceData;
     if (!data) return;
 
-    /*** LEVEL 13 RX — matches C# CheckTriggerInterrupt exactly ***/
+    /*** LEVEL 13 RX ***/
     if (data->rxTransferStatus.bits.dataAvailable) {
-        // C#: when DMA enabled, read COM5025 receive buffer to clear RDA pin.
-        // DataAvailableFromCOM5025() reads the byte (clears RDA → dataAvailable=0).
-        // In burst mode, the byte is discarded (ReceiveByteFromCOM50250 returns immediately).
-        if (data->rxTransferControl.bits.enableReceiverDMA && data->com5025) {
-            COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_RECEIVER_DATA_BUFFER);
+        // In DMA/burst mode, COM5025 is not clocked so RDA pin is always low.
+        // SetRXDMAFlag sets dataAvailable directly in the status register.
+        // Clear it here to prevent infinite IRQ 13 loop.
+        // C# clears it via COM5025_ReadByte (which works because C# clocks COM5025).
+        if (data->rxTransferControl.bits.enableReceiverDMA) {
+            data->rxTransferStatus.bits.dataAvailable = 0;
         }
 
         if (data->rxTransferControl.bits.dataAvailableIE) {
@@ -1049,8 +1050,6 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
     }
 
     if (data->rxTransferStatus.bits.statusAvailable) {
-        // C#: when DMA enabled, clear StatusAvailable and return (burst mode no-op).
-        // StatusAvailableFromCOM5025() clears the flag to prevent re-triggering.
         if (data->rxTransferControl.bits.enableReceiverDMA) {
             data->rxTransferStatus.bits.statusAvailable = 0;
         }
