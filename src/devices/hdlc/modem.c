@@ -128,7 +128,11 @@ static int queue_write_all(ModemQueue *q, const uint8_t *data, int len, uint64_t
         int n = queue_write(q, data + totalWritten, len - totalWritten);
         totalWritten += n;
         if (totalWritten < len) {
-            sleep_ms(1); // yield to let consumer drain the queue
+#if defined(_WIN32) || defined(_WIN64)
+            Sleep(0); // yield timeslice on Windows
+#else
+            usleep(50); // 50us yield on POSIX
+#endif
         }
     }
     return totalWritten;
