@@ -416,9 +416,13 @@ void COM5025_ProcessBit(COM5025State *chip, bool bit)
     }
 
     if (chip->bitCounter >= chip->characterLength) {
-        chip->receiverDataBuffer = chip->receiverShiftRegister & ((1 << chip->characterLength) - 1);
-        COM5025_SetOutputPin(chip, COM5025_PIN_OUT_RDA, true);
-        COM5025_SetOutputPin(chip, COM5025_PIN_OUT_RXACT, true);
+        // In BOP mode, only assemble characters AFTER a FLAG has been detected.
+        // Before FLAG, the receiver is in hunt mode — bits are discarded.
+        if (chip->mode != COM5025_MODE_BOP || chip->flagDetected) {
+            chip->receiverDataBuffer = chip->receiverShiftRegister & ((1 << chip->characterLength) - 1);
+            COM5025_SetOutputPin(chip, COM5025_PIN_OUT_RDA, true);
+            COM5025_SetOutputPin(chip, COM5025_PIN_OUT_RXACT, true);
+        }
 
         chip->bitCounter = 0;
         chip->receiverShiftRegister = 0;
