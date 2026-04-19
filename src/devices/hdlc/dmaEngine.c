@@ -40,11 +40,51 @@
 #include "../devices_types.h"
 
 // Debug flags (convert from C# #define)
-#define DEBUG_DETAIL
-#define DEBUG_DETAIL_PLUS_DESCRIPTION
+// #define DEBUG_DETAIL
+// #define DEBUG_DETAIL_PLUS_DESCRIPTION
 // #define DMA_DEBUG
 
-// Remove static declaration since it's declared public in header
+// ---------------------------------------------------------------------------
+// Forwarding wrappers: bridge DMAControlBlocks/TX/RX callbacks to DMAEngine
+// ---------------------------------------------------------------------------
+
+// DMAControlBlocks read callback: context is DMAEngine*, forward to DMAEngine_DMARead
+static uint16_t DMAEngine_CBReadDMA(void *context, uint32_t address)
+{
+    DMAEngine *dma = (DMAEngine *)context;
+    int result = DMAEngine_DMARead(dma, address);
+    return (result >= 0) ? (uint16_t)result : 0;
+}
+
+// DMAControlBlocks write callback: context is DMAEngine*, forward to DMAEngine_DMAWrite
+static void DMAEngine_CBWriteDMA(void *context, uint32_t address, uint16_t data)
+{
+    DMAEngine *dma = (DMAEngine *)context;
+    DMAEngine_DMAWrite(dma, address, data);
+}
+
+// DMATransmitter send frame callback: context is DMAEngine*, forward to onSendHDLCFrame
+static void DMAEngine_TXSendFrame(void *context, HDLCFrame *frame)
+{
+    DMAEngine *dma = (DMAEngine *)context;
+    if (dma && dma->onSendHDLCFrame) {
+        dma->onSendHDLCFrame(dma->hdlcDevice, frame);
+    }
+}
+
+// DMATransmitter interrupt callback: context is DMAEngine*, forward to onSetInterruptBit
+static void DMAEngine_TXInterrupt(void *context, uint8_t bit)
+{
+    DMAEngine *dma = (DMAEngine *)context;
+    DMAEngine_OnSetInterruptBit(dma, bit);
+}
+
+// DMAReceiver interrupt callback: context is DMAEngine*, forward to onSetInterruptBit
+static void DMAEngine_RXInterrupt(void *context, uint8_t bit)
+{
+    DMAEngine *dma = (DMAEngine *)context;
+    DMAEngine_OnSetInterruptBit(dma, bit);
+}
 
 void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, void *modem, void *com5025)
 {
@@ -70,15 +110,17 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
 
     if (dma->transmitter) {
         DMATransmitter_Init(dma->transmitter, com5025, dma->dmaCB, hdlcDevice);
-        // Connect transmitter events
-        DMATransmitter_SetSendFrameCallback(dma->transmitter, NULL); // Will be set via callback
-        DMATransmitter_SetInterruptCallback(dma->transmitter, NULL); // Will be set via callback
+        // Wire transmitter callbacks through DMAEngine forwarding wrappers
+        DMATransmitter_SetSendFrameCallback(dma->transmitter, DMAEngine_TXSendFrame);
+        DMATransmitter_SetInterruptCallback(dma->transmitter, DMAEngine_TXInterrupt);
+        dma->transmitter->callbackContext = dma;
     }
 
     if (dma->receiver) {
         DMAReceiver_Init(dma->receiver, com5025, dma->dmaCB, hdlcDevice);
-        // Connect receiver events
-        DMAReceiver_SetInterruptCallback(dma->receiver, NULL); // Will be set via callback
+        // Wire receiver interrupt callback through DMAEngine forwarding wrapper
+        DMAReceiver_SetInterruptCallback(dma->receiver, DMAEngine_RXInterrupt);
+        dma->receiver->callbackContext = dma;
     }
 
     // Initialize state
@@ -91,10 +133,10 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
         ((DMAControlBlocks *)dma->dmaCB)->parameters = &dma->parameterBuffer;
     }
 
-    // Set up DMA control blocks callbacks
+    // Wire DMA control blocks memory access callbacks through DMAEngine forwarding wrappers
     if (dma->dmaCB) {
-        DMAControlBlocks_SetReadDMACallback(dma->dmaCB, NULL, dma);
-        DMAControlBlocks_SetWriteDMACallback(dma->dmaCB, NULL, dma);
+        DMAControlBlocks_SetReadDMACallback(dma->dmaCB, DMAEngine_CBReadDMA, dma);
+        DMAControlBlocks_SetWriteDMACallback(dma->dmaCB, DMAEngine_CBWriteDMA, dma);
     }
 
     // Initialize DMA registers array

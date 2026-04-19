@@ -147,7 +147,6 @@ static void HDLC_CheckTriggerIRQ12(Device *self);
 static void HDLC_CheckTriggerIRQ13(Device *self);
 static void HDLC_CheckTriggerInterrupt(Device *self);
 static void HDLC_UpdateRQTS(Device *self);
-static void HDLC_UpdateFromCOM5025Pins(Device *self);
 
 // Modem event callbacks
 static void HDLC_OnModemReceivedData(Device *device, const uint8_t *data, int length);
@@ -209,6 +208,7 @@ static void HDLC_Reset(Device *self)
 
     // Reset DMA state
     data->dmaAddress = 0;
+    data->dmaBankBits = 0;
     data->dmaCommand = 0;
     data->txState = HDLC_DMA_TX_STOPPED;
     data->blockState = HDLC_DMA_BLOCK_IDLE;
@@ -306,12 +306,14 @@ static uint16_t HDLC_Read(Device *self, uint32_t address)
 
             value = data->rxTransferStatus.raw;
 
-            // Clear DMA bits 8-15 after read
+            // Clear DMA bits 8-14 after read (bit 15 receiverOverrun is NOT auto-cleared)
             data->rxTransferStatus.bits.blockEnd = 0;
             data->rxTransferStatus.bits.frameEnd = 0;
             data->rxTransferStatus.bits.listEnd = 0;
             data->rxTransferStatus.bits.listEmpty = 0;
             data->rxTransferStatus.bits.undefined12 = 0;
+            data->rxTransferStatus.bits.x21d = 0;
+            data->rxTransferStatus.bits.x21s = 0;
             break;
 
         case HDLC_READ_TX_TRANSFER_STATUS:     // IOX +12: Read Transmitter Transfer Status
@@ -446,23 +448,29 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
         case HDLC_WRITE_DMA_ADDRESS:           // IOX +15: Write DMA Address
             data->dmaAddress = value;
-            // Update DMA engine with the new address
-            if (data->dmaEngine) {
-                DMAEngine_SetDMAAddress(data->dmaEngine, value);
-            }
+            // Address is stored locally; combined with bank bits when IOX+17 command is written
             break;
 
         case HDLC_WRITE_DMA_COMMAND:           // IOX +17: Write DMA Command
             data->dmaCommand = (value >> 8) & 0x07;
+            data->dmaBankBits = (uint8_t)(value & 0x0F);
 #ifdef HDLC_DEBUG
-            HDLC_LOG("DMA Command: %d (%s)", data->dmaCommand,
-                     data->dmaCommand < 8 ? hdlc_dma_cmd_name[data->dmaCommand] : "?");
+            {
+                static const char *cmd_names[] = {
+                    "DEVICE_CLEAR", "INITIALIZE", "RX_START", "RX_CONTINUE",
+                    "TX_START", "DUMP_DATA", "DUMP_REGS", "LOAD_REGS"
+                };
+                uint32_t fullAddr = ((uint32_t)data->dmaBankBits << 16) | data->dmaAddress;
+                HDLC_LOG("DMA %s addr=0x%05X (bank=%d lo=0x%04X)",
+                         cmd_names[data->dmaCommand & 7],
+                         fullAddr, data->dmaBankBits, data->dmaAddress);
+            }
 #endif
             // Execute DMA command
             if (data->dmaEngine) {
-                // First set the DMA address if it was provided
-                // Note: DMA address should be set via HDLC_WRITE_DMA_ADDRESS before command
-                // For data transfer commands, we need to pass the address to the DMA engine
+                // Combine bank bits with 16-bit DMA address to form 20-bit physical address
+                uint32_t fullDMAAddress = ((uint32_t)data->dmaBankBits << 16) | data->dmaAddress;
+                DMAEngine_SetDMAAddress(data->dmaEngine, fullDMAAddress);
 
                 switch (data->dmaCommand) {
                     case DMA_CMD_DEVICE_CLEAR:
@@ -788,7 +796,6 @@ static void HDLC_OnDMAWriteDMA(Device *device, uint32_t address, uint16_t data)
 {
     if (!device) return;
 
-    // Equivalent to C# DmaEngine_OnWriteDMA
     Device_DMAWrite(address, data);
 }
 
@@ -851,12 +858,13 @@ static void HDLC_OnCOM5025TransmitterOutput(Device *device, uint8_t serialOutput
 {
     if (!device) return;
 
-    HDLCData *data = (HDLCData *)device->deviceData;
-    if (!data || !data->modem) return;
-
-    // Equivalent to C# Com5025_OnTransmitterOutput
-    // Send serial output byte to modem
-    Modem_SendByte(data->modem, serialOutput);
+    // In burst mode (always active), the DMA engine handles all transmission
+    // via Modem_SendBytes. The COM5025 character-mode output must NOT be sent
+    // to the modem, as it would mix idle flags (0x7E) into the TCP stream
+    // and corrupt the byte-stuffed HDLC frames.
+    //
+    // This callback is only needed for character mode (non-DMA), which is not used.
+    (void)serialOutput;
 }
 
 // COM5025 pin value changed callback implementation
@@ -938,37 +946,6 @@ static void HDLC_OnCOM5025PinValueChanged(Device *device, COM5025SignalPinOut pi
 
     // Check and trigger interrupts based on pin changes
     HDLC_CheckTriggerInterrupt(device);
-}
-
-// Helper functions for future implementation
-
-static void HDLC_CheckInterrupts(Device *self)
-{
-    if (!self) return;
-
-    HDLCData *data = (HDLCData *)self->deviceData;
-
-    // Check level 13 (receiver) interrupts
-    if (data->rxTransferStatus.bits.dataAvailable &&
-        data->rxTransferControl.bits.dataAvailableIE) {
-        Device_SetInterruptStatus(self, true, 13);
-    }
-
-    if (data->rxTransferStatus.bits.statusAvailable &&
-        data->rxTransferControl.bits.statusAvailableIE) {
-        Device_SetInterruptStatus(self, true, 13);
-    }
-
-    // Check level 12 (transmitter) interrupts
-    if (data->txTransferStatus.bits.transmitBufferEmpty &&
-        data->txTransferControl.bits.transmitBufferEmptyIE) {
-        Device_SetInterruptStatus(self, true, 12);
-    }
-
-    if (data->txTransferStatus.bits.transmitterUnderrun &&
-        data->txTransferControl.bits.transmitterUnderrunIE) {
-        Device_SetInterruptStatus(self, true, 12);
-    }
 }
 
 static void HDLC_CheckTriggerIRQ12(Device *self)
@@ -1084,85 +1061,6 @@ static void HDLC_UpdateRQTS(Device *self)
     }
 }
 
-static void HDLC_UpdateFromCOM5025Pins(Device *self)
-{
-    if (!self) return;
-
-    HDLCData *data = (HDLCData *)self->deviceData;
-    if (!data || !data->com5025) return;
-
-    bool needsInterruptCheck = false;
-    bool needsRQTSUpdate = false;
-
-    // Check SFR pin - Sync/Flag received (bit 3)
-    bool sfr = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_SFR);
-    if (sfr != data->rxTransferStatus.bits.syncFlagReceived) {
-        data->rxTransferStatus.bits.syncFlagReceived = sfr;
-    }
-
-    // Check RXACT pin - Receiver Active (bit 2)
-    bool rxact = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_RXACT);
-    if (rxact != data->rxTransferStatus.bits.receiverActive) {
-        data->rxTransferStatus.bits.receiverActive = rxact;
-    }
-
-    // Check RDA pin - Receiver Data Available (interrupt on level 13 if enabled)
-    bool rda = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_RDA);
-    if (rda != data->rxTransferStatus.bits.dataAvailable) {
-        data->rxTransferStatus.bits.dataAvailable = rda;
-        if (rda) {
-            needsInterruptCheck = true;
-        }
-    }
-
-    // Check RSA pin - Receiver STATUS available (bit 1)
-    bool rsa = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_RSA);
-    if (rsa != data->rxTransferStatus.bits.statusAvailable) {
-        data->rxTransferStatus.bits.statusAvailable = rsa;
-        if (rsa) {
-            needsInterruptCheck = true;
-        }
-    }
-
-    // Check TXACT pin - Transmitter Active (bit 2)
-    bool txact = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_TXACT);
-    if (txact != data->txTransferStatus.bits.transmitterActive) {
-        data->txTransferStatus.bits.transmitterActive = txact;
-        needsRQTSUpdate = true; // TXACT may impact RQTS
-    }
-
-    // Check TBMT pin - Transmitter Buffer Empty (interrupt on level 12 if enabled)
-    bool tbmt = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_TBMT);
-    if (tbmt != data->txTransferStatus.bits.transmitBufferEmpty) {
-        data->txTransferStatus.bits.transmitBufferEmpty = tbmt;
-        if (tbmt) {
-            needsInterruptCheck = true;
-        }
-    }
-
-    // Check TSA pin - Transmitter Status Available (TERR bit, indicating transmitter underflow)
-    bool tsa = COM5025_GetOutputPin(data->com5025, COM5025_PIN_OUT_TSA);
-    if (tsa != data->txTransferStatus.bits.transmitterUnderrun) {
-        data->txTransferStatus.bits.transmitterUnderrun = tsa;
-        if (tsa) {
-            needsInterruptCheck = true;
-        }
-    }
-
-    // Update RQTS if transmitter active state changed
-    if (needsRQTSUpdate) {
-        HDLC_UpdateRQTS(self);
-    }
-
-    // Check for interrupt triggers if any pin changed that affects interrupts
-    if (needsInterruptCheck) {
-        HDLC_CheckTriggerInterrupt(self);
-    }
-
-    // In burst mode, TX is handled by DMATransmitter_Tick/SendAllBuffers
-    // COM5025 character-mode SendChar is not used
-}
-
 static void HDLC_SetBaudRate(Device *self, HDLCBaudRate baudRate)
 {
     if (!self) return;
@@ -1218,9 +1116,11 @@ bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status)
 
     if (!data->dmaEngine || !data->dmaEngine->dmaCB) return false;
 
-    status->rxDmaEnabled = data->rxTransferControl.bits.enableReceiverDMA;
-
     DMAControlBlocks *cb = (DMAControlBlocks *)data->dmaEngine->dmaCB;
+
+    // RX status
+    status->rxDmaEnabled = data->rxTransferControl.bits.enableReceiverDMA;
+    status->rxEnabled = data->rxTransferControl.bits.enableReceiver;
     HDLCFrame *rxFrame = cb->hdlcReceiveFrame;
     if (rxFrame) {
         status->state = (int)rxFrame->state;
@@ -1228,12 +1128,26 @@ bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status)
     }
     status->rxDcbReady = (cb->rxDCB != NULL);
 
-    // Cast needed: dmaEngine.h uses opaque 'struct DMAReceiver *' but
-    // dmaReceiver.h defines 'typedef struct { ... } DMAReceiver' (anonymous).
     DMAReceiver *rx = (DMAReceiver *)data->dmaEngine->receiver;
     if (rx) {
         status->tcpQueueUsed = TcpReceiveBuffer_Available(&rx->tcpReceiveBuffer);
     }
+
+    // TX status
+    status->txDmaEnabled = data->txTransferControl.bits.enableTransmitterDMA;
+    status->txEnabled = data->txTransferControl.bits.transmitterEnabled;
+    status->txSenderState = cb->dmaSenderState;
+    status->txWaitTicks = cb->dmaWaitTicks;
+
+#ifdef MODEM_HAS_NETWORKING
+    if (data->modem) {
+        pthread_mutex_lock(&((ModemState *)data->modem)->txQueue.mtx);
+        int h = data->modem->txQueue.head;
+        int t = data->modem->txQueue.tail;
+        status->txQueueUsed = (h - t + MODEM_QUEUE_SIZE) % MODEM_QUEUE_SIZE;
+        pthread_mutex_unlock(&((ModemState *)data->modem)->txQueue.mtx);
+    }
+#endif
 
     return true;
 }

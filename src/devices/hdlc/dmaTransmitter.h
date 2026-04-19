@@ -32,9 +32,9 @@ struct Device;
 #include "dmaControlBlocks.h"
 #include "hdlcFrame.h"
 
-// DMA Transmitter callback function types
-typedef void (*DMATransmitterSendFrameCallback)(HDLCFrame *frame);
-typedef void (*DMATransmitterSetInterruptCallback)(uint8_t bit);
+// DMA Transmitter callback function types (with context for forwarding)
+typedef void (*DMATransmitterSendFrameCallback)(void *context, HDLCFrame *frame);
+typedef void (*DMATransmitterSetInterruptCallback)(void *context, uint8_t bit);
 
 // DMA Transmitter state structure
 typedef struct DMATransmitter {
@@ -46,9 +46,10 @@ typedef struct DMATransmitter {
     DMAControlBlocks *dmaCB;
     struct Device *hdlcDevice;
 
-    // Callbacks
+    // Callbacks (with context)
     DMATransmitterSendFrameCallback onSendHDLCFrame;
     DMATransmitterSetInterruptCallback onSetInterruptBit;
+    void *callbackContext;
 
 } DMATransmitter;
 

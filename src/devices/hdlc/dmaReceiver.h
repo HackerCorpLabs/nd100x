@@ -33,8 +33,8 @@ struct Device;
 #include "dmaControlBlocks.h"
 #include "tcpReceiveBuffer.h"
 
-// DMA Receiver callback function types
-typedef void (*DMAReceiverSetInterruptCallback)(uint8_t bit);
+// DMA Receiver callback function types (with context for forwarding)
+typedef void (*DMAReceiverSetInterruptCallback)(void *context, uint8_t bit);
 
 // DMA Receiver status enumeration
 typedef enum {
@@ -60,8 +60,9 @@ typedef struct DMAReceiver {
     DMAControlBlocks *dmaCB;
     struct Device *hdlcDevice;
 
-    // Callbacks
+    // Callbacks (with context)
     DMAReceiverSetInterruptCallback onSetInterruptBit;
+    void *callbackContext;
 
 } DMAReceiver;
 
