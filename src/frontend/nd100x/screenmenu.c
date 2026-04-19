@@ -277,11 +277,13 @@ static void draw_hdlc_status(void)
                 printf("    DCB: TX=%-8" PRIu64 " RX=%-8" PRIu64 "  |  Starts=%-6" PRIu64 " Sent=%-6" PRIu64 " Skip=%" PRIu64 "\n",
                        data->dcbTxMarked, data->dcbRxMarked,
                        st.txStarts, data->framesTx, st.txAlreadySent);
-                printf("    IRQ: 12=%-6" PRIu64 " 13=%-6" PRIu64 " IDENT12=%-6" PRIu64 " IDENT13=%-6" PRIu64 " IOX13=%-6" PRIu64 " TBMT=%d\n",
+                printf("    IRQ: 12=%-6" PRIu64 " 13=%-6" PRIu64 " IDENT13=%-6" PRIu64 " TBMT=%d\n",
                        data->irq12Count, data->irq13Count,
-                       data->identCount12, data->identCount13,
-                       data->iox13WriteCount,
+                       data->identCount13,
                        data->txTransferStatus.bits.transmitBufferEmpty);
+                printf("    I13: DMA=%-6" PRIu64 " DataAv=%-6" PRIu64 " StatAv=%-6" PRIu64 " Modem=%" PRIu64 "\n",
+                       data->irq13_dma, data->irq13_dataAvail,
+                       data->irq13_statusAvail, data->irq13_modem);
             }
 
             // Last TX frames history

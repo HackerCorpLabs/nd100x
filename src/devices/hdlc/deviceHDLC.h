@@ -305,6 +305,10 @@ typedef struct {
     uint64_t identCount13;      // IDENT calls on level 13 (RX)
     uint64_t irq12Count;        // IRQ 12 raised (TX)
     uint64_t irq13Count;        // IRQ 13 raised (RX)
+    uint64_t irq13_dataAvail;   // from CheckTriggerInterrupt dataAvailable path
+    uint64_t irq13_statusAvail; // from CheckTriggerInterrupt statusAvailable path
+    uint64_t irq13_modem;       // from CheckTriggerIRQ13 modem status change
+    uint64_t irq13_dma;         // from SetRXDMAFlag dmaModuleRequest path
     uint64_t iox13WriteCount;   // IOX+13 (WTTC) writes
     uint64_t iox11WriteCount;   // IOX+11 (WRTC) writes
 

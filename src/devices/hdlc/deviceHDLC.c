@@ -843,7 +843,7 @@ static void HDLC_OnDMASetInterruptBit(Device *device, uint8_t bit)
     HDLCData *hd = (HDLCData *)device->deviceData;
     if (hd) {
         if (bit == 12) hd->irq12Count++;
-        if (bit == 13) hd->irq13Count++;
+        if (bit == 13) { hd->irq13Count++; hd->irq13_dma++; }
     }
 
     HDLC_LOG_IRQ(bit, bit == 12 ? "DMA TX" : bit == 13 ? "DMA RX" : "DMA ?");
@@ -1023,6 +1023,7 @@ static void HDLC_CheckTriggerIRQ13(Device *self)
     bool RMSC = (read_signals != modem_signals);
     if (RMSC) {
         HDLC_LOG_IRQ(13, "RX modem status change");
+        data->irq13_modem++;
         Device_SetInterruptStatus(self, true, 13);
     }
 }
@@ -1036,15 +1037,11 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
 
     /*** LEVEL 13 RX ***/
     if (data->rxTransferStatus.bits.dataAvailable) {
-        // In DMA/burst mode, COM5025 is not clocked so RDA pin is always low.
-        // SetRXDMAFlag sets dataAvailable directly in the status register.
-        // Clear it here to prevent infinite IRQ 13 loop.
-        // C# clears it via COM5025_ReadByte (which works because C# clocks COM5025).
         if (data->rxTransferControl.bits.enableReceiverDMA) {
             data->rxTransferStatus.bits.dataAvailable = 0;
         }
-
         if (data->rxTransferControl.bits.dataAvailableIE) {
+            data->irq13_dataAvail++;
             Device_SetInterruptStatus(self, true, 13);
         }
     }
@@ -1053,8 +1050,8 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
         if (data->rxTransferControl.bits.enableReceiverDMA) {
             data->rxTransferStatus.bits.statusAvailable = 0;
         }
-
         if (data->rxTransferControl.bits.statusAvailableIE) {
+            data->irq13_statusAvail++;
             Device_SetInterruptStatus(self, true, 13);
         }
     }
