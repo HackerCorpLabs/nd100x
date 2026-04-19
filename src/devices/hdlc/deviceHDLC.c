@@ -1021,6 +1021,14 @@ static void HDLC_CheckTriggerIRQ13(Device *self)
     if (RMSC) {
         HDLC_LOG_IRQ(13, "RX modem status change");
         data->irq13_modem++;
+
+        // Latch modem flags into status register NOW so the mismatch resolves.
+        // Without this, the same mismatch fires on every IOX+11 write (because
+        // SINTRAN re-enables modemStatusChangeIE before reading IOX+10).
+        // IOX+10 read also latches — this is the same operation done proactively.
+        data->rxTransferStatus.raw &= ~(data->rxModemFlagsMask.raw);
+        data->rxTransferStatus.raw |= (data->rxModemFlags.raw & data->rxModemFlagsMask.raw);
+
         Device_SetInterruptStatus(self, true, 13);
     }
 }
