@@ -688,10 +688,16 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
 }
 
 // Check if address is in shadow memory
+// Flag set by Device_DMARead/Write to bypass shadow memory for DMA bus transfers
+bool gDMAAccess = false;
+
 bool IsAddressShadowMemory(uint addr, bool privileged)
 {
+    // DMA transfers go directly to physical RAM — never shadow memory
+    if (gDMAAccess)
+        return false;
+
     // Shadow memory (page tables) only exists in the first 64K word address space.
-    // Physical addresses above 0xFFFF (bank > 0) can never be shadow memory.
     if (addr > 0xFFFF)
         return false;
 
