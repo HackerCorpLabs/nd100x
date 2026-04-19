@@ -690,6 +690,11 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
 // Check if address is in shadow memory
 bool IsAddressShadowMemory(uint addr, bool privileged)
 {
+    // Shadow memory (page tables) only exists in the first 64K word address space.
+    // Physical addresses above 0xFFFF (bank > 0) can never be shadow memory.
+    if (addr > 0xFFFF)
+        return false;
+
     ushort pcr = gReg->reg_PCR[CurrLEVEL];
     unsigned char ring = pcr & 0x03;
     bool mms2Enabled = ((pcr & 1 << 2) != 0); // Is MMS-2 with 16-page-tables enabled on this PCR level ?
@@ -697,7 +702,7 @@ bool IsAddressShadowMemory(uint addr, bool privileged)
 
     if ((ring == 3) || (!STS_PONI) || privileged)
     {
-        
+
         if (STS_SEXI)
         {
             if ((mmsType == MMS2) && mms2Enabled)
@@ -761,6 +766,14 @@ void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMod
 		disasm_set_isdata(virtualAddress);
 
     int pa = mapVirtualToPhysical(virtualAddress, WRITE, UseAPT);
+    /* TRACE: detect writes to VA 0x2F9D (_ov_saved_l_bss) */
+    if (virtualAddress == 0x2F9D) {
+        static int vw = 0;
+        if (vw < 5)
+            printf("\r\n*** VA_WRITE 0x2F9D val=0%06o pa=%d apt=%d PIL=%d PC=%06o\r\n",
+                   value, pa, UseAPT, CurrLEVEL, gPC);
+        vw++;
+    }
     if (pa == -1) return;
     WritePhysicalMemoryWM(pa, value, false,wm);
 }
@@ -841,6 +854,10 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
         }
         return;
     }
+
+    // Trace writes to _ov_saved_l_bss physical address
+    extern void check_phys_write(int pa, unsigned short value);
+    check_phys_write(physicalAddress, value);
 
     // Check memory bounds
     if ((physicalAddress >= ND_Memsize)||(physicalAddress < 0))
@@ -949,3 +966,13 @@ int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value)
 }
 
 // Check if privileged instruction execution is allowed
+
+/* TEMPORARY: trace writes to physical 0x2F9D (_ov_saved_l_bss) */
+static int trace_2f9d = 0;
+void check_phys_write(int pa, unsigned short value) {
+    if (pa == 0x2F9D && trace_2f9d < 10) {
+        printf("\r\n*** WRITE phys 0x2F9D = 0%06o PIL=%d PC=%06o\r\n",
+               value, gPIL, gPC);
+        trace_2f9d++;
+    }
+}

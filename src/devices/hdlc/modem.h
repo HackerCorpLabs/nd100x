@@ -38,7 +38,9 @@
 typedef struct Device Device;
 
 // Thread-safe byte queue for RX/TX between worker thread and emulation
-#define MODEM_QUEUE_SIZE 65536
+// Must be large enough to absorb TCP bursts without dropping bytes,
+// which would break HDLC frame boundaries and cause CRC errors.
+#define MODEM_QUEUE_SIZE (512 * 1024)
 
 #ifdef MODEM_HAS_NETWORKING
 typedef struct {
@@ -93,9 +95,11 @@ typedef struct ModemState {
     #endif
 #endif
 
-    // Traffic statistics (updated from emulation thread)
+    // Traffic statistics
     uint64_t bytesTx;
     uint64_t bytesRx;
+    uint64_t rxDropped;     // bytes dropped due to rxQueue overflow
+    uint64_t txDropped;     // bytes dropped due to txQueue overflow
 
     // Callbacks to HDLC device (called from emulation thread only)
     Device *hdlcDevice;
