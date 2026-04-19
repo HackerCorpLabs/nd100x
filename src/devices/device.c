@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "devices_types.h"
 #include "devices_protos.h"
@@ -364,6 +365,8 @@ int32_t Device_IO_BufferWriteWord(Device *dev,uint8_t *buf, int32_t word_offset,
 // DMA bypasses shadow memory (page tables) — it's a physical bus transfer.
 // Set gDMAAccess flag so IsAddressShadowMemory skips the shadow check.
 extern bool gDMAAccess;
+
+const char *gDMADeviceName = "?";
 
 void Device_DMAWrite(uint32_t coreAddress, uint16_t data) {
     gDMAAccess = true;
