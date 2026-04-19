@@ -27,6 +27,7 @@
 
 #include "devices_types.h"
 #include "devices_protos.h"
+#include "../cpu/cpu_types.h"
 
 #define INITIAL_IO_DELAY_CAPACITY 16
 
@@ -361,13 +362,20 @@ int32_t Device_IO_BufferWriteWord(Device *dev,uint8_t *buf, int32_t word_offset,
     return 0;
 }
 
+// DMA accesses physical memory directly on the bus — no MMU, no shadow memory.
+// This matches the C# architecture where DMA goes through SystemBus.ReadMemory16()
+// which is a direct array access, completely separate from the CPU's MMS path.
 void Device_DMAWrite(uint32_t coreAddress, uint16_t data) {
-    WritePhysicalMemory(coreAddress & 0xFFFFFF, data, false);
+    uint32_t addr = coreAddress & 0xFFFFFF;
+    if (addr >= ND_Memsize) return;
+    VolatileMemory.n_Array[addr] = data;
 }
 
 int32_t Device_DMARead(uint32_t coreAddress)
 {
-    return ReadPhysicalMemory(coreAddress & 0xFFFFFF, false);
+    uint32_t addr = coreAddress & 0xFFFFFF;
+    if (addr >= ND_Memsize) return 0;
+    return (int32_t)VolatileMemory.n_Array[addr];
 }
 
 // Character Device Functions

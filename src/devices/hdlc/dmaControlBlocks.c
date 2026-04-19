@@ -55,9 +55,9 @@ void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice)
     dcbs->hdlcDevice = hdlcDevice;
 
     // Initialize outbound buffer
+    dcbs->outboundBufferCapacity = HDLC_MAX_FRAME_SIZE + 64;
+    dcbs->outboundBuffer = malloc(dcbs->outboundBufferCapacity);
     dcbs->outboundBufferSize = 0;
-    dcbs->outboundBufferCapacity = 0;
-    dcbs->outboundBuffer = NULL;
 
     // Initialize DCBs
     dcbs->txDCB = NULL;
@@ -159,6 +159,7 @@ void DMAControlBlocks_SetTXPointer(DMAControlBlocks *dmaCB, uint32_t listPointer
 
 void DMAControlBlocks_DebugTXFrames(DMAControlBlocks *dmaCB)
 {
+#ifdef DMA_DEBUG
     if (!dmaCB) return;
 
     for (int i = 0; i < 100; i++) {
@@ -166,7 +167,6 @@ void DMAControlBlocks_DebugTXFrames(DMAControlBlocks *dmaCB)
 
         uint16_t keyValue = (uint16_t)DMAControlBlocks_DMARead(dmaCB, addr);
         KeyFlags key = (KeyFlags)(keyValue & 0xFF00);
-        KeyFlags keySmall = (KeyFlags)(keyValue & 0x00FF);
 
         DMAControlBlocks_Log(dmaCB, "TXAnalyse: Offset=%d LP=0x%06X Key=0x%04X", i, addr, keyValue);
 
@@ -175,6 +175,9 @@ void DMAControlBlocks_DebugTXFrames(DMAControlBlocks *dmaCB)
             return;
         }
     }
+#else
+    (void)dmaCB;
+#endif
 }
 
 void DMAControlBlocks_LoadTXBuffer(DMAControlBlocks *dmaCB)
@@ -206,7 +209,9 @@ void DMAControlBlocks_MarkBufferSent(DMAControlBlocks *dmaCB)
         uint16_t data = (uint16_t)(DCB_GetDataFlowCost(dmaCB->txDCB) | (uint16_t)(KEYFLAG_ALREADY_TRANSMITTED_BLOCK));
         DCB_SetKeyValue(dmaCB->txDCB, data);
 
+#ifdef DMA_DEBUG
         DMAControlBlocks_Log(dmaCB, "MarkBufferSent: Status Word = 0x%04X", data);
+#endif
         DMAControlBlocks_DMAWrite(dmaCB, DCB_GetBufferAddress(dmaCB->txDCB), data);
     }
 }
@@ -501,6 +506,7 @@ void DMAControlBlocks_WriteNextByteDMA(DMAControlBlocks *dmaCB, uint8_t data, bo
     }
 
     if (!description) return;
+
 
     int bytesWritten = DCB_GetDMABytesWritten(description);
     uint16_t displacement = DCB_GetDisplacement(description);

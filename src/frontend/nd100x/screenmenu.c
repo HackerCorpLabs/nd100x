@@ -108,6 +108,17 @@ static void draw_f12(void)
     fflush(stdout);
 }
 
+static const char *tx_sender_state_name(int state)
+{
+    switch (state) {
+    case 0: return "Stopped";
+    case 1: return "Ready";
+    case 2: return "Sending";
+    case 3: return "Sent";
+    default: return "?";
+    }
+}
+
 static void draw_hdlc_status(void)
 {
     // Home cursor and clear entire screen (repaint in place)
@@ -116,13 +127,6 @@ static void draw_hdlc_status(void)
 
     int count = DeviceManager_GetDeviceCount();
     int found = 0;
-
-    printf("  %-6s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %s\n",
-           "Dev#", "I/O Addr", "Bytes TX", "Bytes RX",
-           "Frames TX", "Frames RX", "CRC Errs", "RX Frame", "RX Queue", "Connected");
-    printf("  %-6s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %-10s  %s\n",
-           "----", "--------", "--------", "--------",
-           "---------", "---------", "--------", "--------", "--------", "---------");
 
     for (int i = 0; i < count; i++) {
         Device *dev = DeviceManager_GetDeviceByIndex(i);
@@ -133,59 +137,102 @@ static void draw_hdlc_status(void)
 
         found++;
 
+        char addrStr[16];
+        snprintf(addrStr, sizeof(addrStr), "%04o-%04o", dev->startAddress, dev->endAddress);
+
+        bool connected = data->modem ? atomic_load(&data->modem->connected) : false;
+
         char txBytesStr[16], rxBytesStr[16];
         format_bytes(data->modem ? data->modem->bytesTx : 0, txBytesStr, sizeof(txBytesStr));
         format_bytes(data->modem ? data->modem->bytesRx : 0, rxBytesStr, sizeof(rxBytesStr));
 
-        bool connected = data->modem ? atomic_load(&data->modem->connected) : false;
+        HDLCRxFrameStatus st;
+        bool hasStatus = HDLC_GetRxFrameStatus(data, &st);
 
-        // RX frame assembly state and queue depth
-        char rxFrameBuf[24];
-        char rxQueueBuf[16];
-        const char *rxFrame = "Idle";
-        const char *rxQueue = "-";
+        // Device header
+        printf("  HDLC #%d  [%s]  Connected: %s\n", data->thumbwheel, addrStr, connected ? "Yes" : "No");
 
-        HDLCRxFrameStatus rxStatus;
-        if (HDLC_GetRxFrameStatus(data, &rxStatus)) {
-            if (!rxStatus.rxDmaEnabled) {
-                rxFrame = "DMA off";
-            } else if (!rxStatus.rxDcbReady) {
-                rxFrame = "No DCB";
-            } else {
-                switch (rxStatus.state) {
-                case 1: // HDLC_STATE_RECEIVING
-                case 2: // HDLC_STATE_ESCAPE
-                    snprintf(rxFrameBuf, sizeof(rxFrameBuf), "Rx %d B", rxStatus.frameLength);
-                    rxFrame = rxFrameBuf;
-                    break;
-                case 3: // HDLC_STATE_ERROR
-                    rxFrame = "Error";
-                    break;
+        // Fixed-width snprintf buffers so columns stay aligned regardless of value length
+        {
+            char c_dma[8], c_bytes[12], c_frames[12], c_ena[16], c_errs[18], c_state[20], c_queue[12];
+            char tmpBuf[24];
+
+            // --- RX line ---
+            snprintf(c_dma, sizeof(c_dma), "%-3s", (hasStatus && st.rxDmaEnabled) ? "On" : "Off");
+            snprintf(c_bytes, sizeof(c_bytes), "%-8s", rxBytesStr);
+            snprintf(c_frames, sizeof(c_frames), "%-8" PRIu64, data->framesRx);
+            snprintf(c_ena, sizeof(c_ena), "RXE=%-6s", (hasStatus && st.rxEnabled) ? "On" : "Off");
+            snprintf(c_errs, sizeof(c_errs), "Errs=%-7" PRIu64, data->framesRxErrors);
+
+            // RX frame assembly state
+            const char *rxState = "Idle";
+            if (hasStatus) {
+                if (!st.rxDmaEnabled) {
+                    rxState = "DMA off";
+                } else if (!st.rxDcbReady) {
+                    rxState = "No DCB";
+                } else {
+                    switch (st.state) {
+                    case 1: case 2:
+                        snprintf(tmpBuf, sizeof(tmpBuf), "Rx %d B", st.frameLength);
+                        rxState = tmpBuf;
+                        break;
+                    case 3:
+                        rxState = "Error";
+                        break;
+                    }
                 }
             }
-            format_bytes(rxStatus.tcpQueueUsed, rxQueueBuf, sizeof(rxQueueBuf));
-            rxQueue = rxQueueBuf;
+            snprintf(c_state, sizeof(c_state), "State=%-10s", rxState);
+
+            if (hasStatus) {
+                format_bytes(st.tcpQueueUsed, c_queue, sizeof(c_queue));
+            } else {
+                snprintf(c_queue, sizeof(c_queue), "-");
+            }
+
+            printf("    RX: DMA=%s  Bytes=%s  Frames=%s  %s  %s  %s  Queue=%s\n",
+                   c_dma, c_bytes, c_frames, c_ena, c_errs, c_state, c_queue);
+
+            // --- TX line ---
+            snprintf(c_dma, sizeof(c_dma), "%-3s", (hasStatus && st.txDmaEnabled) ? "On" : "Off");
+            snprintf(c_bytes, sizeof(c_bytes), "%-8s", txBytesStr);
+            snprintf(c_frames, sizeof(c_frames), "%-8" PRIu64, data->framesTx);
+            snprintf(c_ena, sizeof(c_ena), "TXE=%-6s", (hasStatus && st.txEnabled) ? "On" : "Off");
+            snprintf(c_errs, sizeof(c_errs), "%-12s", "");  // blank to align with RX Errs column
+
+            const char *txState = hasStatus ? tx_sender_state_name(st.txSenderState) : "Stopped";
+            snprintf(c_state, sizeof(c_state), "State=%-10s", txState);
+
+            if (hasStatus) {
+                format_bytes(st.txQueueUsed, c_queue, sizeof(c_queue));
+            } else {
+                snprintf(c_queue, sizeof(c_queue), "-");
+            }
+
+            printf("    TX: DMA=%s  Bytes=%s  Frames=%s  %s  %s  %s  Queue=%s\n",
+                   c_dma, c_bytes, c_frames, c_ena, c_errs, c_state, c_queue);
+
+            // Dropped bytes line (only shown if any drops occurred)
+            uint64_t rxDrop = data->modem ? data->modem->rxDropped : 0;
+            uint64_t txDrop = data->modem ? data->modem->txDropped : 0;
+            if (rxDrop > 0 || txDrop > 0) {
+                char rxDropStr[16], txDropStr[16];
+                format_bytes(rxDrop, rxDropStr, sizeof(rxDropStr));
+                format_bytes(txDrop, txDropStr, sizeof(txDropStr));
+                printf("    ** DROPPED: RX=%s  TX=%s\n", rxDropStr, txDropStr);
+            }
         }
 
-        char addrStr[16];
-        snprintf(addrStr, sizeof(addrStr), "%04o-%04o",
-                 dev->startAddress, dev->endAddress);
-
-        printf("  %-6d  %-10s  %-10s  %-10s  %-10" PRIu64 "  %-10" PRIu64 "  %-10" PRIu64 "  %-10s  %-10s  %s\n",
-               data->thumbwheel,
-               addrStr,
-               txBytesStr, rxBytesStr,
-               data->framesTx, data->framesRx, data->framesRxErrors,
-               rxFrame, rxQueue,
-               connected ? "Yes" : "No");
+        printf("\n");
     }
 
     if (found == 0) {
-        printf("\n  No HDLC devices configured.\n");
+        printf("  No HDLC devices configured.\n");
         printf("  Use --hdlc=N:PORT (server) or --hdlc=N:HOST:PORT (client)\n");
     }
 
-    printf("\n  Refreshes every second. Press ESC to return.\n");
+    printf("  Refreshes every second. Press ESC to return.\n");
     fflush(stdout);
 }
 

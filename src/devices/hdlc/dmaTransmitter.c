@@ -49,6 +49,7 @@ void DMATransmitter_Init(DMATransmitter *transmitter, void *com5025, DMAControlB
     transmitter->bytesSent = 0;
     transmitter->onSendHDLCFrame = NULL;
     transmitter->onSetInterruptBit = NULL;
+    transmitter->callbackContext = NULL;
 }
 
 void DMATransmitter_Destroy(DMATransmitter *transmitter)
@@ -137,7 +138,7 @@ void DMATransmitter_SetTXDMAFlag(DMATransmitter *transmitter, uint16_t flag)
     if (hdlcData->txTransferControl.bits.dmaModuleIE &&
         hdlcData->txTransferStatus.bits.dmaModuleRequest) {
         if (transmitter->onSetInterruptBit) {
-            transmitter->onSetInterruptBit(12);
+            transmitter->onSetInterruptBit(transmitter->callbackContext, 12);
         }
     }
 }
@@ -160,15 +161,15 @@ bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter)
     while (true) {
         if (!dmaCB->txDCB) return true;
 
-        // Skip already transmitted blocks
+        // Skip already transmitted blocks (compare KEY bits 8-10 only, not RCOST low byte)
         while (dmaCB->txDCB &&
-               dmaCB->txDCB->keyValue == KEYFLAG_ALREADY_TRANSMITTED_BLOCK) {
+               DCB_GetKey(dmaCB->txDCB) == KEYFLAG_ALREADY_TRANSMITTED_BLOCK) {
             DMAControlBlocks_LoadNextTXBuffer(dmaCB);
         }
 
         if (!dmaCB->txDCB) return true;
 
-        if (dmaCB->txDCB->keyValue == KEYFLAG_BLOCK_TO_BE_TRANSMITTED) {
+        if (DCB_GetKey(dmaCB->txDCB) == KEYFLAG_BLOCK_TO_BE_TRANSMITTED) {
             // Start of new frame: clear outbound buffer
             if (DCB_HasRSOMFlag(dmaCB->txDCB)) {
                 dmaCB->outboundBufferSize = 0;
@@ -199,7 +200,7 @@ bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter)
                         memcpy(callbackFrame.frameBuffer, frameBuffer, (size_t)frameLength);
                         callbackFrame.frameLength = frameLength;
                         callbackFrame.frameComplete = true;
-                        transmitter->onSendHDLCFrame(&callbackFrame);
+                        transmitter->onSendHDLCFrame(transmitter->callbackContext, &callbackFrame);
                     }
                 }
                 dmaCB->outboundBufferSize = 0;

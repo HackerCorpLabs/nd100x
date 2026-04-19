@@ -247,6 +247,7 @@ typedef struct {
 
     // DMA state
     uint16_t dmaAddress;
+    uint8_t dmaBankBits;        // 4 bits for bank select (bits 16-19 of physical address)
     uint8_t dmaCommand;
     HDLCDMATxState txState;
     HDLCDMABlockState blockState;
@@ -289,13 +290,22 @@ typedef struct {
     uint64_t framesRxErrors;
 } HDLCData;
 
-// RX frame status for external inspection (menu, debugging)
+// HDLC status for external inspection (menu, debugging)
 typedef struct {
+    // RX status
     int state;          // HDLCReceiveState: 0=IDLE, 1=RECEIVING, 2=ESCAPE, 3=ERROR
     int frameLength;    // bytes accumulated in current frame
     int tcpQueueUsed;   // bytes waiting in TCP receive buffer
     bool rxDmaEnabled;  // receiver DMA enabled by SINTRAN
+    bool rxEnabled;     // receiver enabled (RXE bit)
     bool rxDcbReady;    // RX DMA control block available
+
+    // TX status
+    bool txDmaEnabled;  // transmitter DMA enabled by SINTRAN
+    bool txEnabled;     // transmitter enabled (TXE bit)
+    int txSenderState;  // DmaEngineSenderState: 0=STOPPED, 1=READY, 2=SENDING, 3=SENT
+    int txWaitTicks;    // dmaWaitTicks countdown (-1 = disabled)
+    int txQueueUsed;    // bytes waiting in modem TX queue
 } HDLCRxFrameStatus;
 
 // Function declarations

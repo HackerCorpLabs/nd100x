@@ -26,8 +26,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Default capacity: 64KB for high-throughput HDLC
-#define TCP_RECV_BUF_DEFAULT_CAPACITY 65536
+// Default capacity: 2MB - must be large enough to absorb TX bursts
+// without dropping data while the emulation thread drains it
+#define TCP_RECV_BUF_DEFAULT_CAPACITY (2 * 1024 * 1024)
 
 typedef struct {
     uint8_t *buffer;
