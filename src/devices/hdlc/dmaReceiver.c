@@ -141,7 +141,11 @@ int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver)
 
         if (!receiver->dmaCB->rxDCB ||
             DCB_GetKey(receiver->dmaCB->rxDCB) != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
-            DMAReceiver_SetRXDMAFlag(receiver, RTS_RECEIVER_OVERRUN | RTS_LIST_EMPTY);
+            // Only fire LIST_EMPTY once — don't spam IRQ 13 on every tick.
+            // SINTRAN will issue RECEIVER_CONTINUE to provide new buffers.
+            if (!hdlcData->rxTransferStatus.bits.listEmpty) {
+                DMAReceiver_SetRXDMAFlag(receiver, RTS_RECEIVER_OVERRUN | RTS_LIST_EMPTY);
+            }
             return bytesProcessed;
         }
 
