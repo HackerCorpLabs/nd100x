@@ -258,14 +258,16 @@ static uint16_t HDLC_Tick(Device *self)
         DMAEngine_Tick(data->dmaEngine);
     }
 
-    // Clock COM5025 TX/RX at baud rate interval (matches C# Clock() method).
-    // Must keep clocking even in burst/DMA mode so RSA/RDA pins clear naturally.
-    data->cpuTicks++;
-    if (data->cpuTicks >= data->cpuTicksPerTx) {
-        data->cpuTicks = 0;
-        if (data->com5025) {
-            COM5025_ClockTransmitter(data->com5025);
-            COM5025_ClockReceiver(data->com5025);
+    // Clock COM5025 only before DMA is initialized (needed for maintenance test).
+    // After INITIALIZE, burst/DMA mode handles all framing — COM5025 is unused.
+    if (!data->dmaEngine->enabled) {
+        data->cpuTicks++;
+        if (data->cpuTicks >= data->cpuTicksPerTx) {
+            data->cpuTicks = 0;
+            if (data->com5025) {
+                COM5025_ClockTransmitter(data->com5025);
+                COM5025_ClockReceiver(data->com5025);
+            }
         }
     }
 
