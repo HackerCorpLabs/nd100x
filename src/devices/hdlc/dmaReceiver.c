@@ -339,10 +339,12 @@ void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag)
     HDLCData *hdlcData = (HDLCData *)receiver->hdlcDevice->deviceData;
     if (!hdlcData) return;
 
-    // Matches C# order exactly:
-    // 1. StopReceiver if ListEmpty
+    // LIST_EMPTY: stop the DMA receiver completely.
+    // No more processing until SINTRAN issues RECEIVER_CONTINUE.
     if (flag & RTS_LIST_EMPTY) {
         hdlcData->rxTransferStatus.bits.receiverActive = 0;
+        hdlcData->rxTransferControl.bits.enableReceiverDMA = 0;
+        receiver->active = false;
     }
 
     // 2. Add SD/DSR flags (burst mode always active)
