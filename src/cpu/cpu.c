@@ -31,7 +31,9 @@
 // When enabled, sleeps to maintain target instruction rate.
 #include <stdint.h>
 #include <stdbool.h>
-#ifndef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
 #include <time.h>
 #endif
 static bool cpu_throttle_enabled = false;
