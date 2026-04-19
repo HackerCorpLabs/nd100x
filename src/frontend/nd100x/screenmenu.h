@@ -29,6 +29,7 @@ typedef enum {
     MENU_SCREEN_RELEASE,
     MENU_PENDING_LIST,
     MENU_HDLC_STATUS,
+    MENU_CPU_SPEED,
     MENU_MESSAGE,
 } MenuMode;
 

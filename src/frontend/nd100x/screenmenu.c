@@ -20,6 +20,8 @@
 #include "../../devices/devices_types.h"
 #include "../../devices/devices_protos.h"
 #include "../../devices/hdlc/deviceHDLC.h"
+#include "../../cpu/cpu_types.h"
+#include "../../cpu/cpu_protos.h"
 
 // Forward declaration for floppy menu (conditionally available).
 // The floppy-DB browser in menu.c depends on ncurses + libcurl and is not
@@ -36,6 +38,7 @@ static void draw_f12(void);
 static void draw_screen_select(MenuState *state, void *telnetServer);
 static void draw_release_prompt(MenuState *state);
 static void draw_hdlc_status(void);
+static void draw_cpu_speed(void);
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static void draw_pending_list(void *telnetServer);
 #endif
@@ -71,6 +74,10 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
         state->lastRefresh = time(NULL);
         draw_hdlc_status();
         break;
+    case MENU_CPU_SPEED:
+        state->lastRefresh = time(NULL);
+        draw_cpu_speed();
+        break;
     case MENU_PENDING_LIST:
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
         state->lastRefresh = time(NULL);
@@ -97,6 +104,57 @@ static void menu_show_message(MenuState *state, const char *msg, MenuMode return
 // Draw functions
 // =========================================================
 
+// CPU speed measurement state
+static uint64_t cpu_speed_last_instr = 0;
+static struct timespec cpu_speed_last_time;
+static bool cpu_speed_initialized = false;
+
+static void draw_cpu_speed(void)
+{
+    printf("\033[H\033[J");
+    printf("=== CPU Speed ===\n\n");
+
+    // Calculate actual speed
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+
+    double actual_mhz = 0;
+    if (cpu_speed_initialized) {
+        double elapsed = (now.tv_sec - cpu_speed_last_time.tv_sec)
+                       + (now.tv_nsec - cpu_speed_last_time.tv_nsec) / 1e9;
+        uint64_t delta_instr = instr_counter - cpu_speed_last_instr;
+        if (elapsed > 0.01) {
+            actual_mhz = (delta_instr / elapsed) / 1e6;
+        }
+    }
+    cpu_speed_last_instr = instr_counter;
+    cpu_speed_last_time = now;
+    cpu_speed_initialized = true;
+
+    bool throttle_on = cpu_throttle_get_enabled();
+
+    printf("  Instructions executed: %" PRIu64 "\n", instr_counter);
+    printf("  Actual speed:          %.3f MHz (%.1f KIPS)\n", actual_mhz, actual_mhz * 1000.0);
+    printf("\n");
+    printf("  Throttle:              %s\n", throttle_on ? "ON" : "OFF");
+
+    if (throttle_on) {
+        double target = cpu_throttle_get_mhz();
+        printf("  Target speed:          %.3f MHz\n", target);
+        double ratio = actual_mhz > 0 ? actual_mhz / target : 0;
+        printf("  Speed ratio:           %.1f%%\n", ratio * 100.0);
+    }
+
+    printf("\n  Keys:\n");
+    printf("    [T] Toggle throttle on/off\n");
+    printf("    [+] Increase target speed 10%%\n");
+    printf("    [-] Decrease target speed 10%%\n");
+    printf("    [A] Auto-calibrate (set target = current actual speed)\n");
+    printf("    [ESC] Back\n");
+    printf("\n  Refreshes every second.\n");
+    fflush(stdout);
+}
+
 static void draw_f12(void)
 {
     printf("\033[2J\033[H");
@@ -104,7 +162,8 @@ static void draw_f12(void)
     printf("  [1] Floppy Database Browser\n");
     printf("  [2] Virtual Screen Selector\n");
     printf("  [3] HDLC Status\n");
-    printf("\nPress 1-3 to select, ESC to cancel: ");
+    printf("  [4] CPU Speed\n");
+    printf("\nPress 1-4 to select, ESC to cancel: ");
     fflush(stdout);
 }
 
@@ -456,6 +515,14 @@ void menu_tick(MenuState *state, void *telnetServer)
             draw_hdlc_status();
         }
     }
+    // Live refresh for CPU speed view (every 1 second)
+    if (state->mode == MENU_CPU_SPEED) {
+        time_t now = time(NULL);
+        if (now - state->lastRefresh >= 1) {
+            state->lastRefresh = now;
+            draw_cpu_speed();
+        }
+    }
 }
 
 // =========================================================
@@ -494,6 +561,9 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
             menu_set_mode(state, MENU_SCREEN_SELECT, telnetServer);
         } else if (ch == '3') {
             menu_set_mode(state, MENU_HDLC_STATUS, telnetServer);
+        } else if (ch == '4') {
+            cpu_speed_initialized = false;
+            menu_set_mode(state, MENU_CPU_SPEED, telnetServer);
         }
         break;
 
@@ -653,6 +723,34 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
     case MENU_HDLC_STATUS:
         if (is_esc) {
             menu_set_mode(state, MENU_F12, telnetServer);
+        }
+        break;
+
+    case MENU_CPU_SPEED:
+        if (is_esc) {
+            menu_set_mode(state, MENU_F12, telnetServer);
+        } else if (ch == 't' || ch == 'T') {
+            cpu_throttle_set_enabled(!cpu_throttle_get_enabled());
+        } else if (ch == '+' || ch == '=') {
+            cpu_throttle_set_mhz(cpu_throttle_get_mhz() * 1.1);
+        } else if (ch == '-') {
+            cpu_throttle_set_mhz(cpu_throttle_get_mhz() * 0.9);
+        } else if (ch == 'a' || ch == 'A') {
+            // Auto-calibrate: measure current actual speed and set as target
+            // This only makes sense when throttle is OFF (measuring unthrottled speed)
+            // The user should then enable throttle to lock to this speed
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            if (cpu_speed_initialized) {
+                double elapsed = (now.tv_sec - cpu_speed_last_time.tv_sec)
+                               + (now.tv_nsec - cpu_speed_last_time.tv_nsec) / 1e9;
+                uint64_t delta = instr_counter - cpu_speed_last_instr;
+                if (elapsed > 0.1) {
+                    double actual = (delta / elapsed) / 1e6;
+                    cpu_throttle_set_mhz(actual);
+                    cpu_throttle_set_enabled(true);
+                }
+            }
         }
         break;
 

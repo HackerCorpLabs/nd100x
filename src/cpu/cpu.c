@@ -27,6 +27,31 @@
 //#define DEBUG_PK_SWITCH
 //  # define DEBUG_IONOFF
 
+// CPU throttle: match emulated time to wall clock
+// When enabled, sleeps to maintain target instruction rate.
+#include <stdint.h>
+#include <stdbool.h>
+#ifndef _WIN32
+#include <time.h>
+#endif
+static bool cpu_throttle_enabled = false;
+static double cpu_throttle_mhz = 2.5;  // Target: ~2.5M ips — tuned empirically for real-time clock
+
+// High-resolution clock for throttle timing
+static uint64_t throttle_get_ns(void) {
+#if defined(_WIN32) || defined(_WIN64)
+    static LARGE_INTEGER freq = {0};
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return (uint64_t)(now.QuadPart * 1000000000ULL / freq.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+#endif
+}
+
 
 #include <string.h>
 #include <setjmp.h>
@@ -723,6 +748,38 @@ int cpu_run(int ticks)
 			// Tick IO devices pr cpu tick
 			IO_Tick();
 
+			// CPU throttle: sleep if running ahead of target speed
+			if (cpu_throttle_enabled) {
+				static uint64_t throttle_start_ns = 0;
+				static uint64_t throttle_instr_count = 0;
+				#define THROTTLE_CHECK_INTERVAL 10550  // Check every RTC period
+
+				if (throttle_start_ns == 0) {
+					throttle_start_ns = throttle_get_ns();
+				}
+				throttle_instr_count++;
+
+				if (throttle_instr_count >= THROTTLE_CHECK_INTERVAL) {
+					uint64_t now_ns = throttle_get_ns();
+					uint64_t elapsed_ns = now_ns - throttle_start_ns;
+					// Target: THROTTLE_CHECK_INTERVAL instructions at cpu_throttle_mhz MHz
+					uint64_t target_ns = (uint64_t)(THROTTLE_CHECK_INTERVAL * 1000.0 / cpu_throttle_mhz);
+
+					if (elapsed_ns < target_ns) {
+						uint64_t sleep_ns = target_ns - elapsed_ns;
+						if (sleep_ns > 1000000) {  // > 1ms: use sleep
+							sleep_ms((unsigned int)(sleep_ns / 1000000));
+						}
+						// Spin-wait remainder for precision
+						while (throttle_get_ns() - throttle_start_ns < target_ns) {
+							// spin
+						}
+					}
+					throttle_start_ns = throttle_get_ns();
+					throttle_instr_count = 0;
+				}
+			}
+
 			if (ticks > 0)
 			{
 				ticks--;
@@ -999,4 +1056,28 @@ CPURunMode get_cpu_run_mode(void) {
 #endif
 }
 
+// CPU throttle API
+void cpu_throttle_set_enabled(bool enabled) {
+	cpu_throttle_enabled = enabled;
+	if (enabled) {
+		fprintf(stderr, "CPU throttle: ON (%.2f MHz)\n", cpu_throttle_mhz);
+	} else {
+		fprintf(stderr, "CPU throttle: OFF (full speed)\n");
+	}
+}
+
+bool cpu_throttle_get_enabled(void) {
+	return cpu_throttle_enabled;
+}
+
+void cpu_throttle_set_mhz(double mhz) {
+	if (mhz < 0.1) mhz = 0.1;
+	if (mhz > 100.0) mhz = 100.0;
+	cpu_throttle_mhz = mhz;
+	fprintf(stderr, "CPU throttle: target %.3f MHz\n", cpu_throttle_mhz);
+}
+
+double cpu_throttle_get_mhz(void) {
+	return cpu_throttle_mhz;
+}
 

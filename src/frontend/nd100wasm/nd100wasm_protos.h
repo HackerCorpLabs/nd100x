@@ -127,7 +127,6 @@ EMSCRIPTEN_EXPORT const char *Dbg_GetScopes(void);
 EMSCRIPTEN_EXPORT const char *Dbg_GetVariables(int scopeId);
 EMSCRIPTEN_EXPORT const char *Dbg_GetThreads(void);
 EMSCRIPTEN_EXPORT const char *Dbg_GetStackTrace(void);
-EMSCRIPTEN_EXPORT int Dbg_ReadPhysicalMemory(int physAddr);
 EMSCRIPTEN_EXPORT int Dbg_ReadPhysicalMemoryBlock(int startAddr, int count);
 EMSCRIPTEN_EXPORT int Dbg_GetPageTableCount(void);
 EMSCRIPTEN_EXPORT int Dbg_GetPageTableEntryRaw(int pageTable, int vpn);

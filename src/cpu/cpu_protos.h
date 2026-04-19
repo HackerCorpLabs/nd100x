@@ -30,6 +30,10 @@ void set_cpu_stop_reason(CpuStopReason reason);
 CpuStopReason get_cpu_stop_reason(void);
 void set_cpu_run_mode(CPURunMode new_mode);
 CPURunMode get_cpu_run_mode(void);
+void cpu_throttle_set_enabled(bool enabled);
+bool cpu_throttle_get_enabled(void);
+void cpu_throttle_set_mhz(double mhz);
+double cpu_throttle_get_mhz(void);
 
 /* /home/ronny/repos/nd100x/src/cpu/cpu_instr.c */
 bool CheckPriv(void);
