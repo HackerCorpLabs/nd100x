@@ -1195,11 +1195,12 @@ bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status)
 
 #ifdef MODEM_HAS_NETWORKING
     if (data->modem) {
-        pthread_mutex_lock(&((ModemState *)data->modem)->txQueue.mtx);
+        // Lock-free read — head/tail are simple ints, safe for approximate queue depth.
+        // Do NOT lock the mutex here: this runs in the emulation thread during F12 display,
+        // and locking can deadlock with queue_write_all spinning on the worker thread.
         int h = data->modem->txQueue.head;
         int t = data->modem->txQueue.tail;
         status->txQueueUsed = (h - t + MODEM_QUEUE_SIZE) % MODEM_QUEUE_SIZE;
-        pthread_mutex_unlock(&((ModemState *)data->modem)->txQueue.mtx);
     }
 #endif
 
