@@ -95,6 +95,11 @@ typedef struct ModemState {
     #endif
 #endif
 
+#if defined(__EMSCRIPTEN__)
+    /** Gateway WebSocket channel index 0–3 (thumbwheel − 1); used for TX to JS. */
+    int wasmBridgeChannel;
+#endif
+
     // Traffic statistics
     uint64_t bytesTx;
     uint64_t bytesRx;
@@ -133,5 +138,11 @@ void Modem_SetSignalDetectorCallback(ModemState *modem, ModemSignalCallback call
 void Modem_SetClearToSendCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetRequestToSendCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetDataTerminalReadyCallback(ModemState *modem, ModemSignalCallback callback);
+
+#if defined(__EMSCRIPTEN__)
+void Modem_SetWasmBridgeChannel(ModemState *modem, int channel);
+void Modem_StartWasmBridge(ModemState *modem);
+void Modem_SetCarrierPresent(ModemState *modem, bool present);
+#endif
 
 #endif // MODEM_H

@@ -681,6 +681,9 @@ Device* CreateHDLCDevice(uint8_t thumbwheel)
 
     // Initialize COM5025, modem, and DMA engine
     Modem_Init(data->modem, dev);
+#ifdef __EMSCRIPTEN__
+    Modem_SetWasmBridgeChannel(data->modem, devIndex);
+#endif
     DMAEngine_Init(data->dmaEngine, true, dev, data->modem, data->com5025);
 
     // Set up COM5025 callbacks
@@ -708,6 +711,16 @@ Device* CreateHDLCDevice(uint8_t thumbwheel)
              thumbwheel, dev->startAddress, dev->endAddress, dev->identCode);
 
     return dev;
+}
+
+void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length)
+{
+    if (!device || !data || length <= 0) return;
+
+    HDLCData *hdlcData = (HDLCData *)device->deviceData;
+    if (!hdlcData || !hdlcData->dmaEngine || !hdlcData->dmaEngine->receiver) return;
+
+    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
 }
 
 // Modem event callback implementations (equivalent to C# event handlers)
