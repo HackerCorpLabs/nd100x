@@ -531,11 +531,16 @@ static uint16_t HDLC_Ident(Device *self, uint16_t level)
 {
     if (!self) return 0;
 
+    // Only respond if OUR interrupt bit is set for this level.
+    // Level 13 is shared with RTC — must not claim RTC's interrupts.
+    if (!(self->interruptBits & (1 << level))) {
+        return 0; // Not our interrupt
+    }
+
     HDLC_LOG("IDENT level %d", level);
 
     HDLCData *data = (HDLCData *)self->deviceData;
 
-    // Clear interrupt enable flags for the serviced level using masks
     if (level == 12) {
         data->identCount12++;
         data->txTransferControl.raw &= HDLC_TTC_MASK_CLEAR_IDENT;
@@ -546,10 +551,7 @@ static uint16_t HDLC_Ident(Device *self, uint16_t level)
         data->rxTransferControl.raw &= HDLC_RTC_MASK_CLEAR_IDENT;
     }
 
-    // Always clear interrupt status for this level
     Device_SetInterruptStatus(self, false, level);
-
-    // Always return ident code
     return self->identCode;
 }
 
