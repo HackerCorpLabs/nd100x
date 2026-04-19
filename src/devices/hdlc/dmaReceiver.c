@@ -47,6 +47,7 @@ void DMAReceiver_Init(DMAReceiver *receiver, void *com5025, DMAControlBlocks *dm
     receiver->bytesReceived = 0;
     receiver->processTcpBufDelay = 0;
     receiver->onSetInterruptBit = NULL;
+    receiver->callbackContext = NULL;
 
     TcpReceiveBuffer_Init(&receiver->tcpReceiveBuffer, TCP_RECV_BUF_DEFAULT_CAPACITY);
 }
@@ -68,8 +69,9 @@ void DMAReceiver_Clear(DMAReceiver *receiver)
 
 // ---------------------------------------------------------------------------
 // Tick: called every CPU cycle from DMAEngine_Tick.
-// Processes ONE complete HDLC frame from the ring buffer per tick.
-// Rate-limited with processTcpBufDelay to give SINTRAN time to handle IRQs.
+// Processes ONE complete HDLC frame per call.
+// Adaptive delay: short delay (50 ticks) when queue is backing up,
+// normal delay (500 ticks) when queue is manageable.
 // ---------------------------------------------------------------------------
 void DMAReceiver_Tick(DMAReceiver *receiver)
 {
@@ -80,11 +82,18 @@ void DMAReceiver_Tick(DMAReceiver *receiver)
         return;
     }
 
-    if (TcpReceiveBuffer_Available(&receiver->tcpReceiveBuffer) > 0) {
+    int available = TcpReceiveBuffer_Available(&receiver->tcpReceiveBuffer);
+    if (available > 0) {
         DMAReceiver_ProcessBufferedData(receiver);
-        // Delay after processing - gives SINTRAN time to process IRQ
-        // and send RR with correct N(R)
-        receiver->processTcpBufDelay = 10000;
+
+        // Adaptive delay: process faster when queue has significant backlog
+        if (available > 32768) {
+            receiver->processTcpBufDelay = 50;   // >32KB queued: minimal delay
+        } else if (available > 8192) {
+            receiver->processTcpBufDelay = 200;  // >8KB queued: reduced delay
+        } else {
+            receiver->processTcpBufDelay = 500;  // Low queue: normal delay
+        }
     }
 }
 
@@ -129,13 +138,13 @@ int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver)
     int bytesProcessed = 0;
 
     while (bytesProcessed < maxBytes) {
-        // Ensure we have a valid DMA buffer
-        if (receiver->dmaCB->rxDCB->keyValue != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+        // Ensure we have a valid DMA buffer (compare KEY bits 8-10 only, not RCOST low byte)
+        if (DCB_GetKey(receiver->dmaCB->rxDCB) != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
             DMAControlBlocks_LoadNextRXBuffer(receiver->dmaCB);
         }
 
         if (!receiver->dmaCB->rxDCB ||
-            receiver->dmaCB->rxDCB->keyValue != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+            DCB_GetKey(receiver->dmaCB->rxDCB) != KEYFLAG_EMPTY_RECEIVER_BLOCK) {
             DMAReceiver_SetRXDMAFlag(receiver, RTS_RECEIVER_OVERRUN | RTS_LIST_EMPTY);
             return bytesProcessed;
         }
@@ -153,6 +162,8 @@ int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver)
             if (!DMAControlBlocks_LoadNextRXBuffer(receiver->dmaCB)) {
                 DMAReceiver_SetRXDMAFlag(receiver, RTS_LIST_EMPTY);
             }
+            // Exit after one frame - give SINTRAN time to handle IRQ
+            // Next call will start fresh with new frame (matches C# behavior)
             return bytesProcessed;
         }
     }
@@ -208,7 +219,11 @@ bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver)
     }
 
     if (writeSuccess) {
-        COM5025_WriteByte(receiver->com5025, COM5025_REG_BYTE_RECEIVER_STATUS, 0x03);
+        // Set RSOM|REOM in COM5025 receiver status (triggers RSA pin → status available)
+        // Note: COM5025_WriteByte to receiver status is a no-op (read-only register).
+        // Must use SetReceiverStatus which updates status and triggers pin callbacks.
+        COM5025_SetReceiverStatus(receiver->com5025,
+            COM5025_RX_STATUS_RSOM | COM5025_RX_STATUS_REOM);
         DMAControlBlocks_MarkBufferReceived(receiver->dmaCB, 0x03);
 
         DMAReceiver_SetRXDMAFlag(receiver,
@@ -271,7 +286,7 @@ bool DMAReceiver_FindNextReceiveBuffer(DMAReceiver *receiver)
     if (!receiver || !receiver->dmaCB) return false;
 
     if (receiver->dmaCB->rxDCB &&
-        receiver->dmaCB->rxDCB->keyValue == KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+        DCB_GetKey(receiver->dmaCB->rxDCB) == KEYFLAG_EMPTY_RECEIVER_BLOCK) {
         return true;
     }
 
@@ -289,10 +304,10 @@ DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_
     DMAControlBlocks *dmaCB = receiver->dmaCB;
     if (!dmaCB->rxDCB) return DMA_RECEIVE_NO_BUFFER;
 
-    int maxBlockLen = dmaCB->parameters ? dmaCB->parameters->maxReceiverBlockLength : 0;
+    int maxBlockLen = dmaCB->parameters ? dmaCB->parameters->maxReceiverBlockLength : 256;
 
-    // Check if buffer is full BEFORE writing
-    if (maxBlockLen > 0 && dmaCB->rxDCB->dmaBytesWritten >= maxBlockLen) {
+    // Check if buffer is full BEFORE writing (matches C#: dma_bytes_written >= MaxReceiverBlockLength)
+    if (dmaCB->rxDCB->dmaBytesWritten >= maxBlockLen) {
         // Mark with RSOM only (frame continues to next buffer)
         DMAControlBlocks_MarkBufferReceived(dmaCB, 0x01);
         DMAReceiver_SetRXDMAFlag(receiver,
@@ -302,7 +317,9 @@ DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_
         return DMA_RECEIVE_BUFFER_FULL;
     }
 
-    if (dmaCB->rxDCB->keyValue == KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+    if (DCB_GetKey(dmaCB->rxDCB) == KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+        // maxReceiverBlockLength == 0 means no limit (parameters may not include this)
+        // The C# version has no guard here — it writes unconditionally when key is EmptyReceiverBlock
         DMAControlBlocks_WriteNextByteDMA(dmaCB, data, true);
         receiver->bytesReceived++;
     }
@@ -323,10 +340,14 @@ void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag)
     // Always add SD and DSR flags (burst mode always active)
     flag |= RTS_SIGNAL_DETECTOR | RTS_DATA_SET_READY;
 
+    // LIST_EMPTY: stop receiver (clear ReceiverActive status bit)
+    // Note: do NOT clear enableReceiverDMA — that's SINTRAN's control register bit.
+    // SINTRAN will issue RECEIVER_CONTINUE to provide new buffers.
     if (flag & RTS_LIST_EMPTY) {
         hdlcData->rxTransferStatus.bits.receiverActive = 0;
     }
 
+    // Check if next buffer is available; if not, force LIST_EMPTY
     if (receiver->dmaCB && !DMAControlBlocks_IsNextRXbufValid(receiver->dmaCB)) {
         flag |= RTS_LIST_EMPTY;
     }
@@ -349,7 +370,7 @@ void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag)
     if (hdlcData->rxTransferControl.bits.dmaModuleIE &&
         hdlcData->rxTransferStatus.bits.dmaModuleRequest) {
         if (receiver->onSetInterruptBit) {
-            receiver->onSetInterruptBit(13);
+            receiver->onSetInterruptBit(receiver->callbackContext, 13);
         }
     }
 }

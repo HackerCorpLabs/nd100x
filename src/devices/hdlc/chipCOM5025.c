@@ -40,8 +40,6 @@ static void COM5025_TransmitByteOutput(COM5025State *chip, uint8_t data, bool is
 static void COM5025_SendOneByte(COM5025State *chip, uint8_t data);
 static bool COM5025_TSR_Empty(COM5025State *chip);
 static uint8_t COM5025_MapBits2CharLen(uint8_t bits);
-static void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus);
-
 // Global state for the chip (could be per-device instance)
 static COM5025Registers registers;
 
@@ -598,7 +596,7 @@ static uint8_t COM5025_MapBits2CharLen(uint8_t bits)
         return bits;
 }
 
-static void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus)
+void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus)
 {
     if (!chip) return;
 

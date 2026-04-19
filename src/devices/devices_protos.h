@@ -112,6 +112,7 @@ void COM5025_ClockTransmitter(COM5025State *chip);
 void COM5025_ProcessBit(COM5025State *chip, bool bit);
 void COM5025_ReceiveData(COM5025State *chip, const uint8_t *data, int length);
 void COM5025_TransmitData(COM5025State *chip, uint8_t data);
+void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus);
 void COM5025_SetTransmitterOutputCallback(COM5025State *chip, void (*callback )(void *context, uint8_t data ), void *context);
 void COM5025_SetPinValueChangedCallback(COM5025State *chip, void (*callback )(void *context, COM5025SignalPinOut pin, bool value ), void *context);
 
