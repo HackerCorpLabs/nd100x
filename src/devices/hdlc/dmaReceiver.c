@@ -331,24 +331,25 @@ void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag)
     HDLCData *hdlcData = (HDLCData *)receiver->hdlcDevice->deviceData;
     if (!hdlcData) return;
 
-    // Always add SD and DSR flags (burst mode always active)
-    flag |= RTS_SIGNAL_DETECTOR | RTS_DATA_SET_READY;
-
-    // LIST_EMPTY: stop receiver (clear ReceiverActive status bit)
-    // Note: do NOT clear enableReceiverDMA — that's SINTRAN's control register bit.
-    // SINTRAN will issue RECEIVER_CONTINUE to provide new buffers.
+    // Matches C# order exactly:
+    // 1. StopReceiver if ListEmpty
     if (flag & RTS_LIST_EMPTY) {
         hdlcData->rxTransferStatus.bits.receiverActive = 0;
     }
 
-    // Check if next buffer is available; if not, force LIST_EMPTY
+    // 2. Add SD/DSR flags (burst mode always active)
+    flag |= RTS_SIGNAL_DETECTOR | RTS_DATA_SET_READY;
+
+    // 3. Check if next buffer is available; if not, force LIST_EMPTY
     if (receiver->dmaCB && !DMAControlBlocks_IsNextRXbufValid(receiver->dmaCB)) {
         flag |= RTS_LIST_EMPTY;
     }
 
     hdlcData->rxTransferStatus.raw |= flag;
 
-    if (hdlcData->rxTransferStatus.bits.listEmpty) {
+    // C# checks the INPUT flag, not the accumulated status register.
+    // This prevents stale listEmpty from previous calls triggering DMAModuleRequest.
+    if (flag & RTS_LIST_EMPTY) {
         hdlcData->rxTransferStatus.bits.dmaModuleRequest = 1;
     }
     if (hdlcData->rxTransferControl.bits.blockEndIE && hdlcData->rxTransferStatus.bits.blockEnd) {
