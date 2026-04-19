@@ -31,7 +31,7 @@
 
 #include "deviceRTC.h"
 
-#define TICKS_20MS 10550 // Ticks for 20ms timer (adjusted for stability)
+#define TICKS_20MS 10550 // Ticks for 20ms timer (use with --throttle=1.125 for real-time)
 //#define DEBUG_RTC
 //#define DEBUG_RTC_TICK
 
@@ -39,11 +39,11 @@ static void RTC_Reset(Device *self) {
     RTCData *data = (RTCData *)self->deviceData;
     if (!data) return;
 
-    // Clear all registers and status    
+    // Clear all registers and status
     data->rtcCounter = 0;
     data->divisionNumberN = TICKS_20MS;
     data->register1 = 0;
-    
+
     data->statusRegister.raw = 0;
     data->controlRegister.raw = 0;
 }
@@ -53,22 +53,13 @@ static void RTC_ClearClockTicks(Device *self) {
     if (!data) return;
 
     data->rtcCounter = data->divisionNumberN;
-
-#ifdef DEBUG_RTC
-//    printf("RTC_ClearClockTicks: %d\n", data->rtcCounter);
-#endif
 }
 
 static uint16_t RTC_Tick(Device *self) {
     if (!self) return 0;
-    
+
     RTCData *data = (RTCData *)self->deviceData;
     if (!data) return 0;
-
-#ifdef DEBUG_RTC_TICK
-    printf("RTC Tick %d\n", data->rtcCounter);
-#endif 
-
 
     // Process I/O delays
     Device_TickIODelay(self);
@@ -76,16 +67,10 @@ static uint16_t RTC_Tick(Device *self) {
     // Count down the timer
     data->rtcCounter--;
 
-    if (data->rtcCounter <= 0) {        
-        //if (!data->statusRegister.bits.readyForTransfer)
-        {
-            data->statusRegister.bits.readyForTransfer = true;
-            if (data->statusRegister.bits.interruptEnabled) {
-#ifdef DEBUG_RTC
-                printf("RTC Setting interrupt status to true\n");
-#endif                
-                Device_SetInterruptStatus(self, true, self->interruptLevel);
-            }
+    if (data->rtcCounter <= 0) {
+        data->statusRegister.bits.readyForTransfer = true;
+        if (data->statusRegister.bits.interruptEnabled) {
+            Device_SetInterruptStatus(self, true, self->interruptLevel);
         }
         RTC_ClearClockTicks(self);
     }
