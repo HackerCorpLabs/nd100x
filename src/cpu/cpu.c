@@ -35,7 +35,7 @@
 #include <time.h>
 #endif
 static bool cpu_throttle_enabled = false;
-static double cpu_throttle_mhz = 2.5;  // Target: ~2.5M ips — tuned empirically for real-time clock
+static double cpu_throttle_mhz = 1.125;  // Empirically verified: SINTRAN dat matches wall clock at 1.125 MHz
 
 // High-resolution clock for throttle timing
 static uint64_t throttle_get_ns(void) {

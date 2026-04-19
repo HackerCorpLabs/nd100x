@@ -48,6 +48,8 @@
 #include "../devices/terminal/deviceTerminal.h"
 #include "../devices/papertape/devicePapertape.h"
 #include "../devices/papertapewriter/devicePaperTapeWriter.h"
+#include "../devices/hdlc/deviceHDLC.h"
+#include "../devices/hdlc/modem.h"
 #include "../devices/devices_protos.h"
 #include "../ndlib/printjob.h"
 
@@ -84,6 +86,11 @@ static PrintJob *wasmPrintJob = NULL;
 // Array of device references for quick access
 #define MAX_TERMINALS 16
 static Device* terminals[MAX_TERMINALS] = {NULL};
+
+/** HDLC controllers 1–4 (gateway channel = index 0–3); base addrs match devicemanager */
+#define HDLC_CHANNEL_COUNT 4
+static Device *hdlc_devices[HDLC_CHANNEL_COUNT] = { NULL };
+static const uint16_t hdlc_base_addrs_oct[HDLC_CHANNEL_COUNT] = { 01640, 01660, 01700, 01720 };
 
 // =========================================================
 // Terminal output ring buffer
@@ -261,6 +268,20 @@ EMSCRIPTEN_EXPORT void Init(void)
     Device *ptw = DeviceManager_GetDeviceByAddress(0410);
     if (ptw) {
         Device_SetCharacterOutput(ptw, WasmPaperTapeWriterOutputHandler);
+    }
+
+    // HDLC 1–4: WebSocket/gateway bridge (no host TCP in WASM)
+    for (uint8_t tw = 1; tw <= HDLC_CHANNEL_COUNT; tw++) {
+        DeviceManager_AddDevice(DEVICE_TYPE_HDLC, tw);
+    }
+    for (int ch = 0; ch < HDLC_CHANNEL_COUNT; ch++) {
+        hdlc_devices[ch] = DeviceManager_GetDeviceByAddress(hdlc_base_addrs_oct[ch]);
+        if (hdlc_devices[ch] && hdlc_devices[ch]->deviceData) {
+            HDLCData *hd = (HDLCData *)hdlc_devices[ch]->deviceData;
+            if (hd && hd->modem) {
+                Modem_StartWasmBridge(hd->modem);
+            }
+        }
     }
 
     initialized = 1;
@@ -725,12 +746,11 @@ EMSCRIPTEN_EXPORT int MountFloppyFromGateway(int unit, int imageSize)
 }
 
 // =========================================================
-// HDLC Frame Bridge Stubs
+// HDLC frame bridge (gateway WebSocket <-> COM5025 / DMA)
 // =========================================================
-// These stubs provide the WASM export surface for HDLC frame transport
-// between the gateway and the emulator. The actual HDLC C device (COM5025
-// emulation) is a separate future task; these stubs allow the gateway
-// infrastructure to be tested and used once the device is ported.
+// RX: gateway -> HDLC_InjectRxFrame -> DMAReceiver_ReceiveDataFromModem
+// TX: Modem_SendBytes -> HDLC_QueueTxFrame -> worker polls HDLC_PollTxFrame
+// Carrier: gateway TCP accept/close -> HDLC_SetCarrier -> Modem_SetCarrierPresent
 
 #define HDLC_TX_RING_SIZE 16
 /* Larger than hdlcFrame.h HDLC_MAX_FRAME_SIZE; distinct name avoids macro clash */
@@ -748,14 +768,12 @@ static int hdlc_last_tx_channel = 0;
 static int hdlc_last_tx_length = 0;
 static uint8_t *hdlc_last_tx_buffer = NULL;
 
-// Inject a received HDLC frame into the emulator (from gateway via WebSocket)
-// Future: this will feed data into the COM5025 receive FIFO
+// Inject bytes from gateway TCP (via WebSocket 0x10) into the HDLC DMA receiver path
 EMSCRIPTEN_EXPORT void HDLC_InjectRxFrame(int channel, const uint8_t *data, int length)
 {
-    // Stub: log and discard until C device is ported
-    (void)channel;
-    (void)data;
-    (void)length;
+    if (!data || length <= 0) return;
+    if (channel < 0 || channel >= HDLC_CHANNEL_COUNT || !hdlc_devices[channel]) return;
+    HDLC_BridgeInjectRx(hdlc_devices[channel], data, length);
 }
 
 // Poll for a transmitted HDLC frame from the emulator
@@ -775,17 +793,16 @@ EMSCRIPTEN_EXPORT int HDLC_GetLastTxChannel(void) { return hdlc_last_tx_channel;
 EMSCRIPTEN_EXPORT int HDLC_GetLastTxLength(void) { return hdlc_last_tx_length; }
 EMSCRIPTEN_EXPORT uint8_t* HDLC_GetLastTxBuffer(void) { return hdlc_last_tx_buffer; }
 
-// Set carrier status for an HDLC channel
-// Future: this will update the COM5025 status register
+// Carrier from gateway when a TCP client connects/disconnects (WebSocket 0x12)
 EMSCRIPTEN_EXPORT void HDLC_SetCarrier(int channel, int present)
 {
-    // Stub: log and discard until C device is ported
-    (void)channel;
-    (void)present;
+    if (channel < 0 || channel >= HDLC_CHANNEL_COUNT || !hdlc_devices[channel]) return;
+    HDLCData *hd = (HDLCData *)hdlc_devices[channel]->deviceData;
+    if (!hd || !hd->modem) return;
+    Modem_SetCarrierPresent(hd->modem, present != 0);
 }
 
-// Queue a TX frame from the C device for transmission to the gateway
-// Called by the future HDLC C device when it has a frame to send
+// Called from modem.c (Emscripten) when the HDLC DMA path sends a frame to the wire
 void HDLC_QueueTxFrame(int channel, const uint8_t *data, int length)
 {
     int next = (hdlc_tx_head + 1) % HDLC_TX_RING_SIZE;

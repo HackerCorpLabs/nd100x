@@ -94,6 +94,7 @@ Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/deviceHDLC.c */
 Device *CreateHDLCDevice(uint8_t thumbwheel);
+void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length);
 bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/chipCOM5025.c */
@@ -173,6 +174,9 @@ void Modem_SetSignalDetectorCallback(ModemState *modem, ModemSignalCallback call
 void Modem_SetClearToSendCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetRequestToSendCallback(ModemState *modem, ModemSignalCallback callback);
 void Modem_SetDataTerminalReadyCallback(ModemState *modem, ModemSignalCallback callback);
+void Modem_SetWasmBridgeChannel(ModemState *modem, int channel);
+void Modem_StartWasmBridge(ModemState *modem);
+void Modem_SetCarrierPresent(ModemState *modem, bool present);
 
 /* /home/ronny/repos/nd100x/src/devices/hdlc/dmaEngine.c */
 void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, void *modem, void *com5025);

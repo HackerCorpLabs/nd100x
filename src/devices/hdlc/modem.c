@@ -26,6 +26,11 @@
 #include "modem.h"
 #include "../devices_types.h"
 
+#if defined(__EMSCRIPTEN__)
+/* nd100wasm.c — ring buffer consumed by HDLC_PollTxFrame in the JS worker */
+void HDLC_QueueTxFrame(int channel, const uint8_t *data, int length);
+#endif
+
 /* net_compat.h includes <winsock2.h> on Windows, which MUST precede
  * <windows.h> — anything that might pull windows.h (cpu_types.h's
  * Sleep() path) has to come after net_compat.h to silence the
@@ -533,15 +538,22 @@ void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int
         modem->workerRunning = true;
     }
 #else
+    /* Emscripten: no host TCP; WASM Init calls Modem_StartWasmBridge */
     atomic_store(&modem->networkStarted, true);
-    atomic_store(&modem->connected, true);
+    atomic_store(&modem->connected, false);
 #endif
 
-    // Signal DSR and SD immediately so SINTRAN sees hardware as present
+#if defined(MODEM_HAS_NETWORKING)
+    /* Native: line signals up once modem worker is started */
     modem->dataSetReady = true;
     modem->signalDetector = true;
     if (modem->onDataSetReady) modem->onDataSetReady(modem->hdlcDevice, true);
     if (modem->onSignalDetector) modem->onSignalDetector(modem->hdlcDevice, true);
+#elif defined(__EMSCRIPTEN__)
+    /* Browser: defer DSR/SD until gateway TCP client connects (0x12 carrier) */
+    modem->dataSetReady = false;
+    modem->signalDetector = false;
+#endif
 }
 
 // Called from CPU loop. Never touches a socket. Just drains RX queue.
@@ -574,6 +586,9 @@ void Modem_SendByte(ModemState *modem, uint8_t data)
 #ifdef MODEM_HAS_NETWORKING
     queue_write_all(&modem->txQueue, &data, 1, &modem->txDropped);
     modem->bytesTx++;
+#elif defined(__EMSCRIPTEN__)
+    HDLC_QueueTxFrame(modem->wasmBridgeChannel, &data, 1);
+    modem->bytesTx++;
 #endif
 }
 
@@ -583,6 +598,9 @@ void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length)
 
 #ifdef MODEM_HAS_NETWORKING
     queue_write_all(&modem->txQueue, data, length, &modem->txDropped);
+    modem->bytesTx += length;
+#elif defined(__EMSCRIPTEN__)
+    HDLC_QueueTxFrame(modem->wasmBridgeChannel, data, length);
     modem->bytesTx += length;
 #endif
 }
@@ -632,3 +650,30 @@ void Modem_SetSignalDetectorCallback(ModemState *modem, ModemSignalCallback call
 void Modem_SetClearToSendCallback(ModemState *modem, ModemSignalCallback callback)    { if (modem) modem->onClearToSend = callback; }
 void Modem_SetRequestToSendCallback(ModemState *modem, ModemSignalCallback callback)  { if (modem) modem->onRequestToSend = callback; }
 void Modem_SetDataTerminalReadyCallback(ModemState *modem, ModemSignalCallback callback) { if (modem) modem->onDataTerminalReady = callback; }
+
+#if defined(__EMSCRIPTEN__)
+void Modem_SetWasmBridgeChannel(ModemState *modem, int channel)
+{
+    if (!modem) return;
+    modem->wasmBridgeChannel = channel;
+}
+
+void Modem_StartWasmBridge(ModemState *modem)
+{
+    if (!modem) return;
+    atomic_store(&modem->networkStarted, true);
+    atomic_store(&modem->connected, false);
+    modem->dataSetReady = false;
+    modem->signalDetector = false;
+}
+
+void Modem_SetCarrierPresent(ModemState *modem, bool present)
+{
+    if (!modem) return;
+    atomic_store(&modem->connected, present);
+    modem->dataSetReady = present;
+    modem->signalDetector = present;
+    if (modem->onDataSetReady) modem->onDataSetReady(modem->hdlcDevice, present);
+    if (modem->onSignalDetector) modem->onSignalDetector(modem->hdlcDevice, present);
+}
+#endif
