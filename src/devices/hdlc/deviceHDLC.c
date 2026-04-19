@@ -739,7 +739,6 @@ static void HDLC_OnModemRingIndicator(Device *device, bool pinValue)
     HDLCData *data = (HDLCData *)device->deviceData;
     if (!data) return;
 
-    // Equivalent to C# Modem_OnRingIndicator
     if (pinValue) {
         data->rxModemFlags.bits.ringIndicator = 1;
     } else {
@@ -755,7 +754,6 @@ static void HDLC_OnModemDataSetReady(Device *device, bool pinValue)
     HDLCData *data = (HDLCData *)device->deviceData;
     if (!data) return;
 
-    // Equivalent to C# Modem_OnDataSetReady
     if (pinValue) {
         data->rxModemFlags.bits.dataSetReady = 1;
     } else {
@@ -771,7 +769,6 @@ static void HDLC_OnModemSignalDetector(Device *device, bool pinValue)
     HDLCData *data = (HDLCData *)device->deviceData;
     if (!data) return;
 
-    // Equivalent to C# Modem_OnSignalDetector
     if (pinValue) {
         data->rxModemFlags.bits.signalDetector = 1;
     } else {
