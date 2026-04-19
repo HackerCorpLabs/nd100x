@@ -213,6 +213,39 @@ static void draw_hdlc_status(void)
             printf("    TX: DMA=%s  Bytes=%s  Frames=%s  %s  %s  %s  Queue=%s\n",
                    c_dma, c_bytes, c_frames, c_ena, c_errs, c_state, c_queue);
 
+            // DCB and TX diagnostics
+            if (hasStatus && st.txStarts > 0) {
+                printf("    DCB: TX=%-8" PRIu64 " RX=%-8" PRIu64 "  |  Starts=%-6" PRIu64 " Sent=%-6" PRIu64 " Skip=%" PRIu64 "\n",
+                       data->dcbTxMarked, data->dcbRxMarked,
+                       st.txStarts, data->framesTx, st.txAlreadySent);
+                printf("    IRQ: 12=%-6" PRIu64 " 13=%-6" PRIu64 " IDENT12=%-6" PRIu64 " IDENT13=%-6" PRIu64 " IOX13=%-6" PRIu64 " TBMT=%d\n",
+                       data->irq12Count, data->irq13Count,
+                       data->identCount12, data->identCount13,
+                       data->iox13WriteCount,
+                       data->txTransferStatus.bits.transmitBufferEmpty);
+            }
+
+            // Last TX frames history
+            if (data->txHistoryIdx > 0) {
+                int total = data->txHistoryIdx < HDLC_TX_HISTORY_SIZE ? data->txHistoryIdx : HDLC_TX_HISTORY_SIZE;
+                int start = data->txHistoryIdx >= HDLC_TX_HISTORY_SIZE ? data->txHistoryIdx % HDLC_TX_HISTORY_SIZE : 0;
+                printf("    Last %d TX frames:\n", total);
+                for (int t = 0; t < total; t++) {
+                    int idx = (start + t) % HDLC_TX_HISTORY_SIZE;
+                    printf("      #%-3d LP=%06X DA=%06X K=%04X BC=%-3d W=%-3d ",
+                           data->txHistoryIdx - total + t + 1,
+                           data->txHistory[idx].listPtr,
+                           data->txHistory[idx].dataAddr,
+                           data->txHistory[idx].keyBefore,
+                           data->txHistory[idx].byteCount,
+                           data->txHistory[idx].frameSize);
+                    for (int b = 0; b < data->txHistory[idx].dataLen; b++) {
+                        printf("%02x ", data->txHistory[idx].data[b]);
+                    }
+                    printf("\n");
+                }
+            }
+
             // Dropped bytes line (only shown if any drops occurred)
             uint64_t rxDrop = data->modem ? data->modem->rxDropped : 0;
             uint64_t txDrop = data->modem ? data->modem->txDropped : 0;

@@ -288,6 +288,39 @@ typedef struct {
     uint64_t framesTx;
     uint64_t framesRx;
     uint64_t framesRxErrors;
+
+    // TX diagnostics (detect duplicate sends)
+    uint64_t txStarts;          // TRANSMITTER_START commands received
+    uint64_t txSendCalls;       // SendAllBuffers calls
+    uint64_t txAlreadySent;     // AlreadyTransmittedBlock skips (duplicate detection)
+    uint32_t txLastListPtr;     // last TX list pointer address
+    uint16_t txLastKeyBefore;   // key value before MarkBufferSent
+
+    // DCB counters
+    uint64_t dcbTxMarked;       // MarkBufferSent calls (DCBs marked as transmitted)
+    uint64_t dcbRxMarked;       // MarkBufferReceived calls (DCBs marked as received)
+
+    // Interrupt diagnostics
+    uint64_t identCount12;      // IDENT calls on level 12 (TX)
+    uint64_t identCount13;      // IDENT calls on level 13 (RX)
+    uint64_t irq12Count;        // IRQ 12 raised (TX)
+    uint64_t irq13Count;        // IRQ 13 raised (RX)
+    uint64_t iox13WriteCount;   // IOX+13 (WTTC) writes
+    uint64_t iox11WriteCount;   // IOX+11 (WRTC) writes
+
+    // Last 10 TX frame history (ring buffer)
+    #define HDLC_TX_HISTORY_SIZE 10
+    #define HDLC_TX_HISTORY_DATA_SIZE 20
+    struct {
+        uint32_t listPtr;       // DCB list pointer address
+        uint32_t dataAddr;      // data buffer address from DCB
+        uint16_t byteCount;     // data bytes in this DCB
+        uint16_t keyBefore;     // key value when DCB was loaded (before MarkBufferSent)
+        uint16_t frameSize;     // HDLC frame size on wire (with flags+stuffing+CRC)
+        uint8_t  data[HDLC_TX_HISTORY_DATA_SIZE]; // first 20 bytes of wire frame
+        uint8_t  dataLen;       // actual bytes stored (min of frameSize, 20)
+    } txHistory[HDLC_TX_HISTORY_SIZE];
+    int txHistoryIdx;           // next write index (wraps)
 } HDLCData;
 
 // HDLC status for external inspection (menu, debugging)
@@ -306,6 +339,11 @@ typedef struct {
     int txSenderState;  // DmaEngineSenderState: 0=STOPPED, 1=READY, 2=SENDING, 3=SENT
     int txWaitTicks;    // dmaWaitTicks countdown (-1 = disabled)
     int txQueueUsed;    // bytes waiting in modem TX queue
+
+    // TX diagnostics
+    uint64_t txStarts;      // TRANSMITTER_START commands
+    uint64_t txSendCalls;   // SendAllBuffers invocations
+    uint64_t txAlreadySent; // AlreadyTransmittedBlock skips
 } HDLCRxFrameStatus;
 
 // Function declarations
