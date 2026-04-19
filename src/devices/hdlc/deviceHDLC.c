@@ -911,73 +911,74 @@ static void HDLC_OnCOM5025PinValueChanged(Device *device, COM5025SignalPinOut pi
 
     // Equivalent to C# Com5025_OnPinValueChanged
     // Handle pin value changes that affect HDLC controller state
+    // Matches C# Com5025_OnPinValueChanged exactly:
+    // - SFR, RXACT: update status only, NO CheckTriggerInterrupt
+    // - RDA, RSA: update status + CheckTriggerInterrupt
+    // - TXACT: update status + UpdateRQTS, NO CheckTriggerInterrupt
+    // - TBMT, TSA: update status + CheckTriggerInterrupt
     switch (pin) {
-        case COM5025_PIN_OUT_SFR: // Sync/Flag received
-            if (value) {
+        case COM5025_PIN_OUT_SFR: // Sync/Flag received — no interrupt check
+            if (value)
                 data->rxTransferStatus.bits.syncFlagReceived = 1;
-            } else {
+            else
                 data->rxTransferStatus.bits.syncFlagReceived = 0;
-            }
             break;
 
-        case COM5025_PIN_OUT_RXACT: // Receiver Active
-            if (value) {
+        case COM5025_PIN_OUT_RXACT: // Receiver Active — no interrupt check
+            if (value)
                 data->rxTransferStatus.bits.receiverActive = 1;
-            } else {
+            else
                 data->rxTransferStatus.bits.receiverActive = 0;
-            }
             break;
 
-        case COM5025_PIN_OUT_RDA: // Receiver Data Available
+        case COM5025_PIN_OUT_RDA: // Receiver Data Available — triggers interrupt check on rising edge only (matches C#)
             if (value) {
                 data->rxTransferStatus.bits.dataAvailable = 1;
+                HDLC_CheckTriggerInterrupt(device);
             } else {
                 data->rxTransferStatus.bits.dataAvailable = 0;
             }
             break;
 
-        case COM5025_PIN_OUT_TXACT: // Transmitter Active
-            if (value) {
+        case COM5025_PIN_OUT_TXACT: // Transmitter Active — updates RQTS only
+            if (value)
                 data->txTransferStatus.bits.transmitterActive = 1;
-            } else {
+            else
                 data->txTransferStatus.bits.transmitterActive = 0;
-            }
+            HDLC_UpdateRQTS(device);
             break;
 
-        case COM5025_PIN_OUT_TBMT: // Transmitter Buffer Empty
-            if (value) {
+        case COM5025_PIN_OUT_TBMT: // Transmitter Buffer Empty — triggers interrupt check
+            if (value)
                 data->txTransferStatus.bits.transmitBufferEmpty = 1;
-            } else {
+            else
                 data->txTransferStatus.bits.transmitBufferEmpty = 0;
-            }
+            HDLC_CheckTriggerInterrupt(device);
             break;
 
-        case COM5025_PIN_OUT_TSA: // Transmitter Status Available (TERR/underrun)
-            if (value) {
+        case COM5025_PIN_OUT_TSA: // Transmitter Status Available — triggers interrupt check
+            if (value)
                 data->txTransferStatus.bits.transmitterUnderrun = 1;
-            } else {
+            else
                 data->txTransferStatus.bits.transmitterUnderrun = 0;
-            }
+            HDLC_CheckTriggerInterrupt(device);
             break;
 
-        case COM5025_PIN_OUT_RSA: // Receiver Status Available
+        case COM5025_PIN_OUT_RSA: // Receiver Status Available — triggers interrupt check on rising edge only (matches C#)
             if (value) {
                 data->rxTransferStatus.bits.statusAvailable = 1;
+                HDLC_CheckTriggerInterrupt(device);
             } else {
                 data->rxTransferStatus.bits.statusAvailable = 0;
             }
             break;
 
         case COM5025_PIN_OUT_TSO: // Transmitter Serial Output
-            // This is the actual bit-level output, typically handled by modem
             break;
 
         default:
             break;
     }
-
-    // Check and trigger interrupts based on pin changes
-    HDLC_CheckTriggerInterrupt(device);
 }
 
 static void HDLC_CheckTriggerIRQ12(Device *self)
@@ -1032,17 +1033,30 @@ static void HDLC_CheckTriggerInterrupt(Device *self)
     HDLCData *data = (HDLCData *)self->deviceData;
     if (!data) return;
 
-    /*** LEVEL 13 RX ***/
-    if (data->rxTransferStatus.bits.dataAvailable &&
-        data->rxTransferControl.bits.dataAvailableIE) {
-        HDLC_LOG_IRQ(13, "RX DataAvailable + DataAvailableIE");
-        Device_SetInterruptStatus(self, true, 13);
+    /*** LEVEL 13 RX — matches C# CheckTriggerInterrupt exactly ***/
+    if (data->rxTransferStatus.bits.dataAvailable) {
+        // C#: when DMA enabled, read COM5025 receive buffer to clear RDA pin.
+        // DataAvailableFromCOM5025() reads the byte (clears RDA → dataAvailable=0).
+        // In burst mode, the byte is discarded (ReceiveByteFromCOM50250 returns immediately).
+        if (data->rxTransferControl.bits.enableReceiverDMA && data->com5025) {
+            COM5025_ReadByte(data->com5025, COM5025_REG_BYTE_RECEIVER_DATA_BUFFER);
+        }
+
+        if (data->rxTransferControl.bits.dataAvailableIE) {
+            Device_SetInterruptStatus(self, true, 13);
+        }
     }
 
-    if (data->rxTransferStatus.bits.statusAvailable &&
-        data->rxTransferControl.bits.statusAvailableIE) {
-        HDLC_LOG_IRQ(13, "RX StatusAvailable + StatusAvailableIE");
-        Device_SetInterruptStatus(self, true, 13);
+    if (data->rxTransferStatus.bits.statusAvailable) {
+        // C#: when DMA enabled, clear StatusAvailable and return (burst mode no-op).
+        // StatusAvailableFromCOM5025() clears the flag to prevent re-triggering.
+        if (data->rxTransferControl.bits.enableReceiverDMA) {
+            data->rxTransferStatus.bits.statusAvailable = 0;
+        }
+
+        if (data->rxTransferControl.bits.statusAvailableIE) {
+            Device_SetInterruptStatus(self, true, 13);
+        }
     }
 
     /*** LEVEL 12 TX ***/

@@ -72,6 +72,8 @@ void COM5025_Reset(COM5025State *chip)
     // Clear input pins
     COM5025_ClearAllInputPins(chip);
 
+    // RSI stays 0 after ClearAllInputPins — matches C# exactly
+
     // Transmitter buffer empty
     COM5025_SetTransmitterBufferEmpty(chip);
 

@@ -481,8 +481,8 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
     if ((am & FETCH) && (pageTableRing < ring) && (ring == 3))
     {
         static int degrade_count = 0;
-        if (degrade_count < 3)
-            printf("\r\nDEGRADE: PIL=%d PC=%06o PT=%d VPN=%d ptRing=%d ring=%d->%d PTe=0x%08X\r\n",
+        if (degrade_count < 10)
+            fprintf(stderr, "DEGRADE: PIL=%d PC=%06o PT=%d VPN=%d ptRing=%d ring=%d->%d PTe=0x%08X\n",
                    CurrLEVEL, gPC, pageTable, VPN, pageTableRing, ring, pageTableRing, pageTableEntry);
         degrade_count++;
         ring = pageTableRing;
@@ -772,14 +772,7 @@ void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMod
 		disasm_set_isdata(virtualAddress);
 
     int pa = mapVirtualToPhysical(virtualAddress, WRITE, UseAPT);
-    /* TRACE: detect writes to VA 0x2F9D (_ov_saved_l_bss) */
-    if (virtualAddress == 0x2F9D) {
-        static int vw = 0;
-        if (vw < 5)
-            printf("\r\n*** VA_WRITE 0x2F9D val=0%06o pa=%d apt=%d PIL=%d PC=%06o\r\n",
-                   value, pa, UseAPT, CurrLEVEL, gPC);
-        vw++;
-    }
+    /* TRACE: detect writes to VA 0x2F9D (_ov_saved_l_bss) — disabled */
     if (pa == -1) return;
     WritePhysicalMemoryWM(pa, value, false,wm);
 }
