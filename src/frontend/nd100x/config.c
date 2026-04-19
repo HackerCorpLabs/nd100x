@@ -29,6 +29,7 @@
 #include "nd100x_types.h"
 #include "../../machine/machine_types.h"
 #include "../../devices/hdlc/hdlc_constants.h"
+#include "../../cpu/cpu_protos.h"
 
 // Long options
 static struct option long_options[] = {
@@ -52,6 +53,7 @@ static struct option long_options[] = {
     {"printer",    required_argument, 0, 'r'},
     {"printformat",required_argument, 0, 'f'},
     {"hdlc",       required_argument, 0, 'H'},
+    {"throttle",   optional_argument, 0, 'Z'},
     {0, 0, 0, 0}
 };
 
@@ -186,7 +188,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -291,6 +293,14 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 if (!parseHDLCConfig(config, optarg)) {
                     fprintf(stderr, "Invalid HDLC configuration: %s\n", optarg);
                     return false;
+                }
+                break;
+
+            case 'Z':
+                cpu_throttle_set_enabled(true);
+                if (optarg) {
+                    double mhz = atof(optarg);
+                    if (mhz > 0) cpu_throttle_set_mhz(mhz);
                 }
                 break;
 
@@ -402,6 +412,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)\n");
     printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
     printf("                          Client: --hdlc=N:HOST:PORT\n");
+    printf("  -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);

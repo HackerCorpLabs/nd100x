@@ -733,12 +733,13 @@ EMSCRIPTEN_EXPORT int MountFloppyFromGateway(int unit, int imageSize)
 // infrastructure to be tested and used once the device is ported.
 
 #define HDLC_TX_RING_SIZE 16
-#define HDLC_MAX_FRAME_SIZE 2048
+/* Larger than hdlcFrame.h HDLC_MAX_FRAME_SIZE; distinct name avoids macro clash */
+#define HDLC_WASM_TX_BUF 2048
 
 static struct {
     int channel;
     int length;
-    uint8_t data[HDLC_MAX_FRAME_SIZE];
+    uint8_t data[HDLC_WASM_TX_BUF];
 } hdlc_tx_ring[HDLC_TX_RING_SIZE];
 
 static int hdlc_tx_head = 0;
@@ -790,7 +791,7 @@ void HDLC_QueueTxFrame(int channel, const uint8_t *data, int length)
     int next = (hdlc_tx_head + 1) % HDLC_TX_RING_SIZE;
     if (next == hdlc_tx_tail) return;  // ring full, drop frame
 
-    if (length > HDLC_MAX_FRAME_SIZE) length = HDLC_MAX_FRAME_SIZE;
+    if (length > HDLC_WASM_TX_BUF) length = HDLC_WASM_TX_BUF;
     hdlc_tx_ring[hdlc_tx_head].channel = channel;
     hdlc_tx_ring[hdlc_tx_head].length = length;
     memcpy(hdlc_tx_ring[hdlc_tx_head].data, data, length);
@@ -1441,14 +1442,8 @@ EMSCRIPTEN_EXPORT const char* Dbg_GetThreads(void) { return "[]"; }
 EMSCRIPTEN_EXPORT const char* Dbg_GetStackTrace(void) { return "[]"; }
 #endif
 
-// --- Physical Memory Access (bypasses MMS, direct array read) ---
-
-EMSCRIPTEN_EXPORT int Dbg_ReadPhysicalMemory(int physAddr)
-{
-    if (physAddr < 0 || physAddr >= (int)ND_Memsize)
-        return 0;
-    return (int)VolatileMemory.n_Array[physAddr];
-}
+// --- Physical Memory Access ---
+// Dbg_ReadPhysicalMemory is implemented in cpu_mms.c (same TU as native debugger).
 
 static uint16_t phys_block_buffer[4096];
 
