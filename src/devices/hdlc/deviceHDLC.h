@@ -349,5 +349,6 @@ typedef struct {
 // Function declarations
 Device* CreateHDLCDevice(uint8_t thumbwheel);
 bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status);
+void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length);
 
 #endif // DEVICE_HDLC_H
