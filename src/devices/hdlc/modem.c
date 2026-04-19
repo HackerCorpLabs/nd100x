@@ -128,7 +128,7 @@ static int queue_write_all(ModemQueue *q, const uint8_t *data, int len, uint64_t
         int n = queue_write(q, data + totalWritten, len - totalWritten);
         totalWritten += n;
         if (totalWritten < len) {
-            usleep(50); // yield to let consumer drain the queue
+            sleep_ms(1); // yield to let consumer drain the queue
         }
     }
     return totalWritten;
