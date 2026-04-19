@@ -156,6 +156,11 @@ bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter)
 
     if (dmaCB->txListPointer == 0) return true;
 
+    // Track call count
+    if (transmitter->hdlcDevice && transmitter->hdlcDevice->deviceData) {
+        ((HDLCData *)transmitter->hdlcDevice->deviceData)->txSendCalls++;
+    }
+
     DMAControlBlocks_LoadTXBuffer(dmaCB);
 
     while (true) {
@@ -164,6 +169,9 @@ bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter)
         // Skip already transmitted blocks (compare KEY bits 8-10 only, not RCOST low byte)
         while (dmaCB->txDCB &&
                DCB_GetKey(dmaCB->txDCB) == KEYFLAG_ALREADY_TRANSMITTED_BLOCK) {
+            if (transmitter->hdlcDevice && transmitter->hdlcDevice->deviceData) {
+                ((HDLCData *)transmitter->hdlcDevice->deviceData)->txAlreadySent++;
+            }
             DMAControlBlocks_LoadNextTXBuffer(dmaCB);
         }
 
@@ -195,6 +203,21 @@ bool DMATransmitter_SendAllBuffers(DMATransmitter *transmitter)
                                                           dmaCB->outboundBufferSize,
                                                           frameBuffer, sizeof(frameBuffer));
                     if (frameLength > 0) {
+                        // Record in TX history
+                        if (transmitter->hdlcDevice && transmitter->hdlcDevice->deviceData) {
+                            HDLCData *hd = (HDLCData *)transmitter->hdlcDevice->deviceData;
+                            int idx = hd->txHistoryIdx % HDLC_TX_HISTORY_SIZE;
+                            hd->txHistory[idx].listPtr = DCB_GetBufferAddress(dmaCB->txDCB);
+                            hd->txHistory[idx].dataAddr = DCB_GetDataMemoryAddress(dmaCB->txDCB);
+                            hd->txHistory[idx].byteCount = dmaCB->txDCB->byteCount;
+                            hd->txHistory[idx].keyBefore = DCB_GetKeyValue(dmaCB->txDCB);
+                            hd->txHistory[idx].frameSize = (uint16_t)frameLength;
+                            int copyLen = frameLength < HDLC_TX_HISTORY_DATA_SIZE ? frameLength : HDLC_TX_HISTORY_DATA_SIZE;
+                            memcpy(hd->txHistory[idx].data, frameBuffer, (size_t)copyLen);
+                            hd->txHistory[idx].dataLen = (uint8_t)copyLen;
+                            hd->txHistoryIdx++;
+                        }
+
                         HDLCFrame callbackFrame;
                         HDLCFrame_Init(&callbackFrame);
                         memcpy(callbackFrame.frameBuffer, frameBuffer, (size_t)frameLength);

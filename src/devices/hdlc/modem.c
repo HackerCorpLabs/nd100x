@@ -111,6 +111,24 @@ static int queue_write(ModemQueue *q, const uint8_t *data, int len)
     return written;
 }
 
+// Enqueue ALL bytes, retrying with short sleep until queue has space.
+// Never drops data. Used for RX path where losing bytes corrupts HDLC frames.
+static int queue_write_all(ModemQueue *q, const uint8_t *data, int len, uint64_t *dropped)
+{
+    if (len <= 0) return 0;
+    (void)dropped; // tracked for stats but we never actually drop
+
+    int totalWritten = 0;
+    while (totalWritten < len) {
+        int n = queue_write(q, data + totalWritten, len - totalWritten);
+        totalWritten += n;
+        if (totalWritten < len) {
+            usleep(50); // yield to let consumer drain the queue
+        }
+    }
+    return totalWritten;
+}
+
 // Returns number of bytes read into dst
 static int queue_read(ModemQueue *q, uint8_t *dst, int maxlen)
 {
@@ -324,7 +342,7 @@ static void *server_worker(void *arg)
                 uint8_t buf[4096];
                 int n = recv(ND_SOCK_NATIVE(clientFd), (char *)buf, (int)sizeof(buf), 0);
                 if (n <= 0) break; // disconnect or error
-                queue_write(&modem->rxQueue, buf, n);
+                queue_write_all(&modem->rxQueue, buf, n, &modem->rxDropped);
             }
 
             // Write TX queue -> socket
@@ -408,7 +426,7 @@ static void *client_worker(void *arg)
                 uint8_t buf[4096];
                 int n = recv(ND_SOCK_NATIVE(clientFd), (char *)buf, (int)sizeof(buf), 0);
                 if (n <= 0) break;
-                queue_write(&modem->rxQueue, buf, n);
+                queue_write_all(&modem->rxQueue, buf, n, &modem->rxDropped);
             }
 
             if (fds.revents & POLLOUT) {
@@ -554,12 +572,8 @@ void Modem_SendByte(ModemState *modem, uint8_t data)
     }
 
 #ifdef MODEM_HAS_NETWORKING
-    queue_write(&modem->txQueue, &data, 1);
+    queue_write_all(&modem->txQueue, &data, 1, &modem->txDropped);
     modem->bytesTx++;
-    // Debug: print every 1000 bytes to confirm counting
-    if ((modem->bytesTx % 1000) == 0) {
-        fprintf(stderr, "Modem: bytesTx=%" PRIu64 "\n", modem->bytesTx);
-    }
 #endif
 }
 
@@ -568,7 +582,7 @@ void Modem_SendBytes(ModemState *modem, const uint8_t *data, int length)
     if (!modem || !data || length <= 0 || !atomic_load(&modem->connected)) return;
 
 #ifdef MODEM_HAS_NETWORKING
-    queue_write(&modem->txQueue, data, length);
+    queue_write_all(&modem->txQueue, data, length, &modem->txDropped);
     modem->bytesTx += length;
 #endif
 }

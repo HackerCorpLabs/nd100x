@@ -31,6 +31,8 @@
 #include "dmaParamBuf.h"
 #include "hdlcFrame.h"
 #include "dmaDCB.h"
+#include "../devices_types.h"
+#include "deviceHDLC.h"
 #include "dmaEnum.h"
 #include "hdlc_constants.h"
 
@@ -206,6 +208,9 @@ void DMAControlBlocks_MarkBufferSent(DMAControlBlocks *dmaCB)
     if (!dmaCB || !dmaCB->txDCB) return;
 
     if (DCB_GetKey(dmaCB->txDCB) == KEYFLAG_BLOCK_TO_BE_TRANSMITTED) {
+        if (dmaCB->hdlcDevice && dmaCB->hdlcDevice->deviceData) {
+            ((HDLCData *)dmaCB->hdlcDevice->deviceData)->dcbTxMarked++;
+        }
         uint16_t data = (uint16_t)(DCB_GetDataFlowCost(dmaCB->txDCB) | (uint16_t)(KEYFLAG_ALREADY_TRANSMITTED_BLOCK));
         DCB_SetKeyValue(dmaCB->txDCB, data);
 
@@ -292,6 +297,9 @@ void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStat
     if (!dmaCB || !dmaCB->rxDCB) return;
 
     if (DCB_GetKey(dmaCB->rxDCB) == KEYFLAG_EMPTY_RECEIVER_BLOCK) {
+        if (dmaCB->hdlcDevice && dmaCB->hdlcDevice->deviceData) {
+            ((HDLCData *)dmaCB->hdlcDevice->deviceData)->dcbRxMarked++;
+        }
         // Set RCOST in the low 8 bits, its actually the ReceiverStatusRegister
         uint16_t keyValue = DCB_GetKeyValue(dmaCB->rxDCB);
         keyValue = (keyValue & 0xFF00) | rxStatus;

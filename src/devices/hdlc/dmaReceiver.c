@@ -86,14 +86,10 @@ void DMAReceiver_Tick(DMAReceiver *receiver)
     if (available > 0) {
         DMAReceiver_ProcessBufferedData(receiver);
 
-        // Adaptive delay: process faster when queue has significant backlog
-        if (available > 32768) {
-            receiver->processTcpBufDelay = 50;   // >32KB queued: minimal delay
-        } else if (available > 8192) {
-            receiver->processTcpBufDelay = 200;  // >8KB queued: reduced delay
-        } else {
-            receiver->processTcpBufDelay = 500;  // Low queue: normal delay
-        }
+        // Minimal delay between frames — ACKs (RR/RNR) must reach SINTRAN
+        // before T1 fires, otherwise SINTRAN retransmits causing duplicates.
+        // 10 ticks = ~0.25us at 40MHz, enough for IRQ dispatch.
+        receiver->processTcpBufDelay = 10;
     }
 }
 

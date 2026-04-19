@@ -188,12 +188,14 @@ void DMAEngine_Tick(DMAEngine *dma)
 {
     if (!dma) return;
 
-    if (dma->transmitter) {
-        DMATransmitter_Tick(dma->transmitter);
-    }
-
+    // RX MUST tick BEFORE TX so that incoming ACKs (RR frames) are delivered
+    // to SINTRAN before SINTRAN's T1 timer fires and triggers retransmissions.
     if (dma->receiver) {
         DMAReceiver_Tick(dma->receiver);
+    }
+
+    if (dma->transmitter) {
+        DMATransmitter_Tick(dma->transmitter);
     }
 }
 
@@ -275,6 +277,7 @@ void DMAEngine_CommandDeviceClear(DMAEngine *dma)
 
     // Clear all components
     DMAEngine_Clear(dma);
+    dma->enabled = false; // allow COM5025 clocking for maintenance test
 
     if (dma->com5025) {
         COM5025_Reset(dma->com5025);
@@ -355,6 +358,10 @@ void DMAEngine_CommandInitialize(DMAEngine *dma)
     if (checksum == 0) {
         DMAEngine_DMAWrite(dma, dma_address, 0x8474); // 0102164 octal = 0x8474 hex
     }
+
+    // DMA is now initialized — COM5025 clocking can be stopped
+    // (burst mode handles all framing via DMA engine + HDLCFrame)
+    dma->enabled = true;
 
     DMAEngine_ClearDMACommand(dma);
 }
