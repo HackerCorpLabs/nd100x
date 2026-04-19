@@ -823,7 +823,6 @@ static void HDLC_OnModemDataTerminalReady(Device *device, bool pinValue)
 static void HDLC_OnDMAWriteDMA(Device *device, uint32_t address, uint16_t data)
 {
     if (!device) return;
-
     Device_DMAWrite(address, data);
 }
 
