@@ -119,7 +119,7 @@ void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, v
     if (dma->receiver) {
         DMAReceiver_Init(dma->receiver, com5025, dma->dmaCB, hdlcDevice);
         // Wire receiver interrupt callback through DMAEngine forwarding wrapper
-        DMAReceiver_SetInterruptCallback(DMAEngine_RXInterrupt);
+        DMAReceiver_SetInterruptCallback(dma->receiver, DMAEngine_RXInterrupt);
         dma->receiver->callbackContext = dma;
     }
 
