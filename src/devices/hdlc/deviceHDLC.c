@@ -721,7 +721,7 @@ void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length)
     // C# guard: ignore data when receiver is not active (e.g. after LIST_EMPTY)
     if (!hdlcData->rxTransferStatus.bits.receiverActive) return;
 
-    DMAReceiver_ReceiveDataFromModem(data, length);
+    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
 }
 
 // Modem event callback implementations (equivalent to C# event handlers)
@@ -738,7 +738,7 @@ static void HDLC_OnModemReceivedData(Device *device, const uint8_t *data, int le
 
     // Non-blocking enqueue into ring buffer.
     // Processed pull-based by DMAReceiver_Tick.
-    DMAReceiver_ReceiveDataFromModem(data, length);
+    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
 }
 
 static void HDLC_OnModemRingIndicator(Device *device, bool pinValue)
