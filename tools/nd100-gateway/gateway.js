@@ -324,7 +324,7 @@ function setupEmulatorWs(ws) {
         var hdlcBinding = hdlcBindings.get(channel);
         if (hdlcBinding && hdlcBinding.socket && !hdlcBinding.socket.destroyed) {
           hdlcBinding.socket.write(frameData);
-          vlog('HDLC TX ch=' + channel + ' len=' + len + ' -> TCP');
+          vlog('HDLC TX ch=' + channel + ' len=' + len + ' -> TCP ' + Array.from(frameData.slice(0, 20)).map(b => b.toString(16).padStart(2,'0')).join(' '));
         }
       }
       return;
@@ -755,7 +755,7 @@ function createHdlcServer(hdlcConf) {
     socket.on('data', function(data) {
       var buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
       sendHdlcRxFrame(channel, buf);
-      vlog('HDLC RX ch=' + channel + ' len=' + buf.length + ' <- TCP');
+      vlog('HDLC RX ch=' + channel + ' len=' + buf.length + ' <- TCP ' + Array.from(buf.slice(0, 20)).map(b => b.toString(16).padStart(2,'0')).join(' '));
     });
 
     socket.on('close', function() {
