@@ -33,6 +33,7 @@
 #include "deviceHDLC.h"
 #include "hdlcFrame.h"
 #include "chipCOM5025.h"
+#include "chipCOM5025Registers.h"
 #include "dmaEnum.h"
 #include "dmaControlBlocks.h"
 #include "dmaReceiver.h"
@@ -267,7 +268,9 @@ static uint16_t HDLC_Tick(Device *self)
             if (data->com5025) {
                 COM5025_ClockTransmitter(data->com5025);
                 COM5025_ClockReceiver(data->com5025);
-                COM5025Registers_Clock(data->com5025);
+                // COM5025Registers_Clock takes the registers block, not the
+                // whole chip state. The chip struct holds it behind a void*.
+                COM5025Registers_Clock((COM5025Registers *)data->com5025->registers);
             }
         }
     }
