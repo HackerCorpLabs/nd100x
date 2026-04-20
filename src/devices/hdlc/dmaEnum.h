@@ -407,25 +407,25 @@ typedef enum {
 
     // KEY INFORMATION (bits 8-10)
     /// Empty Receiver Block - Legal for RECEIVER
-    KEYFLAG_EMPTY_RECEIVER_BLOCK = 0x2 << 8,
+    KEYFLAG_EMPTY_RECEIVER_BLOCK = 0b010 << 8,
 
     /// Full Receiver Block
-    KEYFLAG_FULL_RECEIVER_BLOCK = 0x3 << 8,
+    KEYFLAG_FULL_RECEIVER_BLOCK = 0b011 << 8,
 
     /// Block To be transmitted - Legal for TRANSMITTER
-    KEYFLAG_BLOCK_TO_BE_TRANSMITTED = 0x4 << 8,
+    KEYFLAG_BLOCK_TO_BE_TRANSMITTED = 0b100 << 8,
 
     /// Already transmitted block
-    KEYFLAG_ALREADY_TRANSMITTED_BLOCK = 0x5 << 8,
+    KEYFLAG_ALREADY_TRANSMITTED_BLOCK = 0b101 << 8,
 
     /// New list pointer - Legal for RECEIVER and TRANSMITTER
-    KEYFLAG_NEW_LIST_POINTER = 0x6 << 8,
+    KEYFLAG_NEW_LIST_POINTER = 0b110 << 8,
 
     /// Block done bit (both for RX and TX blocks)
     KEYFLAG_BLOCK_DONE_BIT = 0x1 << 8,
 
     // Masks
-    KEYFLAG_MASK_KEY = 0x7 << 8,            // Key mask (bits 8-10)
+    KEYFLAG_MASK_KEY = 0b111 << 8,            // Key mask (bits 8-10)
     KEYFLAG_MASK_DATAFLOW_COST = 0xFF       // Dataflow COST mask (bits 0-7)
 } KeyFlags;
 

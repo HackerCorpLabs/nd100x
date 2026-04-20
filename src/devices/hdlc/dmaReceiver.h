@@ -46,7 +46,7 @@ typedef enum {
 
 // DMA Receiver state structure
 typedef struct DMAReceiver {
-    bool active;
+    // Total bytes received across all buffers (for statistics)    
     int bytesReceived;
 
     // Tick-based delay for rate-limiting frame processing
@@ -68,26 +68,26 @@ typedef struct DMAReceiver {
 
 // Core functions
 void DMAReceiver_Init(DMAReceiver *receiver, void *com5025, DMAControlBlocks *dmaCB, struct Device *hdlcDevice);
-void DMAReceiver_Destroy(DMAReceiver *receiver);
-void DMAReceiver_Clear(DMAReceiver *receiver);
-void DMAReceiver_Tick(DMAReceiver *receiver);
+void DMAReceiver_Destroy();
+void DMAReceiver_Clear();
+void DMAReceiver_Tick();
 
 // State management
-void DMAReceiver_SetReceiverState(DMAReceiver *receiver);
+void DMAReceiver_SetReceiverState();
 
 // Data processing - TCP ring buffer path (burst mode, always active)
-void DMAReceiver_ReceiveDataFromModem(DMAReceiver *receiver, const uint8_t *data, int length);
-int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver);
-bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver);
-void DMAReceiver_ClearReceiveFrameState(DMAReceiver *receiver);
+void DMAReceiver_ReceiveDataFromModem( const uint8_t *data, int length);
+int DMAReceiver_ProcessBufferedData();
+bool DMAReceiver_ProcessCompleteFrame();
+void DMAReceiver_ClearReceiveFrameState();
 
 // Buffer management
-bool DMAReceiver_FindNextReceiveBuffer(DMAReceiver *receiver);
-DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_t data);
+bool DMAReceiver_FindNextReceiveBuffer();
+DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(uint8_t data);
 
 // Flag and interrupt management
-void DMAReceiver_SetRXDMAFlag(DMAReceiver *receiver, uint16_t flag);
-void DMAReceiver_EnableHDLCReceiver(DMAReceiver *receiver, bool enable);
-void DMAReceiver_SetInterruptCallback(DMAReceiver *receiver, DMAReceiverSetInterruptCallback callback);
+void DMAReceiver_SetRXDMAFlag(uint16_t flag);
+void DMAReceiver_EnableHDLCReceiver(bool enable);
+void DMAReceiver_SetInterruptCallback( DMAReceiverSetInterruptCallback callback);
 
 #endif // DMA_RECEIVER_H
