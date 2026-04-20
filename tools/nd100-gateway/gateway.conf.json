@@ -8,7 +8,7 @@
     "welcome": "ND-100/CX Terminal Server"
   },
   "hdlc": [
-    { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": false },
+    { "name": "HDLC-0", "channel": 0, "port": 5010, "enabled": true },
     { "name": "HDLC-1", "channel": 1, "port": 5011, "enabled": false }
   ],
   "smd": {

@@ -228,16 +228,8 @@ if(NOT (BUILD_WASM OR BUILD_RISCV OR PLATFORM_WINDOWS))
     add_subdirectory(tests)
 endif()
 
-# Apply Emscripten-specific settings when compiling for WASM
-if(PLATFORM_WASM OR BUILD_WASM)
-    set(EMSCRIPTEN_LINK_FLAGS
-        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','stackTrace','noExitRuntime','preloadPlugins','STACK_SIZE','FS','addFunction','HEAPU8'] -s ALLOW_TABLE_GROWTH=1"
-    )
-    
-    if(TARGET nd100wasm)
-        set_target_properties(nd100wasm PROPERTIES LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS}")
-    endif()
-endif()
+# Emscripten-specific settings are applied in src/frontend/nd100wasm/CMakeLists.txt
+# Do NOT override LINK_FLAGS here - the subdirectory sets EXPORTED_FUNCTIONS etc.
 
 # Display helper messages
 if(PLATFORM_WASM OR BUILD_WASM)
