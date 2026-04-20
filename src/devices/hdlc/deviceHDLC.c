@@ -267,6 +267,7 @@ static uint16_t HDLC_Tick(Device *self)
             if (data->com5025) {
                 COM5025_ClockTransmitter(data->com5025);
                 COM5025_ClockReceiver(data->com5025);
+                COM5025Registers_Clock(data->com5025);
             }
         }
     }
@@ -717,7 +718,10 @@ void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length)
     HDLCData *hdlcData = (HDLCData *)device->deviceData;
     if (!hdlcData || !hdlcData->dmaEngine || !hdlcData->dmaEngine->receiver) return;
 
-    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
+    // C# guard: ignore data when receiver is not active (e.g. after LIST_EMPTY)
+    if (!hdlcData->rxTransferStatus.bits.receiverActive) return;
+
+    DMAReceiver_ReceiveDataFromModem(data, length);
 }
 
 // Modem event callback implementations (equivalent to C# event handlers)
@@ -729,9 +733,12 @@ static void HDLC_OnModemReceivedData(Device *device, const uint8_t *data, int le
     HDLCData *hdlcData = (HDLCData *)device->deviceData;
     if (!hdlcData || !hdlcData->dmaEngine || !hdlcData->dmaEngine->receiver) return;
 
+    // C# guard: ignore data when receiver is not active (e.g. after LIST_EMPTY)
+    if (!hdlcData->rxTransferStatus.bits.receiverActive) return;
+
     // Non-blocking enqueue into ring buffer.
     // Processed pull-based by DMAReceiver_Tick.
-    DMAReceiver_ReceiveDataFromModem(hdlcData->dmaEngine->receiver, data, length);
+    DMAReceiver_ReceiveDataFromModem(data, length);
 }
 
 static void HDLC_OnModemRingIndicator(Device *device, bool pinValue)

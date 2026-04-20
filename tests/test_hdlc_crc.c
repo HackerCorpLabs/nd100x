@@ -99,14 +99,14 @@ static void test_real_frame_crc(void)
 static void test_real_frame_via_process_byte(void)
 {
     printf("  test_real_frame_via_process_byte...");
-    // Feed the user's exact frame through HDLCFrame_ProcessByte
+    // Feed the user's exact frame through HDLCFrame_AddByte
     uint8_t wire[] = {0x7E, 0x01, 0x73, 0x00, 0x67, 0x60, 0x98, 0x7E};
     HDLCFrame frame;
     HDLCFrame_Init(&frame);
 
     bool complete = false;
     for (int i = 0; i < 8; i++) {
-        complete = HDLCFrame_ProcessByte(&frame, wire[i]);
+        complete = HDLCFrame_AddByte(&frame, wire[i]);
         if (complete) break;
     }
 

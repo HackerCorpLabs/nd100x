@@ -66,11 +66,23 @@ uint16_t HDLCFrame_CalculateCRC(const uint8_t *data, int length)
     return crc;
 }
 
-// Process a byte-stuffed byte from the wire.
-// Returns true when a complete frame has been received.
-// CRC is calculated over ALL destuffed bytes including FCS.
-// On frame complete, crcValid is true if residue == 0xF0B8.
-bool HDLCFrame_ProcessByte(HDLCFrame *frame, uint8_t data)
+
+void HDLCFrame_AddBytes(HDLCFrame *frame, const uint8_t *data, int length)
+{
+    for (int i = 0; i < length; i++)
+    {
+        HDLCFrame_AddByte(frame, data[i]);
+    }
+}
+
+// -----------------------------------------------------------------------
+// Add bytes to a frame buffer.
+// DATA/FRAME Bytes must be byte stuffed, i.e., FLAG and ESCAPE bytes must be escaped.
+//
+// Expects to receive the FCS bytes at the end of the frame.
+// Returns true if a complete frame was received (FLAG + data + FCS + FLAG), false otherwise.
+// -----------------------------------------------------------------------
+bool HDLCFrame_AddByte(HDLCFrame *frame, uint8_t data)
 {
     if (!frame) return false;
 
@@ -82,8 +94,13 @@ bool HDLCFrame_ProcessByte(HDLCFrame *frame, uint8_t data)
             }
             break;
 
-        case HDLC_STATE_RECEIVING:
+        case HDLC_STATE_RECEIVING:        
             if (data == HDLC_FLAG) {
+                if (frame->prevByte == HDLC_FLAG)
+                {
+                    return false; // Ignore consecutive flags - still waiting for frame data
+                }
+
                 if (frame->frameLength >= 2) {
                     // Frame complete - check CRC residue
                     // CRC was calculated over all bytes including FCS
@@ -132,6 +149,8 @@ bool HDLCFrame_ProcessByte(HDLCFrame *frame, uint8_t data)
             }
             break;
     }
+
+    frame->prevByte = data;
 
     return false;
 }

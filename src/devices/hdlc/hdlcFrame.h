@@ -41,6 +41,8 @@ typedef enum {
 typedef struct HDLCFrame {
     HDLCReceiveState state;
     uint8_t frameBuffer[HDLC_MAX_FRAME_SIZE];
+    uint8_t prevByte; // For detecting consecutive flags
+
     int frameLength;
     uint16_t crc;
     bool frameComplete;
@@ -54,11 +56,12 @@ uint16_t HDLCFrame_UpdateCRC(uint16_t crc, uint8_t data);
 // Frame management
 void HDLCFrame_Init(HDLCFrame *frame);
 void HDLCFrame_Reset(HDLCFrame *frame);
-bool HDLCFrame_ProcessByte(HDLCFrame *frame, uint8_t data);
+bool HDLCFrame_AddByte(HDLCFrame *frame, uint8_t data);
 bool HDLCFrame_IsFrameComplete(HDLCFrame *frame);
 bool HDLCFrame_IsCRCValid(HDLCFrame *frame);
 int HDLCFrame_GetFrameLength(HDLCFrame *frame);
 const uint8_t* HDLCFrame_GetFrameData(HDLCFrame *frame);
+void HDLCFrame_AddBytes(HDLCFrame *frame, const uint8_t *data, int length); // for unit testing
 
 // Frame building
 int HDLCFrame_BuildFrame(const uint8_t *data, int dataLength, uint8_t *outputBuffer, int bufferSize);

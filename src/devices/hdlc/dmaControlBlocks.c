@@ -250,6 +250,7 @@ bool DMAControlBlocks_LoadNextRXBuffer(DMAControlBlocks *dmaCB)
 
     dmaCB->rxListPointerOffset++;
 
+    // Assuming max 128 buffers in the list (for safefty), wrap around to 0 if we exceed
     if (dmaCB->rxListPointerOffset > 128) {
         dmaCB->rxListPointerOffset = 0;
     }
@@ -292,6 +293,11 @@ bool DMAControlBlocks_IsNextRXbufValid(DMAControlBlocks *dmaCB)
     return (key == KEYFLAG_EMPTY_RECEIVER_BLOCK);
 }
 
+// ---------------------------------------------------------------------------
+// DMA Back to ND machine with a new KEY telling that this buffer has been received
+//
+// Update KEY = FullReceiverBlock
+// -----------------------------------------------------------------------------
 void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStatus)
 {
     if (!dmaCB || !dmaCB->rxDCB) return;
@@ -300,15 +306,18 @@ void DMAControlBlocks_MarkBufferReceived(DMAControlBlocks *dmaCB, uint8_t rxStat
         if (dmaCB->hdlcDevice && dmaCB->hdlcDevice->deviceData) {
             ((HDLCData *)dmaCB->hdlcDevice->deviceData)->dcbRxMarked++;
         }
-        // Set RCOST in the low 8 bits, its actually the ReceiverStatusRegister
-        uint16_t keyValue = DCB_GetKeyValue(dmaCB->rxDCB);
-        keyValue = (keyValue & 0xFF00) | rxStatus;
-        DCB_SetKeyValue(dmaCB->rxDCB, keyValue);
 
+        // Update the key value with the RX status and mark as DONE
+        uint16_t keyValue = DCB_GetKeyValue(dmaCB->rxDCB);
+
+        // Set RCOST in the low 8 bits, its actually the ReceiverStatusRegister
+        keyValue = (keyValue & 0xFF00) | rxStatus;
+        
         // Mark block as DONE (ie filled up)
         keyValue |= (uint16_t)(KEYFLAG_BLOCK_DONE_BIT);
         DCB_SetKeyValue(dmaCB->rxDCB, keyValue);
 
+        // Write back the updated key value to memory
         DMAControlBlocks_DMAWrite(dmaCB, DCB_GetBufferAddress(dmaCB->rxDCB), keyValue);
 
 #ifdef DMA_DEBUG

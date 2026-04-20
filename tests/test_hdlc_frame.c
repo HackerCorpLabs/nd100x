@@ -115,8 +115,8 @@ static void test_process_idle_ignores_non_flag(void)
     HDLCFrame_Init(&frame);
 
     // Random bytes before flag should be ignored
-    ASSERT(!HDLCFrame_ProcessByte(&frame, 0x42), "ignored");
-    ASSERT(!HDLCFrame_ProcessByte(&frame, 0xFF), "ignored");
+    ASSERT(!HDLCFrame_AddByte(&frame, 0x42), "ignored");
+    ASSERT(!HDLCFrame_AddByte(&frame, 0xFF), "ignored");
     ASSERT_EQ(frame.frameLength, 0, "no data collected");
     printf(" ok\n");
 }
@@ -128,8 +128,8 @@ static void test_process_empty_frame(void)
     HDLCFrame_Init(&frame);
 
     // FLAG followed immediately by FLAG = no data, reset
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
-    bool complete = HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
+    HDLCFrame_AddByte(&frame, HDLC_FLAG);
+    bool complete = HDLCFrame_AddByte(&frame, HDLC_FLAG);
     ASSERT(!complete, "empty frame not complete");
     printf(" ok\n");
 }
@@ -141,9 +141,9 @@ static void test_process_too_short_frame(void)
     HDLCFrame_Init(&frame);
 
     // FLAG + 1 byte + FLAG = too short (need at least 2 for CRC)
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
-    HDLCFrame_ProcessByte(&frame, 0x42);
-    bool complete = HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
+    HDLCFrame_AddByte(&frame, HDLC_FLAG);
+    HDLCFrame_AddByte(&frame, 0x42);
+    bool complete = HDLCFrame_AddByte(&frame, HDLC_FLAG);
     ASSERT(!complete, "1-byte frame too short");
     printf(" ok\n");
 }
@@ -154,10 +154,10 @@ static void test_process_escape_handling(void)
     HDLCFrame frame;
     HDLCFrame_Init(&frame);
 
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG); // Start
-    HDLCFrame_ProcessByte(&frame, 0x01);       // Normal byte
-    HDLCFrame_ProcessByte(&frame, HDLC_ESCAPE); // Escape prefix
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG ^ HDLC_ESCAPE_MASK); // Stuffed 0x7E
+    HDLCFrame_AddByte(&frame, HDLC_FLAG); // Start
+    HDLCFrame_AddByte(&frame, 0x01);       // Normal byte
+    HDLCFrame_AddByte(&frame, HDLC_ESCAPE); // Escape prefix
+    HDLCFrame_AddByte(&frame, HDLC_FLAG ^ HDLC_ESCAPE_MASK); // Stuffed 0x7E
 
     // frame should have: [0x01, 0x7E]
     ASSERT_EQ(frame.frameLength, 2, "two bytes after destuffing");
@@ -173,16 +173,16 @@ static void test_process_error_recovery(void)
     HDLCFrame_Init(&frame);
 
     // Fill frame to max to trigger error state
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
+    HDLCFrame_AddByte(&frame, HDLC_FLAG);
     for (int i = 0; i < HDLC_MAX_FRAME_SIZE; i++) {
-        HDLCFrame_ProcessByte(&frame, 0x42);
+        HDLCFrame_AddByte(&frame, 0x42);
     }
     // Next byte overflows -> ERROR state
-    HDLCFrame_ProcessByte(&frame, 0x42);
+    HDLCFrame_AddByte(&frame, 0x42);
     ASSERT_EQ(frame.state, HDLC_STATE_ERROR, "in error state");
 
     // FLAG should recover
-    HDLCFrame_ProcessByte(&frame, HDLC_FLAG);
+    HDLCFrame_AddByte(&frame, HDLC_FLAG);
     ASSERT_EQ(frame.state, HDLC_STATE_RECEIVING, "recovered after flag");
     ASSERT_EQ(frame.frameLength, 0, "frame reset");
     printf(" ok\n");
@@ -205,7 +205,7 @@ static void test_roundtrip(void)
     HDLCFrame_Init(&rx);
     bool complete = false;
     for (int i = 0; i < wireLen; i++) {
-        complete = HDLCFrame_ProcessByte(&rx, wire[i]);
+        complete = HDLCFrame_AddByte(&rx, wire[i]);
         if (complete) break;
     }
 
@@ -237,7 +237,7 @@ static void test_roundtrip_with_special_bytes(void)
     HDLCFrame_Init(&rx);
     bool complete = false;
     for (int i = 0; i < wireLen; i++) {
-        complete = HDLCFrame_ProcessByte(&rx, wire[i]);
+        complete = HDLCFrame_AddByte(&rx, wire[i]);
         if (complete) break;
     }
 
@@ -273,7 +273,7 @@ static void test_roundtrip_multiple_frames(void)
     int framesReceived = 0;
 
     for (int i = 0; i < totalLen; i++) {
-        bool complete = HDLCFrame_ProcessByte(&rx, stream[i]);
+        bool complete = HDLCFrame_AddByte(&rx, stream[i]);
         if (complete) {
             framesReceived++;
             ASSERT(HDLCFrame_IsCRCValid(&rx), "frame CRC valid");
@@ -310,7 +310,7 @@ static void test_roundtrip_large_payload(void)
     HDLCFrame_Init(&rx);
     bool complete = false;
     for (int i = 0; i < wireLen; i++) {
-        complete = HDLCFrame_ProcessByte(&rx, wire[i]);
+        complete = HDLCFrame_AddByte(&rx, wire[i]);
         if (complete) break;
     }
 
