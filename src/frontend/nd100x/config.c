@@ -54,6 +54,7 @@ static struct option long_options[] = {
     {"printformat",required_argument, 0, 'f'},
     {"hdlc",       required_argument, 0, 'H'},
     {"throttle",   optional_argument, 0, 'Z'},
+    {"ring-dump",  optional_argument, 0, 'R'},
     {0, 0, 0, 0}
 };
 
@@ -188,7 +189,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::R::",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -304,6 +305,19 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
 
+            case 'R': {
+                int n = 50; // default
+                if (optarg) {
+                    n = (int)strtol(optarg, &endptr, 0);
+                    if (*endptr != '\0' || n < 1 || n > 512) {
+                        fprintf(stderr, "Invalid ring-dump size (1-512): %s\n", optarg);
+                        return false;
+                    }
+                }
+                config->ringDumpSize = n;
+                break;
+            }
+
             case 'S':
                 config->smdDebug = true;
                 break;
@@ -412,6 +426,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)\n");
     printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
     printf("                          Client: --hdlc=N:HOST:PORT\n");
+    printf("  -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 512)\n");
     printf("  -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");

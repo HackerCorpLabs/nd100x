@@ -59,6 +59,7 @@ typedef struct {
     uint64_t maxInstructions;
     bool breakpointEnabled;
     uint32_t breakpointAddr;
+    int ringDumpSize;
     bool textStartSet;
     uint32_t textStart;
     char *printDir;      // Output directory for print jobs (default: ./prints/)

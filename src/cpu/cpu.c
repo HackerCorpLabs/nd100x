@@ -125,6 +125,7 @@ int CPU_TRACE = 0;
 uint64_t CPU_MAX_INSTR = 0;
 int CPU_BREAKPOINT_ENABLED = 0;
 ushort CPU_BREAKPOINT_ADDR = 0;
+int CPU_RING_DUMP_SIZE = 0;
 
 
 
@@ -527,6 +528,7 @@ void private_cpu_tick()
 	{
 		fprintf(stderr, "\n--- CPU stopped: max instruction count reached (%llu) ---\n",
 			(unsigned long long)CPU_MAX_INSTR);
+		ring_dump();
 		set_cpu_run_mode(CPU_SHUTDOWN);
 		return;
 	}
@@ -535,6 +537,7 @@ void private_cpu_tick()
 	if (CPU_BREAKPOINT_ENABLED && gPC == CPU_BREAKPOINT_ADDR)
 	{
 		fprintf(stderr, "\n--- CPU stopped: breakpoint at %06o ---\n", CPU_BREAKPOINT_ADDR);
+		ring_dump();
 		set_cpu_run_mode(CPU_SHUTDOWN);
 		return;
 	}
@@ -631,7 +634,7 @@ bool cpu_instruction_is_jump()
 /// @brief run the CPU for a number of ticks. 
 /// @details This function runs the CPU for a number of ticks. It handles interrupts and checks for level switches.
 /* Ring buffer for last N instructions before exit */
-#define RING_SIZE 256
+#define RING_SIZE 512
 static struct {
     unsigned short pc;
     unsigned short opcode;
@@ -647,6 +650,7 @@ static struct {
 static int ring_idx = 0;
 
 static void ring_record(unsigned short pc, unsigned char pil, unsigned short opcode) {
+    if (CPU_RING_DUMP_SIZE <= 0) return;
     ring_buf[ring_idx].pc = pc;
     ring_buf[ring_idx].pil = pil;
     ring_buf[ring_idx].opcode = opcode;
@@ -664,27 +668,33 @@ void ring_dump(void) {
     int i;
     char disasm_str[128];
 
-    printf("\r\n--- CPU state at exit ---\r\n");
-    printf("PIL=%d PC=%06o A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o\r\n",
-           gPIL, gPC, gA, gD, gT, gX, gB, gL);
-    printf("STS=%04x PID=%04x PIE=%04x IID=%04x IIE=%04x PVL=%d\r\n",
-           gSTSr, gPID, gPIE, gIID, gIIE, gPVL);
-    printf("STS per-level: ");
-    for (i = 0; i < 16; i++)
-        printf("[%d]=%03o ", i, gReg->reg[i][0] & 0xFF);
-    printf("\r\n");
-    printf("PC per-level:  ");
-    for (i = 0; i < 16; i++)
-        printf("[%d]=%06o ", i, gReg->reg[i][_P]);
-    printf("\r\n");
+    if (CPU_RING_DUMP_SIZE <= 0) return;
 
-    printf("\r\n--- Last %d instructions before exit ---\r\n", RING_SIZE);
-    printf("  [  ] PIL    PC   OPCODE  DISASM                    A    STS   PID   PIE   IID   IIE  DEVBITS\r\n");
-    for (i = 0; i < RING_SIZE; i++) {
-        int idx = (ring_idx + i) % RING_SIZE;
+    int count = CPU_RING_DUMP_SIZE;
+    if (count > RING_SIZE) count = RING_SIZE;
+
+    fprintf(stderr, "\r\n--- CPU state at exit ---\r\n");
+    fprintf(stderr, "PIL=%d PC=%06o A=%06o D=%06o T=%06o X=%06o B=%06o L=%06o\r\n",
+           gPIL, gPC, gA, gD, gT, gX, gB, gL);
+    fprintf(stderr, "STS=%04x PID=%04x PIE=%04x IID=%04x IIE=%04x PVL=%d\r\n",
+           gSTSr, gPID, gPIE, gIID, gIIE, gPVL);
+    fprintf(stderr, "STS per-level: ");
+    for (i = 0; i < 16; i++)
+        fprintf(stderr, "[%d]=%03o ", i, gReg->reg[i][0] & 0xFF);
+    fprintf(stderr, "\r\n");
+    fprintf(stderr, "PC per-level:  ");
+    for (i = 0; i < 16; i++)
+        fprintf(stderr, "[%d]=%06o ", i, gReg->reg[i][_P]);
+    fprintf(stderr, "\r\n");
+
+    fprintf(stderr, "\r\n--- Last %d instructions before exit ---\r\n", count);
+    fprintf(stderr, "  [  ] PIL    PC   OPCODE  DISASM                    A    STS   PID   PIE   IID   IIE  DEVBITS\r\n");
+    /* Walk the ring from (ring_idx - count) to (ring_idx - 1), oldest first */
+    for (i = 0; i < count; i++) {
+        int idx = (ring_idx - count + i + RING_SIZE) % RING_SIZE;
         if (ring_buf[idx].pc || ring_buf[idx].pil) {
             OpToStr(disasm_str, sizeof(disasm_str), ring_buf[idx].opcode);
-            printf("  [%3d] %2d %06o %06o %-24s %06o %04x %04x %04x %04x %04x %04x\r\n",
+            fprintf(stderr, "  [%3d] %2d %06o %06o %-24s %06o %04x %04x %04x %04x %04x %04x\r\n",
                    i, ring_buf[idx].pil, ring_buf[idx].pc, ring_buf[idx].opcode,
                    disasm_str,
                    ring_buf[idx].a_reg, ring_buf[idx].sts,
@@ -802,7 +812,8 @@ int cpu_run(int ticks)
         else if (current_run_mode == CPU_STOPPED)
         {
             printf("CPU: WAS STOPPED, SHUTTING DOWN\r\n");
-			set_cpu_run_mode(CPU_SHUTDOWN);            
+			ring_dump();
+			set_cpu_run_mode(CPU_SHUTDOWN);
 			break;
         }
 		else

@@ -483,6 +483,7 @@ extern int CPU_TRACE;
 extern uint64_t CPU_MAX_INSTR;
 extern int CPU_BREAKPOINT_ENABLED;
 extern ushort CPU_BREAKPOINT_ADDR;
+extern int CPU_RING_DUMP_SIZE;
 
 
 

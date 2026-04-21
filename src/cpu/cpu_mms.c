@@ -854,10 +854,6 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
         return;
     }
 
-    // Trace writes to _ov_saved_l_bss physical address
-    extern void check_phys_write(int pa, unsigned short value);
-    check_phys_write(physicalAddress, value);
-
     // Check memory bounds
     if ((physicalAddress >= ND_Memsize)||(physicalAddress < 0))
     {
@@ -966,12 +962,3 @@ int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value)
 
 // Check if privileged instruction execution is allowed
 
-/* TEMPORARY: trace writes to physical 0x2F9D (_ov_saved_l_bss) */
-static int trace_2f9d = 0;
-void check_phys_write(int pa, unsigned short value) {
-    if (pa == 0x2F9D && trace_2f9d < 10) {
-        printf("\r\n*** WRITE phys 0x2F9D = 0%06o PIL=%d PC=%06o\r\n",
-               value, gPIL, gPC);
-        trace_2f9d++;
-    }
-}

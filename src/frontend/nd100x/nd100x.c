@@ -485,6 +485,7 @@ int main(int argc, char *argv[])
     CPU_MAX_INSTR = config.maxInstructions;
     CPU_BREAKPOINT_ENABLED = config.breakpointEnabled;
     CPU_BREAKPOINT_ADDR = (ushort)config.breakpointAddr;
+    CPU_RING_DUMP_SIZE = config.ringDumpSize;
 
     initialize();
 
