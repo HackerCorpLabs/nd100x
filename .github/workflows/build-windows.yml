@@ -118,9 +118,75 @@ jobs:
           path: dist/nd100x-windows-${{ matrix.arch }}/
           if-no-files-found: error
 
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest    # Apple Silicon (any M-series)
+          - arch: x64
+            runner: macos-13        # Intel
+
+    steps:
+      - name: Checkout (without submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: brew install cmake
+
+      - name: Initialise submodules
+        run: |
+          set -e
+          git submodule update --init --recursive \
+            external/cJSON \
+            external/libdap \
+            external/libsymbols \
+            template-glass/external/RetroTermWeb
+
+      - name: Show toolchain versions
+        run: |
+          gcc --version | head -1
+          cmake --version | head -1
+          curl --version | head -1
+
+      - name: Build release
+        run: make release
+
+      - name: Stage release artifacts
+        run: |
+          set -e
+          STAGE="dist/nd100x-macos-${{ matrix.arch }}"
+          mkdir -p "$STAGE"
+          cp build_release/bin/nd100x "$STAGE/"
+          if [ -d images ]; then
+            mkdir -p "$STAGE/images"
+            cp -r images/. "$STAGE/images/" 2>/dev/null || true
+          fi
+          cp README.md "$STAGE/" 2>/dev/null || true
+          cp LICENSE   "$STAGE/" 2>/dev/null || true
+
+      - name: Create archive
+        run: |
+          cd dist
+          tar czf "nd100x-macos-${{ matrix.arch }}.tar.gz" \
+            "nd100x-macos-${{ matrix.arch }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nd100x-macos-${{ matrix.arch }}
+          path: dist/nd100x-macos-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
   publish-release:
     name: Publish GitHub Release
-    needs: build-windows
+    needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     # Only publish on actual tag pushes — workflow_dispatch runs without a
     # real tag don't create releases even if `inputs.tag` is set.
@@ -153,6 +219,7 @@ jobs:
         with:
           files: |
             dist/*.zip
+            dist/**/*.tar.gz
           generate_release_notes: true
           draft: false
           prerelease: false
