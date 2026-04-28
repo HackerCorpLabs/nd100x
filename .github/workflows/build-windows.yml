@@ -127,8 +127,6 @@ jobs:
         include:
           - arch: arm64
             runner: macos-latest    # Apple Silicon (any M-series)
-          - arch: x64
-            runner: macos-13        # Intel
 
     steps:
       - name: Checkout (without submodules)
