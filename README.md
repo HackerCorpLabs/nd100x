@@ -85,10 +85,11 @@ The project is organized into several key components:
 
 ## Build Requirements
 
-- Linux (I am using Ubuntu 22.04) under WSL
-* GCC compiler (I am using GCC 11.4.0)
-* Make build system
-* mkptypes tool (automatically built during compilation)
+- Linux (Ubuntu 22.04 or later) or macOS (12 Monterey or later)
+- GCC or Clang compiler
+- CMake 3.14+
+- Make build system
+- mkptypes tool (automatically built during compilation)
 
 ### Additional Dependencies for Floppy Menu
 
@@ -355,13 +356,14 @@ For more information, read the [Tested systems](docs/SYSTEMS.md) document
 
 ## Releases (GitHub Actions)
 
-Pre-built Windows binaries are produced automatically by `.github/workflows/build-windows.yml`. The workflow runs on every push to `main` / `windows-port` and on pull requests (CI signal only), and additionally publishes a GitHub Release when a tag matching `v*` is pushed.
+Pre-built binaries for Windows and macOS are produced automatically by `.github/workflows/build-windows.yml`. The workflow publishes a GitHub Release when a tag matching `v*` is pushed.
 
 | Artifact | Target | How it's built |
 |----------|--------|----------------|
 | `nd100x-windows-x64.zip` | Windows 64-bit | `windows-latest`, MSYS2 MINGW64 (`mingw-w64-x86_64-gcc` + `ninja`), `make release` |
+| `nd100x-macos-arm64.tar.gz` | macOS Apple Silicon | `macos-latest`, Homebrew cmake, `make release` |
 
-Each zip contains `nd100x.exe` plus every non-system DLL the exe depends on (libcurl + its transitive deps, `libgcc_s_seh-1`, `libwinpthread-1`, ...), the repo's bundled `images/` directory, `README.md`, and `LICENSE`. DLL discovery is driven by `ldd` so the bundle tracks whatever MSYS2 ships — no hardcoded list to maintain.
+The Windows zip contains `nd100x.exe` plus every non-system DLL the exe depends on (libcurl + its transitive deps, `libgcc_s_seh-1`, `libwinpthread-1`, ...), the repo's bundled `images/` directory, `README.md`, and `LICENSE`. DLL discovery is driven by `ldd` so the bundle tracks whatever MSYS2 ships — no hardcoded list to maintain.
 
 ### Cutting a release
 
