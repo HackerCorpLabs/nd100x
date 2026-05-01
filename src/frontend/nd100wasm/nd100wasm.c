@@ -29,7 +29,7 @@
 #include <errno.h>
 
 // Add Emscripten specific headers when building for WASM
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #define EMSCRIPTEN_EXPORT EMSCRIPTEN_KEEPALIVE
 #else
@@ -656,6 +656,40 @@ EMSCRIPTEN_EXPORT int GetSMDBufferSize(int unit)
     MountedDriveInfo_t *entry = &drives[unit];
     if (!entry->is_mounted) return 0;
     return (int)entry->data_size;
+}
+
+// Read up to 256 sectors from an SMD drive into a static buffer.
+// Works for both file-backed and in-memory (remote) drives.
+// Returns pointer to s_smdSectorBuf on success, 0 on failure.
+#define SMD_READ_BUF_SECTORS 256
+static uint8_t s_smdSectorBuf[SMD_READ_BUF_SECTORS * 1024];
+
+EMSCRIPTEN_EXPORT int Dbg_ReadSMDSectors(int unit, int lba, int count)
+{
+    if (unit < 0 || unit > 3) return 0;
+    if (count <= 0 || count > SMD_READ_BUF_SECTORS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SMD);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted) return 0;
+
+    size_t sector_size = entry->block_size ? entry->block_size : 1024;
+    size_t byte_offset = (size_t)lba * sector_size;
+    size_t byte_count  = (size_t)count * sector_size;
+
+    if (entry->is_remote && entry->data.remote_data) {
+        if (byte_offset + byte_count > entry->data_size) return 0;
+        memcpy(s_smdSectorBuf, (uint8_t *)entry->data.remote_data + byte_offset, byte_count);
+        return (int)(uintptr_t)s_smdSectorBuf;
+    }
+
+    if (!entry->is_opfs && entry->data.local_file) {
+        if (fseek(entry->data.local_file, (long)byte_offset, SEEK_SET) != 0) return 0;
+        if (fread(s_smdSectorBuf, 1, byte_count, entry->data.local_file) != byte_count) return 0;
+        return (int)(uintptr_t)s_smdSectorBuf;
+    }
+
+    return 0;
 }
 
 // Remount an SMD drive (close old FILE*, re-open from MEMFS)
@@ -1290,6 +1324,11 @@ EMSCRIPTEN_EXPORT int Dbg_DumpPhysicalMemory(int wordCount)
     return 0;
 }
 
+EMSCRIPTEN_EXPORT int Dbg_GetPhysMemWords(void)
+{
+    return (int)(sizeof(VolatileMemory) / sizeof(ushort));
+}
+
 // --- Breakpoints ---
 
 EMSCRIPTEN_EXPORT void Dbg_AddBreakpoint(int addr)
@@ -1399,6 +1438,55 @@ EMSCRIPTEN_EXPORT const char* Dbg_Disassemble(int startAddr, int count)
     }
     disasm_buffer[pos] = '\0';
     return disasm_buffer;
+}
+
+// --- Inspect buffer disassembly (for segment disassembler window) ---
+
+#define INSPECT_BUF_WORDS 65536
+static uint16_t s_inspectBuf[INSPECT_BUF_WORDS];
+static int      s_inspectWords = 0;
+static int      s_inspectBase  = 0;
+static char     s_inspectOut[2 * 1024 * 1024];  /* 2MB output buffer */
+
+EMSCRIPTEN_EXPORT void Dbg_LoadInspectBuffer(int jsPtr, int wordCount, int baseAddr)
+{
+    int n = wordCount < INSPECT_BUF_WORDS ? wordCount : INSPECT_BUF_WORDS;
+    s_inspectWords = n;
+    s_inspectBase  = baseAddr;
+    if (n > 0 && jsPtr != 0) {
+        memcpy(s_inspectBuf, (void *)(uintptr_t)jsPtr, (size_t)n * 2);
+    }
+}
+
+EMSCRIPTEN_EXPORT const char* Dbg_DisassembleFromBuffer(int startWord, int count)
+{
+    char line[128];
+    char mnemonic[64];
+    int  pos = 0;
+
+    s_inspectOut[0] = '\0';
+
+    if (count <= 0) count = s_inspectWords - startWord;
+    if (startWord < 0) startWord = 0;
+
+    for (int i = 0; i < count; i++) {
+        int idx = startWord + i;
+        if (idx >= s_inspectWords) break;
+        if (pos >= (int)sizeof(s_inspectOut) - 128) break;
+
+        uint16_t word = s_inspectBuf[idx];
+        int addr = s_inspectBase + idx;
+
+        OpToStr(mnemonic, sizeof(mnemonic), word);
+
+        int n = snprintf(line, sizeof(line), "%06o %06o %s\n", addr & 0xFFFF, word, mnemonic);
+        if (n > 0 && pos + n < (int)sizeof(s_inspectOut)) {
+            memcpy(s_inspectOut + pos, line, n);
+            pos += n;
+        }
+    }
+    s_inspectOut[pos] = '\0';
+    return s_inspectOut;
 }
 
 // --- Level info (for thread/runlevel view) ---
@@ -1551,10 +1639,7 @@ EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
 // Main function for both Emscripten and non-Emscripten builds
 int main(int argc, char *argv[])
 {
-#ifdef EMSCRIPTEN
-    
-    //printf("Call Init() to initialize the system\n");
-    //printf("Call Start() to begin emulation\n");
+#ifdef __EMSCRIPTEN__
     return 0;
 #else
     printf("nd100wasm: This program is intended to be compiled to WebAssembly.\n");

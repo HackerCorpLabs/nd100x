@@ -683,6 +683,11 @@
     getSMDBuffer: function(unit) { return 0; },
     getSMDBufferSize: function(unit) { return 0; },
 
+    // --- Segment disassembler buffer (not available in Worker mode) ---
+    loadInspectBuffer: function() { console.warn('loadInspectBuffer not available in Worker mode'); },
+    disassembleFromBuffer: function() { return ''; },
+    getHEAPU8: function() { return null; },
+
     // --- Gateway disk mount/unmount ---
     gatewayMountSMD: function(unit, imageSize) {
       return postRequest('gatewayMountSMD', { unit: unit, imageSize: imageSize });
