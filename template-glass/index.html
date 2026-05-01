@@ -1219,10 +1219,11 @@
   <!-- =========================================
        SEGMENT DISASSEMBLER WINDOW (hidden by default)
        ========================================= -->
-  <div id="seg-disasm-window" class="glass-window" style="display: none;">
+  <div id="seg-disasm-window" class="glass-window" style="display: none;" tabindex="0">
     <div class="glass-window-header" id="seg-disasm-header">
       <span class="glass-window-title" id="seg-disasm-title">Disassembler</span>
       <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:rgba(160,175,210,0.55);" title="Keyboard: ↑/↓ scroll line, PageUp/Down scroll page, Home/End top/bottom, G goto octal address">⌨ ↑↓ PgUp/Dn G=goto</span>
         <button class="sysinfo-refresh-btn" id="seg-disasm-copy" title="Copy disassembly to clipboard">&#128203;</button>
         <button class="sysinfo-refresh-btn" id="seg-disasm-save" title="Save PROG + BPUN + MD (single-bank) or PROG + MD (split)">&#128190;</button>
         <button class="glass-window-close" id="seg-disasm-close">
@@ -1243,9 +1244,9 @@
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px;padding-right:8px;">
           <label style="font-size:11px;color:rgba(160,175,210,0.7);">Source:</label>
           <select id="seg-disasm-source" style="font-size:11px;background:rgba(0,0,0,0.3);color:rgba(220,225,235,0.9);border:1px solid rgba(255,255,255,0.1);padding:2px 6px;border-radius:3px;">
-            <option value="IMAGE" title="Live working copy: BLSTX[segfile] + (MADR + relPage) × CABLPAGE. RAM-loaded pages override disk.">IMAGE (live)</option>
-            <option value="SAVE"  title="Pristine cold-start backup. Only available for system segments with explicit MS_xxx offsets.">SAVE (pristine)</option>
-            <option value="HENT"  title="Warm-restart memory snapshot. Read directly from disk.">HENT (snapshot)</option>
+            <option value="IMAGE" title="Live working copy at BLSTX[segfile] + (MADR + relPage) × CABLPAGE. In-RAM pages override disk content.">IMAGE (live)</option>
+            <option value="SAVE"  title="Pristine cold-start backup. Only system segments have explicit MS_xxx offsets — user reentrant programs share IMAGE for both read and write paths.">SAVE (system segs only)</option>
+            <option value="HENT"  title="Per Q1 NPL research: warm restart does NOT read a per-segment HENT snapshot. SINTRAN trusts IMAGE areas across restart. This option currently reads from a hypothetical HENT location and produces wrong data — use IMAGE instead.">HENT (no-op for VSX-L)</option>
           </select>
         </div>
       </div>

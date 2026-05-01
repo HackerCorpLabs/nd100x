@@ -836,6 +836,93 @@
   }
 
   // =========================================================
+  // Keyboard navigation: arrow keys, page up/down, home/end, G to go to address
+  // =========================================================
+  function activePanel() {
+    var iP = document.getElementById('seg-disasm-i-panel');
+    var dP = document.getElementById('seg-disasm-d-panel');
+    if (dP && dP.style.display !== 'none') return dP;
+    return iP;
+  }
+
+  function lineHeight(panel) {
+    var line = panel.querySelector('.disasm-line, .disasm-hex-line');
+    return line ? line.getBoundingClientRect().height : 16;
+  }
+
+  function gotoAddress() {
+    if (!iWords || !iSeg) { return; }
+    var input = prompt(
+      'Go to address (octal):\n' +
+      'Segment range: 0o' + (iSeg.logad << 10).toString(8) +
+      ' to 0o' + (((iSeg.logad << 10) + iWords.length - 1) | 0).toString(8)
+    );
+    if (!input) return;
+    var s = input.trim().replace(/^0o/i, '');
+    var addr = parseInt(s, 8);
+    if (isNaN(addr)) { alert('Not a valid octal number: ' + input); return; }
+
+    var logicalBase = iSeg.logad << 10;
+    var offset = addr - logicalBase;
+    if (offset < 0 || offset >= iWords.length) {
+      alert('Address 0o' + addr.toString(8) + ' is outside segment range ' +
+            '(0o' + logicalBase.toString(8) + '..0o' +
+            (logicalBase + iWords.length - 1).toString(8) + ')');
+      return;
+    }
+    var panel = activePanel();
+    if (!panel) return;
+    var lines = panel.querySelectorAll('.disasm-line, .disasm-hex-line');
+    if (!lines.length) return;
+    var lineWordsPerLine = panel.querySelector('.disasm-hex-line') ? 16 : 1;
+    var targetLine = (offset / lineWordsPerLine) | 0;
+    if (targetLine < lines.length) {
+      lines[targetLine].scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // Briefly highlight the target line
+      var el = lines[targetLine];
+      var oldBg = el.style.background;
+      el.style.background = 'rgba(255, 220, 80, 0.25)';
+      setTimeout(function() { el.style.background = oldBg; }, 1500);
+    }
+  }
+
+  function initKeyboard() {
+    var win = document.getElementById('seg-disasm-window');
+    if (!win) return;
+    // Make the window focusable so it receives keyboard events
+    if (!win.hasAttribute('tabindex')) win.setAttribute('tabindex', '0');
+
+    win.addEventListener('keydown', function(e) {
+      if (win.style.display === 'none') return;
+      // Don't intercept while typing in an input/select
+      var tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      var panel = activePanel();
+      if (!panel) return;
+      var lh = lineHeight(panel);
+      var ph = panel.clientHeight;
+
+      switch (e.key) {
+        case 'ArrowDown': panel.scrollTop += lh;            e.preventDefault(); break;
+        case 'ArrowUp':   panel.scrollTop -= lh;            e.preventDefault(); break;
+        case 'PageDown':  panel.scrollTop += ph - lh;       e.preventDefault(); break;
+        case 'PageUp':    panel.scrollTop -= ph - lh;       e.preventDefault(); break;
+        case 'Home':      panel.scrollTop = 0;              e.preventDefault(); break;
+        case 'End':       panel.scrollTop = panel.scrollHeight; e.preventDefault(); break;
+        case 'g':
+        case 'G':         gotoAddress();                    e.preventDefault(); break;
+      }
+    });
+
+    // Auto-focus the window when it becomes visible (so keys work without clicking first)
+    var observer = new MutationObserver(function() {
+      if (win.style.display !== 'none') win.focus();
+    });
+    observer.observe(win, { attributes: true, attributeFilter: ['style'] });
+  }
+
+  // =========================================================
   // Save PROG + MD
   // =========================================================
 
@@ -1135,5 +1222,6 @@
   });
 
   initTabs();
+  initKeyboard();
 
 })();
