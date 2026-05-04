@@ -55,6 +55,7 @@ static struct option long_options[] = {
     {"hdlc",       required_argument, 0, 'H'},
     {"throttle",   optional_argument, 0, 'Z'},
     {"ring-dump",  optional_argument, 0, 'R'},
+    {"overlay-deposit", no_argument, 0, 'O'},
     {0, 0, 0, 0}
 };
 
@@ -76,6 +77,7 @@ void Config_Init(Config_t *config) {
     config->breakpointAddr = 0;
     config->textStartSet = false;
     config->textStart = 0;
+    config->overlayDeposit = false;
     config->printDir = NULL;
     config->tapeDir = NULL;
     config->tapeFile = NULL;
@@ -189,7 +191,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::R::",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::R::O",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -352,9 +354,13 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
 
+            case 'O':
+                config->overlayDeposit = true;
+                break;
+
             case '?':
                 return false;
-                
+
             default:
                 fprintf(stderr, "Unknown option: %c\n", c);
                 return false;
@@ -426,6 +432,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)\n");
     printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
     printf("                          Client: --hdlc=N:HOST:PORT\n");
+    printf("  -O,      --overlay-deposit Deposit data_click at phys word 1 for kernel boot-info\n");
     printf("  -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 512)\n");
     printf("  -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)\n");
     printf("  -h,      --help         Show this help message\n\n");

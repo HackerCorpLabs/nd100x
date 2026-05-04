@@ -62,6 +62,7 @@ typedef struct {
     int ringDumpSize;
     bool textStartSet;
     uint32_t textStart;
+    bool overlayDeposit;
     char *printDir;      // Output directory for print jobs (default: ./prints/)
     char *tapeDir;       // Output directory for punched tape (default: ./tapes/)
     char *tapeFile;      // Input file for paper tape reader

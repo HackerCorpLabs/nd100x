@@ -331,13 +331,13 @@ EMSCRIPTEN_EXPORT int Boot(int boot_type)
     int rc;
     switch (boot_type) {
     case 1: // SMD
-        rc = program_load(BOOT_SMD, "SMD0.IMG", 1, 0);
+        rc = program_load(BOOT_SMD, "SMD0.IMG", 1, 0, false);
         break;
     case 2: // BPUN
-        rc = program_load(BOOT_BPUN, "BPUN_UPLOAD.IMG", 1, 0);
+        rc = program_load(BOOT_BPUN, "BPUN_UPLOAD.IMG", 1, 0, false);
         break;
     default: // FLOPPY (0)
-        rc = program_load(BOOT_FLOPPY, "FLOPPY0.IMG", 1, 0);
+        rc = program_load(BOOT_FLOPPY, "FLOPPY0.IMG", 1, 0, false);
         break;
     }
 

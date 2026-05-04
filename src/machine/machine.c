@@ -294,7 +294,7 @@ void autoMountDrives()
 
 }
 
- int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose, uint16_t text_start)
+ int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose, uint16_t text_start, bool overlay_deposit)
  {
      int bootAddress;
      int result;
@@ -333,7 +333,7 @@ void autoMountDrives()
         printf("Error: AOUT boot not available on Windows (libsymbols not ported yet)\n");
         exit(1);
 #else
-        bootAddress = load_aout(imageFile, verbose, write_memory, text_start);
+        bootAddress = load_aout(imageFile, verbose, write_memory, text_start, overlay_deposit);
         if (bootAddress < 0)
         {
             printf("Error loading AOUT file '%s'\n", imageFile);

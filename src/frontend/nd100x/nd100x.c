@@ -235,7 +235,7 @@ void initialize()
     // {01320, 052, 062, "TERMINAL 11"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 11);
 
-	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart);
+	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
 	gPC = STARTADDR;
 
 	/* Direct input/output enabled */
