@@ -2982,12 +2982,14 @@ static int cmd_data_breakpoint_info(DAPServer *server)
 
     if (ctx->name)
     {
-        // Strip address space prefix if present (phys: or P:)
+        // Strip address space prefix if present
         const char *lookup_name = ctx->name;
-        if (strncmp(lookup_name, "phys:", 5) == 0)
-            lookup_name += 5;
-        else if (strncmp(lookup_name, "P:", 2) == 0)
-            lookup_name += 2;
+        if (strncmp(lookup_name, "phys:", 5) == 0) lookup_name += 5;
+        else if (strncmp(lookup_name, "P:", 2) == 0) lookup_name += 2;
+        else if (strncmp(lookup_name, "ispace:", 7) == 0) lookup_name += 7;
+        else if (strncmp(lookup_name, "I:", 2) == 0) lookup_name += 2;
+        else if (strncmp(lookup_name, "dspace:", 7) == 0) lookup_name += 7;
+        else if (strncmp(lookup_name, "D:", 2) == 0) lookup_name += 2;
 
         // Try symbol lookup across all loaded symbol tables
         const symbol_entry_t *sym = NULL;
@@ -3025,22 +3027,26 @@ static int cmd_data_breakpoint_info(DAPServer *server)
 
     if (valid)
     {
-        // Determine address space: check for "physical" hint in the name
-        // Names prefixed with "phys:" or "P:" request physical address space
-        bool is_physical = false;
-        if (ctx->name && (strncmp(ctx->name, "phys:", 5) == 0 || strncmp(ctx->name, "P:", 2) == 0))
-        {
-            is_physical = true;
+        // Determine address space from prefix
+        char space_char = 'V';
+        const char *space = "virtual";
+        if (ctx->name) {
+            if (strncmp(ctx->name, "phys:", 5) == 0 || strncmp(ctx->name, "P:", 2) == 0) {
+                space_char = 'P'; space = "physical";
+            } else if (strncmp(ctx->name, "ispace:", 7) == 0 || strncmp(ctx->name, "I:", 2) == 0) {
+                space_char = 'I'; space = "ispace";
+            } else if (strncmp(ctx->name, "dspace:", 7) == 0 || strncmp(ctx->name, "D:", 2) == 0) {
+                space_char = 'D'; space = "dspace";
+            }
         }
 
         // Return a dataId that encodes address space + address (octal)
-        // Format: "V:000040" for virtual, "P:000040" for physical
+        // Format: "V:000040" virtual, "P:000040" physical, "I:000040" ispace, "D:000040" dspace
         char data_id[32];
-        snprintf(data_id, sizeof(data_id), "%c:%06o", is_physical ? 'P' : 'V', address);
+        snprintf(data_id, sizeof(data_id), "%c:%06o", space_char, address);
         ctx->data_id = strdup(data_id);
 
         char desc[128];
-        const char *space = is_physical ? "physical" : "virtual";
         if (resolved_name)
         {
             snprintf(desc, sizeof(desc), "Watch '%s' at %s address %06o", resolved_name, space, address);
