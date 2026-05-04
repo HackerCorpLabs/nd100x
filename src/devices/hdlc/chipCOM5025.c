@@ -304,6 +304,8 @@ void COM5025_SetInputPin(COM5025State *chip, COM5025SignalPinIn pin, bool value)
         case COM5025_PIN_IN_RCP:
         case COM5025_PIN_IN_RSI:
             break;
+        default:
+            break;
     }
 }
 

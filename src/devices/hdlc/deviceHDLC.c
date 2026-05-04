@@ -867,7 +867,7 @@ static void HDLC_OnDMASendHDLCFrame(Device *device, HDLCFrame *frame)
     if (!data || !data->modem) return;
 
     // Equivalent to C# DmaEngine_OnSendHDLCFrame
-    if (frame->frameBuffer && frame->frameLength > 0) {
+    if (frame->frameLength > 0) {
         data->framesTx++;
         Modem_SendBytes(data->modem, frame->frameBuffer, frame->frameLength);
     }
