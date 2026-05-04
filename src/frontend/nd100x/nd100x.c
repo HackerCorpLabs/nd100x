@@ -187,7 +187,7 @@ void dump_stats()
 #endif
     totaltime = (float)usertime + (float)systemtime;
 
-    printf("Number of instructions run: %lu, time used: %f\n", instr_counter, totaltime);
+    printf("Number of instructions run: %llu, time used: %f\n", (unsigned long long)instr_counter, totaltime);
     printf("usertime: %f  systemtime: %f\n", usertime, systemtime);
     if (instr_counter > 0) {
         printf("Current cpu cycle time is:%f microsecs\n",

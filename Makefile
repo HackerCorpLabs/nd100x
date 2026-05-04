@@ -30,6 +30,13 @@ ifeq ($(OS),Windows_NT)
     HOST_WINDOWS := 1
 endif
 
+# macOS sed requires an empty-string backup argument for in-place edits.
+ifeq ($(UNAME_S),Darwin)
+    SED_INPLACE := sed -i ''
+else
+    SED_INPLACE := sed -i
+endif
+
 # CMake generator selection.
 # On Windows (w64devkit / MSYS2) force Ninja — otherwise CMake defaults to
 # the Visual Studio generator, which needs MSVC and breaks under MinGW.
@@ -165,7 +172,7 @@ wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in HTML files
 	@BUILD_TS=$$(date +%s); \
-	sed -i \
+	$(SED_INPLACE) \
 	  -e "s|src=\"js/|src=\"js/|g" \
 	  -e "s|src=\"nd100wasm.js\"|src=\"nd100wasm.js?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
@@ -174,7 +181,7 @@ wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	  -e "s|href=\"lib/retroterm/retroterm.css\"|href=\"lib/retroterm/retroterm.css?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"lib/retroterm/retroterm.js\"|src=\"lib/retroterm/retroterm.js?v=$$BUILD_TS\"|g" \
 	  $(BUILD_DIR_WASM_GLASS)/bin/index.html; \
-	sed -i \
+	$(SED_INPLACE) \
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \

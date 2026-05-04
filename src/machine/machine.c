@@ -393,6 +393,8 @@ void autoMountDrives()
          }
          STARTADDR = bootAddress;
          break;
+     case BOOT_NONE:
+         return -1;
      }
 
      autoMountDrives();

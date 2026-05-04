@@ -4117,6 +4117,7 @@ static int cmd_disassemble(DAPServer *server)
         server->current_command.context.disassemble.actual_instruction_count++;
         virtualAddress++;
     }
+    return 0;
 }
 
 // Console output callback - buffers characters for later sending from debugger thread.

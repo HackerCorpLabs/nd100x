@@ -641,7 +641,7 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
             static int pf25 = 0;
             if (pf25 < 3)
                 printf("\r\nPF25: PTe=0x%08X pfMask=0x%08lX PIL=%d am=%d\r\n",
-                       pageTableEntry, (unsigned long)pfMask, CurrLEVEL, am);
+                       (uint32_t)pageTableEntry, (unsigned long)pfMask, CurrLEVEL, am);
             pf25++;
         }
         // PGS bit 14 (PM - Permit violation) must be FALSE here.
@@ -676,7 +676,7 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
             static int mpv25 = 0;
             if (mpv25 < 5)
                 printf("\r\nACCESS_DENIED: PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d UseAPT=%d PIL=%d VA=%06o\r\n",
-                       pageTable, VPN, pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
+                       pageTable, VPN, (uint32_t)pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
             mpv25++;
         }
         UpdatePGS(pageTable, VPN, am, true);
