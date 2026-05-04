@@ -1,5 +1,5 @@
 
-/* /home/ronny/repos/nd100x/src/frontend/nd100wasm/nd100wasm.c */
+/* /Users/ronny/rh/nd100x/src/frontend/nd100wasm/nd100wasm.c */
 EMSCRIPTEN_EXPORT void TerminalOutputToJS(int identCode, char c);
 EMSCRIPTEN_EXPORT void SetJSTerminalOutputHandler(int enable);
 EMSCRIPTEN_EXPORT void EnableTerminalRingBuffer(int enable);
@@ -23,6 +23,7 @@ EMSCRIPTEN_EXPORT int MountSMDFromOPFS(int unit, int imageSize);
 EMSCRIPTEN_EXPORT int MountSMDFromBuffer(int unit, const uint8_t *data, int size);
 EMSCRIPTEN_EXPORT int GetSMDBuffer(int unit);
 EMSCRIPTEN_EXPORT int GetSMDBufferSize(int unit);
+EMSCRIPTEN_EXPORT int Dbg_ReadSMDSectors(int unit, int lba, int count);
 EMSCRIPTEN_EXPORT int RemountSMD(int unit);
 EMSCRIPTEN_EXPORT int UnmountFloppy(int unit);
 EMSCRIPTEN_EXPORT int UnmountSMD(int unit);
@@ -107,6 +108,7 @@ EMSCRIPTEN_EXPORT int Dbg_ReadMemory(int addr);
 EMSCRIPTEN_EXPORT int Dbg_ReadMemoryBlock(int startAddr, int count);
 EMSCRIPTEN_EXPORT void Dbg_WriteMemory(int addr, int val);
 EMSCRIPTEN_EXPORT int Dbg_DumpPhysicalMemory(int wordCount);
+EMSCRIPTEN_EXPORT int Dbg_GetPhysMemWords(void);
 EMSCRIPTEN_EXPORT void Dbg_AddBreakpoint(int addr);
 EMSCRIPTEN_EXPORT void Dbg_RemoveBreakpoint(int addr);
 EMSCRIPTEN_EXPORT void Dbg_ClearBreakpoints(void);
@@ -118,6 +120,8 @@ EMSCRIPTEN_EXPORT int Dbg_GetWatchpointCount(void);
 EMSCRIPTEN_EXPORT int Dbg_GetWatchpointAddr(int index);
 EMSCRIPTEN_EXPORT int Dbg_GetWatchpointType(int index);
 EMSCRIPTEN_EXPORT const char *Dbg_Disassemble(int startAddr, int count);
+EMSCRIPTEN_EXPORT void Dbg_LoadInspectBuffer(int jsPtr, int wordCount, int baseAddr);
+EMSCRIPTEN_EXPORT const char *Dbg_DisassembleFromBuffer(int startWord, int count);
 EMSCRIPTEN_EXPORT const char *Dbg_GetLevelInfo(void);
 EMSCRIPTEN_EXPORT const char *Dbg_GetScopes(void);
 EMSCRIPTEN_EXPORT const char *Dbg_GetVariables(int scopeId);

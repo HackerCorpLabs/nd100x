@@ -314,6 +314,26 @@
     },
     getSMDBuffer: function(unit) { return Module._GetSMDBuffer(unit); },
     getSMDBufferSize: function(unit) { return Module._GetSMDBufferSize(unit); },
+    readSMDSectors: function(unit, lba, count) {
+      if (!Module._Dbg_ReadSMDSectors) return 0;
+      return Module._Dbg_ReadSMDSectors(unit, lba, count);
+    },
+
+    // --- Physical memory size ---
+    getPhysMemWords: function() {
+      if (!Module._Dbg_GetPhysMemWords) return 2 * 1024 * 1024;
+      return Module._Dbg_GetPhysMemWords();
+    },
+
+    // --- Segment disassembler buffer ---
+    loadInspectBuffer: function(heapPtr, wordCount, baseAddr) {
+      if (Module._Dbg_LoadInspectBuffer) Module._Dbg_LoadInspectBuffer(heapPtr, wordCount, baseAddr);
+    },
+    disassembleFromBuffer: function(startWord, count) {
+      if (!Module._Dbg_DisassembleFromBuffer) return '';
+      return Module.UTF8ToString(Module._Dbg_DisassembleFromBuffer(startWord, count));
+    },
+    getHEAPU8: function() { return Module.HEAPU8; },
 
     // --- WebSocket bridge (requires Worker mode) ---
     wsConnect: function(url) { console.warn('WebSocket bridge requires Worker mode'); },

@@ -740,6 +740,17 @@ document.getElementById('menu-segment-table').addEventListener('click', function
   document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
 });
 
+document.getElementById('menu-reentrant').addEventListener('click', function() {
+  var win = document.getElementById('reentrant-window');
+  if (win.style.display === 'none' || win.style.display === '') {
+    if (typeof reentrantShowWindow === 'function') reentrantShowWindow();
+    windowManager.focus('reentrant-window');
+  } else {
+    if (typeof reentrantHideWindow === 'function') reentrantHideWindow();
+  }
+  document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+});
+
 document.getElementById('menu-io-devices').addEventListener('click', function() {
   var win = document.getElementById('io-devices-window');
   if (win.style.display === 'none' || win.style.display === '') {
@@ -799,21 +810,29 @@ document.getElementById('menu-dump-memory').addEventListener('click', function()
     alert('Emulator not ready');
     return;
   }
-  // C writes 256K words big-endian to /nd100_physmem.bin in MEMFS
-  var rc = emu.dumpPhysicalMemory(256 * 1024);
+
+  // Dump full physical memory — size comes from WASM (Dbg_GetPhysMemWords).
+  // Check console for "[toolbar] dump:" to verify the computed size.
+  var dumpWords = emu.getPhysMemWords ? emu.getPhysMemWords() : 2 * 1024 * 1024;
+  var dumpBytes = dumpWords * 2;
+  console.log('[toolbar] dump: ' + dumpWords + ' words = ' + (dumpBytes / (1024*1024)).toFixed(2) +
+    ' MB (' + (emu.getPhysMemWords ? 'WASM' : 'fallback 2MW') + ')');
+  var sizeLabelMB = (dumpBytes / (1024 * 1024)).toFixed(0);
+  var sizeLabelKB = (dumpBytes / 1024).toFixed(0);
+  var sizeLabel = (dumpBytes >= 1024 * 1024) ? sizeLabelMB + 'MB' : sizeLabelKB + 'KB';
+
+  var rc = emu.dumpPhysicalMemory(dumpWords);
   if (rc !== 0) { alert('Memory dump failed'); return; }
-  // Read file from MEMFS and trigger browser download
   var data = emu.fsReadFile('/nd100_physmem.bin');
   var blob = new Blob([data], { type: 'application/octet-stream' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'nd100_physmem_256k.bin';
+  a.download = 'nd100_physmem_' + sizeLabel + '.bin';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  // Clean up MEMFS
   try { emu.fsUnlink('/nd100_physmem.bin'); } catch(e) {}
 });
 
@@ -1310,6 +1329,14 @@ document.getElementById('color-theme-select').addEventListener('change', functio
   var segHeader = document.getElementById('segment-table-header');
   if (segWin && segHeader) makeDraggable(segWin, segHeader, 'segment-table-pos');
 
+  var reentWin = document.getElementById('reentrant-window');
+  var reentHeader = document.getElementById('reentrant-header');
+  if (reentWin && reentHeader) makeDraggable(reentWin, reentHeader, 'reentrant-pos');
+
+  var segDisasmWin = document.getElementById('seg-disasm-window');
+  var segDisasmHeader = document.getElementById('seg-disasm-header');
+  if (segDisasmWin && segDisasmHeader) makeDraggable(segDisasmWin, segDisasmHeader, 'seg-disasm-pos');
+
   var ioWin = document.getElementById('io-devices-window');
   var ioHeader = document.getElementById('io-devices-header');
   if (ioWin && ioHeader) makeDraggable(ioWin, ioHeader, 'io-devices-pos');
@@ -1490,6 +1517,16 @@ makeResizable(
   'segment-table-size', 550, 300
 );
 makeResizable(
+  document.getElementById('reentrant-window'),
+  document.getElementById('reentrant-resize'),
+  'reentrant-size', 480, 280
+);
+makeResizable(
+  document.getElementById('seg-disasm-window'),
+  document.getElementById('seg-disasm-resize'),
+  'seg-disasm-size', 500, 350
+);
+makeResizable(
   document.getElementById('io-devices-window'),
   document.getElementById('io-devices-resize'),
   'io-devices-size', 500, 300
@@ -1526,6 +1563,8 @@ windowManager.register('sysinfo-window', 'System Info');
 windowManager.register('process-list-window', 'RT Descriptions');
 windowManager.register('queue-viewer-window', 'Queues');
 windowManager.register('segment-table-window', 'Segments');
+windowManager.register('reentrant-window', 'Reentrant');
+windowManager.register('seg-disasm-window', 'Disassembler');
 windowManager.register('io-devices-window', 'I/O Devices');
 windowManager.register('page-table-window', 'Page Tables');
 windowManager.register('config-window', 'Config');

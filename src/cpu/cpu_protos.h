@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu.c */
 void do_op(ushort operand, bool isEXR);
 ushort New_GetEffectiveAddr(ushort instr, bool *use_apt);
 ushort calcIIC(void);
@@ -35,7 +35,7 @@ bool cpu_throttle_get_enabled(void);
 void cpu_throttle_set_mhz(double mhz);
 double cpu_throttle_get_mhz(void);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_instr.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_instr.c */
 bool CheckPriv(void);
 short signExtend(ushort x);
 ushort do_add(ushort a, ushort b, ushort k);
@@ -170,12 +170,12 @@ void print_mask_binary(unsigned short mask);
 void Instruction_Add_Mask(int opcode, int mask, void *funcpointer);
 void Setup_Instructions(void);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_mopc.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_mopc.c */
 int aoct2int(char *str);
 void mopc_cmd(char *cmdstr, char cmdc);
 void mopc_thread(void);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_disasm.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_disasm.c */
 void OpToStr(char *return_string, uint16_t max_len, uint16_t operand);
 void disasm_allocate(ushort addr);
 void disasm_instr(ushort addr, ushort instr);
@@ -190,7 +190,7 @@ ushort extract_opcode(ushort instr);
 ushort decode_140k(ushort instr);
 ushort decode_150k(ushort instr);
 
-/* /home/ronny/repos/nd100x/src/cpu/float.c */
+/* /Users/ronny/rh/nd100x/src/cpu/float.c */
 int NDFloat_Add(ushort *p_a, ushort *p_b, ushort *p_r);
 int NDFloat_Sub(ushort *p_a, ushort *p_b, ushort *p_r);
 int NDFloat_Mul(ushort *p_a, ushort *p_b, ushort *p_r);
@@ -198,7 +198,7 @@ int NDFloat_Div(ushort *p_a, ushort *p_b, ushort *p_r);
 void DoNLZ(char scaling);
 void DoDNZ(char scaling);
 
-/* /home/ronny/repos/nd100x/src/cpu/bcd.c */
+/* /Users/ronny/rh/nd100x/src/cpu/bcd.c */
 void ndfunc_addd(ushort instr);
 void ndfunc_subd(ushort instr);
 void ndfunc_comd(ushort instr);
@@ -206,7 +206,7 @@ void ndfunc_shde(ushort instr);
 void ndfunc_pack(ushort instr);
 void ndfunc_unpack(ushort instr);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_regs.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_regs.c */
 bool setPIL(char newLevel);
 void setPEA(ushort pea);
 void setPES(ushort pes);
@@ -218,7 +218,7 @@ void setbit_STS_MSB(ushort stsbit, char val);
 void setbit(ushort regnum, ushort stsbit, char val);
 void AdjustSTS(ushort reg_a, ushort operand, int result);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_mms.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_mms.c */
 bool CreatePagingTables(void);
 void DestroyPagingTables(void);
 ushort GetPTShadowAddress(uint pageTable, uint VPN, PageTableMode ptm);
@@ -246,9 +246,8 @@ void HandleMPV(uint virtualAddress);
 void HandlePF(uint virtualAddress);
 int Dbg_ReadPhysicalMemory(uint32_t physicalAddress);
 int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value);
-void check_phys_write(int pa, unsigned short value);
 
-/* /home/ronny/repos/nd100x/src/cpu/cpu_bkpt.c */
+/* /Users/ronny/rh/nd100x/src/cpu/cpu_bkpt.c */
 void breakpoint_manager_init(void);
 void breakpoint_manager_cleanup(void);
 void breakpoint_manager_step_one(void);
@@ -273,6 +272,6 @@ void phys_watchpoint_clear(void);
 int phys_watchpoint_get_count(void);
 int phys_watchpoint_get(int index, uint32_t *out_addr, int *out_type);
 
-/* /home/ronny/repos/nd100x/src/cpu/expr_eval.c */
+/* /Users/ronny/rh/nd100x/src/cpu/expr_eval.c */
 uint16_t expr_eval_value(const char *expr, const char **error);
 bool expr_eval_condition(const char *expr, const char **error);

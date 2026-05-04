@@ -25,6 +25,7 @@
   var refreshTimer = null;
   var autoRefresh = true;
   var lastSegments = [];
+  var selectedSegNum = -1;
 
   // =========================================================
   // Segment FLAG bit names (word offset 5)
@@ -219,8 +220,8 @@
   var COL_TIPS = {
     segNum: 'Unique index in the segment table',
     name:   'System segment name from SINTRAN release documentation.\nS3xxx = active, S3Sxxx = save copy, S3Ixxx = image copy.\nUser segments (136-255) show the RT programs that use them.',
-    logad:  'Starting page in virtual address space.\nMultiply by 1024 to get the word address.',
-    pages:  'Segment length in pages (octal).\nEach page = 1024 words.',
+    logad:  'Virtual base page number (VPN).\nFor user segments: first word address = LOGAD × 1024.\nFor system segments: LOGAD is an absolute VPN index (may exceed 64KW user space).',
+    pages:  'Segment length in pages (octal).\nEach SINTRAN page = 512 words = 1 disk sector.\nTotal data = pages × 512 words.',
     madr:   'Disk swap location.\nWhere this segment is stored on disk when swapped out.',
     bpagl:  'First physical page in the core map chain.\nLinks to the physical memory pages allocated to this segment.',
     flags:  'Loading, sharing and protection behavior.\nHover over cells for details on each flag.',
@@ -253,8 +254,9 @@
       var s = segments[i];
       var pages = s.segle & 0x3FF;
       var pagesStr = pages.toString(8);
-      var pagesTip = pages + ' pages = ' + (pages * 1024) + ' words (' + pages + 'K words)';
-      var logadTip = 'Logical page ' + sym.toOctal(s.logad) + ' = word address ' + sym.toOctal(s.logad << 10 & 0xFFFF);
+      var pagesTip = pages + ' pages × 512 words = ' + (pages * 512) + ' words on disk';
+      var localVpn = s.logad & 0x3F;
+      var logadTip = 'VPN ' + sym.toOctal(s.logad) + ' → local word addr ' + sym.toOctal(localVpn << 10);
       var usedByStr = s.usedBy.length > 0 ? s.usedBy.join(', ') : '-';
 
       // Resolve segment name and description
@@ -264,18 +266,23 @@
         ? window.resolveSegmentDescription(s.segNum) : null;
       var segCat = (typeof window.resolveSegmentCategory === 'function')
         ? window.resolveSegmentCategory(s.segNum) : null;
+      var reentName = (typeof window.getREECOMTNameForSeg === 'function')
+        ? window.getREECOMTNameForSeg(s.segNum) : '';
       var nameTip = '';
       if (segDesc) {
         nameTip = segDesc;
+        if (reentName) nameTip += '\nReentrant: ' + reentName;
         if (segCat) nameTip += '\nCategory: ' + segCat;
+      } else if (reentName) {
+        nameTip = 'Reentrant program: ' + reentName;
       } else if (s.usedBy.length > 0) {
         nameTip = 'User segment used by: ' + s.usedBy.join(', ');
       }
-      // For unnamed segments, show the RT cross-reference as name
-      var nameDisplay = segName || (s.usedBy.length > 0 ? s.usedBy[0] : '');
+      // Prefer REECOMT program name; fall back to static name then RT cross-reference
+      var nameDisplay = reentName || segName || (s.usedBy.length > 0 ? s.usedBy[0] : '');
 
       var segOct = s.segNum.toString(8);
-      html += '<tr class="proc-row">' +
+      html += '<tr class="proc-row" data-segnum="' + s.segNum + '">' +
         '<td title="Segment ' + segOct + ' octal (' + s.segNum + ' decimal)">' + segOct + '</td>' +
         '<td title="' + escAttr(nameTip) + '">' + nameDisplay + '</td>' +
         '<td title="' + escAttr(logadTip) + '">' + sym.toOctal(s.logad) + '</td>' +
@@ -290,6 +297,200 @@
 
     html += '</tbody></table>';
     body.innerHTML = html;
+
+    // Attach click handlers
+    var rows = body.querySelectorAll('.proc-row');
+    for (var ri = 0; ri < rows.length; ri++) {
+      rows[ri].addEventListener('click', function() {
+        var sn = parseInt(this.getAttribute('data-segnum'));
+        var seg = null;
+        for (var k = 0; k < segments.length; k++) {
+          if (segments[k].segNum === sn) { seg = segments[k]; break; }
+        }
+        selectSegment(sn, seg);
+      });
+    }
+
+    // Re-select previously selected segment
+    if (selectedSegNum >= 0) {
+      var prevSeg = null;
+      for (var pi = 0; pi < segments.length; pi++) {
+        if (segments[pi].segNum === selectedSegNum) { prevSeg = segments[pi]; break; }
+      }
+      if (prevSeg) selectSegment(selectedSegNum, prevSeg);
+    }
+  }
+
+  // =========================================================
+  // Segment detail pane
+  // =========================================================
+
+  function selectSegment(segNum, seg) {
+    selectedSegNum = segNum;
+
+    // Highlight row
+    var rows = document.querySelectorAll('#segment-table-body .proc-row');
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].classList.remove('proc-selected');
+      if (parseInt(rows[i].getAttribute('data-segnum')) === segNum) {
+        rows[i].classList.add('proc-selected');
+      }
+    }
+
+    var panel = document.getElementById('segment-detail-panel');
+    if (!panel || !seg) return;
+    panel.style.display = 'block';
+    panel.innerHTML = renderSegDetailHtml(seg);
+
+    // Async: fill core map chain
+    if (seg.bpagl) {
+      loadCoreMapChain(seg);
+    }
+  }
+
+  function loadCoreMapChain(seg) {
+    sym.readWord(sym.FIXED.CORMB).then(function(cormb) {
+      var cormBase = (cormb & 0xFF) << 16;
+      var limit = 32;
+      var entries = [];
+
+      function walk(addr) {
+        if (addr === 0 || limit-- <= 0) return Promise.resolve();
+        return sym.readBlockPhysical(cormBase + addr, 4).then(function(cme) {
+          if (!cme || cme.length < 4) return Promise.resolve();
+          entries.push({
+            physPage: (addr / 4) | 0,
+            prote:    cme[2],
+            logpa:    cme[3],
+            relPage:  cme[3] - seg.logad
+          });
+          return walk(cme[0]);
+        });
+      }
+
+      return walk(seg.bpagl).then(function() {
+        var el = document.getElementById('seg-cmap-chain-' + seg.segNum);
+        if (!el) return;
+        if (entries.length === 0) { el.textContent = 'no entries'; return; }
+        var html = '<table class="seg-cmap-table"><tr><th>physPage</th><th>rel</th><th>LOGPA</th><th>prot</th></tr>';
+        for (var i = 0; i < entries.length; i++) {
+          var e = entries[i];
+          var wpm = (e.prote >> 15) & 1, rpm = (e.prote >> 14) & 1, fpm = (e.prote >> 13) & 1;
+          var prot = (fpm ? 'X' : '-') + (rpm ? 'R' : '-') + (wpm ? 'W' : '-');
+          html += '<tr>' +
+            '<td>' + sym.toOctal(e.physPage) + '</td>' +
+            '<td>' + e.relPage + '</td>' +
+            '<td>' + sym.toOctal(e.logpa) + '</td>' +
+            '<td>' + prot + '</td>' +
+            '</tr>';
+        }
+        html += '</table>';
+        if (limit <= 0) html += '<div style="font-size:10px;color:rgba(160,175,210,0.5);">chain truncated at 32</div>';
+        el.innerHTML = html;
+      });
+    }).catch(function(e) {
+      console.warn('[seg] chain walk failed for seg ' + seg.segNum + ':', e.message || e);
+      var el = document.getElementById('seg-cmap-chain-' + seg.segNum);
+      if (el) el.innerHTML = '<span style="color:rgba(255,120,120,0.7);">chain walk failed: ' +
+        escAttr(e.message || String(e)) + '</span>';
+    });
+  }
+
+  function renderSegDetailHtml(seg) {
+    var segOct = seg.segNum.toString(8).padStart(3, '0');
+    var segName = (typeof window.resolveSegmentName === 'function')
+      ? window.resolveSegmentName(seg.segNum) : '';
+    var title = segName ? segName + ' (' + segOct + ')' : 'Segment ' + segOct;
+
+    var html = '<div class="seg-detail-title">' + escAttr(title) + '</div>';
+
+    // LRU links
+    html += '<div class="seg-detail-section">LRU Links</div>';
+    html += detailField('SEGLI', sym.toOctal(seg.segli), 'Forward LRU link');
+    html += detailField('PRESE', sym.toOctal(seg.prese), 'Backward LRU link');
+
+    // Addressing
+    html += '<div class="seg-detail-section">Addressing</div>';
+    var localVpnBase = seg.logad & 0x3F;
+    html += detailField('LOGAD', sym.toOctal(seg.logad), 'VPN ' + sym.toOctal(seg.logad) + ' → local addr ' + sym.toOctal(localVpnBase << 10));
+    var pages = seg.segle & 0x3FF;
+    html += detailField('SEGLE', sym.toOctal(pages) + ' (' + pages + ' pages)', pages + ' pages × 512 words = ' + (pages * 512) + ' words');
+    html += detailField('MADR',  sym.toOctal(seg.madr), 'Disk sector offset from SEGFIL base');
+
+    // Flags
+    var segfilN = (seg.flag >> 13) & 0x7;
+    html += '<div class="seg-detail-section">FLAG (SEGFIL ' + segfilN + ')</div>';
+    var flagBits = [
+      { bit: 0, name: 'OK' }, { bit: 1, name: 'INHIB' }, { bit: 3, name: 'PROT' },
+      { bit: 4, name: 'SHARED' }, { bit: 5, name: 'FIXED' }, { bit: 6, name: 'DEMAND' }
+    ];
+    html += '<div class="seg-detail-bits">';
+    for (var fb = 0; fb < flagBits.length; fb++) {
+      var active = sym.testBit(seg.flag, flagBits[fb].bit) ? ' active' : '';
+      html += '<span class="seg-detail-bit' + active + '">' + flagBits[fb].name + '</span>';
+    }
+    html += '</div>';
+    html += detailField('FLAG', sym.toOctal(seg.flag), 'Raw flag word');
+
+    // SGSTA
+    html += '<div class="seg-detail-section">SGSTA (Protection)</div>';
+    var sgstaBits = [
+      { mask: 1 << 15, name: 'WPM' }, { mask: 1 << 14, name: 'RPM' }, { mask: 1 << 13, name: 'FPM' },
+      { mask: 1, name: 'NOCLEAR' }
+    ];
+    var ring = (seg.sgsta >> 9) & 0x03;
+    html += '<div class="seg-detail-bits">';
+    for (var sb = 0; sb < sgstaBits.length; sb++) {
+      var sact = (seg.sgsta & sgstaBits[sb].mask) ? ' active' : '';
+      html += '<span class="seg-detail-bit' + sact + '">' + sgstaBits[sb].name + '</span>';
+    }
+    html += '<span class="seg-detail-bit active">R' + ring + '</span>';
+    html += '</div>';
+    html += detailField('SGSTA', sym.toOctal(seg.sgsta), decodeSgsta(seg.sgsta));
+
+    // Disk range
+    var segfilBase0 = (typeof window.getDiscoveredSegfilBase0 === 'function') ? window.getDiscoveredSegfilBase0() : 0;
+    var diskBase = segfilN === 4 ? 0 : (segfilBase0 || null);
+    html += '<div class="seg-detail-section">Disk (SEGFIL ' + segfilN + ')</div>';
+    if (diskBase !== null) {
+      var firstLBA = diskBase + seg.madr;
+      var lastLBA  = firstLBA + pages - 1;
+      html += detailField('LBA range', firstLBA + ' – ' + lastLBA,
+        'Sectors ' + firstLBA + ' to ' + lastLBA + ' (' + pages + ' × 512 words)');
+    } else {
+      html += detailField('MADR offset', sym.toOctal(seg.madr), 'Relative to SEGFIL base (run SINTRAN to discover base)');
+    }
+
+    // Core map
+    html += '<div class="seg-detail-section">Core Map (' +
+      (seg.bpagl ? 'in RAM' : 'not loaded') + ')</div>';
+    if (seg.bpagl) {
+      html += detailField('BPAGL', sym.toOctal(seg.bpagl), 'Head page (physPage ' + ((seg.bpagl / 4) | 0) + ')');
+      html += '<div id="seg-cmap-chain-' + seg.segNum + '" class="seg-detail-coremap" ' +
+        'style="font-size:10px;font-family:monospace;">' +
+        '<span style="color:rgba(160,175,210,0.4);">loading…</span></div>';
+    } else {
+      html += '<div class="seg-detail-coremap" style="color:rgba(160,175,210,0.4);">BPAGL=0 — segment not in RAM</div>';
+    }
+
+    // Used By
+    if (seg.usedBy && seg.usedBy.length > 0) {
+      html += '<div class="seg-detail-section">Used By</div>';
+      html += '<div class="seg-detail-coremap">' + seg.usedBy.join(', ') + '</div>';
+    }
+
+    // Disassembler button
+    html += '<button class="seg-detail-btn" onclick="segDisasmOpenWindow(' + seg.segNum + ')">Open Disassembler</button>';
+
+    return html;
+  }
+
+  function detailField(name, value, tip) {
+    var tipAttr = tip ? ' title="' + escAttr(tip) + '"' : '';
+    return '<div class="seg-detail-field"' + tipAttr + '>' +
+      '<span class="seg-detail-field-name">' + name + '</span>' +
+      '<span class="seg-detail-field-value">' + value + '</span>' +
+      '</div>';
   }
 
   // =========================================================
@@ -400,6 +601,10 @@
   // =========================================================
   // Export
   // =========================================================
-  window.segTableShowWindow = showWindow;
-  window.segTableHideWindow = hideWindow;
+  window.segTableShowWindow   = showWindow;
+  window.segTableHideWindow   = hideWindow;
+  window.readSegmentTable     = readSegmentTable;
+  window.renderSegDetailHtml  = renderSegDetailHtml;
+  window.loadSegCoreMapChain  = loadCoreMapChain;
+  window.getLastSegments      = function() { return lastSegments; };
 })();

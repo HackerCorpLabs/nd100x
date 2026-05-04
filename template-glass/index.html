@@ -182,6 +182,7 @@
           <button class="toolbar-menu-item" id="menu-process-list">RT Descriptions</button>
           <button class="toolbar-menu-item" id="menu-queue-viewer">Queue Viewer</button>
           <button class="toolbar-menu-item" id="menu-segment-table">Segment Table</button>
+          <button class="toolbar-menu-item" id="menu-reentrant">Reentrant Programs</button>
           <button class="toolbar-menu-item" id="menu-io-devices">I/O Devices</button>
           <button class="toolbar-menu-item" id="menu-page-tables">Page Tables</button>
           <div class="toolbar-menu-separator"></div>
@@ -1184,8 +1185,73 @@
         <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
       </svg>
     </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:row;">
+      <div class="seg-list-pane" id="segment-table-body"></div>
+      <div class="seg-detail-pane" id="segment-detail-panel" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       REENTRANT PROGRAMS WINDOW (hidden by default)
+       ========================================= -->
+  <div id="reentrant-window" class="glass-window" style="display: none;">
+    <div class="glass-window-header" id="reentrant-header">
+      <span class="glass-window-title">Reentrant Programs</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="sysinfo-refresh-btn copy-table-btn" id="reentrant-copy" title="Copy as Markdown"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="7.5" height="7.5" rx="1.5"/><path d="M9.5 5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v5A1.5 1.5 0 0 0 3 9.5h2"/></svg></button>
+        <button class="sysinfo-refresh-btn" id="reentrant-refresh" title="Refresh">&#8635;</button>
+        <button class="glass-window-close" id="reentrant-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="reentrant-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+    <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:row;">
+      <div class="seg-list-pane" id="reentrant-table-body"></div>
+      <div class="seg-detail-pane" id="reentrant-detail-panel" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       SEGMENT DISASSEMBLER WINDOW (hidden by default)
+       ========================================= -->
+  <div id="seg-disasm-window" class="glass-window" style="display: none;" tabindex="0">
+    <div class="glass-window-header" id="seg-disasm-header">
+      <span class="glass-window-title" id="seg-disasm-title">Disassembler</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:rgba(160,175,210,0.55);" title="Keyboard: ↑/↓ scroll line, PageUp/Down scroll page, Home/End top/bottom, G goto octal address">⌨ ↑↓ PgUp/Dn G=goto</span>
+        <button class="sysinfo-refresh-btn" id="seg-disasm-copy" title="Copy disassembly to clipboard">&#128203;</button>
+        <button class="sysinfo-refresh-btn" id="seg-disasm-save" title="Save PROG + BPUN + MD (single-bank) or PROG + MD (split)">&#128190;</button>
+        <button class="glass-window-close" id="seg-disasm-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-resize-handle" id="seg-disasm-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
     <div class="glass-window-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
-      <div class="proc-list-table" id="segment-table-body"></div>
+      <div class="disasm-tab-bar">
+        <button class="disasm-tab active" data-tab="i" id="seg-disasm-tab-i">Disassembly</button>
+        <button class="disasm-tab" data-tab="d" id="seg-disasm-tab-d" style="display:none;">D Bank</button>
+        <button id="seg-disasm-load-d" class="disasm-load-d-btn" style="display:none;" title="Load companion data segment">+ Load D Bank</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px;padding-right:8px;">
+          <label style="font-size:11px;color:rgba(160,175,210,0.7);">Source:</label>
+          <select id="seg-disasm-source" style="font-size:11px;background:rgba(0,0,0,0.3);color:rgba(220,225,235,0.9);border:1px solid rgba(255,255,255,0.1);padding:2px 6px;border-radius:3px;">
+            <option value="IMAGE" title="Live working copy at BLSTX[segfile] + (MADR + relPage) × CABLPAGE. In-RAM pages override disk content.">IMAGE (live)</option>
+            <option value="SAVE"  title="Pristine cold-start backup. Only system segments have explicit MS_xxx offsets — user reentrant programs share IMAGE for both read and write paths.">SAVE (system segs only)</option>
+            <option value="HENT"  title="Per Q1 NPL research: warm restart does NOT read a per-segment HENT snapshot. SINTRAN trusts IMAGE areas across restart. This option currently reads from a hypothetical HENT location and produces wrong data — use IMAGE instead.">HENT (no-op for VSX-L)</option>
+          </select>
+        </div>
+      </div>
+      <div class="disasm-tab-panel" id="seg-disasm-i-panel"></div>
+      <div class="disasm-tab-panel" id="seg-disasm-d-panel" style="display:none;"></div>
     </div>
   </div>
 
@@ -1286,6 +1352,8 @@
   <script src="js/sintran-queues.js"></script>
   <script src="js/sintran-seg-names.js"></script>
   <script src="js/sintran-segments.js"></script>
+  <script src="js/sintran-reentrant.js"></script>
+  <script src="js/segment-disassembler.js"></script>
   <script src="js/sintran-dev-names.js"></script>
   <script src="js/sintran-devices.js"></script>
   <script src="js/pagetables.js"></script>
