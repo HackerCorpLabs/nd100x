@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* E:/Dev/Emulators/ND/nd100x/src/debugger/debugger.c */
+/* /Users/ronny/rh/nd100x/src/debugger/debugger.c */
 DAPServer *dap_server_create(const DAPServerConfig *c);
 void dap_server_free(DAPServer *s);
 int dap_server_start(DAPServer *s);

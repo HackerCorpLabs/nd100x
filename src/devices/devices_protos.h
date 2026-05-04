@@ -1,6 +1,6 @@
 /* AUTO-GENERATED FILE. DO NOT EDIT! */
 
-/* /home/ronny/repos/nd100x/src/devices/device.c */
+/* /Users/ronny/rh/nd100x/src/devices/device.c */
 uint8_t Device_GetOddParity(uint8_t value);
 void Device_Init(Device *dev, uint8_t thumbwheel, DeviceClass deviceClass, size_t blockSize);
 void Device_Destroy(Device *dev);
@@ -34,7 +34,7 @@ void Device_SetBlockDiskInfo(Device *dev, BlockDeviceDiskInfoFunc infoFunc, void
 int Device_ReadBlock(Device *dev, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 int Device_WriteBlock(Device *dev, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit);
 
-/* /home/ronny/repos/nd100x/src/devices/devicemanager.c */
+/* /Users/ronny/rh/nd100x/src/devices/devicemanager.c */
 void DeviceManager_Init(LogLevel level);
 void DeviceManager_Destroy(void);
 void DeviceManager_AddAllDevices(void);
@@ -50,7 +50,7 @@ int DeviceManager_GetDeviceCount(void);
 Device *DeviceManager_GetDeviceByIndex(int index);
 int DeviceManager_Boot(uint16_t device_id);
 
-/* /home/ronny/repos/nd100x/src/devices/panel/panel.c */
+/* /Users/ronny/rh/nd100x/src/devices/panel/panel.c */
 void setup_pap(void);
 void ProcessMessageControl(PANC_Register panc);
 void ProcessTerminalPanc(void);
@@ -60,44 +60,44 @@ void panel_thread(void);
 void panel_event(void);
 void panel_processor_thread(void);
 
-/* /home/ronny/repos/nd100x/src/devices/rtc/deviceRTC.c */
+/* /Users/ronny/rh/nd100x/src/devices/rtc/deviceRTC.c */
 Device *CreateRTCDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/terminal/deviceTerminal.c */
+/* /Users/ronny/rh/nd100x/src/devices/terminal/deviceTerminal.c */
 void Terminal_QueueKeyCode(Device *self, uint8_t keycode);
 Device *CreateTerminalDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/papertape/devicePapertape.c */
+/* /Users/ronny/rh/nd100x/src/devices/papertape/devicePapertape.c */
 void PaperTape_LoadTape(Device *self, const uint8_t *data, size_t length);
 Device *CreatePaperTapeDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyDMA.c */
+/* /Users/ronny/rh/nd100x/src/devices/floppy/deviceFloppyDMA.c */
 Device *CreateFloppyDMADevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/floppy/deviceFloppyPIO.c */
+/* /Users/ronny/rh/nd100x/src/devices/floppy/deviceFloppyPIO.c */
 void FloppyPIO_ExecuteGo(Device *self, FloppyPIOCommand command);
 Device *CreateFloppyPIODevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/smd/deviceSMD.c */
+/* /Users/ronny/rh/nd100x/src/devices/smd/deviceSMD.c */
 Device *CreateSMDDevice(uint8_t thumbwheel);
 void SMD_Destroy(Device *dev);
 
-/* /home/ronny/repos/nd100x/src/devices/smd/diskSMD.c */
+/* /Users/ronny/rh/nd100x/src/devices/smd/diskSMD.c */
 void DiskSMD_SetDiskType(DiskInfo *disk, DiskType dt);
 
-/* /home/ronny/repos/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
+/* /Users/ronny/rh/nd100x/src/devices/lineprinter/deviceLinePrinter.c */
 Device *CreateLinePrinterDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
+/* /Users/ronny/rh/nd100x/src/devices/papertapewriter/devicePaperTapeWriter.c */
 const uint8_t *PaperTapeWriter_GetTapeData(Device *self, size_t *length);
 Device *CreatePaperTapeWriterDevice(uint8_t thumbwheel);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/deviceHDLC.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/deviceHDLC.c */
 Device *CreateHDLCDevice(uint8_t thumbwheel);
 void HDLC_BridgeInjectRx(Device *device, const uint8_t *data, int length);
 bool HDLC_GetRxFrameStatus(const HDLCData *data, HDLCRxFrameStatus *status);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/chipCOM5025.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/chipCOM5025.c */
 void COM5025_Init(COM5025State *chip);
 void COM5025_Reset(COM5025State *chip);
 void COM5025_MasterReset(COM5025State *chip);
@@ -117,7 +117,7 @@ void COM5025_SetReceiverStatus(COM5025State *chip, uint16_t newRxStatus);
 void COM5025_SetTransmitterOutputCallback(COM5025State *chip, void (*callback )(void *context, uint8_t data ), void *context);
 void COM5025_SetPinValueChangedCallback(COM5025State *chip, void (*callback )(void *context, COM5025SignalPinOut pin, bool value ), void *context);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/chipCOM5025Registers.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/chipCOM5025Registers.c */
 void COM5025Registers_Init(COM5025Registers *regs);
 void COM5025Registers_Clear(COM5025Registers *regs);
 void COM5025Registers_Destroy(COM5025Registers *regs);
@@ -148,7 +148,7 @@ void COM5025IOTimer_SetClockSpeed(COM5025IOTimer *timer, int speed);
 void COM5025IOTimer_AdjustTimer(COM5025IOTimer *timer, int ticks, int param, bool enable);
 void COM5025IOTimer_Clock(COM5025IOTimer *timer);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/hdlc_crc.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/hdlc_crc.c */
 uint16_t HDLC_CRC_CalculateCRC16Buffer(uint16_t crc, const uint8_t *buf, int length);
 uint16_t HDLC_CRC_CalcCrc16(uint16_t crc, uint8_t byte);
 uint16_t HDLC_CRC_CalcCCITT(uint16_t fcs, uint8_t byte);
@@ -156,7 +156,7 @@ uint8_t HDLC_CRC_CalculateParityBit(uint8_t data, HDLCParityMode mode);
 uint8_t HDLC_CRC_AddParityBit(uint8_t data, HDLCParityMode mode);
 bool HDLC_CRC_CheckParity(uint8_t data, HDLCParityMode mode);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/modem.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/modem.c */
 void Modem_Init(ModemState *modem, Device *hdlcDevice);
 void Modem_Destroy(ModemState *modem);
 void Modem_StartModem(ModemState *modem, bool isServer, const char *address, int port);
@@ -178,7 +178,7 @@ void Modem_SetWasmBridgeChannel(ModemState *modem, int channel);
 void Modem_StartWasmBridge(ModemState *modem);
 void Modem_SetCarrierPresent(ModemState *modem, bool present);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaEngine.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaEngine.c */
 void DMAEngine_Init(DMAEngine *dma, bool burstMode, struct Device *hdlcDevice, void *modem, void *com5025);
 void DMAEngine_Destroy(DMAEngine *dma);
 void DMAEngine_Clear(DMAEngine *dma);
@@ -209,7 +209,7 @@ void DMAEngine_SetUpdateReceiverStatusCallback(DMAEngine *dma, DMAUpdateReceiver
 void DMAEngine_SetClearCommandCallback(DMAEngine *dma, DMAClearCommandCallback callback);
 void DMAEngine_Log(DMAEngine *dma, const char *format, ...);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaDCB.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaDCB.c */
 void DCB_Init(HdlcDCB *dcb);
 void DCB_Clear(HdlcDCB *dcb);
 KeyFlags DCB_GetKey(const HdlcDCB *dcb);
@@ -242,7 +242,7 @@ bool DCB_IsDMAReadDataValid(const HdlcDCB *dcb);
 void DCB_ClearDMAReadData(HdlcDCB *dcb);
 void DCB_Print(const HdlcDCB *dcb);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaControlBlocks.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaControlBlocks.c */
 void DMAControlBlocks_Init(DMAControlBlocks *dcbs, struct Device *hdlcDevice);
 void DMAControlBlocks_Destroy(DMAControlBlocks *dmaCB);
 void DMAControlBlocks_Clear(DMAControlBlocks *dmaCB);
@@ -264,7 +264,7 @@ void DMAControlBlocks_SetWriteDMACallback(DMAControlBlocks *dmaCB, DMAControlBlo
 void DMAControlBlocks_SetSendHDLCFrameCallback(DMAControlBlocks *dmaCB, DMAControlBlocks_SendFrameCallback callback, void *context);
 void DMAControlBlocks_SetInterruptCallback(DMAControlBlocks *dmaCB, DMAControlBlocks_InterruptCallback callback, void *context);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaParamBuf.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaParamBuf.c */
 void ParameterBuffer_Init(ParameterBuffer *paramBuf);
 void ParameterBuffer_Clear(ParameterBuffer *paramBuf);
 int ParameterBuffer_GetParameterControlRegister(const ParameterBuffer *paramBuf);
@@ -287,7 +287,7 @@ void ParameterBuffer_SetTransmitterStatusReg(ParameterBuffer *paramBuf, int valu
 void ParameterBuffer_SetDmaBankBits(ParameterBuffer *paramBuf, int value);
 void ParameterBuffer_Print(const ParameterBuffer *paramBuf);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaTransmitter.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaTransmitter.c */
 void DMATransmitter_Init(DMATransmitter *transmitter, void *com5025, DMAControlBlocks *dmaCB, struct Device *hdlcDevice);
 void DMATransmitter_Destroy(DMATransmitter *transmitter);
 void DMATransmitter_Clear(DMATransmitter *transmitter);
@@ -299,7 +299,7 @@ void DMATransmitter_SetSenderState(DMATransmitter *transmitter, int senderState)
 void DMATransmitter_SetSendFrameCallback(DMATransmitter *transmitter, DMATransmitterSendFrameCallback callback);
 void DMATransmitter_SetInterruptCallback(DMATransmitter *transmitter, DMATransmitterSetInterruptCallback callback);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/tcpReceiveBuffer.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/tcpReceiveBuffer.c */
 void TcpReceiveBuffer_Init(TcpReceiveBuffer *buf, int capacity);
 void TcpReceiveBuffer_Destroy(TcpReceiveBuffer *buf);
 int TcpReceiveBuffer_Enqueue(TcpReceiveBuffer *buf, const uint8_t *data, int length);
@@ -307,16 +307,16 @@ bool TcpReceiveBuffer_DequeueByte(TcpReceiveBuffer *buf, uint8_t *out);
 int TcpReceiveBuffer_Available(TcpReceiveBuffer *buf);
 void TcpReceiveBuffer_Clear(TcpReceiveBuffer *buf);
 
-/* /home/ronny/repos/nd100x/src/devices/hdlc/dmaReceiver.c */
+/* /Users/ronny/rh/nd100x/src/devices/hdlc/dmaReceiver.c */
 void DMAReceiver_Init(DMAReceiver *receiver, void *com5025, DMAControlBlocks *dmaCB, struct Device *hdlcDevice);
 void DMAReceiver_Destroy(DMAReceiver *receiver);
 void DMAReceiver_Clear(DMAReceiver *receiver);
 void DMAReceiver_Tick(DMAReceiver *receiver);
+void DMAReceiver_SetReceiverState(DMAReceiver *receiver);
 void DMAReceiver_ReceiveDataFromModem(DMAReceiver *receiver, const uint8_t *data, int length);
 int DMAReceiver_ProcessBufferedData(DMAReceiver *receiver);
 bool DMAReceiver_ProcessCompleteFrame(DMAReceiver *receiver);
 void DMAReceiver_ClearReceiveFrameState(DMAReceiver *receiver);
-void DMAReceiver_SetReceiverState(DMAReceiver *receiver);
 void DMAReceiver_SetInterruptCallback(DMAReceiver *receiver, DMAReceiverSetInterruptCallback callback);
 bool DMAReceiver_FindNextReceiveBuffer(DMAReceiver *receiver);
 DMAReceiveStatus DMAReceiver_ReceiveDataBufferByte(DMAReceiver *receiver, uint8_t data);
