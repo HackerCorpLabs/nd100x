@@ -960,5 +960,108 @@ int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value)
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Debugger-only I-space / D-space virtual memory reads.
+//
+// These explicitly select the instruction (PT) or data (APT) page table
+// from the current level's PCR, bypassing the STS_PTM + UseAPT logic in
+// mapVirtualToPhysical.  No traps are generated and PGU/WIP bits are not
+// modified, so these are safe to call from debugger command handlers
+// without disturbing CPU state.
+//
+// This fixes the split I/D (PTM=1) debugger bug where disassembly of
+// overlay code showed D-space garbage instead of I-space instructions.
+// ---------------------------------------------------------------------------
+static int Dbg_MapVirtualToPhysical(uint virtualAddress, bool useAPT)
+{
+    virtualAddress &= 0xFFFF;
+
+    if (!pt.isInitialized)
+        return -1;
+
+    uint16_t pcr = gReg->reg_PCR[CurrLEVEL];
+    uint8_t ring = pcr & 0x03;
+
+    // Ring 3 shadow RAM access (same check as mapVirtualToPhysical)
+    if ((ring == 3) && (IsAddressShadowMemory(virtualAddress, false)))
+        return (int)virtualAddress;
+
+    // No paging = identity map
+    if (!STS_PONI)
+        return (int)(virtualAddress & 0xFFFF);
+
+    uint DIP = virtualAddress & 0x3FF;
+    uint VPN = (virtualAddress >> 10) & 0x3F;
+    uint pageTable;
+    PageTableMode ptm;
+
+    if (useAPT) {
+        // D-space: APT field
+        if ((pcr & (1 << 2)) != 0 && (mmsType == MMS2)) {
+            pageTable = (pcr >> 7) & 0xF;
+            ptm = Sixteen;
+        } else {
+            pageTable = (pcr >> 7) & 0x03;
+            ptm = Four;
+        }
+    } else {
+        // I-space: PT field
+        if ((pcr & (1 << 2)) != 0 && (mmsType == MMS2)) {
+            pageTable = (pcr >> 11) & 0xF;
+            ptm = Sixteen;
+        } else {
+            pageTable = (pcr >> 9) & 0x03;
+            ptm = Four;
+        }
+    }
+
+    uint32_t pageTableEntry = GetPageTableEntry(pageTable, VPN, ptm);
+
+    // Check if page is present (any permission bit set)
+    if ((pageTableEntry & (7L << 29)) == 0)
+        return -1;
+
+    uint16_t PPN;
+    if (STS_SEXI)
+        PPN = (uint16_t)(pageTableEntry & 0x3FFF);
+    else
+        PPN = (uint16_t)(pageTableEntry & 0x1FF);
+
+    int physicalAddress = ((PPN << 10) | DIP) & 0xFFFFFF;
+
+    if (physicalAddress >= ND_Memsize)
+        return -1;
+
+    return physicalAddress;
+}
+
+int Dbg_ReadVirtualMemoryISpace(uint virtualAddress)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false);
+    if (pa < 0) return -1;
+    return Dbg_ReadPhysicalMemory((uint32_t)pa);
+}
+
+int Dbg_ReadVirtualMemoryDSpace(uint virtualAddress)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true);
+    if (pa < 0) return -1;
+    return Dbg_ReadPhysicalMemory((uint32_t)pa);
+}
+
+int Dbg_WriteVirtualMemoryISpace(uint virtualAddress, uint16_t value)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false);
+    if (pa < 0) return -1;
+    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+}
+
+int Dbg_WriteVirtualMemoryDSpace(uint virtualAddress, uint16_t value)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true);
+    if (pa < 0) return -1;
+    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+}
+
 // Check if privileged instruction execution is allowed
 

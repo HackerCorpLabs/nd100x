@@ -568,7 +568,7 @@ static uint16_t get_jpl_target_address(uint16_t pc, uint16_t operand)
 static bool is_c_function_prologue(uint16_t pc)
 {
     // Read the instruction at current PC
-    uint16_t operand = ReadVirtualMemory(pc, false);
+    uint16_t operand = Dbg_ReadVirtualMemoryISpace(pc);
 
     // ND-100 C calling convention uses ENTR instruction to enter stack frames
     // ENTR opcode: 0140135 (octal)
@@ -591,7 +591,7 @@ static bool is_c_function_prologue(uint16_t pc)
 static bool is_c_function_epilogue(uint16_t pc)
 {
     // Read the instruction at current PC
-    uint16_t operand = ReadVirtualMemory(pc, false);
+    uint16_t operand = Dbg_ReadVirtualMemoryISpace(pc);
 
     // LEAVE instruction - Normal return from structured stack frame
     // Opcode: 0140136 (octal)
@@ -765,7 +765,7 @@ int step_cpu(DAPServer *server, StepType step_type)
         }
         
         // Check if current instruction is a procedure call (JPL)
-        uint16_t current_operand = ReadVirtualMemory(current_pc, false);
+        uint16_t current_operand = Dbg_ReadVirtualMemoryISpace(current_pc);
         if (is_procedure_call(current_operand)) {
             // Resolve JPL target to determine return address.
             // C calls via csav: JPL sets L = pc+1 (pointing to .word NNN),
@@ -878,7 +878,7 @@ int step_cpu(DAPServer *server, StepType step_type)
             uint16_t jpl_operand = 0;
 
             for (uint16_t addr = current_pc; addr < scan_limit; addr++) {
-                uint16_t operand = ReadVirtualMemory(addr, false);
+                uint16_t operand = Dbg_ReadVirtualMemoryISpace(addr);
                 if (is_procedure_call(operand)) {
                     jpl_addr = addr;
                     jpl_operand = operand;
@@ -3894,16 +3894,27 @@ static int cmd_read_memory(DAPServer *server)
 
     memset(data, 0, byteCount);
 
-    // For physical reads we use Dbg_ReadPhysicalMemory which bypasses the
-    // MMU, watchpoints, and protection traps - this is what the BSD kernel
-    // team needs to reach data above 64K (PPN 64+) on split I/D builds.
-    // For virtual reads we use ReadVirtualMemory which honors PT/APT and
-    // PTM via the current CPU state.
+    // Address space selection:
+    //   physical - bypass MMU entirely (Dbg_ReadPhysicalMemory)
+    //   ispace   - explicit I-space via PT field of PCR (instruction page table)
+    //   dspace   - explicit D-space via APT field of PCR (data page table)
+    //   virtual  - default: ReadVirtualMemory with UseAPT=false
+    bool is_ispace = (server->current_command.context.read_memory.address_space
+                      == DAP_DATA_BP_ADDR_ISPACE);
+    bool is_dspace = (server->current_command.context.read_memory.address_space
+                      == DAP_DATA_BP_ADDR_DSPACE);
 
     for (size_t i = 0; i < byteCount / 2; i++)
     {
-        int word = is_physical ? Dbg_ReadPhysicalMemory(address)
-                               : ReadVirtualMemory(address, false);
+        int word;
+        if (is_physical)
+            word = Dbg_ReadPhysicalMemory(address);
+        else if (is_ispace)
+            word = Dbg_ReadVirtualMemoryISpace(address);
+        else if (is_dspace)
+            word = Dbg_ReadVirtualMemoryDSpace(address);
+        else
+            word = ReadVirtualMemory(address, false);
         if (word == -1)
         {
             server->current_command.context.read_memory.unreadable_bytes = byteCount - i * 2;
@@ -3991,12 +4002,22 @@ static int cmd_write_memory(DAPServer *server)
     int words_written = 0;
     bool is_physical = (server->current_command.context.write_memory.address_space
                         == DAP_DATA_BP_ADDR_PHYSICAL);
+    bool is_ispace = (server->current_command.context.write_memory.address_space
+                      == DAP_DATA_BP_ADDR_ISPACE);
+    bool is_dspace = (server->current_command.context.write_memory.address_space
+                      == DAP_DATA_BP_ADDR_DSPACE);
 
     /* Write word-by-word (ND-100 is word-addressed, 2 bytes per word) */
     for (int i = 0; i + 1 < byte_count; i += 2) {
         uint16_t word = ((uint16_t)buf[i] << 8) | buf[i + 1];
         if (is_physical) {
             if (Dbg_WritePhysicalMemory(addr, word) < 0)
+                break;
+        } else if (is_ispace) {
+            if (Dbg_WriteVirtualMemoryISpace(addr, word) < 0)
+                break;
+        } else if (is_dspace) {
+            if (Dbg_WriteVirtualMemoryDSpace(addr, word) < 0)
                 break;
         } else {
             WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
@@ -4084,7 +4105,7 @@ static int cmd_disassemble(DAPServer *server)
         else
         {
 
-            uint16_t operand = ReadVirtualMemory(virtualAddress, false);
+            uint16_t operand = Dbg_ReadVirtualMemoryISpace(virtualAddress);
 
             // Get the address of the instruction (DAP SPEC says it must be hex)
             char address_str[10];
@@ -4553,7 +4574,7 @@ void debugger_kbd_input(char c)
         for (int i = 0; i < 10; i++)
         {
 
-            uint16_t operand = ReadVirtualMemory(virtualAddress, false);
+            uint16_t operand = Dbg_ReadVirtualMemoryISpace(virtualAddress);
 
             // Get the address of the instruction (DAP SPEC says it must be hex)
             printf("[%06o] ", virtualAddress);
