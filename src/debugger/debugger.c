@@ -3602,6 +3602,15 @@ static int cmd_configuration_done(DAPServer *server)
     return 0;
 }
 
+/// @brief Handle the pause request from DAP
+/// @param server The DAP server instance
+/// @return 0 if successful, -1 if error
+static int cmd_pause(DAPServer *server)
+{
+    // Request the CPU to pause (same mechanism as cmd_wait_for_debugger)
+    return cmd_wait_for_debugger(server);
+}
+
 /// @brief Handle the restart request from DAP
 /// @param server The DAP server instance
 /// @return 0 if successful, -1 if error
@@ -4471,6 +4480,9 @@ int ndx_server_init(int port)
     dap_server_register_command_callback(server, DAP_CMD_NEXT, cmd_next);
     dap_server_register_command_callback(server, DAP_CMD_STEP_IN, cmd_step_in);
     dap_server_register_command_callback(server, DAP_CMD_STEP_OUT, cmd_step_out);
+
+    // Register pause callback
+    dap_server_register_command_callback(server, DAP_CMD_PAUSE, cmd_pause);
 
     // Register continue callback
     dap_server_register_command_callback(server, DAP_CMD_CONTINUE, cmd_continue);
