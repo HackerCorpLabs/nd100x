@@ -417,7 +417,12 @@ ushort PhysMemRead(ulong addr)
 void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_select)
 {
 #ifdef WITH_DEBUGGER
-	if (watchpoint_get_count() > 0 && watchpoint_check(addr, true)) {
+	// Hot path: counter check -> bitmap check -> slow path
+	// Cost when no watchpoints: 1 int compare (branch predictor: always not-taken)
+	// Cost when watchpoints active but addr miss: + 1 byte load + 1 bit test
+	if (watchpoint_count > 0
+	    && (watchpoint_bitmap[addr >> 3] & (1 << (addr & 7)))
+	    && watchpoint_check_slow(addr, true, UseAPT)) {
 		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
 		set_cpu_run_mode(CPU_BREAKPOINT);
 	}
@@ -432,7 +437,9 @@ void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_sele
 ushort MemoryRead(ushort addr, bool UseAPT)
 {
 #ifdef WITH_DEBUGGER
-	if (watchpoint_get_count() > 0 && watchpoint_check(addr, false)) {
+	if (watchpoint_count > 0
+	    && (watchpoint_bitmap[addr >> 3] & (1 << (addr & 7)))
+	    && watchpoint_check_slow(addr, false, UseAPT)) {
 		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
 		set_cpu_run_mode(CPU_BREAKPOINT);
 	}

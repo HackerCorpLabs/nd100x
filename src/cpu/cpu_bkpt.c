@@ -345,19 +345,38 @@ bool breakpoint_manager_get_last_hit(uint16_t *address) {
 }
 
 //********** Watchpoints (memory access breakpoints) **********
+//
+// Performance design:
+//   - watchpoint_bitmap[8192]: 1 bit per 16-bit address for O(1) fast rejection
+//   - watchpoint_count: counter check is the first gate (zero = skip everything)
+//   - watchpoint_check_slow(): only called when bitmap says this address has a WP
+//   - Both bitmap and count are extern-visible for inlining in cpu.c hot path
 
-static WatchpointEntry watchpoints[MAX_WATCHPOINTS];
-static int watchpoint_count = 0;
+WatchpointEntry watchpoints[MAX_WATCHPOINTS];
+int watchpoint_count = 0;
+uint8_t watchpoint_bitmap[8192]; // 64K addresses, 1 bit each (8KB, fits L1)
+
+/// @brief Rebuild bitmap from active watchpoints (called after remove/clear)
+static void watchpoint_bitmap_rebuild(void)
+{
+    memset(watchpoint_bitmap, 0, sizeof(watchpoint_bitmap));
+    for (int i = 0; i < watchpoint_count; i++)
+        if (watchpoints[i].active)
+            watchpoint_bitmap[watchpoints[i].address >> 3] |= (1 << (watchpoints[i].address & 7));
+}
 
 /// @brief Add a watchpoint at a memory address
 /// @param address Memory address to watch
 /// @param type WATCH_READ, WATCH_WRITE, or WATCH_READWRITE
-/// @return 0 on success, -1 if full or duplicate
-int watchpoint_add(uint16_t address, WatchpointType type)
+/// @param space WATCH_SPACE_ANY, WATCH_SPACE_ISPACE, or WATCH_SPACE_DSPACE
+/// @param pil -1 for any PIL, 0-15 for specific PIL
+/// @return 0 on success, -1 if full
+int watchpoint_add(uint16_t address, WatchpointType type, WatchpointSpace space, int8_t pil)
 {
-    /* Update existing watchpoint at same address */
+    /* Update existing watchpoint at same address+space+pil */
     for (int i = 0; i < watchpoint_count; i++) {
-        if (watchpoints[i].active && watchpoints[i].address == address) {
+        if (watchpoints[i].active && watchpoints[i].address == address
+            && watchpoints[i].space == space && watchpoints[i].pil == pil) {
             watchpoints[i].type = type;
             return 0;
         }
@@ -366,50 +385,64 @@ int watchpoint_add(uint16_t address, WatchpointType type)
 
     watchpoints[watchpoint_count].address = address;
     watchpoints[watchpoint_count].type = type;
+    watchpoints[watchpoint_count].space = space;
+    watchpoints[watchpoint_count].pil = pil;
     watchpoints[watchpoint_count].active = true;
+    watchpoint_bitmap[address >> 3] |= (1 << (address & 7));
     watchpoint_count++;
     return 0;
 }
 
 /// @brief Remove watchpoint at address
-/// @param address Memory address
 void watchpoint_remove(uint16_t address)
 {
     for (int i = 0; i < watchpoint_count; i++) {
         if (watchpoints[i].active && watchpoints[i].address == address) {
-            /* Swap with last entry */
             watchpoints[i] = watchpoints[watchpoint_count - 1];
             watchpoints[watchpoint_count - 1].active = false;
             watchpoint_count--;
+            watchpoint_bitmap_rebuild();
             return;
         }
     }
 }
 
-/// @brief Check if a memory access hits a watchpoint
+/// @brief Slow-path watchpoint check (called only when bitmap indicates a match)
 /// @param address Memory address being accessed
 /// @param isWrite true if write, false if read
+/// @param useAPT true if D-space access, false if I-space
 /// @return 1 if watchpoint hit, 0 otherwise
-int watchpoint_check(uint16_t address, bool isWrite)
+int watchpoint_check_slow(uint16_t address, bool isWrite, bool useAPT)
 {
+    int8_t curPIL = (int8_t)CurrLEVEL;
     for (int i = 0; i < watchpoint_count; i++) {
-        if (!watchpoints[i].active) continue;
-        if (watchpoints[i].address != address) continue;
-        WatchpointType t = watchpoints[i].type;
+        WatchpointEntry *w = &watchpoints[i];
+        if (!w->active) continue;
+        if (w->address != address) continue;
+        if (w->pil >= 0 && w->pil != curPIL) continue;
+        if (w->space == WATCH_SPACE_ISPACE && useAPT) continue;
+        if (w->space == WATCH_SPACE_DSPACE && !useAPT) continue;
+        WatchpointType t = w->type;
         if (t == WATCH_READWRITE) return 1;
-        if (isWrite && (t == WATCH_WRITE)) return 1;
-        if (!isWrite && (t == WATCH_READ)) return 1;
+        if (isWrite && t == WATCH_WRITE) return 1;
+        if (!isWrite && t == WATCH_READ) return 1;
     }
     return 0;
+}
+
+/// @brief Legacy check (backward compat, no UseAPT)
+int watchpoint_check(uint16_t address, bool isWrite)
+{
+    return watchpoint_check_slow(address, isWrite, false);
 }
 
 /// @brief Clear all watchpoints
 void watchpoint_clear(void)
 {
-    for (int i = 0; i < MAX_WATCHPOINTS; i++) {
+    for (int i = 0; i < MAX_WATCHPOINTS; i++)
         watchpoints[i].active = false;
-    }
     watchpoint_count = 0;
+    memset(watchpoint_bitmap, 0, sizeof(watchpoint_bitmap));
 }
 
 /// @brief Get number of active watchpoints
@@ -419,10 +452,6 @@ int watchpoint_get_count(void)
 }
 
 /// @brief Get watchpoint at index
-/// @param index Slot index (0..watchpoint_count-1)
-/// @param out_addr Output: address
-/// @param out_type Output: type
-/// @return 0 on success, -1 if out of range
 int watchpoint_get(int index, uint16_t *out_addr, int *out_type)
 {
     if (index < 0 || index >= watchpoint_count) return -1;
@@ -438,13 +467,11 @@ static PhysicalWatchpointEntry phys_watchpoints[MAX_WATCHPOINTS];
 static int phys_watchpoint_count = 0;
 
 /// @brief Add a physical memory watchpoint
-/// @param address Physical memory address to watch
-/// @param type WATCH_READ, WATCH_WRITE, or WATCH_READWRITE
-/// @return 0 on success, -1 if full
-int phys_watchpoint_add(uint32_t address, WatchpointType type)
+int phys_watchpoint_add(uint32_t address, WatchpointType type, int8_t pil)
 {
     for (int i = 0; i < phys_watchpoint_count; i++) {
-        if (phys_watchpoints[i].active && phys_watchpoints[i].address == address) {
+        if (phys_watchpoints[i].active && phys_watchpoints[i].address == address
+            && phys_watchpoints[i].pil == pil) {
             phys_watchpoints[i].type = type;
             return 0;
         }
@@ -453,6 +480,7 @@ int phys_watchpoint_add(uint32_t address, WatchpointType type)
 
     phys_watchpoints[phys_watchpoint_count].address = address;
     phys_watchpoints[phys_watchpoint_count].type = type;
+    phys_watchpoints[phys_watchpoint_count].pil = pil;
     phys_watchpoints[phys_watchpoint_count].active = true;
     phys_watchpoint_count++;
     return 0;
@@ -471,15 +499,14 @@ void phys_watchpoint_remove(uint32_t address)
     }
 }
 
-/// @brief Check if a physical memory access hits a watchpoint
-/// @param address Physical memory address being accessed
-/// @param isWrite true if write, false if read
-/// @return 1 if watchpoint hit, 0 otherwise
+/// @brief Check if a physical memory access hits a watchpoint (with PIL check)
 int phys_watchpoint_check(uint32_t address, bool isWrite)
 {
+    int8_t curPIL = (int8_t)CurrLEVEL;
     for (int i = 0; i < phys_watchpoint_count; i++) {
         if (!phys_watchpoints[i].active) continue;
         if (phys_watchpoints[i].address != address) continue;
+        if (phys_watchpoints[i].pil >= 0 && phys_watchpoints[i].pil != curPIL) continue;
         WatchpointType t = phys_watchpoints[i].type;
         if (t == WATCH_READWRITE) return 1;
         if (isWrite && (t == WATCH_WRITE)) return 1;
@@ -491,9 +518,8 @@ int phys_watchpoint_check(uint32_t address, bool isWrite)
 /// @brief Clear all physical watchpoints
 void phys_watchpoint_clear(void)
 {
-    for (int i = 0; i < MAX_WATCHPOINTS; i++) {
+    for (int i = 0; i < MAX_WATCHPOINTS; i++)
         phys_watchpoints[i].active = false;
-    }
     phys_watchpoint_count = 0;
 }
 

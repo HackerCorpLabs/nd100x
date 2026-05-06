@@ -3115,13 +3115,25 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             continue;
         }
 
-        // Parse the dataId: "V:000040" (virtual) or "P:000040" (physical)
+        // Parse dataId: "V:000040", "P:000040", "I:000040", "D:000040"
+        // Optional @PIL suffix: "V:000040@1", "I:135140@0"
         bool is_physical = false;
+        WatchpointSpace wp_space = WATCH_SPACE_ANY;
         const char *addr_str = ctx->data_ids[i];
 
         if (addr_str[0] == 'P' && addr_str[1] == ':')
         {
             is_physical = true;
+            addr_str += 2;
+        }
+        else if (addr_str[0] == 'I' && addr_str[1] == ':')
+        {
+            wp_space = WATCH_SPACE_ISPACE;
+            addr_str += 2;
+        }
+        else if (addr_str[0] == 'D' && addr_str[1] == ':')
+        {
+            wp_space = WATCH_SPACE_DSPACE;
             addr_str += 2;
         }
         else if (addr_str[0] == 'V' && addr_str[1] == ':')
@@ -3138,6 +3150,14 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             continue;
         }
 
+        // Parse optional @PIL suffix
+        int8_t wp_pil = -1;
+        if (endptr && *endptr == '@')
+        {
+            int p = atoi(endptr + 1);
+            if (p >= 0 && p <= 15) wp_pil = (int8_t)p;
+        }
+
         // Determine watchpoint type from accessType string
         WatchpointType wp_type = WATCH_WRITE; // default
         if (ctx->access_types[i])
@@ -3150,17 +3170,16 @@ static int cmd_set_data_breakpoints(DAPServer *server)
             {
                 wp_type = WATCH_READWRITE;
             }
-            // "write" is the default
         }
 
         int result;
         if (is_physical)
         {
-            result = phys_watchpoint_add((uint32_t)val, wp_type);
+            result = phys_watchpoint_add((uint32_t)val, wp_type, wp_pil);
         }
         else
         {
-            result = watchpoint_add((uint16_t)(val & 0xFFFF), wp_type);
+            result = watchpoint_add((uint16_t)(val & 0xFFFF), wp_type, wp_space, wp_pil);
         }
 
         if (result < 0)
@@ -3909,27 +3928,25 @@ static int cmd_read_memory(DAPServer *server)
 
     memset(data, 0, byteCount);
 
-    // Address space selection:
-    //   physical - bypass MMU entirely (Dbg_ReadPhysicalMemory)
-    //   ispace   - explicit I-space via PT field of PCR (instruction page table)
-    //   dspace   - explicit D-space via APT field of PCR (data page table)
+    // Address space selection with optional PIL override:
+    //   physical - bypass MMU entirely (PIL ignored)
+    //   ispace   - I-space via PT field of PCR, optional PIL
+    //   dspace   - D-space via APT field of PCR, optional PIL
     //   virtual  - default: ReadVirtualMemory with UseAPT=false
-    bool is_ispace = (server->current_command.context.read_memory.address_space
-                      == DAP_DATA_BP_ADDR_ISPACE);
-    bool is_dspace = (server->current_command.context.read_memory.address_space
-                      == DAP_DATA_BP_ADDR_DSPACE);
+    DAPDataBreakpointAddressSpace as = server->current_command.context.read_memory.address_space;
+    int8_t pil = server->current_command.context.read_memory.pil;
 
     for (size_t i = 0; i < byteCount / 2; i++)
     {
         int word;
         if (is_physical)
             word = Dbg_ReadPhysicalMemory(address);
-        else if (is_ispace)
-            word = Dbg_ReadVirtualMemoryISpace(address);
-        else if (is_dspace)
-            word = Dbg_ReadVirtualMemoryDSpace(address);
+        else if (as == DAP_DATA_BP_ADDR_ISPACE)
+            word = Dbg_ReadVirtualMemoryISpace_PIL(address, pil);
+        else if (as == DAP_DATA_BP_ADDR_DSPACE)
+            word = Dbg_ReadVirtualMemoryDSpace_PIL(address, pil);
         else
-            word = ReadVirtualMemory(address, false);
+            word = Dbg_ReadVirtualMemoryISpace_PIL(address, pil);
         if (word == -1)
         {
             server->current_command.context.read_memory.unreadable_bytes = byteCount - i * 2;
@@ -4015,27 +4032,23 @@ static int cmd_write_memory(DAPServer *server)
 
     uint32_t addr = memory_reference + offset;
     int words_written = 0;
-    bool is_physical = (server->current_command.context.write_memory.address_space
-                        == DAP_DATA_BP_ADDR_PHYSICAL);
-    bool is_ispace = (server->current_command.context.write_memory.address_space
-                      == DAP_DATA_BP_ADDR_ISPACE);
-    bool is_dspace = (server->current_command.context.write_memory.address_space
-                      == DAP_DATA_BP_ADDR_DSPACE);
+    DAPDataBreakpointAddressSpace as_w = server->current_command.context.write_memory.address_space;
+    int8_t pil_w = server->current_command.context.write_memory.pil;
 
     /* Write word-by-word (ND-100 is word-addressed, 2 bytes per word) */
     for (int i = 0; i + 1 < byte_count; i += 2) {
         uint16_t word = ((uint16_t)buf[i] << 8) | buf[i + 1];
-        if (is_physical) {
+        if (as_w == DAP_DATA_BP_ADDR_PHYSICAL) {
             if (Dbg_WritePhysicalMemory(addr, word) < 0)
                 break;
-        } else if (is_ispace) {
-            if (Dbg_WriteVirtualMemoryISpace(addr, word) < 0)
+        } else if (as_w == DAP_DATA_BP_ADDR_ISPACE) {
+            if (Dbg_WriteVirtualMemoryISpace_PIL(addr, word, pil_w) < 0)
                 break;
-        } else if (is_dspace) {
-            if (Dbg_WriteVirtualMemoryDSpace(addr, word) < 0)
+        } else if (as_w == DAP_DATA_BP_ADDR_DSPACE) {
+            if (Dbg_WriteVirtualMemoryDSpace_PIL(addr, word, pil_w) < 0)
                 break;
         } else {
-            WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
+            Dbg_WriteVirtualMemoryISpace_PIL(addr, word, pil_w);
         }
         addr++;
         words_written++;
@@ -4091,6 +4104,8 @@ static int cmd_disassemble(DAPServer *server)
     int instruction_offset = server->current_command.context.disassemble.instruction_offset; // Offset in instructions (relative to the memory reference)
     int instruction_count = server->current_command.context.disassemble.instruction_count;   // Number of instructions to disassemble
     bool resolve_symbols = server->current_command.context.disassemble.resolve_symbols;      // Whether to resolve symbols
+    DAPDataBreakpointAddressSpace addr_space = server->current_command.context.disassemble.address_space;
+    int8_t pil = server->current_command.context.disassemble.pil;
 
     int virtualAddress = memory_reference + offset + instruction_offset;
 
@@ -4120,14 +4135,27 @@ static int cmd_disassemble(DAPServer *server)
         else
         {
 
-            uint16_t operand = Dbg_ReadVirtualMemoryISpace(virtualAddress);
+            // Read instruction word using the requested address space + PIL
+            int word;
+            switch (addr_space) {
+            case DAP_DATA_BP_ADDR_PHYSICAL:
+                word = Dbg_ReadPhysicalMemory((uint32_t)virtualAddress);
+                break;
+            case DAP_DATA_BP_ADDR_DSPACE:
+                word = Dbg_ReadVirtualMemoryDSpace_PIL(virtualAddress, pil);
+                break;
+            case DAP_DATA_BP_ADDR_ISPACE:
+            default:
+                // Default: I-space (instructions are always in I-space)
+                word = Dbg_ReadVirtualMemoryISpace_PIL(virtualAddress, pil);
+                break;
+            }
+            uint16_t operand = (word >= 0) ? (uint16_t)word : 0;
 
             // Get the address of the instruction (DAP SPEC says it must be hex)
             char address_str[10];
             snprintf(address_str, sizeof(address_str), "0x%04x", virtualAddress);
             instruction->address = strdup(address_str);
-
-            // Get the instruction
 
             // Disassemble the instruction
             char operand_str[50];
@@ -4138,7 +4166,6 @@ static int cmd_disassemble(DAPServer *server)
 
             instruction->instruction = strdup(instruction_str);
             instruction->symbol = NULL;
-            // Get the symbol
             if (resolve_symbols)
             {
                 const char *sym = get_symbol_for_address(virtualAddress);

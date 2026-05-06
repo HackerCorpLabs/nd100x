@@ -532,17 +532,30 @@ typedef enum {
     WATCH_READWRITE = 3
 } WatchpointType;
 
+typedef enum {
+    WATCH_SPACE_ANY    = 0,  // Fire on any access (backward compatible default)
+    WATCH_SPACE_ISPACE = 1,  // Fire only on I-space access (UseAPT=false)
+    WATCH_SPACE_DSPACE = 2   // Fire only on D-space access (UseAPT=true)
+} WatchpointSpace;
+
 typedef struct {
     uint16_t address;
     WatchpointType type;
+    WatchpointSpace space;   // I-space, D-space, or any
+    int8_t pil;              // -1 = any PIL, 0-15 = specific PIL only
     bool active;
 } WatchpointEntry;
+
+// Extern globals for hot-path access from cpu.c (defined in cpu_bkpt.c)
+extern int watchpoint_count;
+extern uint8_t watchpoint_bitmap[8192]; // 64K addresses, 1 bit each
 
 //********** Physical Watchpoints (physical memory address breakpoints) **********
 
 typedef struct {
     uint32_t address;          // Physical address (21+ bits for extended memory)
     WatchpointType type;
+    int8_t pil;                // -1 = any PIL, 0-15 = specific PIL only
     bool active;
 } PhysicalWatchpointEntry;
 

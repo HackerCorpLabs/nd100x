@@ -864,6 +864,11 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
     ushort *p_phy_addr;
     p_phy_addr = &VolatileMemory.n_Array[physicalAddress];
 
+    if (physicalAddress == 1 && value != 100) {
+        fprintf(stderr, "DBG: CLOBBER phys[1] old=%u new=%u PIL=%d PC=0%06o\n",
+                *p_phy_addr, value, gPIL, gPC);
+    }
+
 	switch (wm)
 	{
 	case WRITEMODE_MSB: /* Even, which means MSB byte, or bits 15-8 */
@@ -972,14 +977,15 @@ int Dbg_WritePhysicalMemory(uint32_t physicalAddress, uint16_t value)
 // This fixes the split I/D (PTM=1) debugger bug where disassembly of
 // overlay code showed D-space garbage instead of I-space instructions.
 // ---------------------------------------------------------------------------
-static int Dbg_MapVirtualToPhysical(uint virtualAddress, bool useAPT)
+static int Dbg_MapVirtualToPhysical(uint virtualAddress, bool useAPT, int8_t pil)
 {
     virtualAddress &= 0xFFFF;
 
     if (!pt.isInitialized)
         return -1;
 
-    uint16_t pcr = gReg->reg_PCR[CurrLEVEL];
+    int level = (pil >= 0 && pil <= 15) ? pil : CurrLEVEL;
+    uint16_t pcr = gReg->reg_PCR[level];
     uint8_t ring = pcr & 0x03;
 
     // Ring 3 shadow RAM access (same check as mapVirtualToPhysical)
@@ -1035,32 +1041,54 @@ static int Dbg_MapVirtualToPhysical(uint virtualAddress, bool useAPT)
     return physicalAddress;
 }
 
-int Dbg_ReadVirtualMemoryISpace(uint virtualAddress)
+// PIL-aware variants: pil=-1 means use CurrLEVEL (default)
+int Dbg_ReadVirtualMemoryISpace_PIL(uint virtualAddress, int8_t pil)
 {
-    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false);
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false, pil);
     if (pa < 0) return -1;
     return Dbg_ReadPhysicalMemory((uint32_t)pa);
+}
+
+int Dbg_ReadVirtualMemoryDSpace_PIL(uint virtualAddress, int8_t pil)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true, pil);
+    if (pa < 0) return -1;
+    return Dbg_ReadPhysicalMemory((uint32_t)pa);
+}
+
+int Dbg_WriteVirtualMemoryISpace_PIL(uint virtualAddress, uint16_t value, int8_t pil)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false, pil);
+    if (pa < 0) return -1;
+    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+}
+
+int Dbg_WriteVirtualMemoryDSpace_PIL(uint virtualAddress, uint16_t value, int8_t pil)
+{
+    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true, pil);
+    if (pa < 0) return -1;
+    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+}
+
+// Backward-compatible wrappers (use current PIL)
+int Dbg_ReadVirtualMemoryISpace(uint virtualAddress)
+{
+    return Dbg_ReadVirtualMemoryISpace_PIL(virtualAddress, -1);
 }
 
 int Dbg_ReadVirtualMemoryDSpace(uint virtualAddress)
 {
-    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true);
-    if (pa < 0) return -1;
-    return Dbg_ReadPhysicalMemory((uint32_t)pa);
+    return Dbg_ReadVirtualMemoryDSpace_PIL(virtualAddress, -1);
 }
 
 int Dbg_WriteVirtualMemoryISpace(uint virtualAddress, uint16_t value)
 {
-    int pa = Dbg_MapVirtualToPhysical(virtualAddress, false);
-    if (pa < 0) return -1;
-    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+    return Dbg_WriteVirtualMemoryISpace_PIL(virtualAddress, value, -1);
 }
 
 int Dbg_WriteVirtualMemoryDSpace(uint virtualAddress, uint16_t value)
 {
-    int pa = Dbg_MapVirtualToPhysical(virtualAddress, true);
-    if (pa < 0) return -1;
-    return Dbg_WritePhysicalMemory((uint32_t)pa, value);
+    return Dbg_WriteVirtualMemoryDSpace_PIL(virtualAddress, value, -1);
 }
 
 // Check if privileged instruction execution is allowed
