@@ -66,6 +66,7 @@ typedef struct {
     char *printDir;      // Output directory for print jobs (default: ./prints/)
     char *tapeDir;       // Output directory for punched tape (default: ./tapes/)
     char *tapeFile;      // Input file for paper tape reader
+    char *smdFile[4];    // SMD disk image files (--smd0 through --smd3)
     bool telnetEnabled;  // --telnet flag
     int telnetPort;      // Default: 9000
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)

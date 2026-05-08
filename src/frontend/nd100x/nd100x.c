@@ -235,6 +235,14 @@ void initialize()
     // {01320, 052, 062, "TERMINAL 11"},
     DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 11);
 
+	// Mount explicitly specified SMD images before program_load
+	// (autoMountDrives will skip already-mounted units)
+	for (int i = 0; i < 4; i++) {
+		if (config.smdFile[i]) {
+			mount_smd(config.smdFile[i], i);
+		}
+	}
+
 	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
 	gPC = STARTADDR;
 

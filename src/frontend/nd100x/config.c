@@ -56,6 +56,10 @@ static struct option long_options[] = {
     {"throttle",   optional_argument, 0, 'Z'},
     {"ring-dump",  optional_argument, 0, 'R'},
     {"overlay-deposit", no_argument, 0, 'O'},
+    {"smd0",       required_argument, 0, 0x100},
+    {"smd1",       required_argument, 0, 0x101},
+    {"smd2",       required_argument, 0, 0x102},
+    {"smd3",       required_argument, 0, 0x103},
     {0, 0, 0, 0}
 };
 
@@ -81,6 +85,7 @@ void Config_Init(Config_t *config) {
     config->printDir = NULL;
     config->tapeDir = NULL;
     config->tapeFile = NULL;
+    for (int i = 0; i < 4; i++) config->smdFile[i] = NULL;
     config->telnetEnabled = false;
     config->telnetPort = 9000;
     config->printerType = PRINTER_TEXT;
@@ -358,6 +363,16 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->overlayDeposit = true;
                 break;
 
+            case 0x100: case 0x101: case 0x102: case 0x103: {
+                int unit = c - 0x100;
+                config->smdFile[unit] = strdup(optarg);
+                if (!config->smdFile[unit]) {
+                    fprintf(stderr, "Failed to allocate memory for SMD%d file\n", unit);
+                    return false;
+                }
+                break;
+            }
+
             case '?':
                 return false;
 
@@ -375,6 +390,11 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             fprintf(stderr, "Boot type must be specified\n");
             return false;
         }
+        // --image is only for aout, bpun, bp, and floppy boot types
+        if (config->imageFile && config->bootType == BOOT_SMD) {
+            fprintf(stderr, "Error: --image is not used with --boot=smd. Use --smd0..--smd3 instead.\n");
+            return false;
+        }
         if (!config->imageFile) {
             if (config->bootType == BOOT_FLOPPY) {
                 config->imageFile = strdup("FLOPPY.IMG");
@@ -390,6 +410,10 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
         printf("Configuration:\n");
         printf("  Boot type: %s\n", boot_type_str[config->bootType]);
         printf("  Image file: %s\n", config->imageFile);
+        for (int i = 0; i < 4; i++) {
+            if (config->smdFile[i])
+                printf("  SMD%d image: %s\n", i, config->smdFile[i]);
+        }
         printf("  Start address: 0x%x\n", config->startAddress);
         printf("  Disassembly: %s\n", config->disasmEnabled ? "enabled" : "disabled");
         for (int i = 0; i < config->hdlcCount; i++) {
@@ -412,7 +436,11 @@ void Config_PrintHelp(const char *progName) {
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
     printf("  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)\n");
-    printf("  -i,      --image=FILE   Image file to load\n");
+    printf("  -i,      --image=FILE   Image file to load (aout, bpun, floppy only)\n");
+    printf("           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)\n");
+    printf("           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)\n");
+    printf("           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)\n");
+    printf("           --smd3=FILE    SMD unit 3 disk image (default: SMD3.IMG)\n");
     printf("  -s,      --start=ADDR   Start address (default: 0)\n");
     printf("  -a,      --disasm       Enable disassembly output\n");
     printf("  -d,      --debugger     Enable DAP debugger\n");
@@ -442,5 +470,6 @@ void Config_PrintHelp(const char *progName) {
     printf("  %s --debugger\n", progName);
     printf("  %s --hdlc=1:%d                  # HDLC 1 server on port %d\n", progName, HDLC_DEFAULT_PORT, HDLC_DEFAULT_PORT);
     printf("  %s --hdlc=1:192.168.1.10:%d     # HDLC 1 client\n", progName, HDLC_DEFAULT_PORT);
+    printf("  %s --boot=smd --smd0=myboot.img --smd1=data.img\n", progName);
     printf("  %s --hdlc=1:5000 --hdlc=2:5001  # Two HDLC devices\n", progName);
 } 
