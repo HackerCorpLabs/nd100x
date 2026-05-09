@@ -91,28 +91,36 @@ The project is organized into several key components:
 - Make build system
 - mkptypes tool (automatically built during compilation)
 
-### Additional Dependencies for Floppy Menu
+### Installing dependencies on Ubuntu/Debian
 
-The floppy menu functionality requires additional libraries:
-* **libcurl4-openssl-dev**: For downloading floppy database from the internet
-* **libncurses5-dev**: For the terminal-based user interface
-
-Install these dependencies on Ubuntu/Debian:
+On a clean Ubuntu install, run:
 
 ```bash
 sudo apt update
-sudo apt install libcurl4-openssl-dev libncurses5-dev
+sudo apt install -y build-essential cmake git libcurl4-openssl-dev libncurses-dev
 ```
 
-On FreeBSD
+What each package provides:
+
+| Package | Purpose |
+|---|---|
+| `build-essential` | gcc, g++, make |
+| `cmake` | CMake 3.14+ build system |
+| `git` | needed to clone the repo and fetch submodules |
+| `libcurl4-openssl-dev` | downloading floppy database images over HTTP/HTTPS |
+| `libncurses-dev` | F12 floppy-database browser and terminal UI |
+
+`libcurl` and `ncurses` are **required** on Linux builds — `find_package(CURL REQUIRED)` and `find_package(Curses REQUIRED)` in `CMakeLists.txt` will fail the configure step if they are missing. They are skipped automatically on RISC-V and WebAssembly builds.
+
+> **Note on package names:** older docs reference `libncurses5-dev`, which is no longer available on Ubuntu 24.04+ — use `libncurses-dev` instead.
+
+On FreeBSD:
 
 ```bash
 pkg install curl ncurses
 ```
 
-**Note**: The floppy menu requires an internet connection to function properly.
-
-**Note 2**: The floppy menu is disabled on RISC-V and WASM builds.
+**Note**: The floppy database browser requires an internet connection to download the catalog at runtime.
 
 ## Building the Project
 
