@@ -64,6 +64,12 @@ SMD0.IMG
 /asm/
 /glass-backup/
 
+# Auto-generated function prototype headers (produced by mkptypes at build time).
+# Tracking these in git causes false-positive freshness checks: git checkout sets
+# all files to the same mtime, so CMake skips regeneration even when the header
+# is stale relative to its source — leading to "conflicting types" build errors.
+*_protos.h
+
 # RetroTermWeb build output (rebuilt from submodule)
 template-glass/lib/retroterm/
 
