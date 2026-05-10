@@ -364,27 +364,38 @@ For more information, read the [Tested systems](docs/SYSTEMS.md) document
 
 ## Releases (GitHub Actions)
 
-Pre-built binaries for Windows and macOS are produced automatically by `.github/workflows/build-windows.yml`. The workflow publishes a GitHub Release when a tag matching `v*` is pushed.
+Pre-built binaries for Linux, Windows, and macOS are produced automatically by `.github/workflows/build-release.yml`. The workflow runs on every push to `main` and on pull requests as a CI check, and publishes a GitHub Release whenever a tag matching `v*` is pushed.
 
 | Artifact | Target | How it's built |
 |----------|--------|----------------|
+| `nd100x-linux-x64.tar.gz` | Linux x86_64 (glibc 2.35+) | `ubuntu-22.04`, apt-installed `build-essential cmake libcurl4-openssl-dev libncurses-dev`, `make release` |
+| `nd100x-linux-arm64.tar.gz` | Linux aarch64 (glibc 2.35+) | `ubuntu-22.04-arm` (GitHub-hosted ARM runner), same toolchain as x64 |
 | `nd100x-windows-x64.zip` | Windows 64-bit | `windows-latest`, MSYS2 MINGW64 (`mingw-w64-x86_64-gcc` + `ninja`), `make release` |
 | `nd100x-macos-arm64.tar.gz` | macOS Apple Silicon | `macos-latest`, Homebrew cmake, `make release` |
+| `SHA256SUMS.txt` | All of the above | `sha256sum` over every release artifact — verify with `sha256sum -c SHA256SUMS.txt` |
 
 The Windows zip contains `nd100x.exe` plus every non-system DLL the exe depends on (libcurl + its transitive deps, `libgcc_s_seh-1`, `libwinpthread-1`, ...), the repo's bundled `images/` directory, `README.md`, and `LICENSE`. DLL discovery is driven by `ldd` so the bundle tracks whatever MSYS2 ships — no hardcoded list to maintain.
 
+The Linux and macOS tarballs bundle just the `nd100x` binary plus `images/`, `README.md`, and `LICENSE`. They link dynamically against `libcurl` and `libncurses`; install those at runtime via your distro's package manager (see [Installing dependencies on Ubuntu/Debian](#installing-dependencies-on-ubuntudebian)).
+
 ### Cutting a release
 
+Tag-driven, no manual button pressing:
+
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-The push triggers the workflow, which builds the binary, re-zips the staged directory, and uploads the zip to a new GitHub Release with auto-generated release notes.
+The tag push fans out to all four build jobs in parallel. Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).
 
-### Manual dispatch
+If a build job fails the release is **not** published — `needs: [build-linux, build-windows, build-macos]` blocks the publish step until every platform succeeds, and `fail_on_unmatched_files` aborts if any expected artifact is missing.
 
-`Actions → Build Windows → Run workflow` triggers a dry build (zip uploaded as a workflow artifact, no release published).
+### Manual dispatch and CI runs
+
+* **Push to `main`** — runs every build job as a CI check; no release is created.
+* **Pull request to `main`** — same, plus `concurrency.cancel-in-progress: true` cancels superseded PR builds to save runner minutes.
+* **`Actions → Build & Release → Run workflow`** (`workflow_dispatch`) — manual dry build, no release published.
 
 ## License
 
