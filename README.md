@@ -1,8 +1,9 @@
 # nd100x
 
 [![Build & Release](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml/badge.svg)](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml)
+[![RISC-V (Milk-V Duo)](https://img.shields.io/github/actions/workflow/status/HackerCorpLabs/nd100x/build-release.yml?branch=main&label=RISC-V%20%28Milk-V%20Duo%29&logo=riscv)](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/HackerCorpLabs/nd100x?include_prereleases&sort=semver)](https://github.com/HackerCorpLabs/nd100x/releases/latest)
-![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20WebAssembly-blue)
+![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20RISC--V%20%7C%20WebAssembly-blue)
 
 ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
 
@@ -14,7 +15,7 @@ Run the emulator directly at **<https://nd100x.hackercorp.no/>** — no download
 
 ## Quick start
 
-**Pre-built binaries** for Linux (x64, arm64), Windows (x64), and macOS (arm64) are on the [Releases page](../../releases).
+**Pre-built binaries** for Linux (x64, arm64), Windows (x64), macOS (arm64), and RISC-V (Milk-V Duo, musl) are on the [Releases page](../../releases).
 
 **Build from source on Linux:**
 
@@ -408,12 +409,13 @@ For more information, read the [Tested systems](docs/SYSTEMS.md) document
 
 ## Releases (GitHub Actions)
 
-Pre-built binaries for Linux, Windows, and macOS are produced automatically by `.github/workflows/build-release.yml`. The workflow runs on every push to `main` and on pull requests as a CI check, and publishes a GitHub Release whenever a tag matching `v*` is pushed.
+Pre-built binaries for Linux, Windows, macOS, and RISC-V (Milk-V Duo) are produced automatically by `.github/workflows/build-release.yml`. The workflow runs on every push to `main` and on pull requests as a CI check, and publishes a GitHub Release whenever a tag matching `v*` is pushed.
 
 | Artifact | Target | How it's built |
 |----------|--------|----------------|
 | `nd100x-linux-x64.tar.gz` | Linux x86_64 (glibc 2.35+) | `ubuntu-22.04`, apt-installed `build-essential cmake libcurl4-openssl-dev libncurses-dev`, `make release` |
 | `nd100x-linux-arm64.tar.gz` | Linux aarch64 (glibc 2.35+) | `ubuntu-22.04-arm` (GitHub-hosted ARM runner), same toolchain as x64 |
+| `nd100x-linux-riscv64.tar.gz` | RISC-V 64 Linux musl (Milk-V Duo, CV1800B/C906) | `ubuntu-22.04` cross-compile using Milk-V's `host-tools` toolchain (`riscv64-unknown-linux-musl-gcc`, `-march=rv64gc -mabi=lp64d`); smoke-tested with `qemu-user-static` |
 | `nd100x-windows-x64.zip` | Windows 64-bit | `windows-latest`, MSYS2 MINGW64 (`mingw-w64-x86_64-gcc` + `ninja`), `make release` |
 | `nd100x-macos-arm64.tar.gz` | macOS Apple Silicon | `macos-latest`, Homebrew cmake, `make release` |
 | `SHA256SUMS.txt` | All of the above | `sha256sum` over every release artifact — verify with `sha256sum -c SHA256SUMS.txt` |
@@ -431,9 +433,9 @@ git tag v1.0.6
 git push origin v1.0.6
 ```
 
-The tag push fans out to all four build jobs in parallel. Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).
+The tag push fans out to all build jobs in parallel (Linux x64/arm64, Windows x64, macOS arm64, and RISC-V Milk-V Duo). Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS/RISC-V), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).
 
-If a build job fails the release is **not** published — `needs: [build-linux, build-windows, build-macos]` blocks the publish step until every platform succeeds, and `fail_on_unmatched_files` aborts if any expected artifact is missing.
+If a build job fails the release is **not** published — `needs: [build-linux, build-windows, build-macos, build-riscv]` blocks the publish step until every platform succeeds, and `fail_on_unmatched_files` aborts if any expected artifact is missing.
 
 ### Manual dispatch and CI runs
 

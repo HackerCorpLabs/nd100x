@@ -70,16 +70,26 @@ ifdef HOST_WINDOWS
 endif
 	@echo "All core dependencies found."
 
+# RISC-V toolchain location. Override via env: MILKV_HOST_TOOLS=/path make riscv
+# Falls back to the legacy hardcoded path for existing local checkouts.
+MILKV_HOST_TOOLS ?= /home/ronny/milkv/host-tools
+MILKV_RISCV_BIN  := $(MILKV_HOST_TOOLS)/gcc/riscv64-linux-musl-x86_64/bin
+
+# RISC-V build type — Debug for local dev (matches old behaviour), CI exports
+# RISCV_BUILD_TYPE=Release for optimised release artifacts.
+RISCV_BUILD_TYPE ?= Debug
+
 # Check for RISC-V specific dependencies
 .PHONY: check-riscv-deps
 check-riscv-deps:
 	@echo "Checking RISC-V dependencies..."
-	@COMPILER_PATH="/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin/riscv64-unknown-linux-musl-gcc"; \
+	@COMPILER_PATH="$(MILKV_RISCV_BIN)/riscv64-unknown-linux-musl-gcc"; \
 	if [ -x "$$COMPILER_PATH" ]; then \
 		echo "RISC-V compiler found at $$COMPILER_PATH"; \
 		echo "Compiler version: $$("$$COMPILER_PATH" --version | head -n1)"; \
 	else \
 		echo "Error: RISC-V compiler not found at expected location: $$COMPILER_PATH"; \
+		echo "Hint: set MILKV_HOST_TOOLS to the host-tools root."; \
 		exit 1; \
 	fi
 
@@ -114,7 +124,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test submodules
 
 debug: check-deps mkptypes
 	@echo "Building debug version..."
@@ -203,18 +213,24 @@ wasm-glass-run: wasm-glass
 	cd $(BUILD_DIR_WASM_GLASS)/bin && node $(CURDIR)/tools/serve-coop.mjs 8000
 
 riscv: check-riscv-deps mkptypes
-	@echo "Building RISC-V Linux version with DAP support..."
+	@echo "Building RISC-V Linux version ($(RISCV_BUILD_TYPE)) for Milk-V Duo..."
+	@echo "  MILKV_HOST_TOOLS = $(MILKV_HOST_TOOLS)"
 	@mkdir -p $(BUILD_DIR_RISCV)
-	
-	@# Set PATH to include the RISC-V compiler and disable DAP client tools
-	cd $(BUILD_DIR_RISCV) && PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
-	$(CMAKE) .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_RISCV=ON \
+
+	@# Configure. PATH and MILKV_HOST_TOOLS are exported so the toolchain
+	@# file picks the right compiler.
+	cd $(BUILD_DIR_RISCV) && \
+	MILKV_HOST_TOOLS="$(MILKV_HOST_TOOLS)" \
+	PATH="$$PATH:$(MILKV_RISCV_BIN)" \
+	$(CMAKE) .. -DCMAKE_BUILD_TYPE=$(RISCV_BUILD_TYPE) -DBUILD_RISCV=ON \
 		-DCMAKE_TOOLCHAIN_FILE=../riscv64-toolchain.cmake \
 		-DBUILD_DAP_TOOLS=OFF -DENABLE_CJSON_TEST=OFF \
 		-DCMAKE_CXX_COMPILER_WORKS=TRUE -DCMAKE_C_COMPILER_WORKS=TRUE
-	
-	@# Build with PATH set to include the RISC-V compiler
-	cd $(BUILD_DIR_RISCV) && PATH="$$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
+
+	@# Build.
+	cd $(BUILD_DIR_RISCV) && \
+	MILKV_HOST_TOOLS="$(MILKV_HOST_TOOLS)" \
+	PATH="$$PATH:$(MILKV_RISCV_BIN)" \
 	$(CMAKE) --build . -- -j$$(nproc 2>/dev/null || echo 4)
 	
 	@echo ""
@@ -241,6 +257,10 @@ clean:
 	@echo "Cleaning build directories..."
 	rm -rf $(BUILD_DIR) $(BUILD_DIR_DEBUG) $(BUILD_DIR_RELEASE) $(BUILD_DIR_SANITIZE) $(BUILD_DIR_WASM) $(BUILD_DIR_WASM_GLASS) $(BUILD_DIR_RISCV)
 
+
+submodules:
+	@echo "Updating all git submodules..."
+	git submodule update --init --recursive
 
 update-libdap:
 	cd external/libdap && git fetch && git checkout origin/main
@@ -326,6 +346,7 @@ help:
 	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
 	@echo "  wasm-glass-gateway - Build glass UI + start gateway (unified server)"
 	@echo "  test          - Build and run unit tests (ctest)"
+	@echo "  submodules    - Init and update all git submodules (recursive)"
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"

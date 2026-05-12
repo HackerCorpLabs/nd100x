@@ -201,6 +201,137 @@ jobs:
           path: dist/nd100x-windows-${{ matrix.arch }}/
           if-no-files-found: error
 
+  build-riscv:
+    # Cross-compile for the Milk-V Duo (CV1800B, T-Head C906, musl userspace).
+    # We must use Milk-V's prebuilt musl toolchain — apt's gcc-riscv64-linux-gnu
+    # links against glibc and produces binaries the Duo's musl rootfs can't run.
+    name: Build linux-riscv64 (Milk-V Duo)
+    runs-on: ubuntu-22.04
+    env:
+      # Canonical sophon mirror. Keying the cache on this URL means a URL bump
+      # automatically invalidates stale toolchains.
+      MILKV_HOST_TOOLS_URL: https://sophon-file.sophon.cn/sophon-prod-s3/drive/23/03/07/16/host-tools.tar.gz
+      MILKV_HOST_TOOLS_DIR: ${{ github.workspace }}/.milkv/host-tools
+
+    steps:
+      - name: Checkout (without submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Install host build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          # cmake + build-essential for the host-side mkptypes tool;
+          # qemu-user-static + binfmt-support to smoke-test the cross-built ELF.
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            file \
+            binutils \
+            qemu-user-static \
+            binfmt-support
+
+      - name: Cache Milk-V host-tools toolchain
+        id: milkv-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MILKV_HOST_TOOLS_DIR }}
+          # Hash the URL so a future URL bump invalidates the cache.
+          key: milkv-host-tools-${{ hashFiles('.github/workflows/build-release.yml') }}-v1
+
+      - name: Download Milk-V host-tools (cache miss)
+        if: steps.milkv-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "${MILKV_HOST_TOOLS_DIR}"
+          cd "${MILKV_HOST_TOOLS_DIR}"
+          echo "Downloading ${MILKV_HOST_TOOLS_URL} (~840 MB)..."
+          # --retry to survive transient sophon-file flakiness; -L for redirects.
+          curl -fSL --retry 5 --retry-delay 10 \
+            -o host-tools.tar.gz "${MILKV_HOST_TOOLS_URL}"
+          # Tarball expands to a top-level host-tools/ dir — strip it so our
+          # MILKV_HOST_TOOLS points directly at the tree the toolchain expects.
+          tar -xzf host-tools.tar.gz --strip-components=1
+          rm host-tools.tar.gz
+          ls gcc/riscv64-linux-musl-x86_64/bin/riscv64-unknown-linux-musl-gcc
+
+      - name: Initialise submodules
+        run: |
+          set -euo pipefail
+          # Same set as the Linux job, minus RetroTermWeb (no web UI in the
+          # RISC-V build).
+          git submodule update --init --recursive \
+            external/cJSON \
+            external/libdap \
+            external/libsymbols
+
+      - name: Show toolchain versions
+        run: |
+          export PATH="${MILKV_HOST_TOOLS_DIR}/gcc/riscv64-linux-musl-x86_64/bin:$PATH"
+          riscv64-unknown-linux-musl-gcc --version | head -1
+          cmake --version | head -1
+
+      - name: Build release (RISC-V)
+        env:
+          MILKV_HOST_TOOLS: ${{ env.MILKV_HOST_TOOLS_DIR }}
+          RISCV_BUILD_TYPE: Release
+        run: make riscv
+
+      - name: Inspect built ELF
+        run: |
+          set -euo pipefail
+          BIN=build_riscv/bin/nd100x
+          file "$BIN"
+          readelf -h "$BIN"
+          # Sanity-check: must be RISC-V and statically/musl-linked.
+          file "$BIN" | grep -q "RISC-V" || { echo "::error::not a RISC-V ELF"; exit 1; }
+
+      - name: QEMU user-mode smoke test
+        # User-mode emulation can't boot the ND-100 (needs disk images and a
+        # console), but it CAN exercise process startup, dynamic loader, and
+        # arg parsing — enough to catch a broken cross-build.
+        run: |
+          set -euo pipefail
+          BIN=build_riscv/bin/nd100x
+          echo "=== qemu-riscv64-static --help ==="
+          # --help exits non-zero in this codebase (usage prints then exit 1),
+          # so just ensure it runs without segfaulting.
+          qemu-riscv64-static "$BIN" --help || true
+          # If the binary is dynamically linked against musl, qemu needs to find
+          # the loader. The Milk-V toolchain's sysroot ships it; point QEMU at it.
+          export QEMU_LD_PREFIX="${MILKV_HOST_TOOLS_DIR}/gcc/riscv64-linux-musl-x86_64/sysroot"
+          qemu-riscv64-static "$BIN" --help > /tmp/help.out 2>&1 || true
+          head -20 /tmp/help.out || true
+          echo "smoke test completed"
+
+      - name: Stage RISC-V artifact
+        run: |
+          set -euo pipefail
+          STAGE="dist/nd100x-linux-riscv64"
+          mkdir -p "$STAGE"
+          cp build_riscv/bin/nd100x "$STAGE/"
+          if [ -d images ]; then
+            mkdir -p "$STAGE/images"
+            cp -r images/. "$STAGE/images/" 2>/dev/null || true
+          fi
+          cp README.md "$STAGE/" 2>/dev/null || true
+          cp LICENSE   "$STAGE/" 2>/dev/null || true
+          echo "=== Staged contents ==="
+          ls -la "$STAGE"
+          echo "=== file ==="
+          file "$STAGE/nd100x"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nd100x-linux-riscv64
+          path: dist/nd100x-linux-riscv64/
+          if-no-files-found: error
+
   build-macos:
     name: Build macos-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -261,7 +392,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows, build-macos, build-riscv]
     runs-on: ubuntu-latest
     # Only publish on actual tag pushes — workflow_dispatch and branch
     # pushes never create a release.
