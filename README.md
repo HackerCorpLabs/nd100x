@@ -1,32 +1,48 @@
 # nd100x
 
-ND-100/CX Emulator written in C
+[![Build & Release](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml/badge.svg)](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/HackerCorpLabs/nd100x?include_prereleases&sort=semver)](https://github.com/HackerCorpLabs/nd100x/releases/latest)
+![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20WebAssembly-blue)
+
+ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
 
 For more information about the ND-100 series of minicomputers: <https://www.ndwiki.org/wiki/ND-100>
 
-# Origins
+## Try it in your browser
+
+Run the emulator directly at **<https://nd100x.hackercorp.no/>** — no download or install required. WebAssembly build with full terminal, debugger, and SINTRAN OS inspection tools.
+
+## Quick start
+
+**Pre-built binaries** for Linux (x64, arm64), Windows (x64), and macOS (arm64) are on the [Releases page](../../releases).
+
+**Build from source on Linux:**
+
+```bash
+sudo apt install -y build-essential cmake git libcurl4-openssl-dev libncurses-dev
+git clone https://github.com/HackerCorpLabs/nd100x.git
+cd nd100x && git submodule update --init --recursive
+make release
+build_release/bin/nd100x --boot=smd
+```
+
+## Origins
 
 This project (nd100x) is a fork of nd100em, started in 2025 by Ronny Hansen.
 It remains under the GNU General Public License (GPL v2 or later).
 
-This project is based upon the source code from the nd100em project.
-Their latest version was version 0.2.4, which can be found here <https://github.com/tingox/nd100em>
-Read more about the nd100em project here <https://www.ndwiki.org/wiki/ND100_emulator_project>
-
-The original authors of the nd100em are:
-
-* Per-Olof Åström
-* Roger Abrahamsson
-* Zdravko Dimitrov
-* Göran Axelsson
+Based on nd100em version 0.2.4 by Per-Olof Astrom, Roger Abrahamsson, Zdravko Dimitrov, and Goran Axelsson.
+The original project can be found at <https://github.com/tingox/nd100em> and <https://www.ndwiki.org/wiki/ND100_emulator_project>.
 
 ## Status
 
-The emulator is under active development. Current work in progress includes:
+Version 1.0.6
 
+The emulator is under active development.
+
+* Full ND-100/CX instruction set implemented (including BCD opcodes).
 * All test programs validate the CPU, Memory Management and Devices.
-* Missing some opcodes around BCD
-* Boots SINTRAN L from SMD in 6-7 seconds on my machine.
+* Boots SINTRAN L from SMD in 6-7 seconds on a modern machine.
 
 ## Improvements
 
@@ -45,10 +61,11 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * Real-Time Clock (20ms tick emulation pending for full SINTRAN compatibility)
   * Console and additional terminals (up to 11 terminals, with telnet server for remote access)
   * Floppy (PIO and DMA) for 8" and 5.25" formats
-  * SMD Hard Disk (75MB; multi-drive support in progress)
+  * SMD Hard Disk (75MB, 4 units)
   * Paper Tape Reader (buffer-based, BPUN file loading via CLI or Glass UI upload)
   * Paper Tape Punch (output to file and Glass UI hex/ASCII display with download)
   * Line Printer (CDC 9380, output to file and Glass UI window)
+  * HDLC (High-Level Data Link Control) networking
 * **Codebase Modernization**
   * Removed requirement for libconfig and the supporting .conf file. All options are now given on the command line.
   * Refactored folder structure
@@ -59,15 +76,14 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
 * Focus on ND-100 CPU and controllers.
   * The newer CPU's (ND-110 and ND-120) is mostly hardware/performance improvements, with some new opcodes to support SINTRAN and COBOL running with better performance.
   * Focus on getting these opcodes into this emulator has very low priority, as SINTRAN doesnt require an ND-110 or ND-120 CPU.
-* Refactorand, re-structure and modernize code so its easier to extend
-* Adding support for building different frontends
-  * The only frontend currently is the nd100x emulator
-  * Other frond ends planned
-    * Web Assembly version (WASM) for running emulator in browser and in Visual Studio Code as plugin
-    * Arduino, ESP and RISC-V device support.
-    * Emulator with debug interface
-    * Windows version
-* Adding even more devices (like HDLC, Ethernet, SCSI)
+* Refactor, re-structure and modernize code so its easier to extend
+* Multiple frontends and build targets
+  * Native Linux, Windows and macOS builds
+  * WebAssembly (WASM) Glass UI for running the emulator in the browser
+  * RISC-V cross-compilation
+  * DAP debugger integration for step-by-step debugging
+* Planned
+  * Ethernet and SCSI device emulation
 
 ## Project Structure
 
@@ -192,9 +208,29 @@ Build and run locally:
 make wasm-glass-run
 ```
 
-Features include draggable/resizable floating windows, an xterm.js VT100 terminal, a full CPU debugger with breakpoints and disassembly, SINTRAN III operating system inspection tools, a hardware page table viewer, Line Printer and Paper Tape device windows, and 5 switchable color themes.
+Features include draggable/resizable floating windows, authentic Norsk Data TDV-2200/TDV-2215 terminal emulation via RetroTerm (with virtual TDV keyboard, VT100 also supported, xterm.js available by config), a full CPU debugger with breakpoints and disassembly, SINTRAN III operating system inspection tools, a hardware page table viewer, Line Printer and Paper Tape device windows, and 5 switchable color themes.
 
-The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 23 JS modules, 1 JSON data file). For the full architecture reference, see [GLASS.md](GLASS.md).
+The Glass UI source lives in `template-glass/` (1 HTML, 2 CSS, 35 JS modules, 1 JSON data file). For the full architecture reference, see [GLASS.md](GLASS.md).
+
+## Gateway Server
+
+The gateway (`tools/nd100-gateway/gateway.js`) bridges the browser-based WASM emulator to local resources that a browser cannot access directly: disk images on the local filesystem, TCP terminal clients (PuTTY, telnet), and HDLC serial links.
+
+```
+Remote terminal (PuTTY/telnet) --TCP--> Gateway --WebSocket--> WASM Worker
+Disk I/O sub-worker            --WebSocket--> Gateway --fs read/write--> local .IMG files
+HDLC TCP client                --TCP--> Gateway --WebSocket--> WASM Worker
+```
+
+All traffic is multiplexed over a single WebSocket connection using a binary frame protocol (first byte = message type). Disk I/O uses block-level read/write requests — full disk images are never transferred over the wire.
+
+```bash
+cd tools/nd100-gateway
+npm install
+node gateway.js --static ../../build_wasm_glass/bin --verbose
+```
+
+Configuration is in `tools/nd100-gateway/gateway.conf.json`: WebSocket port (default 8765), TCP terminal port (default 5001), HDLC channel ports, and paths to SMD/floppy disk images. The `--static` flag serves the Glass UI with the required COOP/COEP headers for SharedArrayBuffer support.
 
 ## Updating Git submodules
 
@@ -207,42 +243,49 @@ Sometimes the submodules are updated and you need to manually refresh them
 The emulator supports the following command line options:
 
 ```bash
-Usage: nd100x [options]
+Usage: build/bin/nd100x [options]
 
 Options:
-  -b, --boot=TYPE        Boot type (bp, bpun, aout, floppy, smd)
-  -i, --image=FILE       Image file to load
-  -s, --start=ADDR       Start address (default: 0)
-  -a, --disasm           Enable disassembly output (dump after emulator stops)
-  -d, --debugger         Enable DAP debugger
-  -p, --port=PORT        Set debugger port (default: 4711)
-  -S, --smd-debug        Enable SMD disk controller debug log (stderr)
-  -t, --trace            Enable CPU execution trace to stderr
-  -n, --max-instr=N      Stop after N instructions
-  -B, --breakpoint=ADDR  Stop at address (octal/hex/decimal)
-  -T, --text-start=ADDR  Text segment load address for a.out (default: 0)
-  -e, --tape=FILE        Paper tape file to load into reader
-  -P, --printdir=DIR     Directory for line printer output files (default: ./prints)
-  -D, --tapedir=DIR      Directory for paper tape punch output files (default: ./tapes)
-  -r, --printer=TYPE     Printer emulation: text (default), escp, laser
-  -f, --printformat=FMT  Output format: txt (default), pdf
-  -N, --telnet[=PORT]    Enable telnet server (default port: 9000)
-  -v, --verbose          Enable verbose output
-  -h, --help             Show this help message
+  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)
+  -i,      --image=FILE   Image file to load (aout, bpun, floppy only)
+           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)
+           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)
+           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)
+           --smd3=FILE    SMD unit 3 disk image (default: SMD3.IMG)
+  -s,      --start=ADDR   Start address (default: 0)
+  -a,      --disasm       Enable disassembly output
+  -d,      --debugger     Enable DAP debugger
+  -p PORT, --port=PORT    Set debugger port (default: 4711)
+  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)
+  -t,      --trace        Enable CPU execution trace to stderr
+  -n N,    --max-instr=N  Stop after N instructions
+  -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)
+  -T ADDR, --text-start=ADDR  Text segment load address for a.out (default: 0)
+  -v,      --verbose      Enable verbose output
+  -P DIR,  --printdir=DIR  Printer output directory (default: ./prints/)
+  -D DIR,  --tapedir=DIR   Paper tape output directory (default: ./tapes/)
+  -e FILE, --tape=FILE     Paper tape reader input file (.bpun)
+  -N[PORT],--telnet[=PORT] Enable telnet server (default port: 9000)
+  -r TYPE, --printer=TYPE  Printer emulation: text (default), escp, laser
+  -f FMT,  --printformat=FMT  Output format: txt (default), pdf
+  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)
+                          Server: --hdlc=N:PORT  (N=1-4)
+                          Client: --hdlc=N:HOST:PORT
+  -O,      --overlay-deposit Deposit data_click at phys word 1 for kernel boot-info
+  -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 512)
+  -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)
+  -h,      --help         Show this help message
 
 Examples:
-
-  build/bin/nd100x -b aout -i a.out -v -d    # Loads an a.out file in verbose mode with debugger
-
-  build/bin/nd100x -b bpun -i images/FILSYS-INV-Q04.BPUN      # Loads FILSYSTEM INVESTIGATOR
-  build/bin/nd100x -b bpun -i images/CONFIGURATIO-C08.BPUN    # Loads CONFIGURATION-C08
-  build/bin/nd100x -b bpun -i images/INSTRUCTION-B.BPUN       # Loads INSTRUCTION VERIFIER
-
-  build/bin/nd100x -b floppy                                   # Boots from FLOPPY.IMG
-
-  build/bin/nd100x -b floppy -e images/test.bpun               # Boots from floppy with paper tape loaded
-  build/bin/nd100x -b smd --printdir=/tmp/prints               # Boots SINTRAN, printer output to /tmp/prints/
-  build/bin/nd100x -b smd --telnet=9000                        # Boots SINTRAN with telnet server on port 9000
+  build/bin/nd100x --boot=bpun --image=test.bpun
+  build/bin/nd100x --boot=floppy --image=disk.img --start=0x1000 --disasm
+  build/bin/nd100x --debugger
+  build/bin/nd100x --hdlc=1:1362                  # HDLC 1 server on port 1362
+  build/bin/nd100x --hdlc=1:192.168.1.10:1362     # HDLC 1 client
+  build/bin/nd100x --boot=smd --smd0=myboot.img --smd1=data.img
+  build/bin/nd100x --hdlc=1:5000 --hdlc=2:5001    # Two HDLC devices
+  build/bin/nd100x --boot=smd --telnet=9000        # SINTRAN with telnet server
+  build/bin/nd100x --boot=smd --throttle           # Real-time CPU speed
 ```
 
 Boot Types:
@@ -254,13 +297,13 @@ Boot Types:
 
 ### Block devices (Floppy and SMD)
 
-Currently the file names used for floppy and SMD are hard coded.
-And the files are expected to be in the current folder.
+Default image file names (looked up in the current directory):
 
-* Floppy drives uses FLOPPY.IMG
-* SMD  drives uses SMD0.IMG, SMD1.IMG, SMD2.IMG and SMD3.IMG.
+* Floppy: FLOPPY.IMG
+* SMD: SMD0.IMG, SMD1.IMG, SMD2.IMG, SMD3.IMG
 
-Other floppy images can be mounted via the Floppy Menu
+SMD images can be overridden per unit with `--smd0=FILE` through `--smd3=FILE`.
+Other floppy images can be mounted at runtime via the F12 menu.
 
 ## Running SINTRAN in the Emulator
 
@@ -287,9 +330,7 @@ build/bin/nd100x --boot=floppy
 
 Now you have access to test programs like CONFIG, PAGING, INSTRUCTION and more.
 
-## Character Devices
-
-The emulator supports three character I/O devices ported from the RetroCore emulator:
+## I/O Devices
 
 ### Paper Tape Reader (I/O 0400-0403)
 Reads BPUN tape images loaded via the `--tape` CLI option or the Glass UI file upload. Used by TPE and SINTRAN as logical device 2.
@@ -300,8 +341,11 @@ Accumulates punched output in memory. In native mode, output is saved to files i
 ### Line Printer (I/O 0430-0433)
 CDC 9380 line printer emulation. In native mode, output is saved to files in the print directory (default: `./prints/`). In the Glass UI, a dedicated window shows printer output in real-time.
 
+### HDLC Controller
+COM 5025-based HDLC (High-Level Data Link Control) communication controller. Up to 4 HDLC devices can be configured, each operating as either a TCP server or client for point-to-point serial links. Supports DMA transfers, CRC calculation, and full interrupt handling. Enable with `--hdlc=N:PORT` (server) or `--hdlc=N:HOST:PORT` (client). Live status monitoring available via the F12 menu.
+
 ### Virtual Screen Switching (Native)
-Press **Alt+1** through **Alt+9** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch, Log). Press **F12** for the unified menu offering Floppy Database Browser, Virtual Screen Selector, and Pending Connections viewer. Only terminal screens accept keyboard input; device screens are output-only.
+Press **Alt+1** through **Alt+9** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch, Log). Press **F12** for the unified menu offering Floppy Database Browser, Virtual Screen Selector, HDLC Status, CPU Speed, Pending Connections viewer, and About screen. Only terminal screens accept keyboard input; device screens are output-only.
 
 ### Telnet Server (Native)
 Enable with `--telnet[=PORT]` (default port 9000). Provides remote terminal access to terminals 8-11. Multiple clients can connect simultaneously and select from available terminals. Features include:
@@ -383,8 +427,8 @@ The Linux and macOS tarballs bundle just the `nd100x` binary plus `images/`, `RE
 Tag-driven, no manual button pressing:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v1.0.6
+git push origin v1.0.6
 ```
 
 The tag push fans out to all four build jobs in parallel. Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).
@@ -407,8 +451,6 @@ See the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information
 
 ## TODO
 
-* Refactor IO access to request BLOCKs from Machine instead of direct file access
-  * Opens up for running WASM in the browser with better performance/less memory usage.
 * OPCOM implementation
   * Emulation of OPCOM for memory inspection when CPU is in STOP mode.
   * Currently STOP mode exits the emulator

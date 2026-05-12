@@ -1376,7 +1376,7 @@ EMSCRIPTEN_EXPORT const char* Dbg_GetBreakpointList(void)
 
 EMSCRIPTEN_EXPORT int Dbg_AddWatchpoint(int addr, int type)
 {
-    return watchpoint_add((uint16_t)(addr & 0xFFFF), (WatchpointType)type);
+    return watchpoint_add((uint16_t)(addr & 0xFFFF), (WatchpointType)type, WATCH_SPACE_ANY, -1);
 }
 
 EMSCRIPTEN_EXPORT void Dbg_RemoveWatchpoint(int addr)

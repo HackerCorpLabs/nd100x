@@ -39,6 +39,7 @@ static void draw_screen_select(MenuState *state, void *telnetServer);
 static void draw_release_prompt(MenuState *state);
 static void draw_hdlc_status(void);
 static void draw_cpu_speed(void);
+static void draw_about(void);
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static void draw_pending_list(void *telnetServer);
 #endif
@@ -77,6 +78,9 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
     case MENU_CPU_SPEED:
         state->lastRefresh = time(NULL);
         draw_cpu_speed();
+        break;
+    case MENU_ABOUT:
+        draw_about();
         break;
     case MENU_PENDING_LIST:
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
@@ -155,6 +159,30 @@ static void draw_cpu_speed(void)
     fflush(stdout);
 }
 
+static void draw_about(void)
+{
+    printf("\033[2J\033[H");
+    printf("=== About ND100X ===\n\n");
+    printf("  ND100X - ND-100/CX Minicomputer Emulator\n");
+    printf("  Version 1.0.6\n");
+    printf("  Compiled: %s %s\n\n", __DATE__, __TIME__);
+    printf("  A fork of nd100em, started in 2025 by Ronny Hansen.\n");
+    printf("  Licensed under the GNU General Public License (GPL v2 or later).\n\n");
+    printf("  Based on the nd100em project (version 0.2.4) by:\n");
+    printf("    Per-Olof Astrom, Roger Abrahamsson,\n");
+    printf("    Zdravko Dimitrov, Goran Axelsson\n\n");
+    printf("  Features:\n");
+    printf("    - Full ND-100 CPU emulation (MMS1 and MMS2)\n");
+    printf("    - SMD and floppy disk support\n");
+    printf("    - HDLC networking\n");
+    printf("    - DAP debugger integration\n");
+    printf("    - Telnet server for remote terminals\n");
+    printf("    - WebAssembly browser build\n\n");
+    printf("  https://www.ndwiki.org/wiki/ND-100\n\n");
+    printf("  Press ESC to return.\n");
+    fflush(stdout);
+}
+
 static void draw_f12(void)
 {
     printf("\033[2J\033[H");
@@ -163,7 +191,8 @@ static void draw_f12(void)
     printf("  [2] Virtual Screen Selector\n");
     printf("  [3] HDLC Status\n");
     printf("  [4] CPU Speed\n");
-    printf("\nPress 1-4 to select, ESC to cancel: ");
+    printf("  [A] About\n");
+    printf("\nPress 1-4/A to select, ESC to cancel: ");
     fflush(stdout);
 }
 
@@ -213,7 +242,7 @@ static void draw_hdlc_status(void)
 
         // Fixed-width snprintf buffers so columns stay aligned regardless of value length
         {
-            char c_dma[8], c_bytes[12], c_frames[12], c_ena[16], c_errs[18], c_state[20], c_queue[12];
+            char c_dma[8], c_bytes[16], c_frames[12], c_ena[16], c_errs[18], c_state[20], c_queue[12];
             char tmpBuf[24];
 
             // --- RX line ---
@@ -566,6 +595,8 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
         } else if (ch == '4') {
             cpu_speed_initialized = false;
             menu_set_mode(state, MENU_CPU_SPEED, telnetServer);
+        } else if (ch == 'a' || ch == 'A') {
+            menu_set_mode(state, MENU_ABOUT, telnetServer);
         }
         break;
 
@@ -753,6 +784,12 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
                     cpu_throttle_set_enabled(true);
                 }
             }
+        }
+        break;
+
+    case MENU_ABOUT:
+        if (is_esc) {
+            menu_set_mode(state, MENU_F12, telnetServer);
         }
         break;
 
