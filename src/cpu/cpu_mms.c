@@ -156,6 +156,8 @@ void PT_Write(uint address, ushort value)
     if ((address < pt.shadowRamAddress) || (address > 0xFFFF)) return;
 
     uint offset = address - pt.shadowRamAddress;
+
+
     pt.shadowRam[offset] = value;
 
 #ifdef DEBUG_MMS
