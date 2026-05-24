@@ -470,13 +470,10 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
             data->dmaCommand = (value >> 8) & 0x07;
             {
                 uint8_t newBank = (uint8_t)(value & 0x0F);
-                // Bank bits are sticky: set at INITIALIZE/DEVICE_CLEAR/LOAD_REGS time,
-                // retained for data-transfer commands (TX_START, RX_START, etc.).
-                // The SINTRAN HDLC driver establishes the bank context at INITIALIZE
-                // and expects it to persist for the lifetime of the connection.
-                if (data->dmaCommand == DMA_CMD_INITIALIZE ||
-                    data->dmaCommand == DMA_CMD_DEVICE_CLEAR ||
-                    data->dmaCommand == DMA_CMD_LOAD_REGISTERS) {
+                // Bank=0 means "use the latched bank" (e.g. XSSDATA sets D=0).
+                // Bank>0 means "use this bank and latch it" (e.g. INITIALIZE bank=1,
+                // or XSSND passing XMSG-provided bank bits in D).
+                if (newBank != 0) {
                     data->dmaBankBits = newBank;
                 }
             }
