@@ -12,7 +12,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     )
 endif()
 
-project(nd100x VERSION 0.1.0 DESCRIPTION "ND100X Emulator" LANGUAGES C CXX)
+project(nd100x VERSION 1.0.7 DESCRIPTION "ND100X Emulator" LANGUAGES C CXX)
 
 # Options
 option(BUILD_DAP_TOOLS "Build libdap test tools" OFF)

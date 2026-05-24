@@ -616,7 +616,18 @@ namespace Emulated.HW.ND.CPU.NDBUS
 					//}
 
 					regs.DMACommand = (DMACommands)((value >> 8) & 0x07);
-					regs.DMABankBits = value & 0x0F;
+					{
+						int newBank = value & 0x0F;
+						// Bank bits are sticky: set at INITIALIZE/DEVICE_CLEAR/LOAD_REGS time,
+						// retained for data-transfer commands (TX_START, RX_START, etc.).
+						// The SINTRAN HDLC driver establishes the bank context at INITIALIZE
+						// and expects it to persist for the lifetime of the connection.
+						if (regs.DMACommand == DMACommands.INITIALIZE ||
+							regs.DMACommand == DMACommands.DEVICE_CLEAR ||
+							regs.DMACommand == DMACommands.LOAD_REGISTERS) {
+							regs.DMABankBits = newBank;
+						}
+					}
 
 					dmaEngine.ExecuteCommand();
 

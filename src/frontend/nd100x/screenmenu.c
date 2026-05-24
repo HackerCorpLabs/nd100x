@@ -164,7 +164,7 @@ static void draw_about(void)
     printf("\033[2J\033[H");
     printf("=== About ND100X ===\n\n");
     printf("  ND100X - ND-100/CX Minicomputer Emulator\n");
-    printf("  Version 1.0.6\n");
+    printf("  Version 1.0.7\n");
     printf("  Compiled: %s %s\n\n", __DATE__, __TIME__);
     printf("  A fork of nd100em, started in 2025 by Ronny Hansen.\n");
     printf("  Licensed under the GNU General Public License (GPL v2 or later).\n\n");

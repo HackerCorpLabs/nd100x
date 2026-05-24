@@ -37,7 +37,7 @@ The original project can be found at <https://github.com/tingox/nd100em> and <ht
 
 ## Status
 
-Version 1.0.6
+Version 1.0.7
 
 The emulator is under active development.
 
@@ -429,8 +429,8 @@ The Linux and macOS tarballs bundle just the `nd100x` binary plus `images/`, `RE
 Tag-driven, no manual button pressing:
 
 ```bash
-git tag v1.0.6
-git push origin v1.0.6
+git tag v1.0.7
+git push origin v1.0.7
 ```
 
 The tag push fans out to all build jobs in parallel (Linux x64/arm64, Windows x64, macOS arm64, and RISC-V Milk-V Duo). Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS/RISC-V), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).

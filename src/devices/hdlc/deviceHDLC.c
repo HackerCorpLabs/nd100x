@@ -468,7 +468,18 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
 
         case HDLC_WRITE_DMA_COMMAND:           // IOX +17: Write DMA Command
             data->dmaCommand = (value >> 8) & 0x07;
-            data->dmaBankBits = (uint8_t)(value & 0x0F);
+            {
+                uint8_t newBank = (uint8_t)(value & 0x0F);
+                // Bank bits are sticky: set at INITIALIZE/DEVICE_CLEAR/LOAD_REGS time,
+                // retained for data-transfer commands (TX_START, RX_START, etc.).
+                // The SINTRAN HDLC driver establishes the bank context at INITIALIZE
+                // and expects it to persist for the lifetime of the connection.
+                if (data->dmaCommand == DMA_CMD_INITIALIZE ||
+                    data->dmaCommand == DMA_CMD_DEVICE_CLEAR ||
+                    data->dmaCommand == DMA_CMD_LOAD_REGISTERS) {
+                    data->dmaBankBits = newBank;
+                }
+            }
 #ifdef HDLC_DEBUG
             {
                 static const char *cmd_names[] = {
