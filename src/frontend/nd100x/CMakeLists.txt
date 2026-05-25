@@ -87,6 +87,9 @@ endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nd100x.conf
     ${CMAKE_BINARY_DIR}/etc/nd100x.conf COPYONLY)
 
+# Install nd100x binary
+install(TARGETS nd100x RUNTIME DESTINATION bin)
+
 # Create the prototypes header using mkptypes
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h
