@@ -471,7 +471,7 @@ static bool parse_floppies_json(const char* json_data) {
         
         strncpy(floppy->md5, md5_str, sizeof(floppy->md5) - 1);
         floppy->md5[sizeof(floppy->md5) - 1] = '\0';
-        
+
         // Dynamically allocate directory content based on actual length
         if (dir_content_str && strlen(dir_content_str) > 0) {
             floppy->directory_content = strdup(dir_content_str);
@@ -942,11 +942,11 @@ static void filter_floppies() {
         }
         
         // Check product
-        if (!found && (strstr(floppy->product, search_lower) || 
+        if (!found && (strstr(floppy->product, search_lower) ||
             strcasestr(floppy->product, menu_state.search_text))) {
             found = true;
         }
-        
+
         if (found) {
             menu_state.filtered_indices[menu_state.filtered_count] = i;
             menu_state.filtered_count++;
@@ -1463,13 +1463,6 @@ static void menu_loop() {
                         init_curses();
                         init_mount_popup();
                         init_unmount_popup();
-                    }
-                    break;
-                case 'f':
-                case 'F':
-                    if (ch == 'F' || (ch == 'f' && menu_state.search_text[0] == '\0')) {
-                        // Focus search field (clear it if empty)
-                        menu_state.search_cursor = strlen(menu_state.search_text);
                     }
                     break;
                 default:
