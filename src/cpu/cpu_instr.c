@@ -220,7 +220,7 @@ void ndfunc_mon(ushort operand)
 
 			gReg->reg[14][_T] = monitor_number;
 			interrupt(14, 1 << 1); /* Monitor Call */
-			gCHKIT = true;	
+			gCHKIT = true;
 		}
 	}
 }
