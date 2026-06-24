@@ -28,6 +28,24 @@
 
 BreakpointManager *mgr;
 
+// PC-breakpoint hot-path gates (mirror the watchpoint design).
+int breakpoint_entry_count = 0;     // live breakpoint entries (any type)
+int breakpoint_step_pending = 0;    // nonzero while a single-step is in flight
+uint8_t breakpoint_bitmap[8192];    // 1 bit per 16-bit PC address
+
+/// @brief Rebuild the PC-breakpoint bitmap from the live entries
+static void breakpoint_bitmap_rebuild(void)
+{
+    memset(breakpoint_bitmap, 0, sizeof(breakpoint_bitmap));
+    breakpoint_entry_count = 0;
+    if (!mgr) return;
+    for (int h = 0; h < HASH_SIZE; h++) {
+        for (BreakpointEntry *curr = mgr->buckets[h]; curr; curr = curr->next) {
+            breakpoint_bitmap[curr->address >> 3] |= (1 << (curr->address & 7));
+            breakpoint_entry_count++;
+        }
+    }
+}
 
 /// @brief Hash function for the breakpoint manager
 /// @param address Memory address to hash
@@ -70,6 +88,7 @@ void breakpoint_manager_cleanup()
 void breakpoint_manager_step_one()
 {
     mgr->step_count=1;
+    breakpoint_step_pending = 1;
 }
 
 /// @brief Add breakpoint (create new entry or append to list)
@@ -109,6 +128,9 @@ void breakpoint_manager_add(uint16_t address, BreakpointType type, const char *c
     entry->next = mgr->buckets[h];
 
     mgr->buckets[h] = entry;
+
+    breakpoint_bitmap[address >> 3] |= (1 << (address & 7));
+    breakpoint_entry_count++;
 }
 
 /// @brief Remove entries at address matching type (or all if type == -1)
@@ -142,6 +164,7 @@ void breakpoint_manager_remove(uint16_t address, int type)
             curr = curr->next;
         }
     }
+    breakpoint_bitmap_rebuild();
 }
 
 /// @brief Clear all breakpoints   
@@ -163,6 +186,8 @@ void breakpoint_manager_clear()
         }
         mgr->buckets[h] = NULL;
     }
+    memset(breakpoint_bitmap, 0, sizeof(breakpoint_bitmap));
+    breakpoint_entry_count = 0;
 }
 
 /// @brief Clear only breakpoints of a specific type
@@ -196,6 +221,7 @@ void breakpoint_manager_clear_type(BreakpointType type)
             curr = next;
         }
     }
+    breakpoint_bitmap_rebuild();
 }
 
 /// @brief Query breakpoints at address
@@ -261,6 +287,7 @@ int check_for_breakpoint(void)
     if (mgr->step_count > 0) {
         mgr->step_count--;
         if (mgr->step_count == 0) {
+            breakpoint_step_pending = 0;
             set_cpu_stop_reason(STOP_REASON_STEP);
             set_cpu_run_mode(CPU_BREAKPOINT);
             return STOP_REASON_STEP;
@@ -464,7 +491,19 @@ int watchpoint_get(int index, uint16_t *out_addr, int *out_type)
 //********** Physical Watchpoints **********
 
 static PhysicalWatchpointEntry phys_watchpoints[MAX_WATCHPOINTS];
-static int phys_watchpoint_count = 0;
+int phys_watchpoint_count = 0;                       // non-static: read on cpu_mms.c hot path
+uint8_t phys_watchpoint_pagemap[PHYS_WP_BITMAP_BYTES];
+
+/// @brief Rebuild the physical-watchpoint page bitmap from active entries
+static void phys_watchpoint_pagemap_rebuild(void)
+{
+    memset(phys_watchpoint_pagemap, 0, sizeof(phys_watchpoint_pagemap));
+    for (int i = 0; i < phys_watchpoint_count; i++) {
+        if (!phys_watchpoints[i].active) continue;
+        uint32_t idx = (phys_watchpoints[i].address >> 10) & (PHYS_WP_BITMAP_BYTES * 8u - 1u);
+        phys_watchpoint_pagemap[idx >> 3] |= (1u << (idx & 7u));
+    }
+}
 
 /// @brief Add a physical memory watchpoint
 int phys_watchpoint_add(uint32_t address, WatchpointType type, int8_t pil)
@@ -483,6 +522,8 @@ int phys_watchpoint_add(uint32_t address, WatchpointType type, int8_t pil)
     phys_watchpoints[phys_watchpoint_count].pil = pil;
     phys_watchpoints[phys_watchpoint_count].active = true;
     phys_watchpoint_count++;
+    uint32_t idx = (address >> 10) & (PHYS_WP_BITMAP_BYTES * 8u - 1u);
+    phys_watchpoint_pagemap[idx >> 3] |= (1u << (idx & 7u));
     return 0;
 }
 
@@ -494,6 +535,7 @@ void phys_watchpoint_remove(uint32_t address)
             phys_watchpoints[i] = phys_watchpoints[phys_watchpoint_count - 1];
             phys_watchpoints[phys_watchpoint_count - 1].active = false;
             phys_watchpoint_count--;
+            phys_watchpoint_pagemap_rebuild();
             return;
         }
     }
@@ -521,6 +563,7 @@ void phys_watchpoint_clear(void)
     for (int i = 0; i < MAX_WATCHPOINTS; i++)
         phys_watchpoints[i].active = false;
     phys_watchpoint_count = 0;
+    memset(phys_watchpoint_pagemap, 0, sizeof(phys_watchpoint_pagemap));
 }
 
 /// @brief Get number of active physical watchpoints

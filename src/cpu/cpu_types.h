@@ -550,6 +550,13 @@ typedef struct {
 extern int watchpoint_count;
 extern uint8_t watchpoint_bitmap[8192]; // 64K addresses, 1 bit each
 
+// PC-breakpoint hot-path gates (defined in cpu_bkpt.c). Mirror the watchpoint
+// design so check_for_breakpoint() costs ~1 compare when nothing is armed and
+// only does the hash walk when gPC actually has a breakpoint.
+extern int breakpoint_entry_count;        // live breakpoint entries (any type)
+extern int breakpoint_step_pending;       // nonzero while a single-step is in flight
+extern uint8_t breakpoint_bitmap[8192];   // 1 bit per 16-bit PC address
+
 //********** Physical Watchpoints (physical memory address breakpoints) **********
 
 typedef struct {
@@ -558,6 +565,19 @@ typedef struct {
     int8_t pil;                // -1 = any PIL, 0-15 = specific PIL only
     bool active;
 } PhysicalWatchpointEntry;
+
+// Physical-watchpoint hot-path gate (defined in cpu_bkpt.c). Page-granular
+// pre-filter: 1 bit per 1K-word page, masked into a small L1-resident map.
+// Aliasing only yields false positives, which fall through to the exact scan.
+#define PHYS_WP_BITMAP_BYTES 4096               // covers 2^15 pages = 32M-word phys space without aliasing
+extern int phys_watchpoint_count;
+extern uint8_t phys_watchpoint_pagemap[PHYS_WP_BITMAP_BYTES];
+
+static inline int phys_watchpoint_page_armed(uint32_t addr)
+{
+    uint32_t idx = (addr >> 10) & (PHYS_WP_BITMAP_BYTES * 8u - 1u);
+    return phys_watchpoint_pagemap[idx >> 3] & (1u << (idx & 7u));
+}
 
 /// @brief Enumeration of CPU stop reasons for the debugger
 /// @details This enum is used to indicate the reason for stopping the CPU in the debugger. - aligned with DAP spec

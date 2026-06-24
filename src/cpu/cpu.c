@@ -734,6 +734,7 @@ void ring_dump(void) {
 int cpu_run(int ticks)
 {
 #ifdef WITH_DEBUGGER
+	static uint32_t dbg_poll_ctr = 0;   // emulated-instruction counter for async pause poll
 	if (get_debugger_control_granted()) {
 #ifndef __EMSCRIPTEN__
 		sleep_ms(100); // Portable (POSIX nanosleep / Windows Sleep)
@@ -822,9 +823,14 @@ int cpu_run(int ticks)
 			}
 
 #ifdef WITH_DEBUGGER
-			if (gDebuggerEnabled)
+			// PC-breakpoint check, gated like watchpoints: when nothing is armed
+			// this is one compare; the hash walk in check_for_breakpoint() only
+			// runs when gPC actually has a breakpoint (or a single-step is pending).
+			if (gDebuggerEnabled
+			    && (breakpoint_step_pending
+			        || (breakpoint_entry_count > 0
+			            && (breakpoint_bitmap[gPC >> 3] & (1 << (gPC & 7))))))
 			{
-				// Check if we hit a breakpoint
 				if (check_for_breakpoint() != STOP_REASON_NONE)
 				{
 					return ticks;
@@ -846,10 +852,18 @@ int cpu_run(int ticks)
 		}
 
 #ifdef WITH_DEBUGGER
-
-		if (gDebuggerEnabled && get_debugger_request_pause()) {		
-			// return ASAP, let the caller handle the debugger request
-			return ticks;
+		// Async pause is human-latency, so poll it on the emulated machine's own
+		// timebase rather than per instruction or host wall-clock. 10550 instr is
+		// one ~20ms RTC period (deviceRTC.c TICKS_20MS); 10 periods ~= 200ms of
+		// emulated time. Running faster than real-time only shortens the wall-clock
+		// latency, never lengthens it, so this is robust to any throttle/"max" speed.
+		#define DBG_POLL_INSTR (10550 * 10)
+		if (gDebuggerEnabled && ++dbg_poll_ctr >= DBG_POLL_INSTR) {
+			dbg_poll_ctr = 0;
+			if (get_debugger_request_pause()) {
+				// return ASAP, let the caller handle the debugger request
+				return ticks;
+			}
 		}
 #endif
 	}	

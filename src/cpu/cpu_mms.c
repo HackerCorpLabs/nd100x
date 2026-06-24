@@ -792,7 +792,9 @@ int ReadPhysicalMemory(int physicalAddress, bool privileged)
     }
 
 #ifdef WITH_DEBUGGER
-    if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, false)) {
+    if (phys_watchpoint_count > 0
+        && phys_watchpoint_page_armed((uint32_t)physicalAddress)
+        && phys_watchpoint_check((uint32_t)physicalAddress, false)) {
         cpu_watchpoint_triggered((uint32_t)physicalAddress, false);
     }
 #endif
@@ -825,7 +827,9 @@ void WritePhysicalMemory(int physicalAddress, uint16_t value, bool privileged)
 void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged, WriteMode wm)
 {
 #ifdef WITH_DEBUGGER
-    if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, true)) {
+    if (phys_watchpoint_count > 0
+        && phys_watchpoint_page_armed((uint32_t)physicalAddress)
+        && phys_watchpoint_check((uint32_t)physicalAddress, true)) {
         cpu_watchpoint_triggered((uint32_t)physicalAddress, true);
     }
 #endif
