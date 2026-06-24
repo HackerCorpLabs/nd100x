@@ -497,6 +497,33 @@ int main(int argc, char *argv[])
 
     initialize();
 
+    // Arm command-line memory watchpoints (--watch). These use the same fast
+    // in-CPU watchpoint engine as DAP, but run at full native speed: on a hit
+    // with no debugger attached, the CPU halts (message + ring dump).
+#ifdef WITH_DEBUGGER
+    for (int i = 0; i < config.watchCount; i++) {
+        WatchpointType wt = (WatchpointType)config.watch[i].type;
+        const char *typeStr = (wt == WATCH_READ) ? "r" : (wt == WATCH_WRITE) ? "w" : "rw";
+        int rc;
+        if (config.watch[i].isPhysical) {
+            rc = phys_watchpoint_add(config.watch[i].address, wt, -1);
+        } else {
+            rc = watchpoint_add((uint16_t)(config.watch[i].address & 0xFFFF), wt, WATCH_SPACE_ANY, -1);
+        }
+        if (rc != 0) {
+            fprintf(stderr, "Failed to arm watchpoint at %06o\n", config.watch[i].address);
+        } else {
+            fprintf(stderr, "Watchpoint armed: %s %06o (%s)\n",
+                    config.watch[i].isPhysical ? "phys" : "virt",
+                    config.watch[i].address, typeStr);
+        }
+    }
+#else
+    if (config.watchCount > 0) {
+        fprintf(stderr, "Warning: --watch requires a debugger-enabled build; ignoring\n");
+    }
+#endif
+
     // Add HDLC devices if configured via command line
     for (int i = 0; i < config.hdlcCount; i++) {
         machine_add_hdlc(config.hdlc[i].deviceNum,

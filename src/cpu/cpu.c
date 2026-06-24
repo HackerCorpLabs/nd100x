@@ -410,6 +410,25 @@ ushort PhysMemRead(ulong addr)
 
 }
 
+#ifdef WITH_DEBUGGER
+/*
+ * Common handling when a memory watchpoint matches.
+ * With a debugger attached, enter CPU_BREAKPOINT so DAP can report and resume.
+ * Without a debugger (CLI --watch), halt the machine like the -B breakpoint does.
+ */
+void cpu_watchpoint_triggered(uint32_t addr, bool isWrite)
+{
+	set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
+	set_cpu_run_mode(CPU_BREAKPOINT);
+	if (!gDebuggerEnabled) {
+		fprintf(stderr, "\n--- CPU stopped: watchpoint %s at %06o (PC=%06o) ---\n",
+			isWrite ? "write" : "read", addr, gPC);
+		ring_dump();
+		set_cpu_run_mode(CPU_SHUTDOWN);
+	}
+}
+#endif
+
 /*
  * Write a word to memory.
  * Here we implement all Memory Management System functions.
@@ -423,8 +442,7 @@ void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_sele
 	if (watchpoint_count > 0
 	    && (watchpoint_bitmap[addr >> 3] & (1 << (addr & 7)))
 	    && watchpoint_check_slow(addr, true, UseAPT)) {
-		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
-		set_cpu_run_mode(CPU_BREAKPOINT);
+		cpu_watchpoint_triggered(addr, true);
 	}
 #endif
 	WriteVirtualMemory(addr, value, UseAPT, byte_select); // in cpu_mms.c
@@ -440,8 +458,7 @@ ushort MemoryRead(ushort addr, bool UseAPT)
 	if (watchpoint_count > 0
 	    && (watchpoint_bitmap[addr >> 3] & (1 << (addr & 7)))
 	    && watchpoint_check_slow(addr, false, UseAPT)) {
-		set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
-		set_cpu_run_mode(CPU_BREAKPOINT);
+		cpu_watchpoint_triggered(addr, false);
 	}
 #endif
 	return ReadVirtualMemory(addr, UseAPT); // in cpu_mms.c

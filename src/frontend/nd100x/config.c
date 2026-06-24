@@ -45,6 +45,7 @@ static struct option long_options[] = {
     {"trace",      no_argument,       0, 't'},
     {"max-instr",  required_argument, 0, 'n'},
     {"breakpoint", required_argument, 0, 'B'},
+    {"watch",      required_argument, 0, 'W'},
     {"text-start", required_argument, 0, 'T'},
     {"printdir",   required_argument, 0, 'P'},
     {"tapedir",    required_argument, 0, 'D'},
@@ -88,6 +89,7 @@ void Config_Init(Config_t *config) {
     for (int i = 0; i < 4; i++) config->smdFile[i] = NULL;
     config->telnetEnabled = false;
     config->telnetPort = 9000;
+    config->watchCount = 0;
     config->printerType = PRINTER_TEXT;
     config->printFormat = PRINT_FORMAT_TXT;
     // HDLC configuration
@@ -191,12 +193,63 @@ static bool parseHDLCConfig(Config_t *config, const char *hdlcStr) {
     return true;
 }
 
+// Parse watchpoint config: "[phys:]ADDR[:r|w|rw]"
+// ADDR accepts octal (leading 0), hex (0x), or decimal, matching -B.
+static bool parseWatchConfig(Config_t *config, const char *watchStr) {
+    if (!watchStr || !config) return false;
+    if (config->watchCount >= MAX_CLI_WATCHPOINTS) {
+        fprintf(stderr, "Too many watchpoints (max %d)\n", MAX_CLI_WATCHPOINTS);
+        return false;
+    }
+
+    char *str = strdup(watchStr);
+    if (!str) return false;
+
+    char *p = str;
+    bool isPhys = false;
+    if (strncmp(p, "phys:", 5) == 0) {
+        isPhys = true;
+        p += 5;
+    }
+
+    int type = 3; // default READWRITE
+    char *colon = strrchr(p, ':');
+    if (colon) {
+        char *t = colon + 1;
+        if (strcmp(t, "r") == 0) type = 1;
+        else if (strcmp(t, "w") == 0) type = 2;
+        else if (strcmp(t, "rw") == 0 || strcmp(t, "wr") == 0) type = 3;
+        else {
+            fprintf(stderr, "Invalid watch access type: %s (use r, w, or rw)\n", t);
+            free(str);
+            return false;
+        }
+        *colon = '\0';
+    }
+
+    char *endptr;
+    uint32_t addr = (uint32_t)strtoul(p, &endptr, 0);
+    if (p == endptr || *endptr != '\0') {
+        fprintf(stderr, "Invalid watch address: %s\n", p);
+        free(str);
+        return false;
+    }
+
+    int idx = config->watchCount;
+    config->watch[idx].isPhysical = isPhys;
+    config->watch[idx].address = addr;
+    config->watch[idx].type = type;
+    config->watchCount++;
+    free(str);
+    return true;
+}
+
 bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int option_index = 0;
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:T:P:D:e:N::r:f:H:Z::R::O",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:W:T:P:D:e:N::r:f:H:Z::R::O",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -350,6 +403,12 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
 
+            case 'W':
+                if (!parseWatchConfig(config, optarg)) {
+                    return false;
+                }
+                break;
+
             case 'T':
                 config->textStartSet = true;
                 config->textStart = strtoul(optarg, &endptr, 0);
@@ -449,6 +508,8 @@ void Config_PrintHelp(const char *progName) {
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");
     printf("  -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)\n");
+    printf("  -W SPEC, --watch=SPEC   Stop on memory access at full speed (repeatable, max %d)\n", MAX_CLI_WATCHPOINTS);
+    printf("                          SPEC = [phys:]ADDR[:r|w|rw]  (default rw, virtual)\n");
     printf("  -T ADDR, --text-start=ADDR  Text segment load address for a.out (default: 0)\n");
     printf("  -v,      --verbose      Enable verbose output\n");
     printf("  -P DIR,  --printdir=DIR  Printer output directory (default: ./prints/)\n");

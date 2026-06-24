@@ -69,6 +69,14 @@ typedef struct {
     char *smdFile[4];    // SMD disk image files (--smd0 through --smd3)
     bool telnetEnabled;  // --telnet flag
     int telnetPort;      // Default: 9000
+    // CLI memory watchpoints (--watch). Run at full native speed (no DAP needed).
+    #define MAX_CLI_WATCHPOINTS 32
+    int watchCount;
+    struct {
+        bool isPhysical;     // true = physical address (--watch=phys:ADDR)
+        uint32_t address;
+        int type;            // WatchpointType: 1=read, 2=write, 3=readwrite
+    } watch[MAX_CLI_WATCHPOINTS];
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
     // HDLC configuration (up to 4 devices, thumbwheels 1-4)

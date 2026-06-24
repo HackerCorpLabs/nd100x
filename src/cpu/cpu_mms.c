@@ -793,8 +793,7 @@ int ReadPhysicalMemory(int physicalAddress, bool privileged)
 
 #ifdef WITH_DEBUGGER
     if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, false)) {
-        set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
-        set_cpu_run_mode(CPU_BREAKPOINT);
+        cpu_watchpoint_triggered((uint32_t)physicalAddress, false);
     }
 #endif
 
@@ -827,8 +826,7 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
 {
 #ifdef WITH_DEBUGGER
     if (phys_watchpoint_get_count() > 0 && phys_watchpoint_check((uint32_t)physicalAddress, true)) {
-        set_cpu_stop_reason(STOP_REASON_DATA_BREAKPOINT);
-        set_cpu_run_mode(CPU_BREAKPOINT);
+        cpu_watchpoint_triggered((uint32_t)physicalAddress, true);
     }
 #endif
 

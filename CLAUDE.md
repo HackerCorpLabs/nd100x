@@ -120,7 +120,8 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 - `-S, --smd-debug`: Enable SMD disk controller debug log (stderr)
 - `-t, --trace`: Enable CPU execution trace to stderr
 - `-n, --max-instr=N`: Stop after N instructions
-- `-B, --breakpoint=ADDR`: Stop at address (octal/hex/decimal)
+- `-B, --breakpoint=ADDR`: Stop at PC address (octal/hex/decimal)
+- `-W, --watch=SPEC`: Stop on memory access at full native speed (repeatable, max 32). SPEC = `[phys:]ADDR[:r|w|rw]` (default rw, virtual). Uses the in-CPU watchpoint engine — no DAP/single-step tax. On a hit with no debugger attached, the CPU halts (message + ring dump).
 - `-T, --text-start=ADDR`: Text segment load address for a.out (default: 0)
 - `-r, --printer=TYPE`: Printer emulation type: text (default), escp, laser (not yet implemented)
 - `-f, --printformat=FMT`: Printer output format: txt (default), pdf
