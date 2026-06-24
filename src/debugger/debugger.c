@@ -561,61 +561,6 @@ static uint16_t get_jpl_target_address(uint16_t pc, uint16_t operand)
     return ea;
 }
 
-/// @brief Detect if current instruction sequence is a C function prologue
-/// @param pc Program counter
-/// @return true if looks like C function entry
-/// @note ND-100 C compiler uses ENTR instruction for structured stack frames
-static bool is_c_function_prologue(uint16_t pc)
-{
-    // Read the instruction at current PC
-    uint16_t operand = Dbg_ReadVirtualMemoryISpace(pc);
-
-    // ND-100 C calling convention uses ENTR instruction to enter stack frames
-    // ENTR opcode: 0140135 (octal)
-    // ENTR behavior:
-    //   - Saves old B register to PREVB (Memory[new_B - 127])
-    //   - Saves return address to LINK (Memory[new_B - 128])
-    //   - Allocates stack space based on next word in memory
-    //   - Updates stack pointers
-    if (operand == 0140135) {
-        return true;
-    }
-
-    return false;
-}
-
-/// @brief Detect if current instruction sequence is a C function epilogue
-/// @param pc Program counter
-/// @return true if looks like C function exit
-/// @note Detects LEAVE/ELEAV which return via stack LINK (paired with ENTR)
-static bool is_c_function_epilogue(uint16_t pc)
-{
-    // Read the instruction at current PC
-    uint16_t operand = Dbg_ReadVirtualMemoryISpace(pc);
-
-    // LEAVE instruction - Normal return from structured stack frame
-    // Opcode: 0140136 (octal)
-    // Behavior: P = Memory[B-128] (LINK), B = Memory[B-127] (PREVB)
-    // Used with ENTR to manage stack frames
-    if (operand == 0140136) {
-        return true;
-    }
-
-    // ELEAV instruction - Error return from structured stack frame
-    // Opcode: 0140137 (octal)
-    // Behavior: Similar to LEAVE but takes error return path
-    // Also restores from stack LINK and PREVB
-    if (operand == 0140137) {
-        return true;
-    }
-
-    // Note: EXIT (0146142) is NOT included here
-    // EXIT returns via L register (JPL calling convention)
-    // LEAVE/ELEAV return via stack LINK (ENTR calling convention)
-
-    return false;
-}
-
 /// @brief Find the memory address of the return address of the current stack frame.
 /// @return The memory address of the return address of the current stack frame. -1 if no return address is found.
 int32_t find_stack_return_address()
@@ -651,13 +596,17 @@ void debugger_update_jpl_entrypoint(uint16_t ea)
 void debugger_build_stack_trace(uint16_t pc, uint16_t operand)
 {
 
-    // Check for different call types
+    // Check for different call types.
+    // 'operand' is the instruction already fetched at 'pc' by the CPU, so we
+    // decode it directly here instead of re-reading memory (two MMU-translated
+    // I-space reads per instruction) via is_c_function_prologue/epilogue().
     bool is_jpl = ((operand & 0xF800) == 0134000);
     bool is_exit = (operand == 0146142);
-    
-    // NEW: Check for C calling convention (will be filled in after investigation)
-    bool is_c_call = is_c_function_prologue(pc);
-    bool is_c_return = is_c_function_epilogue(pc);
+
+    // ND-100 C calling convention: ENTR (0140135) enters a stack frame,
+    // LEAVE (0140136) / ELEAV (0140137) return from one.
+    bool is_c_call = (operand == 0140135);
+    bool is_c_return = (operand == 0140136 || operand == 0140137);
 
     // Is this the first frame?
     if (stack_trace.frame_count == 0)
