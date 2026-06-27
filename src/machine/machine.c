@@ -783,6 +783,7 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
     DRIVE_TYPE drive_type = (device->type == DEVICE_TYPE_DISC_SMD) ? DRIVE_SMD : DRIVE_FLOPPY;
     MountedDriveInfo_t *drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
 
+#ifdef FLOPPY_DIAG
     // Diagnostic: log first floppy block read attempt
     if (drive_type == DRIVE_FLOPPY) {
         static int _floppy_read_log = 0;
@@ -799,6 +800,7 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
                 blockAddress, (unsigned)device->blockSizeBytes);
         }
     }
+#endif
 
     if (!drives) return -1;
 

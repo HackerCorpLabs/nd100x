@@ -254,6 +254,7 @@ static void ExecuteTest(Device *self, int testData)
 
 static void ExecuteFloppyGo(Device *self)
 {
+#ifdef FLOPPY_DIAG
     // Diagnostic: log first few floppy commands
     {
         static int _floppy_go_log = 0;
@@ -264,6 +265,7 @@ static void ExecuteFloppyGo(Device *self)
                 self && self->blockCallbacks.writeFunc ? "ok" : "NULL");
         }
     }
+#endif
 
     if (!self)
         return;
