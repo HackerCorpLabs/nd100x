@@ -4,6 +4,7 @@ set(SOURCES
     nd100x.c
     screenmenu.c
     vscreen.c
+    charset.c
 )
 
 # Include menu.c (F12 floppy-DB browser) when curl + ncurses are available.

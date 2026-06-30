@@ -53,6 +53,7 @@ static struct option long_options[] = {
     {"telnet",     optional_argument, 0, 'N'},
     {"printer",    required_argument, 0, 'r'},
     {"printformat",required_argument, 0, 'f'},
+    {"charset",    required_argument, 0, 'L'},
     {"hdlc",       required_argument, 0, 'H'},
     {"throttle",   optional_argument, 0, 'Z'},
     {"ring-dump",  optional_argument, 0, 'R'},
@@ -92,6 +93,7 @@ void Config_Init(Config_t *config) {
     config->watchCount = 0;
     config->printerType = PRINTER_TEXT;
     config->printFormat = PRINT_FORMAT_TXT;
+    config->charset = CHARSET_OFF;
     // HDLC configuration
     config->hdlcCount = 0;
     for (int i = 0; i < MAX_HDLC_DEVICES; i++) {
@@ -249,7 +251,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:W:T:P:D:e:N::r:f:H:Z::R::O",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:W:T:P:D:e:N::r:f:L:H:Z::R::O",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -345,6 +347,16 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                     return false;
                 }
                 break;
+
+            case 'L': {
+                CharsetVariant cs;
+                if (!charset_from_name(optarg, &cs)) {
+                    fprintf(stderr, "Invalid charset: %s (use off, norwegian, swedish, german)\n", optarg);
+                    return false;
+                }
+                config->charset = cs;
+                break;
+            }
 
             case 'h':
                 config->showHelp = true;
@@ -518,6 +530,8 @@ void Config_PrintHelp(const char *progName) {
     printf("  -N[PORT],--telnet[=PORT] Enable telnet server (default port: 9000)\n");
     printf("  -r TYPE, --printer=TYPE  Printer emulation: text (default), escp, laser\n");
     printf("  -f FMT,  --printformat=FMT  Output format: txt (default), pdf\n");
+    printf("  -L CS,   --charset=CS    Local-console national 7-bit charset (telnet/TCP unaffected):\n");
+    printf("                          off (default), norwegian, swedish, german\n");
     printf("  -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)\n");
     printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
     printf("                          Client: --hdlc=N:HOST:PORT\n");

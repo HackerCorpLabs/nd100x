@@ -17,6 +17,7 @@
 #include "keyboard.h"
 #include "vscreen.h"
 #include "screenmenu.h"
+#include "charset.h"
 #include "../../devices/devices_types.h"
 #include "../../devices/devices_protos.h"
 #include "../../devices/hdlc/deviceHDLC.h"
@@ -39,6 +40,7 @@ static void draw_screen_select(MenuState *state, void *telnetServer);
 static void draw_release_prompt(MenuState *state);
 static void draw_hdlc_status(void);
 static void draw_cpu_speed(void);
+static void draw_charset(void);
 static void draw_about(void);
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static void draw_pending_list(void *telnetServer);
@@ -78,6 +80,9 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
     case MENU_CPU_SPEED:
         state->lastRefresh = time(NULL);
         draw_cpu_speed();
+        break;
+    case MENU_CHARSET:
+        draw_charset();
         break;
     case MENU_ABOUT:
         draw_about();
@@ -164,7 +169,7 @@ static void draw_about(void)
     printf("\033[2J\033[H");
     printf("=== About ND100X ===\n\n");
     printf("  ND100X - ND-100/CX Minicomputer Emulator\n");
-    printf("  Version 1.0.8\n");
+    printf("  Version 1.0.9\n");
     printf("  Compiled: %s %s\n\n", __DATE__, __TIME__);
     printf("  A fork of nd100em, started in 2025 by Ronny Hansen.\n");
     printf("  Licensed under the GNU General Public License (GPL v2 or later).\n\n");
@@ -183,6 +188,45 @@ static void draw_about(void)
     fflush(stdout);
 }
 
+static void draw_charset(void)
+{
+    CharsetVariant active = charset_get();
+
+    printf("\033[2J\033[H");
+    printf("=== Character Set (local console only) ===\n\n");
+    printf("  National 7-bit ISO 646 charset for the local screen and\n");
+    printf("  keyboard. Telnet / TCP traffic is NEVER translated.\n\n");
+
+    // Selectable list
+    for (CharsetVariant v = CHARSET_OFF; v < CHARSET_COUNT; v++) {
+        printf("  [%d] %s%-10s%s %s\n",
+               (int)v + 1,
+               (v == active) ? "* " : "  ",
+               charset_name(v),
+               (v == active) ? " (active)" : "",
+               (v == CHARSET_OFF) ? "ASCII passthrough { | } [ \\ ]" : "");
+    }
+
+    // Mapping detail for the active variant
+    printf("\n  Mappings for %s:\n", charset_name(active));
+    int n = charset_mapping_count(active);
+    if (n == 0) {
+        printf("    (none - 7-bit codes shown as literal ASCII)\n");
+    } else {
+        printf("    7-bit byte  ASCII  ->  shown as / typed as\n");
+        for (int i = 0; i < n; i++) {
+            uint8_t byte; const char *glyph; const char *utf8;
+            if (charset_mapping_at(active, i, &byte, &glyph, &utf8)) {
+                printf("      %03o (0x%02X)   %-2s        %s\n",
+                       byte, byte, glyph, utf8);
+            }
+        }
+    }
+
+    printf("\n  Press 1-%d to select, ESC to return.\n", (int)CHARSET_COUNT);
+    fflush(stdout);
+}
+
 static void draw_f12(void)
 {
     printf("\033[2J\033[H");
@@ -191,8 +235,9 @@ static void draw_f12(void)
     printf("  [2] Virtual Screen Selector\n");
     printf("  [3] HDLC Status\n");
     printf("  [4] CPU Speed\n");
+    printf("  [5] Character Set  (local console: %s)\n", charset_name(charset_get()));
     printf("  [A] About\n");
-    printf("\nPress 1-4/A to select, ESC to cancel: ");
+    printf("\nPress 1-5/A to select, ESC to cancel: ");
     fflush(stdout);
 }
 
@@ -595,6 +640,8 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
         } else if (ch == '4') {
             cpu_speed_initialized = false;
             menu_set_mode(state, MENU_CPU_SPEED, telnetServer);
+        } else if (ch == '5') {
+            menu_set_mode(state, MENU_CHARSET, telnetServer);
         } else if (ch == 'a' || ch == 'A') {
             menu_set_mode(state, MENU_ABOUT, telnetServer);
         }
@@ -784,6 +831,16 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
                     cpu_throttle_set_enabled(true);
                 }
             }
+        }
+        break;
+
+    case MENU_CHARSET:
+        if (is_esc) {
+            menu_set_mode(state, MENU_F12, telnetServer);
+        } else if (ch >= '1' && ch <= ('0' + CHARSET_COUNT)) {
+            charset_set((CharsetVariant)(ch - '1'));
+            // Repaint in place so the new selection + mappings show immediately
+            draw_charset();
         }
         break;
 

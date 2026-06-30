@@ -37,7 +37,7 @@ The original project can be found at <https://github.com/tingox/nd100em> and <ht
 
 ## Status
 
-Version 1.0.8
+Version 1.0.9
 
 The emulator is under active development.
 
@@ -261,6 +261,8 @@ Options:
   -t,      --trace        Enable CPU execution trace to stderr
   -n N,    --max-instr=N  Stop after N instructions
   -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)
+  -W SPEC, --watch=SPEC   Stop on memory access at full native speed (repeatable, max 32)
+                          SPEC = [phys:]ADDR[:r|w|rw]  (default rw, virtual)
   -T ADDR, --text-start=ADDR  Text segment load address for a.out (default: 0)
   -v,      --verbose      Enable verbose output
   -P DIR,  --printdir=DIR  Printer output directory (default: ./prints/)
@@ -269,6 +271,8 @@ Options:
   -N[PORT],--telnet[=PORT] Enable telnet server (default port: 9000)
   -r TYPE, --printer=TYPE  Printer emulation: text (default), escp, laser
   -f FMT,  --printformat=FMT  Output format: txt (default), pdf
+  -L CS,   --charset=CS    Local-console national 7-bit charset (telnet/TCP unaffected):
+                          off (default), norwegian, swedish, german
   -H CFG,  --hdlc=CFG     Enable HDLC controller (up to 4x)
                           Server: --hdlc=N:PORT  (N=1-4)
                           Client: --hdlc=N:HOST:PORT
@@ -287,6 +291,7 @@ Examples:
   build/bin/nd100x --hdlc=1:5000 --hdlc=2:5001    # Two HDLC devices
   build/bin/nd100x --boot=smd --telnet=9000        # SINTRAN with telnet server
   build/bin/nd100x --boot=smd --throttle           # Real-time CPU speed
+  build/bin/nd100x --boot=smd --charset=norwegian  # Norwegian 7-bit local console
 ```
 
 Boot Types:
@@ -346,7 +351,10 @@ CDC 9380 line printer emulation. In native mode, output is saved to files in the
 COM 5025-based HDLC (High-Level Data Link Control) communication controller. Up to 4 HDLC devices can be configured, each operating as either a TCP server or client for point-to-point serial links. Supports DMA transfers, CRC calculation, and full interrupt handling. Enable with `--hdlc=N:PORT` (server) or `--hdlc=N:HOST:PORT` (client). Live status monitoring available via the F12 menu.
 
 ### Virtual Screen Switching (Native)
-Press **Alt+1** through **Alt+9** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch, Log). Press **F12** for the unified menu offering Floppy Database Browser, Virtual Screen Selector, HDLC Status, CPU Speed, Pending Connections viewer, and About screen. Only terminal screens accept keyboard input; device screens are output-only.
+Press **Alt+1** through **Alt+9** to switch directly between virtual screens (Console, terminals, Line Printer, Paper Tape Punch, Log). Press **F12** for the unified menu offering Floppy Database Browser, Virtual Screen Selector, HDLC Status, CPU Speed, Character Set, Pending Connections viewer, and About screen. Only terminal screens accept keyboard input; device screens are output-only.
+
+### National Character Set (Native)
+The emulated terminal speaks 7-bit ISO 646, where national variants reuse the ASCII positions `[ \ ] { | }` for accented letters. Select a variant with `--charset=` (off, norwegian, swedish, german) or at runtime via **F12 > Character Set**, which also shows the exact byte mappings. When active, the local console renders those positions as the national letters (e.g. Norwegian `{ | }` -> `æ ø å`, `[ \ ]` -> `Æ Ø Å`) and maps national keystrokes (UTF-8 or Latin-1) back to the matching 7-bit code. This is a local-console presentation layer only — telnet/TCP traffic is always passed through as raw 7-bit and is never translated.
 
 ### Telnet Server (Native)
 Enable with `--telnet[=PORT]` (default port 9000). Provides remote terminal access to terminals 8-11. Multiple clients can connect simultaneously and select from available terminals. Features include:
@@ -429,8 +437,8 @@ The Linux and macOS tarballs bundle just the `nd100x` binary plus `images/`, `RE
 Tag-driven, no manual button pressing:
 
 ```bash
-git tag v1.0.8
-git push origin v1.0.8
+git tag v1.0.9
+git push origin v1.0.9
 ```
 
 The tag push fans out to all build jobs in parallel (Linux x64/arm64, Windows x64, macOS arm64, and RISC-V Milk-V Duo). Once they finish, the `release` job downloads every artifact, repackages each one in its native format (`.zip` for Windows, `.tar.gz` for Linux/macOS/RISC-V), generates `SHA256SUMS.txt`, and publishes a GitHub Release with auto-generated release notes (commit log since the previous tag, contributor list, "What's Changed" links).

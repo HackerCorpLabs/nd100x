@@ -30,6 +30,7 @@
 
 #include "../../machine/machine_types.h"
 #include "../ndlib/ndlib_types.h"
+#include "charset.h"
 
 // Printer emulation type (--printer= option)
 typedef enum {
@@ -79,6 +80,7 @@ typedef struct {
     } watch[MAX_CLI_WATCHPOINTS];
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
+    CharsetVariant charset;       // --charset= option: local-console national 7-bit charset (default: CHARSET_OFF)
     // HDLC configuration (up to 4 devices, thumbwheels 1-4)
     #define MAX_HDLC_DEVICES 4
     int hdlcCount;                           // Number of configured HDLC devices

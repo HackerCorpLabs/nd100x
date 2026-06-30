@@ -868,11 +868,6 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
     ushort *p_phy_addr;
     p_phy_addr = &VolatileMemory.n_Array[physicalAddress];
 
-    if (physicalAddress == 1 && value != 100) {
-        fprintf(stderr, "DBG: CLOBBER phys[1] old=%u new=%u PIL=%d PC=0%06o\n",
-                *p_phy_addr, value, gPIL, gPC);
-    }
-
 	switch (wm)
 	{
 	case WRITEMODE_MSB: /* Even, which means MSB byte, or bits 15-8 */

@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "vscreen.h"
+#include "charset.h"
 
 void VScreen_Init(VScreen *vs, const char *name, Device *dev, int cols, bool inputCapable)
 {
@@ -103,10 +104,20 @@ void VScreen_Redraw(VScreen *vs)
         startLine = (vs->currentLine + 1) % VSCREEN_BUF_LINES;
     }
 
-    // Print all buffered lines
+    // Print all buffered lines. Terminal screens get national 7-bit charset
+    // translation (per-char) so a redraw matches live output; non-terminal
+    // screens (printer, tape, log) are emitted raw.
     for (int i = 0; i < numLines; i++) {
         int lineIdx = (startLine + i) % VSCREEN_BUF_LINES;
-        printf("%s\n", vs->lines[lineIdx]);
+        const char *line = vs->lines[lineIdx];
+        if (vs->isInputCapable && charset_get() != CHARSET_OFF) {
+            for (const char *p = line; *p; p++) {
+                charset_emit_host(*p);
+            }
+            putchar('\n');
+        } else {
+            printf("%s\n", line);
+        }
     }
 
     fflush(stdout);

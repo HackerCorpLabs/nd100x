@@ -316,7 +316,7 @@ static void VScreenOutputHandler(Device *device, char c)
         if (screens[i].device == device) {
             VScreen_Write(&screens[i], c);
             if (i == activeScreen && !menu_is_active(&menuState)) {
-                printf("%c", c);
+                charset_emit_host(c);
             }
             return;
         }
@@ -324,7 +324,7 @@ static void VScreenOutputHandler(Device *device, char c)
 
     // Fallback: just print (if no menu visible)
     if (!menu_is_active(&menuState)) {
-        printf("%c", c);
+        charset_emit_host(c);
     }
 }
 
@@ -494,6 +494,7 @@ int main(int argc, char *argv[])
     CPU_BREAKPOINT_ENABLED = config.breakpointEnabled;
     CPU_BREAKPOINT_ADDR = (ushort)config.breakpointAddr;
     CPU_RING_DUMP_SIZE = config.ringDumpSize;
+    charset_set(config.charset);  // local-console national 7-bit charset (telnet/TCP unaffected)
 
     initialize();
 
@@ -739,8 +740,14 @@ int main(int argc, char *argv[])
                 // Process regular characters — forward every raw byte in the
                 // event (covers KEY_CHAR, KEY_ESCAPE, KEY_UNKNOWN multi-byte
                 // escape sequences the emulated terminal may want to consume).
-                for (int i = 0; i < key.seqLen; i++) {
-                    char ch = key.seq[i];
+                // When a national charset is active, collapse UTF-8/Latin-1
+                // accented keystrokes (e.g. 'æ') to their single 7-bit code
+                // ('{') before queueing. CHARSET_OFF copies verbatim.
+                char mappedSeq[32];
+                int mappedLen = charset_translate_input(key.seq, key.seqLen,
+                                                        mappedSeq, sizeof(mappedSeq));
+                for (int i = 0; i < mappedLen; i++) {
+                    char ch = mappedSeq[i];
 
                     // ND doesnt like \n
                     if (ch == '\n') {

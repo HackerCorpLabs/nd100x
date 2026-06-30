@@ -175,17 +175,31 @@ KeyEvent read_key_event(void)
 #include <poll.h>
 #include <unistd.h>
 
+// Expected total byte length of a UTF-8 character from its lead byte.
+// Returns 1 for ASCII or an invalid lead (treated as a single raw byte).
+static int utf8_seq_len(unsigned char b)
+{
+    if (b < 0x80)            return 1;
+    if ((b & 0xE0) == 0xC0)  return 2;
+    if ((b & 0xF0) == 0xE0)  return 3;
+    if ((b & 0xF8) == 0xF0)  return 4;
+    return 1;
+}
+
 static int read_raw_sequence(char *buf, size_t bufsize)
 {
     if (!buf || bufsize == 0) return 0;
 
     int keylen = 0;
+    int utf8len = 0;   // expected total length when the first byte is a UTF-8 lead
     struct pollfd pfd = { .fd = STDIN_FILENO, .events = POLLIN };
 
     while (keylen < (int)bufsize - 1) {
-        // First byte: non-blocking.
-        // After ESC: wait up to 50ms for the rest of the escape sequence.
-        int timeout_ms = (keylen > 0 && buf[0] == 27) ? 50 : 0;
+        // First byte: non-blocking. After ESC, or while completing a UTF-8
+        // multi-byte character, wait up to 50ms for the trailing bytes so the
+        // sequence/character arrives intact in a single event.
+        int waiting = (keylen > 0) && (buf[0] == 27 || utf8len > 1);
+        int timeout_ms = waiting ? 50 : 0;
         if (poll(&pfd, 1, timeout_ms) <= 0) break;
 
         char ch;
@@ -194,10 +208,22 @@ static int read_raw_sequence(char *buf, size_t bufsize)
 
         buf[keylen++] = ch;
 
-        if (keylen == 1 && ch != 27) break;        // Single char (not ESC)
-        if (keylen == 2 && ch != '[') break;       // ESC + non-[ → complete
-        if (keylen >= 3 && (ch == '~' || (ch >= 'A' && ch <= 'Z')))
-            break;                                  // End of escape sequence
+        if (keylen == 1) {
+            if (ch == 27) continue;                 // ESC: collect escape sequence
+            utf8len = utf8_seq_len((unsigned char)ch);
+            if (utf8len <= 1) break;                // plain single byte
+            continue;                               // UTF-8 lead: collect continuation
+        }
+
+        if (buf[0] == 27) {
+            if (keylen == 2 && ch != '[') break;    // ESC + non-[ → complete
+            if (keylen >= 3 && (ch == '~' || (ch >= 'A' && ch <= 'Z')))
+                break;                              // End of escape sequence
+        } else if (utf8len > 1) {
+            if (keylen >= utf8len) break;           // full UTF-8 character collected
+        } else {
+            break;
+        }
     }
 
     buf[keylen] = '\0';
