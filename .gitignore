@@ -72,6 +72,7 @@ SMD0.IMG
 
 # RetroTermWeb build output (rebuilt from submodule)
 template-glass/lib/retroterm/
+template-glass/lib/ndfs/
 
 # TypeScript compiled output (rebuilt by ts-compile target)
 template-glass/js/terminal-core.js

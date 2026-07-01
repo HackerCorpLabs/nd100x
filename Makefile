@@ -114,6 +114,23 @@ retroterm-build:
 		exit 1; \
 	fi
 
+# Build the norskdata-ndfs browser bundle (IIFE, global NdfsLib) from the
+# submodule's TypeScript source. Output is a single self-contained file the
+# Glass UI includes via <script>.
+.PHONY: ndfs-build
+ndfs-build:
+	@if [ -f template-glass/external/norskdata-ndfs/ndfs-ts/package.json ]; then \
+		echo "Building norskdata-ndfs browser bundle..."; \
+		cd template-glass/external/norskdata-ndfs/ndfs-ts && npm install --silent; \
+		mkdir -p ../../../lib/ndfs; \
+		npx esbuild src/index.ts --bundle --format=iife --global-name=NdfsLib \
+			--platform=browser --outfile=../../../lib/ndfs/ndfs-browser-bundle.js; \
+		echo "NDFS bundle -> template-glass/lib/ndfs/ndfs-browser-bundle.js"; \
+	else \
+		echo "Error: norskdata-ndfs submodule not found. Run: git submodule update --init --recursive"; \
+		exit 1; \
+	fi
+
 # Compile TypeScript terminal sources (if tsc available, else use pre-compiled JS)
 .PHONY: ts-compile
 ts-compile:
@@ -160,7 +177,7 @@ wasm: check-deps mkptypes
 	@echo "  python3 -m http.server"
 	@echo "Then open http://localhost:8000/index.html in your browser."
 
-wasm-glass: check-deps mkptypes retroterm-build ts-compile
+wasm-glass: check-deps mkptypes retroterm-build ndfs-build ts-compile
 	@echo "Building WebAssembly version (glassmorphism UI)..."
 	@command -v emcmake >/dev/null 2>&1 || { echo "Error: emcmake not found. Please install and activate Emscripten SDK."; exit 1; }
 	@mkdir -p $(BUILD_DIR_WASM_GLASS)
@@ -197,6 +214,7 @@ wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	  -e "s|src=\"js/\([^\"]*\)\"|src=\"js/\1?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"lib/retroterm/retroterm.css\"|href=\"lib/retroterm/retroterm.css?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"lib/retroterm/retroterm.js\"|src=\"lib/retroterm/retroterm.js?v=$$BUILD_TS\"|g" \
+	  -e "s|src=\"lib/ndfs/ndfs-browser-bundle.js\"|src=\"lib/ndfs/ndfs-browser-bundle.js?v=$$BUILD_TS\"|g" \
 	  $(BUILD_DIR_WASM_GLASS)/bin/index.html; \
 	$(SED_INPLACE) \
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \

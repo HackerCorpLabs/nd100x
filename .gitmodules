@@ -13,3 +13,6 @@
 [submodule "template-glass/external/RetroTermWeb"]
 	path = template-glass/external/RetroTermWeb
 	url = ../RetroTermWeb
+[submodule "template-glass/external/norskdata-ndfs"]
+	path = template-glass/external/norskdata-ndfs
+	url = https://github.com/HackerCorpLabs/norskdata-ndfs.git
