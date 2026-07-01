@@ -31,6 +31,41 @@
   var MIN_FONT = 8;
   var MAX_FONT = 120;
 
+  // ---- National 7-bit (ISO 646) keyboard input mapping ----
+  // The physical keyboard delivers composed Unicode letters (e.g. 'ae' = U+00E6),
+  // but the ND expects the 7-bit ISO 646 *position* (e.g. '{' = 0x7B). This
+  // mirrors the native charset.c: map the national letter a host keyboard
+  // produces to its 7-bit code. Host-layout independent - the active language
+  // wins, other variants fill in - so a Norwegian keyboard can drive a Swedish
+  // or German terminal by key position. Output glyphs are handled by the TDV
+  // font via the RetroTerm ISO 646 variant, so only input needs remapping here.
+  var nationalKeyTables: { [lang: string]: Array<[number, number]> } = {
+    // [unicodeCodePoint, 7bitByte]
+    no: [[0x00C6,0x5B],[0x00D8,0x5C],[0x00C5,0x5D],[0x00E6,0x7B],[0x00F8,0x7C],[0x00E5,0x7D]],
+    se: [[0x00C4,0x5B],[0x00D6,0x5C],[0x00C5,0x5D],[0x00DC,0x5E],[0x00E4,0x7B],[0x00F6,0x7C],[0x00E5,0x7D],[0x00FC,0x7E]],
+    de: [[0x00C4,0x5B],[0x00D6,0x5C],[0x00DC,0x5D],[0x00E4,0x7B],[0x00F6,0x7C],[0x00FC,0x7D],[0x00DF,0x7E]]
+  };
+  var currentKbLanguage = 'off';   // 'off' | 'no' | 'se' | 'de'
+
+  function setTerminalKeyboardLanguage(lang: string): void {
+    currentKbLanguage = (lang === 'no' || lang === 'se' || lang === 'de') ? lang : 'off';
+  }
+
+  // Map a Unicode code point to its 7-bit ISO 646 position, or -1 if unmapped.
+  function mapNationalKey(cp: number): number {
+    if (currentKbLanguage === 'off') return -1;
+    var act = nationalKeyTables[currentKbLanguage];
+    var i: number;
+    for (i = 0; i < act.length; i++) { if (act[i][0] === cp) return act[i][1]; }
+    var langs = ['no', 'se', 'de'];
+    for (var l = 0; l < langs.length; l++) {
+      if (langs[l] === currentKbLanguage) continue;
+      var t = nationalKeyTables[langs[l]];
+      for (i = 0; i < t.length; i++) { if (t[i][0] === cp) return t[i][1]; }
+    }
+    return -1;
+  }
+
   // ---- Color themes (ONE definition, used everywhere) ----
 
   var colorThemes: { [name: string]: ColorTheme } = {
@@ -410,9 +445,13 @@
       } else if (charCode === 10) {
         sendCallback(13);
       } else {
-        // Send all bytes of the sequence (escape sequences are multi-byte)
+        // Send all bytes of the sequence (escape sequences are multi-byte).
+        // National letters are remapped to their 7-bit ISO 646 position when a
+        // keyboard language is active; everything else passes through verbatim.
         for (var i = 0; i < key.length; i++) {
-          sendCallback(key.charCodeAt(i));
+          var cc = key.charCodeAt(i);
+          var mapped = mapNationalKey(cc);
+          sendCallback(mapped >= 0 ? mapped : cc);
         }
       }
 
@@ -483,6 +522,7 @@
   window.saveTerminalSettings = saveTerminalSettings;
   window.loadTerminalSettings = loadTerminalSettings;
   window.setupTerminalKeyHandler = setupTerminalKeyHandler;
+  window.setTerminalKeyboardLanguage = setTerminalKeyboardLanguage;
   window.buildFontSelectHTML = buildFontSelectHTML;
   window.buildColorSelectHTML = buildColorSelectHTML;
   window.getOpaqueTheme = getOpaqueTheme;

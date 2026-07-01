@@ -147,6 +147,7 @@ interface Window {
   saveTerminalSettings: () => void;
   loadTerminalSettings: () => void;
   setupTerminalKeyHandler: (term: Terminal, sendCallback: (keyCode: number) => void, isActiveCheck?: () => boolean) => void;
+  setTerminalKeyboardLanguage: (lang: string) => void;
   buildFontSelectHTML: (identCode: number) => string;
   buildColorSelectHTML: (identCode: number) => string;
   getOpaqueTheme: (themeName: string) => ColorTheme;

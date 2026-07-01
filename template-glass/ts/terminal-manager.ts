@@ -298,6 +298,12 @@ function createTerminal(identCode: number, name: string): void {
   // Create per-terminal VK (RetroTerm only)
   createTerminalVK(identCode, container, term);
 
+  // Apply the selected national keyboard language (input mapper + display
+  // variant + VK labels) to this freshly created terminal.
+  var kbLang = getCurrentKeyboardLanguage();
+  if (window.setTerminalKeyboardLanguage) window.setTerminalKeyboardLanguage(kbLang);
+  applyKeyboardLanguageToTerminal(identCode, kbLang);
+
   console.log('Terminal ' + identCode + ' (' + name + ') created' + (useFloat ? ' [floating]' : ' [tab]'));
   terminalContainers[identCode] = container;
 
@@ -821,6 +827,64 @@ function createTerminalVK(identCode: number, container: HTMLElement, term: any):
   }
 }
 
+// ---- National keyboard language / ISO 646 variant (RetroTerm TDV only) ----
+// One control drives three things, live (no reload):
+//   1. physical-keyboard input mapping (terminal-core: Unicode -> 7-bit)
+//   2. the RetroTerm display variant so the TDV font shows national glyphs
+//   3. the on-screen VirtualKeyboard labels
+
+// Maps our language code to TDV2200ISO646Variant (Intl=0, No=1, Se=2, De=3).
+function kbLangToVariant(lang: string): number {
+  if (lang === 'no') return 1;
+  if (lang === 'se') return 2;
+  if (lang === 'de') return 3;
+  return 0;
+}
+
+// RetroTerm VirtualKeyboard LANGUAGE_CODES uses 'sv' for Swedish.
+function kbLangToVkCode(lang: string): string {
+  if (lang === 'no') return 'no';
+  if (lang === 'se') return 'sv';
+  if (lang === 'de') return 'de';
+  return 'us';
+}
+
+// Effective language: national variants only exist on the TDV emulators, so
+// VT100 / xterm always resolve to 'off' regardless of the saved value.
+function getCurrentKeyboardLanguage(): string {
+  var lang = 'no';
+  try { lang = localStorage.getItem('nd100x-keyboard-language') || 'no'; } catch(e) {}
+  var emuType = 'tdv2200';
+  try { emuType = localStorage.getItem('nd100x-emulator-type') || 'tdv2200'; } catch(e) {}
+  if (!isRetroTermBackend || emuType === 'vt100') return 'off';
+  return lang;
+}
+
+// Push the language to one terminal: display variant (font) + VK labels.
+function applyKeyboardLanguageToTerminal(identCode: number, lang: string): void {
+  var t = terminals[identCode];
+  if (!t || !t.term) return;
+  try {
+    var emu: any = (t.term as any).getEmulator ? (t.term as any).getEmulator() : null;
+    if (emu && emu.iso646Handler && typeof emu.iso646Handler.setVariant === 'function') {
+      emu.iso646Handler.setVariant(kbLangToVariant(lang));
+    }
+  } catch(e) { /* non-TDV emulator: no national variant */ }
+  try {
+    if (t.vk && typeof t.vk.setLanguage === 'function') {
+      t.vk.setLanguage(kbLangToVkCode(lang));
+    }
+  } catch(e) {}
+}
+
+// Apply to the input mapper + every terminal. Live, no reload.
+function applyKeyboardLanguage(lang: string): void {
+  if (window.setTerminalKeyboardLanguage) window.setTerminalKeyboardLanguage(lang);
+  for (var id in terminals) {
+    if (terminals.hasOwnProperty(id)) applyKeyboardLanguageToTerminal(parseInt(id), lang);
+  }
+}
+
 /** Compute correct window height from width, preserving canvas aspect ratio + VK */
 function computeTerminalHeight(identCode: number, windowWidth: number): number {
   var headerH = 39;
@@ -1017,6 +1081,28 @@ function initializeDropdowns(): void {
         localStorage.setItem('nd100x-emulator-type', emuTypeSelect!.value);
         location.reload();
       });
+    }
+  }
+
+  // Keyboard language dropdown (RetroTerm TDV only) - applies live, no reload.
+  var kbLangRow = document.getElementById('config-keyboard-language-row') as HTMLElement | null;
+  var kbLangSelect = document.getElementById('config-keyboard-language') as HTMLSelectElement | null;
+  if (kbLangRow && kbLangSelect) {
+    var kbEmuType = 'tdv2200';
+    try { kbEmuType = localStorage.getItem('nd100x-emulator-type') || 'tdv2200'; } catch(e) {}
+    if (isRetroTermBackend && kbEmuType !== 'vt100') {
+      kbLangRow.style.display = '';
+      var savedLang = 'no';
+      try { savedLang = localStorage.getItem('nd100x-keyboard-language') || 'no'; } catch(e) {}
+      kbLangSelect.value = savedLang;
+      applyKeyboardLanguage(savedLang);
+      kbLangSelect.addEventListener('change', function() {
+        try { localStorage.setItem('nd100x-keyboard-language', kbLangSelect!.value); } catch(e) {}
+        applyKeyboardLanguage(kbLangSelect!.value);
+      });
+    } else {
+      // VT100 or xterm: no national variant available
+      applyKeyboardLanguage('off');
     }
   }
 
