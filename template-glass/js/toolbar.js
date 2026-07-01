@@ -292,6 +292,12 @@ document.getElementById('menu-machine-info').addEventListener('click', function(
   document.querySelector('.toolbar-menu-container').classList.remove('open');
 });
 
+// View > Config - opens the same Config window as the taskbar cogwheel
+document.getElementById('menu-config').addEventListener('click', function() {
+  toggleGlassWindow('config-window');
+  document.querySelector('.toolbar-menu-container').classList.remove('open');
+});
+
 document.getElementById('menu-cpu-load-graph').addEventListener('click', function() {
   toggleGlassWindow('cpu-load-window');
   document.querySelector('.toolbar-menu-container').classList.remove('open');
@@ -389,6 +395,53 @@ document.getElementById('menu-sintran-help').addEventListener('click', function(
 document.getElementById('menu-about').addEventListener('click', function() {
   openWindow('about-window');
   document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+});
+
+// Help > PDF manuals. Native browser <iframe> rendering; the iframe src is
+// set lazily from data-src on first open so the PDF isn't fetched at page load.
+function openPdfWindow(windowId, frameId) {
+  var frame = document.getElementById(frameId);
+  if (frame && !frame.getAttribute('src')) {
+    var src = frame.getAttribute('data-src');
+    if (src) frame.setAttribute('src', encodeURI(src));
+  }
+  openWindow(windowId);
+  document.querySelectorAll('.toolbar-menu-container').forEach(function(c) { c.classList.remove('open'); });
+}
+
+document.getElementById('menu-pdf-handbok').addEventListener('click', function() {
+  openPdfWindow('pdf-handbok-window', 'pdf-handbok-frame');
+});
+
+document.getElementById('menu-pdf-supervisor').addEventListener('click', function() {
+  openPdfWindow('pdf-supervisor-window', 'pdf-supervisor-frame');
+});
+
+document.getElementById('pdf-handbok-close').addEventListener('click', function() {
+  closeWindow('pdf-handbok-window');
+});
+
+document.getElementById('pdf-supervisor-close').addEventListener('click', function() {
+  closeWindow('pdf-supervisor-window');
+});
+
+// Pop out a PDF into its own browser window (native full PDF viewer), then
+// close the inline glass window so it isn't shown in two places at once.
+function popOutPdfWindow(windowId, frameId, title) {
+  var frame = document.getElementById(frameId);
+  var src = frame ? frame.getAttribute('data-src') : null;
+  if (!src) return;
+  var win = window.open(encodeURI(src), title.replace(/\s+/g, '_'),
+    'width=900,height=760,menubar=no,toolbar=no,location=no,status=no');
+  if (win) closeWindow(windowId);
+}
+
+document.getElementById('pdf-handbok-popout').addEventListener('click', function() {
+  popOutPdfWindow('pdf-handbok-window', 'pdf-handbok-frame', 'Handbok');
+});
+
+document.getElementById('pdf-supervisor-popout').addEventListener('click', function() {
+  popOutPdfWindow('pdf-supervisor-window', 'pdf-supervisor-frame', 'System_Supervisor');
 });
 
 // About window close
@@ -1301,6 +1354,14 @@ document.getElementById('color-theme-select').addEventListener('change', functio
   var helpHeader = document.getElementById('help-window-header');
   if (helpWin && helpHeader) makeDraggable(helpWin, helpHeader, 'help-window-pos');
 
+  var pdfHbWin = document.getElementById('pdf-handbok-window');
+  var pdfHbHeader = document.getElementById('pdf-handbok-header');
+  if (pdfHbWin && pdfHbHeader) makeDraggable(pdfHbWin, pdfHbHeader, 'pdf-handbok-pos');
+
+  var pdfSuWin = document.getElementById('pdf-supervisor-window');
+  var pdfSuHeader = document.getElementById('pdf-supervisor-header');
+  if (pdfSuWin && pdfSuHeader) makeDraggable(pdfSuWin, pdfSuHeader, 'pdf-supervisor-pos');
+
   var floppyBrowserWin = document.getElementById('floppy-modal');
   var floppyBrowserHeader = document.getElementById('floppy-modal-header');
   if (floppyBrowserWin && floppyBrowserHeader) makeDraggable(floppyBrowserWin, floppyBrowserHeader, 'floppy-browser-pos');
@@ -1497,6 +1558,29 @@ makeResizable(
   'disasm-size', 350, 250
 );
 makeResizable(
+  document.getElementById('pdf-handbok-window'),
+  document.getElementById('pdf-handbok-resize'),
+  'pdf-handbok-size', 480, 360
+);
+makeResizable(
+  document.getElementById('pdf-supervisor-window'),
+  document.getElementById('pdf-supervisor-resize'),
+  'pdf-supervisor-size', 480, 360
+);
+// While dragging/resizing a PDF window, disable the iframe's pointer events so
+// the mousemove/mouseup reach the document (an iframe otherwise swallows them,
+// freezing the drag when the cursor passes over the PDF).
+['pdf-handbok', 'pdf-supervisor'].forEach(function(base) {
+  var frame = document.getElementById(base + '-frame');
+  var header = document.getElementById(base + '-header');
+  var handle = document.getElementById(base + '-resize');
+  function disableFrame() { if (frame) frame.style.pointerEvents = 'none'; }
+  function enableFrame() { if (frame) frame.style.pointerEvents = ''; }
+  if (header) header.addEventListener('mousedown', disableFrame);
+  if (handle) handle.addEventListener('mousedown', disableFrame);
+  document.addEventListener('mouseup', enableFrame);
+});
+makeResizable(
   document.getElementById('breakpoints-window'),
   document.getElementById('breakpoints-window-resize'),
   'breakpoints-size', 320, 250
@@ -1570,6 +1654,8 @@ windowManager.register('page-table-window', 'Page Tables');
 windowManager.register('config-window', 'Config');
 windowManager.register('smd-manager-window', 'SMD Manager');
 windowManager.register('gateway-stats-window', 'Gateway');
+windowManager.register('pdf-handbok-window', 'Håndbok');
+windowManager.register('pdf-supervisor-window', 'System Supervisor');
 
 // Restore window visibility from localStorage
 (function() {
@@ -1580,6 +1666,11 @@ windowManager.register('gateway-stats-window', 'Gateway');
       if (!win) continue;
       if (state[id]) {
         win.style.display = 'flex';
+        // Lazily load PDF iframes that were restored open
+        var frame = win.querySelector('iframe[data-src]');
+        if (frame && !frame.getAttribute('src')) {
+          frame.setAttribute('src', encodeURI(frame.getAttribute('data-src')));
+        }
       } else {
         win.style.display = 'none';
       }

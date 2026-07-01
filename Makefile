@@ -179,6 +179,7 @@ wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	@cp template/Logo_ND.png template/favicon.ico template/favicon.png $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template/floppies $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@cp -r template-glass/PDF $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in HTML files
 	@BUILD_TS=$$(date +%s); \

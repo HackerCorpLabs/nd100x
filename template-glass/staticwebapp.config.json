@@ -2,5 +2,8 @@
   "globalHeaders": {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "credentialless"
+  },
+  "mimeTypes": {
+    ".pdf": "application/pdf"
   }
 }

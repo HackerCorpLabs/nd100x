@@ -36,13 +36,15 @@ var MIME = {
   '.webm': 'video/webm',
   '.txt':  'text/plain; charset=utf-8',
   '.xml':  'text/xml; charset=utf-8',
+  '.pdf':  'application/pdf',
   '.data': 'application/octet-stream',
   '.bin':  'application/octet-stream',
 };
 
 // Don't compress already-compressed or tiny formats
 var NO_COMPRESS = new Set(['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.webp',
-  '.woff', '.woff2', '.mp3', '.ogg', '.mp4', '.webm', '.gz', '.zip', '.br']);
+  '.woff', '.woff2', '.mp3', '.ogg', '.mp4', '.webm', '.gz', '.zip', '.br',
+  '.pdf']);
 
 function serve(req, res) {
   var url = new URL(req.url, 'http://localhost');

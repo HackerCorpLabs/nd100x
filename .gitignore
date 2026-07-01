@@ -78,3 +78,6 @@ template-glass/js/terminal-core.js
 template-glass/js/terminal-manager.js
 template-glass/js/terminal-bridge.js
 template-glass/js/terminal-popout-app.js
+
+# Uploaded/vendored PDF manuals (large; kept out of git, served by build)
+template-glass/PDF/*.pdf
