@@ -490,6 +490,7 @@ int main(int argc, char *argv[])
     STARTADDR = config.startAddress;
     smd_debug_enabled = config.smdDebug;
     CPU_TRACE = config.traceEnabled;
+    BSD_DEBUG = config.bsdDebug;
     CPU_MAX_INSTR = config.maxInstructions;
     CPU_BREAKPOINT_ENABLED = config.breakpointEnabled;
     CPU_BREAKPOINT_ADDR = (ushort)config.breakpointAddr;

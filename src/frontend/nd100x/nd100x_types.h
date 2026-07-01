@@ -56,6 +56,7 @@ typedef struct {
     bool debuggerEnabled;
     int debuggerPort;
     bool smdDebug;
+    bool bsdDebug;
     bool traceEnabled;
     uint64_t maxInstructions;
     bool breakpointEnabled;

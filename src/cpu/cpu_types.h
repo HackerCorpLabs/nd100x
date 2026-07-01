@@ -480,6 +480,7 @@ extern ushort STARTADDR;
 extern int DISASM;
 extern int gCpuExitCode;
 extern int CPU_TRACE;
+extern int BSD_DEBUG;
 extern uint64_t CPU_MAX_INSTR;
 extern int CPU_BREAKPOINT_ENABLED;
 extern ushort CPU_BREAKPOINT_ADDR;

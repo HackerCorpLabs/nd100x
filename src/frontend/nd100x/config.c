@@ -42,6 +42,7 @@ static struct option long_options[] = {
     {"debugger",   no_argument,       0, 'd'},
     {"port",       required_argument, 0, 'p'},
     {"smd-debug",  no_argument,       0, 'S'},
+    {"bsd-debug",  no_argument,       0, 'G'},
     {"trace",      no_argument,       0, 't'},
     {"max-instr",  required_argument, 0, 'n'},
     {"breakpoint", required_argument, 0, 'B'},
@@ -77,6 +78,7 @@ void Config_Init(Config_t *config) {
     config->debuggerEnabled = false;
     config->debuggerPort = 4711;
     config->smdDebug = false;
+    config->bsdDebug = false;
     config->traceEnabled = false;
     config->maxInstructions = 0;
     config->breakpointEnabled = false;
@@ -251,7 +253,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:Stn:B:W:T:P:D:e:N::r:f:L:H:Z::R::O",
+    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:StGn:B:W:T:P:D:e:N::r:f:L:H:Z::R::O",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -394,6 +396,10 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->smdDebug = true;
                 break;
 
+            case 'G':
+                config->bsdDebug = true;
+                break;
+
             case 't':
                 config->traceEnabled = true;
                 break;
@@ -517,6 +523,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
+    printf("           --bsd-debug    Track BSD kernel-stack high-water (KSTKHW, stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");
     printf("  -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)\n");

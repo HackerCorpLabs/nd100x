@@ -122,6 +122,19 @@ ushort STARTADDR = 0;
 int DISASM = 0;
 int gCpuExitCode = 0;
 int CPU_TRACE = 0;
+
+/*
+ * BSD kernel-stack high-water tracking (--bsd-debug).
+ * The ND-100 2.11BSD port keeps the per-process kernel stack in a fixed
+ * virtual window: u-area base 0xE400 (0162000) .. KERN_STOP 0172000, and
+ * csav only allows frames >= 0164114.  When running kernel code (PIL >= 2),
+ * the B register is the current kernel frame pointer; its minimum value is
+ * the deepest frame reached = the stack high-water.  used = KERN_STOP - min.
+ */
+int BSD_DEBUG = 0;
+#define BSD_KSTK_BASE  0162000		/* u-area base (0xE400) */
+#define BSD_KSTK_TOP   0170000		/* KERN_STOP (0xF000, USIZE=3/KERN_SSIZE=1) */
+unsigned short bsd_kstk_min = BSD_KSTK_TOP;
 uint64_t CPU_MAX_INSTR = 0;
 int CPU_BREAKPOINT_ENABLED = 0;
 ushort CPU_BREAKPOINT_ADDR = 0;
@@ -545,6 +558,16 @@ void private_cpu_tick()
 			gA, gD, gT, gX, gB, gL, gPC,
 			gSTSr, gPIE, gPID, gIIE, gIID, gPGS,
 			STS_PONI, STS_IONI, STS_SEXI);
+	}
+
+	// BSD kernel-stack high-water: track deepest kernel frame pointer (B).
+	if (BSD_DEBUG && gPIL >= 2) {
+		unsigned short b = gB;
+		if (b >= BSD_KSTK_BASE && b < BSD_KSTK_TOP && b < bsd_kstk_min) {
+			bsd_kstk_min = b;
+			fprintf(stderr, "KSTKHW min=%06o used=%d\n",
+				bsd_kstk_min, BSD_KSTK_TOP - bsd_kstk_min);
+		}
 	}
 
 	// Check max instruction limit
