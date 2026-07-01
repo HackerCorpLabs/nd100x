@@ -146,6 +146,7 @@ function smdRefreshInstalledList() {
     html += '</select>';
     html += '<button class="smd-rename-btn" data-uuid="' + escapeHtml(uuid) + '" title="Rename">Rename</button>';
     html += '<button class="smd-export-btn" data-uuid="' + escapeHtml(uuid) + '" title="Export to local file">Export</button>';
+    html += '<button class="smd-ndfs-btn" data-uuid="' + escapeHtml(uuid) + '" title="Browse the ND filesystem">NDFS</button>';
     html += '<button class="smd-delete-btn" data-uuid="' + escapeHtml(uuid) + '" title="Delete">Del</button>';
     html += '</div>';
     html += '</div>';
@@ -171,6 +172,26 @@ function smdRefreshInstalledList() {
   });
 
   // Wire up export buttons
+  container.querySelectorAll('.smd-ndfs-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (typeof openNdfsViewer !== 'function') { alert('NDFS viewer not loaded'); return; }
+      var uuid = this.getAttribute('data-uuid');
+      var meta = smdStorage.getMetadata(uuid);
+      var self = this;
+      var orig = self.textContent;
+      self.disabled = true; self.textContent = '...';
+      smdStorage.retrieveImage(uuid).then(function(data) {
+        self.disabled = false; self.textContent = orig;
+        if (!data) { alert('No data for this image'); return; }
+        openNdfsViewer(new Uint8Array(data), meta ? meta.name : 'SMD image');
+      }).catch(function(err) {
+        self.disabled = false; self.textContent = orig;
+        alert('NDFS: ' + (err && err.message ? err.message : err));
+      });
+    });
+  });
+
   container.querySelectorAll('.smd-export-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       smdExportImage(this.getAttribute('data-uuid'));

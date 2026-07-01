@@ -262,6 +262,7 @@ function displayFloppyDetails(floppy) {
             <option value="1">Unit 1</option>
           </select>
           <button class="floppy-mount-button" data-floppy='${JSON.stringify(floppy)}'>Mount</button>
+          <button class="floppy-ndfs-button" data-floppy='${JSON.stringify(floppy)}' title="Browse the ND filesystem">NDFS</button>
         </div>
       </div>
       <h5>Directory Content:</h5>
@@ -278,6 +279,58 @@ function displayFloppyDetails(floppy) {
     mountFloppy();
   });
 
+  // Wire up NDFS browse button
+  var ndfsBtn = detailsContainer.querySelector('.floppy-ndfs-button');
+  if (ndfsBtn) ndfsBtn.addEventListener('click', function() { browseFloppyNdfs(); });
+
+}
+
+// Open the NDFS viewer for the selected catalog floppy. "Both" behaviour:
+// if this exact floppy is currently mounted on the chosen unit, browse the
+// in-memory image (no network); otherwise download the catalog image and
+// browse it without mounting.
+async function browseFloppyNdfs() {
+  var ndfsBtn = document.querySelector('.floppy-ndfs-button');
+  var driveSelect = document.getElementById('floppy-drive-select');
+  if (!ndfsBtn) return;
+  var unitNum = driveSelect ? parseInt(driveSelect.value) : 0;
+
+  var floppyData;
+  try { floppyData = JSON.parse(ndfsBtn.getAttribute('data-floppy')); }
+  catch (e) { return; }
+
+  if (typeof openNdfsViewer !== 'function') { alert('NDFS viewer not loaded'); return; }
+
+  var orig = ndfsBtn.textContent;
+  ndfsBtn.disabled = true;
+  try {
+    var bytes = null;
+
+    // Reuse the mounted image if it is this floppy on the chosen unit.
+    if (typeof driveRegistry !== 'undefined' && typeof emu !== 'undefined' && emu.fsAvailable()) {
+      var entry = driveRegistry.get('floppy', unitNum);
+      if (entry && entry.mounted && entry.name === floppyData.Name) {
+        try { bytes = emu.fsReadFile('/FLOPPY' + unitNum + '.IMG'); } catch (e) { bytes = null; }
+      }
+    }
+
+    // Otherwise download the catalog image (browse only, do not mount).
+    if (!bytes) {
+      ndfsBtn.textContent = 'Loading...';
+      var md5 = floppyData.Md5;
+      if (!md5) throw new Error('No MD5 hash for this floppy');
+      var resp = await fetch('https://hackercorp.blob.core.windows.net/upload/ndlib/images/' + md5 + '.img');
+      if (!resp.ok) throw new Error('Download failed: ' + resp.status + ' ' + resp.statusText);
+      bytes = new Uint8Array(await resp.arrayBuffer());
+    }
+
+    openNdfsViewer(bytes, floppyData.Name || 'Floppy');
+  } catch (err) {
+    alert('NDFS: ' + (err && err.message ? err.message : err));
+  } finally {
+    ndfsBtn.textContent = orig;
+    ndfsBtn.disabled = false;
+  }
 }
 
 async function mountFloppy() {
