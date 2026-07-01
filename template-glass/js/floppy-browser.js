@@ -61,16 +61,201 @@ document.getElementById('products-modal').addEventListener('click', function(e) 
 
 var floppyBrowserDefaultUnit = 0;
 
+// ---- Upload tab state (in-memory only; uploads are lost on reload) ----
+var uploadedFloppies = [];   // { id, name, fileName, size, hash, bytes, directoryContent }
+var uploadIdSeq = 1;
+var uploadUiInited = false;
+
 function openFloppyBrowser(defaultUnit) {
   if (typeof defaultUnit === 'number') floppyBrowserDefaultUnit = defaultUnit;
   var sel = document.getElementById('floppy-drive-select');
   if (sel) sel.value = String(floppyBrowserDefaultUnit);
   document.getElementById('floppy-modal').style.display = 'flex';
+  initFloppyUploadUI();
   loadFloppyDatabase();
 }
 
 function closeFloppyBrowser() {
   document.getElementById('floppy-modal').style.display = 'none';
+}
+
+// ============================================================
+// Upload tab: drop/pick .img -> validate NDFS -> auto-title -> mount
+// ============================================================
+
+function initFloppyUploadUI() {
+  if (uploadUiInited) return;
+  uploadUiInited = true;
+
+  var libBtn = document.getElementById('floppy-tab-btn-library');
+  var upBtn = document.getElementById('floppy-tab-btn-upload');
+  if (libBtn) libBtn.addEventListener('click', function() { switchFloppyTab('library'); });
+  if (upBtn) upBtn.addEventListener('click', function() { switchFloppyTab('upload'); });
+
+  var pick = document.getElementById('floppy-upload-pick');
+  var input = document.getElementById('floppy-upload-input');
+  if (pick && input) pick.addEventListener('click', function() { input.click(); });
+  if (input) input.addEventListener('change', function() {
+    handleFloppyUploadFiles(input.files);
+    input.value = '';
+  });
+
+  var dz = document.getElementById('floppy-drop-zone');
+  if (dz) {
+    ['dragenter', 'dragover'].forEach(function(ev) {
+      dz.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function(ev) {
+      dz.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover'); });
+    });
+    dz.addEventListener('drop', function(e) {
+      if (e.dataTransfer && e.dataTransfer.files) handleFloppyUploadFiles(e.dataTransfer.files);
+    });
+  }
+
+  renderUploadList();
+}
+
+function switchFloppyTab(name) {
+  var isUp = (name === 'upload');
+  var lib = document.getElementById('floppy-tab-library');
+  var up = document.getElementById('floppy-tab-upload');
+  var libBtn = document.getElementById('floppy-tab-btn-library');
+  var upBtn = document.getElementById('floppy-tab-btn-upload');
+  if (lib) lib.style.display = isUp ? 'none' : '';
+  if (up) up.style.display = isUp ? '' : 'none';
+  if (libBtn) libBtn.classList.toggle('active', !isUp);
+  if (upBtn) upBtn.classList.toggle('active', isUp);
+}
+
+function handleFloppyUploadFiles(files) {
+  if (!files || !files.length) return;
+  var file = files[0];
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    addUploadedFloppyImage(file.name, new Uint8Array(ev.target.result));
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Quick content hash for de-duplication (sampled djb2 + length).
+function hashFloppyBytes(b) {
+  var h = 5381;
+  var step = Math.max(1, Math.floor(b.length / 4096));
+  for (var i = 0; i < b.length; i += step) { h = (((h << 5) + h) + b[i]) >>> 0; }
+  return (h >>> 0).toString(16) + '-' + b.length;
+}
+
+function addUploadedFloppyImage(fileName, bytes) {
+  if (typeof NdfsLib === 'undefined' || !NdfsLib.NdfsFileSystem) {
+    alert('NDFS library not loaded.');
+    return;
+  }
+  // Validate strictly: a non-NDFS image is rejected.
+  var fs;
+  try {
+    fs = new NdfsLib.NdfsFileSystem(bytes, true);
+  } catch (err) {
+    alert('"' + fileName + '" is not a valid NDFS image:\n' + (err && err.message ? err.message : err));
+    return;
+  }
+
+  var hash = hashFloppyBytes(bytes);
+  var existing = uploadedFloppies.find(function(x) { return x.hash === hash; });
+  if (existing) {
+    switchFloppyTab('upload');
+    selectUploadedFloppy(existing.id);
+    return;
+  }
+
+  var volume = '';
+  try { volume = fs.getDirectoryName(); } catch (e) { volume = ''; }
+  if (!volume) volume = fileName.replace(/\.(img|IMG)$/, '');
+
+  var entry = {
+    id: uploadIdSeq++,
+    name: volume,
+    fileName: fileName,
+    size: bytes.length,
+    hash: hash,
+    bytes: bytes,
+    directoryContent: generateNdfsListing(fs)
+  };
+  uploadedFloppies.push(entry);
+  switchFloppyTab('upload');
+  renderUploadList();
+  selectUploadedFloppy(entry.id);
+}
+
+function fmtFloppySize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderUploadList() {
+  var list = document.getElementById('floppy-upload-list');
+  if (!list) return;
+  if (!uploadedFloppies.length) {
+    list.innerHTML = '<div class="no-selection" style="padding:14px">No uploaded floppies yet. Drop a valid NDFS <code>.img</code> above.</div>';
+    return;
+  }
+  list.innerHTML = uploadedFloppies.map(function(u) {
+    return '<div class="ndlib-floppy-item" data-upload-id="' + u.id + '">' +
+      '<div class="ndlib-floppy-name">' + escapeHtml(u.name) + '</div>' +
+      '<div class="ndlib-floppy-description">' + escapeHtml(u.fileName) + '</div>' +
+      '<div class="ndlib-product-badge">' + fmtFloppySize(u.size) + '</div></div>';
+  }).join('');
+  list.querySelectorAll('.ndlib-floppy-item').forEach(function(el) {
+    el.addEventListener('click', function() {
+      selectUploadedFloppy(el.getAttribute('data-upload-id'));
+    });
+  });
+}
+
+function selectUploadedFloppy(id) {
+  var u = uploadedFloppies.find(function(x) { return String(x.id) === String(id); });
+  if (!u) return;
+  var list = document.getElementById('floppy-upload-list');
+  if (list) {
+    list.querySelectorAll('.ndlib-floppy-item').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-upload-id') === String(u.id));
+    });
+  }
+  // Reuse the standard detail pane. __uploadId routes Mount/NDFS to the
+  // in-memory bytes instead of a catalog download.
+  displayFloppyDetails({
+    Name: u.name,
+    Description: 'Uploaded file: ' + u.fileName,
+    Md5: '(local upload)',
+    DirectoryContent: u.directoryContent,
+    __uploadId: u.id
+  });
+}
+
+// Build a SINTRAN-style directory listing from the parsed filesystem.
+function generateNdfsListing(fs) {
+  var lines = [];
+  function pad3(n) { n = String(n); return n.length >= 3 ? n : ('000' + n).slice(-3); }
+  try { lines.push('Directory name            : ' + (fs.getDirectoryName() || '')); } catch (e) {}
+  try {
+    var users = fs.getUsers();
+    lines.push('');
+    lines.push('Users:');
+    users.forEach(function(u) {
+      lines.push('[' + pad3(u.userIndex != null ? u.userIndex : '') + '] ' +
+        u.userName + '  - ' + u.pagesUsed + ' pages used, ' + u.pagesReserved + ' pages reserved');
+    });
+    var objs = fs.getObjectEntries();
+    lines.push('');
+    lines.push('Files:');
+    objs.forEach(function(oe) {
+      if (!oe || !oe.objectName) return;
+      lines.push('(' + oe.userName + ')' + oe.objectName + ':' + (oe.type || '') +
+        '  ' + (oe.pagesInFile || 0) + ' pages');
+    });
+  } catch (e) {}
+  return lines.join('\r\n');
 }
 
 async function loadFloppyDatabase() {
@@ -301,6 +486,13 @@ async function browseFloppyNdfs() {
 
   if (typeof openNdfsViewer !== 'function') { alert('NDFS viewer not loaded'); return; }
 
+  // Uploaded image: browse the in-memory bytes directly.
+  if (floppyData.__uploadId != null) {
+    var up = uploadedFloppies.find(function(x) { return String(x.id) === String(floppyData.__uploadId); });
+    if (up) openNdfsViewer(up.bytes, up.name);
+    return;
+  }
+
   var orig = ndfsBtn.textContent;
   ndfsBtn.disabled = true;
   try {
@@ -354,6 +546,33 @@ async function mountFloppy() {
   }
 
   console.log('Mounting floppy to FLOPPY-DISC-1 Unit ' + unitNum + ':', floppyData.Name);
+
+  // Uploaded image: mount directly from the in-memory bytes (no download).
+  if (floppyData.__uploadId != null) {
+    try {
+      var u = uploadedFloppies.find(function(x) { return String(x.id) === String(floppyData.__uploadId); });
+      if (!u) throw new Error('Uploaded image no longer available');
+      if (typeof emu === 'undefined' || !emu.fsAvailable()) throw new Error('Filesystem not ready');
+      var fn = '/FLOPPY' + unitNum + '.IMG';
+      emu.fsWriteFile(fn, u.bytes);
+      try { emu.fsChmod(fn, 0o666); } catch (e) {}
+      if (emu.remountFloppy(unitNum) !== 0) throw new Error('Failed to mount on unit ' + unitNum);
+      if (typeof driveRegistry !== 'undefined') {
+        driveRegistry.mount('floppy', unitNum, 'upload', u.name, u.fileName, u.bytes.byteLength);
+      }
+      if (progressContainer) {
+        progressContainer.style.display = 'block';
+        progressFill.style.width = '100%';
+        progressFill.style.backgroundColor = '#4CAF50';
+        progressText.textContent = 'Floppy mounted to Unit ' + unitNum + '!';
+      }
+    } catch (err) {
+      alert('Mount: ' + (err && err.message ? err.message : err));
+    }
+    mountButton.textContent = 'Mount';
+    mountButton.disabled = false;
+    return;
+  }
 
   try {
     progressContainer.style.display = 'block';

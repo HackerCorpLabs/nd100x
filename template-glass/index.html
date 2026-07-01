@@ -734,19 +734,36 @@
       </div>
       <div class="floppy-browser-main" id="floppy-browser-main" style="display: none;">
         <div class="floppy-browser-left">
-          <div class="floppy-search-section">
-            <div class="search-container">
-              <input type="text" id="floppy-search" placeholder="Search floppies, products, or directory content..." />
-              <button id="search-clear" class="search-clear" style="display: none;">Clear</button>
+          <div class="floppy-lib-tabs">
+            <button class="floppy-lib-tab active" id="floppy-tab-btn-library">Library</button>
+            <button class="floppy-lib-tab" id="floppy-tab-btn-upload">Upload</button>
+          </div>
+          <div id="floppy-tab-library" class="floppy-tab-pane">
+            <div class="floppy-search-section">
+              <div class="search-container">
+                <input type="text" id="floppy-search" placeholder="Search floppies, products, or directory content..." />
+                <button id="search-clear" class="search-clear" style="display: none;">Clear</button>
+              </div>
+              <div class="product-selection-controls">
+                <button id="select-product-btn" class="select-product-button">Select Product</button>
+                <button id="clear-product-btn" class="clear-product-button" style="display: none;">Clear Filter</button>
+              </div>
             </div>
-            <div class="product-selection-controls">
-              <button id="select-product-btn" class="select-product-button">Select Product</button>
-              <button id="clear-product-btn" class="clear-product-button" style="display: none;">Clear Filter</button>
+            <div class="floppy-list-section">
+              <div id="floppy-results-count" class="results-count"></div>
+              <div id="floppy-list" class="ndlib-floppy-list"></div>
             </div>
           </div>
-          <div class="floppy-list-section">
-            <div id="floppy-results-count" class="results-count"></div>
-            <div id="floppy-list" class="ndlib-floppy-list"></div>
+          <div id="floppy-tab-upload" class="floppy-tab-pane" style="display: none;">
+            <div id="floppy-drop-zone" class="floppy-drop-zone">
+              <p>Drop a <code>.img</code> floppy image here</p>
+              <button id="floppy-upload-pick" class="select-product-button">Choose file&hellip;</button>
+              <input type="file" id="floppy-upload-input" accept=".img,.IMG" style="display: none;">
+              <p class="floppy-drop-hint">Must be a valid NDFS image</p>
+            </div>
+            <div class="floppy-list-section">
+              <div id="floppy-upload-list" class="ndlib-floppy-list"></div>
+            </div>
           </div>
         </div>
         <div class="floppy-browser-right">
