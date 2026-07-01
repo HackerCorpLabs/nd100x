@@ -1685,3 +1685,19 @@ windowManager.register('pdf-supervisor-window', 'System Supervisor');
 setInterval(function() { windowManager.updateTaskbar(); }, 500);
 // Initial update
 windowManager.updateTaskbar();
+
+// Populate the toolbar version tag and the About window from version.js
+// (generated at build time from the CMake PROJECT_VERSION). When version.js is
+// absent - e.g. opening the template directly in dev - the UI shows "(dev)".
+(function() {
+  var ver = (typeof window.ND100X_VERSION === 'string') ? window.ND100X_VERSION : '';
+  var build = (typeof window.ND100X_BUILD === 'string') ? window.ND100X_BUILD : '';
+  var tv = document.getElementById('toolbar-version');
+  if (tv && ver) tv.textContent = '(v' + ver + ')';
+  var av = document.getElementById('about-version');
+  if (av) {
+    av.innerHTML = ver
+      ? ('Version ' + ver + (build ? ' · built ' + build : ''))
+      : 'Version (dev build)';
+  }
+})();

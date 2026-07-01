@@ -181,10 +181,16 @@ wasm-glass: check-deps mkptypes retroterm-build ts-compile
 	@cp docs/SINTRAN-Commands.html $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp -r template-glass/PDF $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
 	@cp SMD0.IMG $(BUILD_DIR_WASM_GLASS)/bin/ 2>/dev/null || true
+	@# Generate version.js so the Glass UI tracks the CMake project version.
+	@NDVER=$$(grep -oE 'project\(nd100x VERSION [0-9.]+' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'); \
+	NDBUILD=$$(date '+%Y-%m-%d %H:%M'); \
+	printf 'window.ND100X_VERSION="%s";\nwindow.ND100X_BUILD="%s";\n' "$$NDVER" "$$NDBUILD" > $(BUILD_DIR_WASM_GLASS)/bin/version.js; \
+	echo "Version: $$NDVER (built $$NDBUILD)"
 	@# Cache-bust: append ?v=TIMESTAMP to all local src/href in HTML files
 	@BUILD_TS=$$(date +%s); \
 	$(SED_INPLACE) \
 	  -e "s|src=\"js/|src=\"js/|g" \
+	  -e "s|src=\"version.js\"|src=\"version.js?v=$$BUILD_TS\"|g" \
 	  -e "s|src=\"nd100wasm.js\"|src=\"nd100wasm.js?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"css/styles.css\"|href=\"css/styles.css?v=$$BUILD_TS\"|g" \
 	  -e "s|href=\"css/themes.css\"|href=\"css/themes.css?v=$$BUILD_TS\"|g" \

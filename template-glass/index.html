@@ -12,6 +12,10 @@
      localStorage.getItem('nd100x-worker') === 'true');
   </script>
 
+  <!-- Build version/date, generated at build time from CMake PROJECT_VERSION.
+       Absent in dev (opening the template directly) -> UI shows "(dev)". -->
+  <script src="version.js"></script>
+
   <!-- Module config must load before nd100wasm.js -->
   <script src="js/module-init.js"></script>
 
@@ -142,7 +146,7 @@
     <div class="toolbar-left">
       <img src="Logo_ND.png" alt="ND Logo" class="toolbar-logo">
       <span class="toolbar-brand">Norsk Data ND-100 Emulator</span>
-      <span class="toolbar-version">(v1.0.7)</span>
+      <span class="toolbar-version" id="toolbar-version">(dev)</span>
     </div>
     <div class="toolbar-center">
       <!-- View dropdown -->
@@ -350,6 +354,7 @@
     <div class="glass-window-body">
       <img src="Logo_ND.png" alt="ND Logo" class="about-logo">
       <p class="about-title">nd100x</p>
+      <p class="about-version" id="about-version" style="font-size:12px;opacity:0.85;margin-top:2px;">Version&nbsp;&mdash;</p>
       <p class="about-description">
         Open-source ND-100 emulator with complete CPU opcode set, memory paging/protection, and emulated peripherals for running original software.
       </p>
