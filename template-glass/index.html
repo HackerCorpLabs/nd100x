@@ -418,6 +418,26 @@
   </div>
 
   <!-- =========================================
+       NDFS VIEWER WINDOW (hidden by default)
+       Read-only ND filesystem browser. Populated by js/ndfs-viewer.js
+       via openNdfsViewer(bytes, title).
+       ========================================= -->
+  <div id="ndfs-viewer-window" class="glass-window" style="display: none; width: 920px; height: 660px; top: 36px; left: 90px;">
+    <div class="glass-window-header" id="ndfs-viewer-header-bar">
+      <span class="glass-window-title" id="ndfs-viewer-title">NDFS Viewer</span>
+      <div class="glass-window-controls">
+        <button class="glass-window-close" id="ndfs-viewer-close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="glass-window-body" id="ndfs-viewer-body" style="padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column;"></div>
+    <div class="glass-resize-handle" id="ndfs-viewer-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/></svg>
+    </div>
+  </div>
+
+  <!-- =========================================
        CONFIG WINDOW (hidden by default)
        ========================================= -->
   <div id="config-window" class="glass-window" style="display: none;">
@@ -1411,6 +1431,7 @@
   <script src="js/emulation.js"></script>
   <script src="js/toolbar.js"></script>
   <script src="js/floppy-browser.js"></script>
+  <script src="js/ndfs-viewer.js"></script>
   <script src="js/help-window.js"></script>
   <script src="js/debugger.js"></script>
   <script src="js/disassembly.js"></script>

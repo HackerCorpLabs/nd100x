@@ -388,6 +388,81 @@ body {
   background: rgba(70, 130, 180, 0.45);
   color: #fff;
 }
+
+/* ---- NDFS viewer window ---- */
+.ndfs-viewer-header {
+  display: flex; gap: 18px; padding: 8px 14px; font-size: 12px;
+  color: rgba(200, 220, 225, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06); flex-shrink: 0;
+}
+.ndfs-viewer-header strong { color: rgba(150, 230, 210, 0.95); }
+.ndfs-viewer-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.ndfs-user-panel {
+  width: 190px; flex-shrink: 0; overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.06); padding: 6px;
+}
+.ndfs-user-panel h4 {
+  margin: 4px 6px 8px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: rgba(180, 200, 210, 0.6);
+}
+.ndfs-user-item {
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  color: rgba(210, 220, 235, 0.9); margin-bottom: 2px;
+}
+.ndfs-user-item:hover { background: rgba(255, 255, 255, 0.05); }
+.ndfs-user-active { background: rgba(70, 130, 180, 0.35); }
+.ndfs-user-count { color: rgba(180, 200, 210, 0.55); }
+.ndfs-user-pages { font-size: 10px; color: rgba(180, 200, 210, 0.45); }
+.ndfs-file-panel { flex: 1; min-width: 0; overflow: auto; }
+.ndfs-file-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ndfs-file-table thead th {
+  position: sticky; top: 0; background: rgba(18, 28, 38, 0.97); text-align: left;
+  padding: 6px 10px; font-weight: 600; color: rgba(180, 210, 215, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ndfs-file-table th.num, .ndfs-file-table td.num { text-align: right; }
+.ndfs-file-table td {
+  padding: 4px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: rgba(215, 225, 235, 0.9);
+}
+.ndfs-file-table tr { cursor: pointer; }
+.ndfs-file-table tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+.ndfs-file-selected { background: rgba(70, 130, 180, 0.35) !important; }
+.ndfs-file-table code { font-family: 'Fira Mono', monospace; font-size: 11px; }
+.ndfs-owner { color: rgba(120, 220, 205, 0.95); font-weight: 700; }
+.ndfs-file-table td.muted { color: rgba(180, 200, 210, 0.5); }
+.ndfs-file-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); flex-shrink: 0;
+}
+.ndfs-selected-label { font-size: 12px; color: rgba(200, 215, 225, 0.75); margin-right: auto; }
+.ndfs-btn {
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(210, 225, 235, 0.9); border-radius: 6px; padding: 4px 10px;
+  font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.ndfs-btn:hover:not(:disabled) { background: rgba(70, 130, 180, 0.4); color: #fff; }
+.ndfs-btn:disabled { opacity: 0.4; cursor: default; }
+.ndfs-file-content { padding: 0 12px 12px; overflow: auto; flex-shrink: 0; max-height: 42%; }
+.ndfs-file-content strong { font-size: 12px; color: rgba(190, 220, 220, 0.9); }
+.ndfs-hex-view, .ndfs-text-view {
+  font-family: 'Fira Mono', monospace; font-size: 11px; white-space: pre;
+  background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 8px; margin-top: 6px;
+  max-height: 260px; overflow: auto; color: rgba(210, 230, 220, 0.9);
+}
+.ndfs-text-view { white-space: pre-wrap; }
+.ndfs-trunc { font-size: 11px; color: rgba(180, 200, 210, 0.5); margin-top: 4px; }
+.ndfs-err { color: #ff9b9b; font-size: 12px; }
+.ndfs-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 2rem; color: rgba(200, 215, 225, 0.7);
+}
+.ndfs-spinner {
+  width: 28px; height: 28px; border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(120, 220, 205, 0.9); border-radius: 50%;
+  animation: ndfs-spin 0.8s linear infinite;
+}
+@keyframes ndfs-spin { to { transform: rotate(360deg); } }
 .glass-window-body {
   padding: 12px 14px;
   overflow-y: auto;
