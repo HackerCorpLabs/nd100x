@@ -145,6 +145,32 @@ data breakpoint `dataId` prefixes:
 Use `-W` to *reach* a deep hit at full speed, then attach DAP at the same
 address for source-level context once you know roughly where the problem is.
 
+### Pausing a freely-running CPU
+
+A DAP `pause` request stops the CPU on the next instruction boundary and emits a
+`stopped` event with `reason: pause`, after which `stackTrace` / `scopes` /
+`variables` work and you can read PC and registers. This works even when the CPU
+is spinning in a tight fault loop (e.g. a repeated trap-14 page fault during a
+kernel `startup()`), so you can pause into a hang instead of capturing a giant
+instruction trace.
+
+The pause request is polled on the emulated machine's own timebase (~200 ms of
+emulated time), not per host instruction, so latency scales with the configured
+CPU speed / throttle. The poll runs at the *top* of the CPU run loop, so a page
+fault or protection violation (which longjmp()s back to the top of the loop)
+cannot starve it — a fault-on-every-instruction loop still honours pause.
+
+Typical flow (over the MCP DAP bridge or any DAP client):
+
+```
+initialize -> attach/connect -> launch (stopOnEntry=false) -> run -> pause
+```
+
+After `pause` succeeds you get the `stopped`/`pause` event, then normal
+inspection. Note: `launch` with `stopOnEntry=false` leaves the CPU genuinely
+running (no `stopped` event until you pause or hit a breakpoint); `stopOnEntry=true`
+stops immediately with `reason: entry`.
+
 See also: `docs/DAP_INTEGRATION_GUIDE.md`, `docs/STEPPING_ANALYSIS.md`,
 `docs/MIXED_STEPPING_IMPLEMENTATION_GUIDE.md`.
 
