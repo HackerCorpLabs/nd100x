@@ -3555,6 +3555,12 @@ static int cmd_launch_callback(DAPServer *server)
         // Send thread started event
         dap_server_send_thread_event(server, "started", 1);
         set_cpu_run_mode(CPU_RUNNING);
+        // Keep libdap's view in sync with the CPU: attach set has_stopped=true,
+        // and only 'continue' clears it. Launching without stop-on-entry leaves
+        // the CPU genuinely running, so clear it here too -- otherwise a later
+        // 'pause' is rejected by handle_pause() as "Debugger already paused",
+        // surfacing to the client as a generic "Unknown error".
+        server->debugger_state.has_stopped = false;
     }
 
     return 0; // Return success to ensure the response is properly set

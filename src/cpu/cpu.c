@@ -794,6 +794,28 @@ int cpu_run(int ticks)
 	{
 		CPURunMode current_run_mode = get_cpu_run_mode();
 
+#ifdef WITH_DEBUGGER
+		// Async pause is human-latency, so poll it on the emulated machine's own
+		// timebase rather than per instruction or host wall-clock. 10550 instr is
+		// one ~20ms RTC period (deviceRTC.c TICKS_20MS); 10 periods ~= 200ms of
+		// emulated time. Running faster than real-time only shortens the wall-clock
+		// latency, never lengthens it, so this is robust to any throttle/"max" speed.
+		//
+		// This MUST live at the top of the loop, before private_cpu_tick(): a page
+		// fault / protection violation longjmp()s back to the setjmp() target above
+		// and re-enters the loop here, skipping the tail. A tight trap-14 page-fault
+		// loop faults on every tick, so a tail-of-loop poll would never be reached
+		// and pause would hang until it times out. Polling here is fault-loop-proof.
+		#define DBG_POLL_INSTR (10550 * 10)
+		if (gDebuggerEnabled && ++dbg_poll_ctr >= DBG_POLL_INSTR) {
+			dbg_poll_ctr = 0;
+			if (get_debugger_request_pause()) {
+				// return ASAP, let the caller handle the debugger request
+				return ticks;
+			}
+		}
+#endif
+
 
         
 		if (current_run_mode == CPU_RUNNING) // Including Normal and Paused (=debugger mode)
@@ -873,23 +895,7 @@ int cpu_run(int ticks)
 		{
  			break;  // Exit loop if we are in any other state.
 		}
-
-#ifdef WITH_DEBUGGER
-		// Async pause is human-latency, so poll it on the emulated machine's own
-		// timebase rather than per instruction or host wall-clock. 10550 instr is
-		// one ~20ms RTC period (deviceRTC.c TICKS_20MS); 10 periods ~= 200ms of
-		// emulated time. Running faster than real-time only shortens the wall-clock
-		// latency, never lengthens it, so this is robust to any throttle/"max" speed.
-		#define DBG_POLL_INSTR (10550 * 10)
-		if (gDebuggerEnabled && ++dbg_poll_ctr >= DBG_POLL_INSTR) {
-			dbg_poll_ctr = 0;
-			if (get_debugger_request_pause()) {
-				// return ASAP, let the caller handle the debugger request
-				return ticks;
-			}
-		}
-#endif
-	}	
+	}
 
 	return ticks;	
 }
