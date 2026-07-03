@@ -519,6 +519,35 @@ static bool is_procedure_return(uint16_t operand)
     return false;
 }
 
+/// @brief Trap-free debugger read of a DATA word, mirroring the CPU's own
+///        data mapping.
+///
+/// The plain ReadVirtualMemory() path routes through mapVirtualToPhysical ->
+/// checkPageProtection, which on an unmapped/protected address raises an
+/// emulated PF/MPV -> interrupt(14) -> longjmp(cpu_jmp_buf). Fired from inside
+/// a DAP command handler that longjmp tears out of the handler and trips the
+/// stack protector ("stack smashing detected"). These helpers use the trap-free
+/// Dbg_* accessors instead (they return -1 on a bad page and raise no trap).
+///
+/// mapVirtualToPhysical selects the alternative page table (D-space) only when
+/// (STS_PTM && UseAPT); the CPU accesses data with UseAPT=true. So a faithful
+/// data read is: split-I/D on -> D-space, otherwise the normal page table
+/// (which the I-space accessor selects). This matches ReadVirtualMemory(addr,
+/// true) in every mode, without the trap.
+static int dbg_read_data(uint16_t addr)
+{
+    return STS_PTM ? Dbg_ReadVirtualMemoryDSpace(addr)
+                   : Dbg_ReadVirtualMemoryISpace(addr);
+}
+
+static void dbg_write_data(uint16_t addr, uint16_t value)
+{
+    if (STS_PTM)
+        Dbg_WriteVirtualMemoryDSpace(addr, value);
+    else
+        Dbg_WriteVirtualMemoryISpace(addr, value);
+}
+
 /// @brief Get the target address of a JPL instruction
 /// @param pc Current program counter
 /// @param operand JPL instruction word
@@ -550,9 +579,9 @@ static uint16_t get_jpl_target_address(uint16_t pc, uint16_t operand)
     else
         ea = pc + displacement;  // P-relative
 
-    // Apply indirect: read target address from memory
+    // Apply indirect: read target address from memory (trap-free; see dbg_read_data)
     if (flag_i)
-        ea = ReadVirtualMemory(ea, false);
+        ea = dbg_read_data(ea);
 
     // Apply indexing: add X register
     if (flag_x)
@@ -940,7 +969,7 @@ int step_cpu(DAPServer *server, StepType step_type)
         // B[1] = return address to the function's caller.
         if (cret_sym && gPC >= cret_sym->address &&
             gPC < cret_sym->address + 8) {
-            return_addr = ReadVirtualMemory(gB + 1, false);
+            return_addr = dbg_read_data(gB + 1);
             snprintf(log_message, sizeof(log_message),
                     "Stepping out of cret to caller at %06o\n", return_addr);
             dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
@@ -971,8 +1000,13 @@ int step_cpu(DAPServer *server, StepType step_type)
                 symbol_function_t *fn = symbols_find_function_at(
                     symbol_tables.debug_info, gPC);
                 if (fn && fn->start_address != gPC) {
-                    uint16_t saved_ret = ReadVirtualMemory(gB + 1, false);
-                    uint16_t old_b = ReadVirtualMemory(gB, false);
+                    // Trap-free debugger reads (see dbg_read_data); preserve the
+                    // old "unmapped -> 0 -> skip" semantics so the heuristic below
+                    // is unchanged (dbg_read_data returns -1 on a bad page).
+                    int saved_ret_w = dbg_read_data(gB + 1);
+                    int old_b_w = dbg_read_data(gB);
+                    uint16_t saved_ret = (saved_ret_w < 0) ? 0 : (uint16_t)saved_ret_w;
+                    uint16_t old_b = (old_b_w < 0) ? 0 : (uint16_t)old_b_w;
                     // B-chain is valid if: B[0] != B (frame pointer changed),
                     // B[0] > B (old frame is higher in stack), and B[1]
                     // points to a different function than we're in now.
@@ -1457,7 +1491,9 @@ static void add_local_variables(DAPServer *server, char *info_message, size_t in
                 // Parameters: B + offset (positive offsets, e.g. B+2)
                 // Locals: B + offset (negative offsets, e.g. B-1)
                 uint16_t addr = (uint16_t)((int16_t)frame_b + vars[i].offset);
-                int word = ReadVirtualMemory(addr, false);
+                // Trap-free read (see dbg_read_data); returns -1 on a bad frame
+                // address, making the guard below live.
+                int word = dbg_read_data(addr);
 
                 if (word != -1)
                 {
@@ -2418,8 +2454,13 @@ static void rebuild_stack_from_b_chain(void)
 
     while (nframes < MAX_STACK_FRAMES && current_b != 0)
     {
-        int old_b_word = ReadVirtualMemory(current_b, false);
-        int ret_addr_word = ReadVirtualMemory(current_b + 1, false);
+        // Trap-free debugger reads (see dbg_read_data). A corrupted B-chain
+        // points at unmapped/protected pages; the plain ReadVirtualMemory() path
+        // would raise an emulated PF/MPV -> interrupt(14) -> longjmp(cpu_jmp_buf),
+        // tearing out of this DAP handler and tripping the stack protector.
+        // dbg_read_data returns -1 on a bad page, making the guard below fire.
+        int old_b_word = dbg_read_data(current_b);
+        int ret_addr_word = dbg_read_data(current_b + 1);
 
         if (old_b_word == -1 || ret_addr_word == -1)
             break;
@@ -3739,7 +3780,10 @@ static int cmd_set_variable(DAPServer *server)
             for (int i = 0; i < var_count; i++) {
                 if (strcmp(vars[i].name, name) == 0) {
                     uint16_t addr = gB + vars[i].offset;
-                    WriteVirtualMemory(addr, word, false, WRITEMODE_WORD);
+                    // Trap-free debugger write (see dbg_write_data): a plain
+                    // WriteVirtualMemory() would raise an emulated MPV/PF and
+                    // longjmp() out of this DAP handler on a bad address.
+                    dbg_write_data(addr, word);
                     char buf[16];
                     snprintf(buf, sizeof(buf), "%06o", word);
                     server->current_command.context.set_variable.new_value = strdup(buf);
