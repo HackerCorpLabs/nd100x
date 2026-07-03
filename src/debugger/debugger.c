@@ -2408,6 +2408,37 @@ void update_stack_frame(DAPServer *server, int frame_index, int frame_id, uint16
     frame->instruction_pointer_reference = memory_reference;
 }
 
+/// @brief Floor line-table lookup constrained to a function's [lo,hi] range.
+///
+/// Mirrors libsymbols' find_source_entry (highest LINE entry whose address is
+/// <= addr) but rejects any entry outside [lo,hi]. Used for stackTrace frame
+/// attribution so a PC sitting in a gap between functions is not labelled with
+/// an adjacent compilation unit's file/line (the line table is global; a plain
+/// nearest-match bleeds across object boundaries). Returns NULL if no LINE
+/// entry of this function precedes addr.
+static const symbol_entry_t *
+frame_line_entry_in_range(const symbol_table_t *t, uint16_t addr,
+                          uint16_t lo, uint16_t hi)
+{
+    if (!t)
+        return NULL;
+    const symbol_entry_t *floor = NULL;
+    for (size_t i = 0; i < t->count; i++)
+    {
+        const symbol_entry_t *e = &t->entries[i];
+        if (e->type != SYMBOL_TYPE_LINE)
+            continue;
+        if (e->address > addr)          // only entries at/below the query PC
+            continue;
+        if (e->address < lo || e->address > hi)  // must belong to this function
+            continue;
+        if (!floor || e->address > floor->address ||
+            (e->address == floor->address && e->line > floor->line))
+            floor = e;
+    }
+    return floor;
+}
+
 /**
  * @brief Walk the B-register chain to build a C-level call stack.
  *
@@ -2684,26 +2715,56 @@ static int cmd_stack_trace(DAPServer *server)
         }
         */
 
-        // Get source location information - try multiple symbol tables
+        // Get source location information.
         int line = 0;
         const char *file = NULL;
-        
-        // Try MAP file first (most reliable for assembly)
-        if (symbol_tables.symbol_table_map) {
-            line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
-            file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+
+        // If we have C debug info, resolve the file/line WITHIN the containing
+        // function's address range. The line table is global, so a plain
+        // nearest-match attributes a PC in an inter-function gap (or a garbage
+        // frame from a corrupted stack) to an adjacent unit's file/line. Bound
+        // it to [start_address, end_address] to keep frame attribution honest.
+        symbol_function_t *lfn = symbol_tables.debug_info ?
+            symbols_find_function_at(symbol_tables.debug_info, memory_reference) :
+            NULL;
+
+        if (symbol_tables.debug_info && !lfn)
+        {
+            // C debug info present, but this PC is outside every known C
+            // function (garbage / assembly-rooted frame): leave source blank
+            // rather than mislabel it with a neighbouring symbol's line.
         }
-        
-        // Try STABS if MAP didn't work
-        if ((!line || !file) && symbol_tables.symbol_table_stabs) {
-            line = symbols_get_line(symbol_tables.symbol_table_stabs, memory_reference);
-            file = symbols_get_file(symbol_tables.symbol_table_stabs, memory_reference);
+        else if (lfn)
+        {
+            const symbol_table_t *tbls[3] = {
+                symbol_tables.symbol_table_stabs,   // C line entries live here
+                symbol_tables.symbol_table_map,
+                symbol_tables.symbol_table_aout,
+            };
+            for (int t = 0; t < 3 && (!line || !file); t++)
+            {
+                const symbol_entry_t *e = frame_line_entry_in_range(
+                    tbls[t], memory_reference,
+                    lfn->start_address, lfn->end_address);
+                if (e) { line = e->line; file = e->filename; }
+            }
         }
-        
-        // Try AOUT as last resort
-        if ((!line || !file) && symbol_tables.symbol_table_aout) {
-            line = symbols_get_line(symbol_tables.symbol_table_aout, memory_reference);
-            file = symbols_get_file(symbol_tables.symbol_table_aout, memory_reference);
+        else
+        {
+            // No C debug info (assembly / SINTRAN): original nearest-match
+            // across MAP -> STABS -> AOUT.
+            if (symbol_tables.symbol_table_map) {
+                line = symbols_get_line(symbol_tables.symbol_table_map, memory_reference);
+                file = symbols_get_file(symbol_tables.symbol_table_map, memory_reference);
+            }
+            if ((!line || !file) && symbol_tables.symbol_table_stabs) {
+                line = symbols_get_line(symbol_tables.symbol_table_stabs, memory_reference);
+                file = symbols_get_file(symbol_tables.symbol_table_stabs, memory_reference);
+            }
+            if ((!line || !file) && symbol_tables.symbol_table_aout) {
+                line = symbols_get_line(symbol_tables.symbol_table_aout, memory_reference);
+                file = symbols_get_file(symbol_tables.symbol_table_aout, memory_reference);
+            }
         }
 
         if (line > 0 && file)
