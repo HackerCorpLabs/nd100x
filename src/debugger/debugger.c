@@ -801,6 +801,29 @@ int step_cpu(DAPServer *server, StepType step_type)
             }
         }
 
+        // Guard: symbols_get_next_line_address() matches the next line entry by
+        // FILENAME only, unbounded across the global line table. In an overlaid
+        // kernel a file has line entries at several disjoint address ranges, so
+        // the "next line" can resolve to a different overlay copy of the same
+        // file far from here (observed: step_over jumping into a monitor/overlay
+        // routine). If the target leaves the current C function's range, don't
+        // trust it -- fall back to a single instruction step.
+        if (stepping_to_line && target_pc != 0 && symbol_tables.debug_info)
+        {
+            symbol_function_t *cur_fn = symbols_find_function_at(
+                symbol_tables.debug_info, current_pc);
+            if (cur_fn &&
+                (target_pc < cur_fn->start_address || target_pc > cur_fn->end_address))
+            {
+                snprintf(log_message, sizeof(log_message),
+                        "Next-line target %06o left function [%06o..%06o]; single-stepping instead\n",
+                        target_pc, cur_fn->start_address, cur_fn->end_address);
+                dap_server_send_output_category(server, DAP_OUTPUT_CONSOLE, log_message);
+                stepping_to_line = false;
+                target_pc = 0;
+            }
+        }
+
         // Set a temporary breakpoint at the target address if we're stepping to a line
         if (stepping_to_line && target_pc != 0 && target_pc != current_pc)
         {
