@@ -247,7 +247,9 @@ typedef struct {
 
     // DMA state
     uint16_t dmaAddress;
-    uint8_t dmaBankBits;        // 4 bits for bank select (bits 16-19 of physical address)
+    uint8_t dmaBankBits;        // 4 bits for bank select (bits 16-19 of physical address); bank DMA_Address currently resolves through
+    uint8_t rxBankBits;         // bank last latched by a RECEIVER command; kept separate from TX so a transmitter bank can never leak into a receiver command
+    uint8_t txBankBits;         // bank last latched by a TRANSMITTER command; the bank XSSDATA (D=0) reuses from a preceding XSSND on the transmit channel
     uint8_t dmaCommand;
     HDLCDMATxState txState;
     HDLCDMABlockState blockState;

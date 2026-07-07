@@ -210,6 +210,8 @@ static void HDLC_Reset(Device *self)
     // Reset DMA state
     data->dmaAddress = 0;
     data->dmaBankBits = 0;
+    data->rxBankBits = 0;
+    data->txBankBits = 0;
     data->dmaCommand = 0;
     data->txState = HDLC_DMA_TX_STOPPED;
     data->blockState = HDLC_DMA_BLOCK_IDLE;
@@ -470,11 +472,33 @@ static void HDLC_Write(Device *self, uint32_t address, uint16_t value)
             data->dmaCommand = (value >> 8) & 0x07;
             {
                 uint8_t newBank = (uint8_t)(value & 0x0F);
-                // Bank=0 means "use the latched bank" (e.g. XSSDATA sets D=0).
-                // Bank>0 means "use this bank and latch it" (e.g. INITIALIZE bank=1,
-                // or XSSND passing XMSG-provided bank bits in D).
-                if (newBank != 0) {
-                    data->dmaBankBits = newBank;
+                // Bank bits ride in this IOX+17 word with the command, paired with the low
+                // address written at IOX+15. D>0 latches the carried bank for that channel;
+                // D=0 reuses the bank last latched for the SAME channel (XSSDATA sets D=0 to
+                // reuse the bank a preceding XSSND put on the transmit channel).
+                //
+                // Keep the transmit and receive banks SEPARATE so a transmitter bank can
+                // never bleed into a receiver command. This was the SINTRAN K li-route
+                // crash: TRANSMITTER_START latched bank 4, then RECEIVER_START arrived with
+                // D=0; the old single shared latch reused 4, so the RX descriptor list was
+                // read from bank 4 (garbage at 0x04A30E) instead of bank 0 (0x00A30E) and the
+                // reply frame was DMA'd to an unmapped address -> crash on -C:li-rout.
+                switch (data->dmaCommand) {
+                    case DMA_CMD_RECEIVER_START:
+                    case DMA_CMD_RECEIVER_CONTINUE:
+                        if (newBank != 0) data->rxBankBits = newBank;
+                        data->dmaBankBits = data->rxBankBits;
+                        break;
+                    case DMA_CMD_TRANSMITTER_START:
+                        if (newBank != 0) data->txBankBits = newBank;
+                        data->dmaBankBits = data->txBankBits;
+                        break;
+                    default:
+                        // INITIALIZE / DUMP / LOAD / DEVICE_CLEAR: use the carried bank,
+                        // falling back to the last resolved bank when D=0 (INITIALIZE
+                        // carries bank=1). Unchanged from before.
+                        if (newBank != 0) data->dmaBankBits = newBank;
+                        break;
                 }
             }
 #ifdef HDLC_DEBUG
