@@ -1005,6 +1005,51 @@ onmessage = function(e) {
       break;
     }
 
+    case 'disassembleWords': {
+      if (!Module._Dbg_LoadInspectBuffer || !Module._Dbg_DisassembleFromBuffer) {
+        postMessage({ type: 'disassembleWordsResult', id: msg.id,
+                      error: 'WASM disassembler not exported (rebuild?)' });
+        break;
+      }
+      var dwWords = new Uint16Array(msg.words);
+      var dwPtr = Module._malloc(dwWords.byteLength);
+      if (!dwPtr) {
+        postMessage({ type: 'disassembleWordsResult', id: msg.id,
+                      error: 'malloc(' + dwWords.byteLength + ') failed' });
+        break;
+      }
+      Module.HEAPU8.set(new Uint8Array(msg.words), dwPtr);
+      Module._Dbg_LoadInspectBuffer(dwPtr, dwWords.length, msg.baseAddr);
+      Module._free(dwPtr);
+      var dwText = Module.UTF8ToString(Module._Dbg_DisassembleFromBuffer(0, dwWords.length));
+      postMessage({ type: 'disassembleWordsResult', id: msg.id, value: dwText });
+      break;
+    }
+
+    case 'readSMDSectors': {
+      var smdErr = null;
+      var smdBuf = null;
+      if (!Module._Dbg_ReadSMDSectors) {
+        smdErr = 'WASM Dbg_ReadSMDSectors not exported (rebuild?)';
+      } else if (msg.count <= 0 || msg.count > 256) {
+        smdErr = 'count=' + msg.count + ' out of range [1,256]';
+      } else {
+        var smdPtr = Module._Dbg_ReadSMDSectors(msg.unit, msg.lba, msg.count);
+        if (!smdPtr) {
+          smdErr = 'Dbg_ReadSMDSectors returned 0 (unit=' + msg.unit + ' lba=' + msg.lba +
+                   ' count=' + msg.count + ' — drive not mounted? read past end?)';
+        } else {
+          smdBuf = new Uint8Array(Module.HEAPU8.buffer, smdPtr, msg.count * 1024).slice().buffer;
+        }
+      }
+      if (smdErr) {
+        postMessage({ type: 'readSMDSectorsResult', id: msg.id, error: smdErr });
+      } else {
+        postMessage({ type: 'readSMDSectorsResult', id: msg.id, data: smdBuf }, [smdBuf]);
+      }
+      break;
+    }
+
     case 'readPhysicalMemory': {
       var pval = Module._Dbg_ReadPhysicalMemory(msg.addr);
       postMessage({ type: 'readPhysicalMemoryResult', id: msg.id, value: pval });

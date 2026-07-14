@@ -171,6 +171,26 @@
       case 'readMemoryBlockResult':
         resolveRequest(msg.id, msg.values);
         break;
+      case 'disassembleWordsResult':
+        if (msg.error) {
+          if (_pending[msg.id]) {
+            _pending[msg.id].reject(new Error(msg.error));
+            delete _pending[msg.id];
+          }
+        } else {
+          resolveRequest(msg.id, msg.value);
+        }
+        break;
+      case 'readSMDSectorsResult':
+        if (msg.error) {
+          if (_pending[msg.id]) {
+            _pending[msg.id].reject(new Error(msg.error));
+            delete _pending[msg.id];
+          }
+        } else {
+          resolveRequest(msg.id, new Uint8Array(msg.data));
+        }
+        break;
       case 'readPhysicalMemoryResult':
         resolveRequest(msg.id, msg.value);
         break;
@@ -682,10 +702,21 @@
     },
     getSMDBuffer: function(unit) { return 0; },
     getSMDBufferSize: function(unit) { return 0; },
+    // Mode-independent sector read. Resolves with a copy (count*1024 bytes)
+    // transferred from the worker heap.
+    readSMDSectorsAsync: function(unit, lba, count) {
+      return postRequest('readSMDSectors', { unit: unit, lba: lba, count: count });
+    },
 
     // --- Segment disassembler buffer (not available in Worker mode) ---
     loadInspectBuffer: function() { console.warn('loadInspectBuffer not available in Worker mode'); },
     disassembleFromBuffer: function() { return ''; },
+    // Mode-independent: disassemble a Uint16Array of words at `baseAddr`.
+    // The words are copied (not transferred) so the caller keeps its buffer.
+    disassembleWordsAsync: function(words, baseAddr) {
+      var copy = new Uint16Array(words).buffer;
+      return postTransfer('disassembleWords', { words: copy, baseAddr: baseAddr }, [copy]);
+    },
     getHEAPU8: function() { return null; },
 
     // --- Gateway disk mount/unmount ---

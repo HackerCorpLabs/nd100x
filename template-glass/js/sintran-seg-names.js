@@ -5,141 +5,127 @@
 // Emulating yesterday's technology with today's code
 //
 
-// sintran-seg-names.js - System segment name lookup table
-// Source: sintran-system-segments.json (SINTRAN III Release Information)
-// System segments 2-93 (002-135 octal)
-// User segments (136-255) have no system names - identified by RT cross-reference only.
-// Segment 1 (5BCOM) and 65 (SDNAM) are NPL symbols only, not SEGFIL names.
+// sintran-seg-names.js - System segment name lookup, version-keyed
+//
+// Segment table entries carry no name field, and the S3xxx names are
+// NOT in any linker symbol table (verified by grep of all K03/L07/M06
+// SYMBOL/RTLO/FILSYS/N500/XMSG lists). At runtime they exist only in
+// the RT-loader's packed PSGNA table, mapped while the RT-loader runs.
+//
+// The clean source is therefore a per-version segment-number -> name
+// map captured from a real "@RT-LOADER LIST-SEGMENT" run, shipped
+// under data/segment-names/{K03,L07,M06}/list-segment.txt and selected
+// by the version letter read from SINVER0 in memory.
+// File format: "# comment" lines, then " NAME  NNN" (number in OCTAL).
+//
+// (Optional future path: decode the live PSGNA packed-name table for
+// fully-dynamic names, including user/spooler segments.)
 
 (function() {
   'use strict';
 
-  // Segment number (decimal) -> { name, description, category }
-  var SYSTEM_SEGMENTS = {
-    1:   { name: null,         desc: 'Base common code (NPL symbol 5BCOM, not in SEGFIL table)', cat: 'kernel' },
-    2:   { name: 'S3IMAGE',   desc: 'Image of common code, start/restart', cat: 'image' },
-    3:   { name: 'S3CP',      desc: 'Command processor - SINTRAN command interpretation', cat: 'active' },
-    4:   { name: 'S3RTL',     desc: 'RT-Loader - loads and manages RT programs', cat: 'active' },
-    5:   { name: 'S3ERRS',    desc: 'Error/PIT segment', cat: 'kernel' },
-    6:   { name: 'S3FS',      desc: 'File system - disk I/O and file management', cat: 'active' },
-    7:   { name: 'S3DMAC',    desc: 'DMAC (Direct Memory Access Controller)', cat: 'active' },
-    8:   { name: 'S3RTFIL',   desc: 'Runtime file operations', cat: 'active' },
-    9:   { name: 'S3ERRL',    desc: 'Error log - system error records', cat: 'data' },
-    10:  { name: 'S3SFS',     desc: 'Save of file system', cat: 'save' },
-    11:  { name: 'S3SCP',     desc: 'Save of command processor', cat: 'save' },
-    12:  { name: 'S3ERRP',    desc: 'Error program - error handling code', cat: 'active' },
-    13:  { name: 'S3BFLY',    desc: 'Reserved for Butterfly (unused)', cat: 'reserved' },
-    14:  { name: 'S3SRPIT',   desc: 'Save of RPIT', cat: 'save' },
-    15:  { name: 'S3SMPIT',   desc: 'Save of MPIT', cat: 'save' },
-    16:  { name: 'S3SDT5',    desc: 'ND-500/5000 standard domains', cat: 'nd500' },
-    17:  { name: 'S3NM5',     desc: 'ND-500/5000 name-tables', cat: 'nd500' },
-    18:  { name: 'S3RFAC',    desc: 'Remote file access (FIU)', cat: 'active' },
-    19:  { name: 'S3DPIT',    desc: 'DPIT - Data Page Index Table, maps kernel data', cat: 'kernel' },
-    20:  { name: 'S3SGST',    desc: 'Save of segment table', cat: 'save' },
-    21:  { name: 'S3IRPIT',   desc: 'Image of RPIT', cat: 'image' },
-    22:  { name: 'S3IMPIT',   desc: 'Image of MPIT', cat: 'image' },
-    23:  { name: 'S3ISGT',    desc: 'Image of segment table', cat: 'image' },
-    24:  { name: 'S3SM5',     desc: 'ND-500/5000 System Monitor', cat: 'nd500' },
-    25:  { name: 'S3SSPD',    desc: 'Save of spooling data fields', cat: 'save' },
-    29:  { name: 'S3MPIT',    desc: 'MPIT - Monitor Page Index Table, maps monitor code', cat: 'kernel' },
-    30:  { name: 'S3TAD',     desc: 'Terminal administration', cat: 'active' },
-    31:  { name: 'S3RTD',     desc: 'RT-Loader data', cat: 'data' },
-    32:  { name: 'S3FUDRT',   desc: 'File user data for RT programs', cat: 'data' },
-    33:  { name: 'S3IMED',    desc: 'Image of edit routines', cat: 'image' },
-    34:  { name: 'S3ED',      desc: 'Edit routines - command line editor', cat: 'active' },
-    35:  { name: 'S3PATCH',   desc: 'Live system patches', cat: 'system' },
-    36:  { name: 'S3IDPIT',   desc: 'Image of DPIT', cat: 'image' },
-    37:  { name: 'S3ISYS',    desc: 'Image of system segment', cat: 'image' },
-    38:  { name: 'S3S5PIT',   desc: 'Save of 5PIT', cat: 'save' },
-    39:  { name: 'S3RPIT',    desc: 'RPIT - Runtime PIT, maps RT program code', cat: 'kernel' },
-    40:  { name: 'S3IS5PIT',  desc: 'Image of 5PIT', cat: 'image' },
-    41:  { name: 'S35PIT',    desc: '5PIT - secondary PIT for ND-500 operations', cat: 'kernel' },
-    42:  { name: 'S3SAVE',    desc: 'Save of common code and start/restart', cat: 'save' },
-    43:  { name: 'S3SDPIT',   desc: 'Save of DPIT', cat: 'save' },
-    44:  { name: 'S3SSYS',    desc: 'Save of system segment', cat: 'save' },
-    45:  { name: 'S3SERRP',   desc: 'Save of error program', cat: 'save' },
-    46:  { name: 'S3SRTC',    desc: 'Save of RT-Loader code', cat: 'save' },
-    47:  { name: 'S3SRTD',    desc: 'Save of RT-Loader data', cat: 'save' },
-    48:  { name: 'S3SECOM',   desc: 'Save of extended common', cat: 'save' },
-    49:  { name: 'S3IECOM',   desc: 'Image of extended common', cat: 'image' },
-    50:  { name: 'S3SSM5',    desc: 'Save of ND-500 System Monitor', cat: 'save' },
-    51:  { name: 'S3MEMTF',   desc: 'Memory configuration flag', cat: 'system' },
-    52:  { name: 'S3ECOM',    desc: 'Extended common - additional shared kernel code', cat: 'kernel' },
-    53:  { name: 'S3SIPIT',   desc: 'Save of IPIT', cat: 'save' },
-    54:  { name: 'S3IIPIT',   desc: 'Image of IPIT', cat: 'image' },
-    55:  { name: 'S3IPIT',    desc: 'IPIT - Interrupt PIT, maps I/O and interrupt code', cat: 'kernel' },
-    56:  { name: 'S3SSM',     desc: 'Save of service/mail segment', cat: 'save' },
-    57:  { name: 'S3SM',      desc: 'Service/mail - inter-process messaging', cat: 'active' },
-    58:  { name: 'S3SDMWD',   desc: 'Save of disk mirroring watchdog', cat: 'save' },
-    59:  { name: 'S3IDMWD',   desc: 'Image of disk mirroring watchdog', cat: 'image' },
-    60:  { name: 'S3SXMK',    desc: 'Save of XMSG kernel', cat: 'save' },
-    61:  { name: 'S3SXROU',   desc: 'Save of XMSG routing', cat: 'save' },
-    62:  { name: 'S3XMK',     desc: 'XMSG kernel - cross-machine message passing', cat: 'active' },
-    63:  { name: 'S3XROU',    desc: 'XMSG routing code', cat: 'active' },
-    64:  { name: 'S3SDNAM',   desc: 'Save of device-name table', cat: 'save' },
-    65:  { name: null,         desc: 'Device-name table (NPL symbol SDNAM, not actual SEGFIL name)', cat: 'active' },
-    66:  { name: 'S3SXMFI',   desc: 'Save of XMSG watchdog', cat: 'save' },
-    67:  { name: 'S3XMFI',    desc: 'XMSG watchdog - monitors XMSG health', cat: 'active' },
-    68:  { name: 'S3SNKSE',   desc: 'Save of NUCLEUS server', cat: 'save' },
-    69:  { name: 'S3INKSE',   desc: 'Image of NUCLEUS server', cat: 'image' },
-    70:  { name: 'S3SNKNA',   desc: 'Save of NUCLEUS name server', cat: 'save' },
-    71:  { name: 'S3INKNA',   desc: 'Image of NUCLEUS name server', cat: 'image' },
-    72:  { name: 'S3SU110',   desc: 'Save of ND-110 Microprogram', cat: 'save' },
-    73:  { name: 'S3IU110',   desc: 'Image of ND-110 Microprogram', cat: 'image' },
-    74:  { name: 'S3SU120',   desc: 'Save of ND-120 Microprogram', cat: 'save' },
-    75:  { name: 'S3IU120',   desc: 'Image of ND-120 Microprogram', cat: 'image' },
-    76:  { name: 'S3SERWC',   desc: 'Save of ERS Watchdog code', cat: 'save' },
-    77:  { name: 'S3IERWC',   desc: 'Image of ERS Watchdog code', cat: 'image' },
-    78:  { name: 'S3SERWD',   desc: 'Save of ERS Watchdog data', cat: 'save' },
-    79:  { name: 'S3IERWD',   desc: 'Image of ERS Watchdog data', cat: 'image' },
-    80:  { name: 'S3SPPRMA',  desc: 'Save of Processor Manager server', cat: 'save' },
-    81:  { name: 'S3IPRMA',   desc: 'Image of Processor Manager server', cat: 'image' },
-    82:  { name: 'S3SPWRS',   desc: 'Save of PFTCON server', cat: 'save' },
-    83:  { name: 'S3IPWRS',   desc: 'Image of PFTCON server', cat: 'image' },
-    84:  { name: 'S3SBOPC',   desc: 'Save of BOPCOM Server', cat: 'save' },
-    85:  { name: 'S3IBOPC',   desc: 'Image of BOPCOM Server', cat: 'image' },
-    86:  { name: 'S3SMTSE',   desc: 'Save of Magnetic Tape server', cat: 'save' },
-    87:  { name: 'S3IMTSE',   desc: 'Image of Magnetic Tape server', cat: 'image' },
-    88:  { name: 'S3SHDM',    desc: 'Save of HDLC-DMAC', cat: 'save' },
-    89:  { name: 'S3IHDM',    desc: 'Image of HDLC-DMAC', cat: 'image' },
-    90:  { name: 'S3SFAC',    desc: 'Save of remote file access', cat: 'save' },
-    91:  { name: 'S3IFAC',    desc: 'Image of remote file access', cat: 'image' },
-    92:  { name: 'S3SNKDAT',  desc: 'Save of NUCLEUS data', cat: 'save' },
-    93:  { name: 'S3INKDAT',  desc: 'Image of NUCLEUS data', cat: 'image' }
-    // Spooler segments (256+/400+ octal) removed - no verified SEGFIL names available
-  };
+  var VERSION_DIRS = { K: 'K03', L: 'L07', M: 'M06' };
 
-  var CATEGORY_LABELS = {
-    kernel:   'Kernel',
-    active:   'Active',
-    save:     'Save copy',
-    image:    'Image copy',
-    data:     'Data',
-    nd500:    'ND-500',
-    system:   'System',
-    reserved: 'Reserved'
-  };
+  // { letter: { segNum(decimal): name } }
+  var nameMaps = {};
+  var nameMapLoads = {};
 
-  // Resolve segment number to name, or empty string
+  // Parse "@RT-LOADER LIST-SEGMENT" output: " NAME  NNN" with NNN octal.
+  // A segment number can appear twice (e.g. L07 lists both S3XMSGP and
+  // S3XMK as 76); keep all names joined with '/'.
+  function parseListSegment(text) {
+    var map = {};
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line === '' || line.charAt(0) === '#') continue;
+      var m = line.match(/^(\S+)\s+([0-7]+)$/);
+      if (!m) continue;
+      var name = m[1];
+      var num = parseInt(m[2], 8);
+      if (map[num] && map[num].indexOf(name) === -1) {
+        map[num] = map[num] + '/' + name;
+      } else if (!map[num]) {
+        map[num] = name;
+      }
+    }
+    return map;
+  }
+
+  // Load the segment-name map for a version letter (K/L/M).
+  // Returns Promise<map|null>; result is cached.
+  function loadSegmentNames(letter) {
+    if (!letter) return Promise.resolve(null);
+    var key = letter.toUpperCase();
+    if (nameMaps[key]) return Promise.resolve(nameMaps[key]);
+    if (nameMapLoads[key]) return nameMapLoads[key];
+    var dir = VERSION_DIRS[key];
+    if (!dir) return Promise.resolve(null);
+    var url = 'data/segment-names/' + dir + '/list-segment.txt';
+    nameMapLoads[key] = fetch(url)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text) {
+        var map = parseListSegment(text);
+        nameMaps[key] = map;
+        delete nameMapLoads[key];
+        console.log('[segnames] Loaded ' + dir + ' segment names: ' +
+                    Object.keys(map).length + ' entries');
+        return map;
+      })
+      .catch(function(err) {
+        delete nameMapLoads[key];
+        console.warn('[segnames] No segment-name capture for ' + dir + ':', err.message);
+        return null;
+      });
+    return nameMapLoads[key];
+  }
+
+  function currentMap() {
+    if (typeof sintranState === 'undefined' || !sintranState.versionLetter) return null;
+    return nameMaps[sintranState.versionLetter.toUpperCase()] || null;
+  }
+
+  // Resolve segment number (decimal) to name, or empty string
   function resolveSegmentName(segNum) {
-    var entry = SYSTEM_SEGMENTS[segNum];
-    return entry ? entry.name : '';
+    var map = currentMap();
+    if (!map) return '';
+    return map[segNum] || '';
   }
 
-  // Resolve segment number to description, or null
+  // Mechanically derived description from the S3 naming convention:
+  // S3Sxxx = save copy, S3Ixxx = image copy of the corresponding
+  // active segment. No invented facts.
   function resolveSegmentDescription(segNum) {
-    var entry = SYSTEM_SEGMENTS[segNum];
-    return entry ? entry.desc : null;
+    var name = resolveSegmentName(segNum);
+    if (!name) return null;
+    var first = name.split('/')[0];
+    if (/^S3S/.test(first)) return 'System segment (save copy)';
+    if (/^S3I/.test(first)) return 'System segment (image copy)';
+    if (/^S3/.test(first)) return 'System segment';
+    return null;
   }
 
-  // Resolve segment number to category label, or null
   function resolveSegmentCategory(segNum) {
-    var entry = SYSTEM_SEGMENTS[segNum];
-    if (!entry) return null;
-    return CATEGORY_LABELS[entry.cat] || entry.cat;
+    var name = resolveSegmentName(segNum);
+    if (!name) return null;
+    var first = name.split('/')[0];
+    if (/^S3S/.test(first)) return 'Save copy';
+    if (/^S3I/.test(first)) return 'Image copy';
+    if (/^S3/.test(first)) return 'System';
+    return null;
   }
 
   window.resolveSegmentName = resolveSegmentName;
   window.resolveSegmentDescription = resolveSegmentDescription;
   window.resolveSegmentCategory = resolveSegmentCategory;
+  window.sintranSegNames = {
+    loadSegmentNames: loadSegmentNames,
+    parseListSegment: parseListSegment,
+    resolveSegmentName: resolveSegmentName,
+    resolveSegmentDescription: resolveSegmentDescription,
+    resolveSegmentCategory: resolveSegmentCategory
+  };
 })();

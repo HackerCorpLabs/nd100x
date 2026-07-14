@@ -189,6 +189,15 @@ function sintranOnDetected() {
   if (menuContainer) {
     menuContainer.style.display = 'flex';
   }
+  // Load the detected version's linker symbol table (RT program names
+  // are not stored in memory - see sintran-symbols.js) and the
+  // LIST-SEGMENT segment-name capture (see sintran-seg-names.js).
+  if (window.sintranSymbols && window.sintranSymbols.loadSymbolTable) {
+    window.sintranSymbols.loadSymbolTable(sintranState.versionLetter);
+  }
+  if (window.sintranSegNames && window.sintranSegNames.loadSegmentNames) {
+    window.sintranSegNames.loadSegmentNames(sintranState.versionLetter);
+  }
   console.log('SINTRAN detected: ' + sintranGetOsString());
 }
 

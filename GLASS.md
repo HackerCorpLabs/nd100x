@@ -199,6 +199,8 @@ Scripts load in this exact order (from `index.html`):
 | 22 | `js/sintran-queues.js` | Execution, time, monitor queue viewer |
 | 23 | `js/sintran-seg-names.js` | System segment name lookup |
 | 24 | `js/sintran-segments.js` | Segment table viewer |
+| 24b | `js/smd-image-source.js` | Get mounted SMD image bytes (OPFS persistent or MEMFS non-persistent) |
+| 24c | `js/sintran-initial-commands.js` | Initial Commands window (INIBU buffer decoded from SEGFIL0 in the SMD image) |
 | 25 | `js/sintran-dev-names.js` | Device address-to-name tables |
 | 26 | `js/sintran-devices.js` | I/O device inspector (4-phase discovery) |
 | 27 | `js/pagetables.js` | Hardware page table inspector |

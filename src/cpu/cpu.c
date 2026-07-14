@@ -332,26 +332,27 @@ void interrupt(ushort lvl, ushort sub)
 {
 	int s;
 
-	// Diagnostic: log internal interrupts that would cause TDTLEV ERRFATAL
-	// SINTRAN expects internal interrupts only from levels 6-11 (RT program levels)
-	// Levels 0-5 and 12-15 cause ERRFATAL
 	if (lvl == 14)
 	{
-		static const char *iic_names[] = {
-			"n/a", "MC", "MPV", "PF", "II", "Z", "PI", "IOX", "PTY", "MOR", "POW"
-		};
-		int iic_bit = -1;
-		for (int b = 10; b >= 0; b--) {
-			if (sub & (1 << b)) { iic_bit = b; break; }
-		}
-		const char *iic_name = (iic_bit >= 0 && iic_bit <= 10) ? iic_names[iic_bit] : "?";
-
-		// Log internal interrupts on device levels (12-15) that cause TDTLEV ERRFATAL
-		if (gPIL >= 12)
-		{
-			fprintf(stderr, "*** INT14_FATAL: %s (sub=0x%x) PIL=%d PC=%06o PVL=%d\n",
-				iic_name, sub, gPIL, gPC, gPVL);
-		}
+		// Diagnostic: log internal interrupts that would cause TDTLEV ERRFATAL
+		// SINTRAN expects internal interrupts only from levels 6-11 (RT program levels)
+		// Levels 0-5 and 12-15 cause ERRFATAL
+		//
+		// static const char *iic_names[] = {
+		// 	"n/a", "MC", "MPV", "PF", "II", "Z", "PI", "IOX", "PTY", "MOR", "POW"
+		// };
+		// int iic_bit = -1;
+		// for (int b = 10; b >= 0; b--) {
+		// 	if (sub & (1 << b)) { iic_bit = b; break; }
+		// }
+		// const char *iic_name = (iic_bit >= 0 && iic_bit <= 10) ? iic_names[iic_bit] : "?";
+		//
+		// // Log internal interrupts on device levels (12-15) that cause TDTLEV ERRFATAL
+		// if (gPIL >= 12)
+		// {
+		// 	fprintf(stderr, "*** INT14_FATAL: %s (sub=0x%x) PIL=%d PC=%06o PVL=%d\n",
+		// 		iic_name, sub, gPIL, gPC, gPVL);
+		// }
 
 		gIID |= sub;
 		if (gIID & gIIE)

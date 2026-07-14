@@ -94,15 +94,42 @@ static void FloppyDMA_Reset(Device *self)
     // data->status1.bits.readyForTransfer = true;
 }
 
-static uint16_t CalculateStatusRegister1(Device *self)
+// Bit 4 "OR of errors": set whenever a non-zero error code is present (firmware @06bc: SET 4 if
+// code != 0), not only for hard/deleted/retry -- e.g. CRC or write-protect set errorCode alone.
+static uint16_t CalculateOrOfErrors(StatusRegister1 s)
+{
+    return (uint16_t)(s.bits.hardError | s.bits.deletedRecord | s.bits.retryOnController | (s.bits.errorCode != 0));
+}
+
+// Hardware Status Word (IOX +2 / +4 read): flags + bit 15 dual-density (how SINTRAN detects the
+// 3112 DMA card), but NO numeric error code. ND-11.021.1 §3.7 / §3.1 Note 1 (+2 == +4).
+static uint16_t CalculateHardwareStatusWord(Device *self)
 {
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
     if (!data)
         return 0;
 
-    data->status1.bits.dualDensity = 1; // 1=HIGH=DUAL DENSITY CONTROLLER (tells ND that we are using DMA and not PIO controller) = NEW CONTROLLER
-    data->status1.bits.inclusiveOrBits = (data->status1.bits.hardError | data->status1.bits.deletedRecord | data->status1.bits.retryOnController);
-    return data->status1.raw;
+    StatusRegister1 s;
+    s.raw = data->status1.raw;
+    s.bits.inclusiveOrBits = CalculateOrOfErrors(s);
+    s.bits.errorCode = 0;   // no numeric code on the hardware status word
+    s.bits.dualDensity = 1; // always 1 on the DMA controller
+    return s.raw;
+}
+
+// Status Word 1 (command block +6 memory writeback): flags + error code in bits 9-14, with
+// bit 15 CLEAR (dual-density belongs only on the IOX hardware status word). ND-11.021.1 §3.4.
+static uint16_t CalculateStatusWord1(Device *self)
+{
+    FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
+    if (!data)
+        return 0;
+
+    StatusRegister1 s;
+    s.raw = data->status1.raw;
+    s.bits.inclusiveOrBits = CalculateOrOfErrors(s);
+    s.bits.dualDensity = 0; // bit 15 clear in the memory word
+    return s.raw;
 }
 
 static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
@@ -121,11 +148,13 @@ static uint16_t FloppyDMA_Read(Device *self, uint32_t address)
         break;
 
     case FLOPPY_DMA_READ_STATUS1:
-        value = CalculateStatusRegister1(self);
+        value = CalculateHardwareStatusWord(self);
         break;
 
     case FLOPPY_DMA_READ_STATUS2:
-        value = data->status2.raw;
+        // §3.1 Note 1: +4 returns the SAME hardware status word as +2 (duplicated for the
+        // ND-100 Binary Format Load / Mass Storage Load microcode) -- NOT status word 2.
+        value = CalculateHardwareStatusWord(self);
         break;
     }
 
@@ -223,12 +252,79 @@ static uint16_t FloppyDMA_Ident(Device *self, uint16_t level)
     return 0;
 }
 
+/*
+ * Autoload / boot error image (native ND-100 print routine + message text).
+ *
+ * When an autoload/boot fails, the 3112 firmware DMAs a small self-contained native ND-100
+ * program into the ND-100 first page and runs it from word 0 to print the failure on the
+ * console. These are the EXACT Z80 firmware ROM bytes and the EXACT construction the firmware
+ * performs (verified in Ghidra @1f2f-1f6f):
+ *   - always copy the 0x3A-byte LOAD-ERROR image (code + "  ** LOAD-ERROR:    00 **"),
+ *   - if wrong-bootstrap (51 oct) overlay "** WRONG BOOTSTTRAP ! **" at byte offset 0x39,
+ *   - else patch the two octal error digits at byte offset 0x32/0x33,
+ *   - DMA the byte buffer to the host as big-endian 16-bit words, starting at word 0.
+ * Captures: RetroGhidra/N100-FLOPPY-3112/ND Code/{Load_error.txt, wrong_bootstrap.txt}.
+ */
+
+/* 0x3A-byte LOAD-ERROR image (Z80 ROM @1a92). */
+static const uint8_t LOAD_ERROR_IMAGE[] = {
+    /* ND-100 code (13 words) */
+    0x50, 0x0D, 0xF1, 0x27, 0xCC, 0x69, 0xF3, 0x00, 0xE8, 0xC6, 0xFA, 0x9D, 0xA8, 0xFE,
+    0xC4, 0x80, 0xC4, 0x29, 0xD2, 0x00, 0xE8, 0xC5, 0xF7, 0x01, 0xA8, 0xF8,
+    /* text: FF SI CR LF "  ** LOAD-ERROR:    00 **" CR LF ' */
+    0x0C, 0x0F, 0x0D, 0x0A, 0x20, 0x20, 0x2A, 0x2A, 0x20, 0x4C, 0x4F, 0x41, 0x44, 0x2D,
+    0x45, 0x52, 0x52, 0x4F, 0x52, 0x3A, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x20, 0x2A,
+    0x2A, 0x0D, 0x0A, 0x27};
+
+/* 0x1C-byte "** WRONG BOOTSTTRAP ! **" text (Z80 ROM @1acc; firmware's "BOOTSTTRAP" typo). */
+static const uint8_t WRONG_BOOTSTRAP_TEXT[] = {
+    0x20, 0x2A, 0x2A, 0x20, 0x57, 0x52, 0x4F, 0x4E, 0x47, 0x20, 0x42, 0x4F, 0x4F, 0x54,
+    0x53, 0x54, 0x54, 0x52, 0x41, 0x50, 0x20, 0x21, 0x20, 0x2A, 0x2A, 0x0D, 0x0A, 0x27};
+
+#define WRONG_BOOTSTRAP_OVERLAY_OFFSET 0x39 /* @1f49: DE=2239 */
+#define ERROR_DIGIT_LOW_OFFSET 0x33         /* @1f54: HL=2233 */
+#define WRONG_BOOTSTRAP_CODE_OCTAL 0x29     /* 51 octal = WRONG_BOOTSTRAP (@1f3f: CP 0x29) */
+
+/*
+ * Build and DMA the on-card boot error image into ND-100 memory (first page), byte-for-byte as
+ * the 3112 firmware does, so the ND-100 prints the failure on the console when run from word 0.
+ * Returns the ND-100 word entry point (0).
+ */
+static int DmaAutoloadErrorImage(int errorCodeOctal6bit)
+{
+    int c = errorCodeOctal6bit & 0x3F;
+    uint8_t buf[WRONG_BOOTSTRAP_OVERLAY_OFFSET + sizeof(WRONG_BOOTSTRAP_TEXT)];
+    int len;
+
+    memcpy(buf, LOAD_ERROR_IMAGE, sizeof(LOAD_ERROR_IMAGE));
+
+    if (c == WRONG_BOOTSTRAP_CODE_OCTAL)
+    {
+        /* Wrong-bootstrap: overlay the WRONG text after the LOAD-ERROR text. */
+        memcpy(buf + WRONG_BOOTSTRAP_OVERLAY_OFFSET, WRONG_BOOTSTRAP_TEXT, sizeof(WRONG_BOOTSTRAP_TEXT));
+        len = WRONG_BOOTSTRAP_OVERLAY_OFFSET + (int)sizeof(WRONG_BOOTSTRAP_TEXT);
+    }
+    else
+    {
+        /* Everything else: patch the two octal error digits. */
+        buf[ERROR_DIGIT_LOW_OFFSET - 1] = (uint8_t)('0' + ((c >> 3) & 7)); /* high octal digit */
+        buf[ERROR_DIGIT_LOW_OFFSET] = (uint8_t)('0' + (c & 7));            /* low octal digit */
+        len = (int)sizeof(LOAD_ERROR_IMAGE);
+    }
+
+    /* DMA the byte buffer to ND-100 memory as big-endian 16-bit words, starting at word 0. */
+    for (int i = 0; i < len; i += 2)
+    {
+        uint16_t w = (uint16_t)((buf[i] << 8) | ((i + 1 < len) ? buf[i + 1] : 0));
+        Device_DMAWrite((uint32_t)(i >> 1), w);
+    }
+
+    return 0;
+}
+
 // Load floppy monitor (FLO-LOAD, almost like BPUN from the first sector)
 static void ExecuteAutoload(Device *self, int drive)
 {
-
-    // TODO: Implement
-
     FloppyDMAData *data = (FloppyDMAData *)self->deviceData;
     if (!data)
         return;
@@ -237,7 +333,18 @@ static void ExecuteAutoload(Device *self, int drive)
     printf("FloppyDMA: Executing Autoload\n");
 #endif
 
-    /* TODO: DMA TRANSFER PROM bootcode to ND-100 Memory */
+    /*
+     * This C model does not yet parse the BPUN bootstrap, so it cannot complete a real floppy
+     * boot. When it cannot produce a bootstrap it does exactly what the 3112 firmware does on
+     * failure: DMA the LOAD-ERROR image into the ND-100 first page (error 50 oct, "no bootstrap
+     * found on diskette") so the console shows "** LOAD-ERROR: 50 **", and flag the failure in
+     * the status word. TODO: implement the real BPUN autoload (read track 0, scan for '!',
+     * parse header, DMA image) — see NDInsight FloppyDMA docs §4.3; then only error on failure.
+     */
+    data->status1.bits.errorCode = FLOPPY_ERR_NO_BOOTSTRAP; /* oct 50 */
+    data->status1.bits.hardError = true;
+    DmaAutoloadErrorImage(FLOPPY_ERR_NO_BOOTSTRAP);
+
     Device_QueueIODelay(self, IODELAY_FLOPPY, (IODelayedCallback)AutoLoadEnd, 0, self->interruptLevel);
 }
 
@@ -601,8 +708,8 @@ static void ExecuteFloppyGo(Device *self)
     /* Update command block   */
     /**************************/
 
-    // Status 1
-    data->commandBlock.fields.status1 = data->status1.raw;
+    // Status 1 (memory writeback: error code in bits 9-14, bit 15 clear)
+    data->commandBlock.fields.status1 = CalculateStatusWord1(self);
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
 
     // Status 2
@@ -629,7 +736,7 @@ static bool ReadEnd(Device *self, int drive)
     data->status1.bits.deviceActive = false;
     data->status1.bits.readyForTransfer = true;
 
-    data->commandBlock.fields.status1 = CalculateStatusRegister1(self);
+    data->commandBlock.fields.status1 = CalculateStatusWord1(self);
     Device_DMAWrite(data->commandBlockAddress + 6, data->commandBlock.fields.status1);
 
     Device_SetInterruptStatus(self, data->status1.bits.interruptEnabled && data->status1.bits.readyForTransfer, self->interruptLevel);

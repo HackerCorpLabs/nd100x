@@ -256,7 +256,9 @@
       var pagesStr = pages.toString(8);
       var pagesTip = pages + ' pages × 512 words = ' + (pages * 512) + ' words on disk';
       var localVpn = s.logad & 0x3F;
-      var logadTip = 'VPN ' + sym.toOctal(s.logad) + ' → local word addr ' + sym.toOctal(localVpn << 10);
+      var logadTip = 'VPN ' + sym.toOctal(s.logad) +
+        ' → load word addr ' + (s.logad << 10).toString(8) +
+        ' (local ' + sym.toOctal(localVpn << 10) + ')';
       var usedByStr = s.usedBy.length > 0 ? s.usedBy.join(', ') : '-';
 
       // Resolve segment name and description
@@ -412,7 +414,10 @@
     // Addressing
     html += '<div class="seg-detail-section">Addressing</div>';
     var localVpnBase = seg.logad & 0x3F;
-    html += detailField('LOGAD', sym.toOctal(seg.logad), 'VPN ' + sym.toOctal(seg.logad) + ' → local addr ' + sym.toOctal(localVpnBase << 10));
+    html += detailField('LOGAD', sym.toOctal(seg.logad),
+      'VPN ' + sym.toOctal(seg.logad) +
+      ' → load word addr ' + (seg.logad << 10).toString(8) +
+      ' (local ' + sym.toOctal(localVpnBase << 10) + ')');
     var pages = seg.segle & 0x3FF;
     html += detailField('SEGLE', sym.toOctal(pages) + ' (' + pages + ' pages)', pages + ' pages × 512 words = ' + (pages * 512) + ' words');
     html += detailField('MADR',  sym.toOctal(seg.madr), 'Disk sector offset from SEGFIL base');

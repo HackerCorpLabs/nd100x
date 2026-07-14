@@ -659,10 +659,18 @@ EMSCRIPTEN_EXPORT int GetSMDBufferSize(int unit)
 }
 
 // Read up to 256 sectors from an SMD drive into a static buffer.
-// Works for both file-backed and in-memory (remote) drives.
+// Works for file-backed, in-memory (remote), OPFS and gateway drives.
 // Returns pointer to s_smdSectorBuf on success, 0 on failure.
 #define SMD_READ_BUF_SECTORS 256
 static uint8_t s_smdSectorBuf[SMD_READ_BUF_SECTORS * 1024];
+
+#ifdef __EMSCRIPTEN__
+// Defined as EM_JS in machine.c
+extern int opfs_block_read_js(int unit, uint8_t *buffer, int bytes, int offset);
+extern int opfs_is_available_js(int unit);
+extern int gateway_block_read_js(int driveType, int unit, uint8_t *buffer, int bytes, int offset);
+extern int gateway_is_available_js(int driveType, int unit);
+#endif
 
 EMSCRIPTEN_EXPORT int Dbg_ReadSMDSectors(int unit, int lba, int count)
 {
@@ -677,8 +685,31 @@ EMSCRIPTEN_EXPORT int Dbg_ReadSMDSectors(int unit, int lba, int count)
     size_t byte_offset = (size_t)lba * sector_size;
     size_t byte_count  = (size_t)count * sector_size;
 
+    if (entry->data_size && byte_offset + byte_count > entry->data_size) return 0;
+
+#ifdef __EMSCRIPTEN__
+    if (entry->is_opfs && opfs_is_available_js(unit)) {
+        int rc = opfs_block_read_js(unit, s_smdSectorBuf, (int)byte_count, (int)byte_offset);
+        if (rc < 0) return 0;
+        if ((size_t)rc < byte_count) memset(s_smdSectorBuf + rc, 0, byte_count - rc);
+        return (int)(uintptr_t)s_smdSectorBuf;
+    }
+
+    if (entry->is_gateway && gateway_is_available_js((int)DRIVE_SMD, unit)) {
+        // The gateway shared buffer holds 64 KB of payload, so split larger requests.
+        const size_t chunk = 32768;
+        for (size_t done = 0; done < byte_count; done += chunk) {
+            size_t n = (byte_count - done < chunk) ? byte_count - done : chunk;
+            int rc = gateway_block_read_js((int)DRIVE_SMD, unit, s_smdSectorBuf + done,
+                                           (int)n, (int)(byte_offset + done));
+            if (rc < 0) return 0;
+            if ((size_t)rc < n) memset(s_smdSectorBuf + done + rc, 0, n - rc);
+        }
+        return (int)(uintptr_t)s_smdSectorBuf;
+    }
+#endif
+
     if (entry->is_remote && entry->data.remote_data) {
-        if (byte_offset + byte_count > entry->data_size) return 0;
         memcpy(s_smdSectorBuf, (uint8_t *)entry->data.remote_data + byte_offset, byte_count);
         return (int)(uintptr_t)s_smdSectorBuf;
     }
@@ -1446,7 +1477,8 @@ EMSCRIPTEN_EXPORT const char* Dbg_Disassemble(int startAddr, int count)
 static uint16_t s_inspectBuf[INSPECT_BUF_WORDS];
 static int      s_inspectWords = 0;
 static int      s_inspectBase  = 0;
-static char     s_inspectOut[2 * 1024 * 1024];  /* 2MB output buffer */
+/* Worst case is one line (~48 bytes) per word for a full 65536-word segment. */
+static char     s_inspectOut[4 * 1024 * 1024];  /* 4MB output buffer */
 
 EMSCRIPTEN_EXPORT void Dbg_LoadInspectBuffer(int jsPtr, int wordCount, int baseAddr)
 {

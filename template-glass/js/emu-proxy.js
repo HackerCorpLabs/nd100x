@@ -318,6 +318,22 @@
       if (!Module._Dbg_ReadSMDSectors) return 0;
       return Module._Dbg_ReadSMDSectors(unit, lba, count);
     },
+    // Mode-independent sector read. Resolves with a private copy (count*1024 bytes).
+    readSMDSectorsAsync: function(unit, lba, count) {
+      try {
+        if (!Module._Dbg_ReadSMDSectors) {
+          throw new Error('WASM Dbg_ReadSMDSectors not exported (rebuild?)');
+        }
+        var ptr = Module._Dbg_ReadSMDSectors(unit, lba, count);
+        if (!ptr) {
+          throw new Error('Dbg_ReadSMDSectors returned 0 (unit=' + unit + ' lba=' + lba +
+            ' count=' + count + ' — drive not mounted? read past end?)');
+        }
+        return Promise.resolve(new Uint8Array(Module.HEAPU8.buffer, ptr, count * 1024).slice());
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    },
 
     // --- Physical memory size ---
     getPhysMemWords: function() {
@@ -333,6 +349,24 @@
       if (!Module._Dbg_DisassembleFromBuffer) return '';
       return Module.UTF8ToString(Module._Dbg_DisassembleFromBuffer(startWord, count));
     },
+    // Mode-independent: disassemble a Uint16Array of words at `baseAddr`.
+    disassembleWordsAsync: function(words, baseAddr) {
+      try {
+        if (!Module._Dbg_LoadInspectBuffer || !Module._Dbg_DisassembleFromBuffer) {
+          throw new Error('WASM disassembler not exported (rebuild?)');
+        }
+        var byteLen = words.length * 2;
+        var ptr = Module._malloc(byteLen);
+        if (!ptr) throw new Error('malloc(' + byteLen + ') failed');
+        Module.HEAPU8.set(new Uint8Array(words.buffer, words.byteOffset, byteLen), ptr);
+        Module._Dbg_LoadInspectBuffer(ptr, words.length, baseAddr);
+        Module._free(ptr);
+        return Promise.resolve(Module.UTF8ToString(Module._Dbg_DisassembleFromBuffer(0, words.length)));
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    },
+
     getHEAPU8: function() { return Module.HEAPU8; },
 
     // --- WebSocket bridge (requires Worker mode) ---

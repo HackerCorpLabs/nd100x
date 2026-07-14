@@ -501,6 +501,7 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
 
     if (ring < pageTableRing)
     {
+#ifdef DEBUG_MMS
         static int ring_mpv = 0;
         if (ring_mpv < 5) {
             uint16_t pcr_now = gReg->reg_PCR[CurrLEVEL];
@@ -508,7 +509,8 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
                    pageTable, VPN, ring, pageTableRing, pcr_now, pcr_now & 3, CurrLEVEL, virtualAddress, am);
         }
         ring_mpv++;
-        UpdatePGS(pageTable, VPN, am, false);                
+#endif
+        UpdatePGS(pageTable, VPN, am, false);
 #ifdef DEBUG_MMS
         printf("[%d] Ring Protection Violation. Ring=%d PTRing=%d Accessmode=%d PGS=%06o PT=%d VPN=%d PTe=0x%08X\n", 
                CurrLEVEL, ring, pageTableRing, am, gReg->reg_PGS, pageTable, VPN, pageTableEntry);
@@ -639,30 +641,31 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // If the combination of WPM, RPM and FPM are all zero, this is interpreted as page not in memory and will generate an internal interrupt as page fault
     if ((pageTableEntry & pfMask) == 0)
     {
-        if (VPN == 25 && pageTable == 0) {
-            static int pf25 = 0;
-            if (pf25 < 3)
-                printf("\r\nPF25: PTe=0x%08X pfMask=0x%08lX PIL=%d am=%d\r\n",
-                       (uint32_t)pageTableEntry, (unsigned long)pfMask, CurrLEVEL, am);
-            pf25++;
-        }
-        // PGS bit 14 (PM - Permit violation) must be FALSE here.
+        // ---------------------------------------------------------------
+        // DO NOT CHANGE THE PM ARGUMENT BELOW (true). VALIDATED AGAINST
+        // REAL HARDWARE BEHAVIOUR BY THE ND PAGING DIAGNOSTIC (TPE).
+        // ---------------------------------------------------------------
+        // PGS bit 14 (PM - Permit violation) is TRUE here, even though the page
+        // is NOT present (WPM, RPM and FPM all zero). That looks wrong by pure
+        // reasoning - there are no permissions to violate on an absent page -
+        // but it is what the hardware does, so the reasoning is what is wrong.
         //
-        // Per ND-60.062.01 SINTRAN III System Documentation, page 25:
-        //   PM = 1  =>  permit violation (access denied by page permissions)
-        //   PM = 0  =>  ring protect violation (or page not present)
+        // Evidence (14-JUL-2026): ND paging diagnostic TPE, test 6 (PAGE FAULT
+        // interrupt), Extended mode, PIT entry 002000B/000054B (PTe 0x0400002C).
+        // With PM=true  -> tests 1-11 all pass.
+        // With PM=false -> test 6 aborts, reporting "Ring violation instead of
+        //                  permit violation" on every P-relative/indirect
+        //                  access, because the diagnostic decodes PM=0 as a
+        //                  ring violation.
         //
-        // When all three permission bits (WPM, RPM, FPM) are zero, the page
-        // is simply not mapped into memory. This is NOT a permission issue --
-        // there are no permissions to violate because the page doesn't exist.
-        // The correct interrupt is IIC=3 (page fault / page not present).
-        //
-        // Setting PM=1 here was bug #002 reported by the BSD kernel team:
-        // it made PGS indistinguishable between "page not mapped" and
-        // "page mapped but access denied", which matters for kernel code
-        // that inspects PGS to decide between growing the stack (page fault)
-        // vs sending SIGSEGV (permission violation).
-        UpdatePGS(pageTable, VPN, am, false);
+        // History: commit e57c6a5 (16-MAR-2026) set this to false, citing
+        // ND-60.062.01 p.25 and a BSD kernel need to tell "page not mapped"
+        // from "access denied" via PGS. That broke test 6 and was reverted.
+        // If BSD needs to distinguish the two cases, use the interrupt code,
+        // NOT this bit: not-present raises IIC=3 (PF, called just below),
+        // access-denied raises IIC=2 (MPV, in the branch further down).
+        // Re-check against TPE test 6 before touching this line again.
+        UpdatePGS(pageTable, VPN, am, true);
         HandlePF(virtualAddress);
         return false;
     }
@@ -674,13 +677,13 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool Us
     // Triggers IIC=2 (memory protection violation).
     if ((pageTableEntry & accessBits) == 0)
     {
-        if (1) {  /* trace ALL access-denied MPVs */
-            static int mpv25 = 0;
-            if (mpv25 < 5)
-                printf("\r\nACCESS_DENIED: PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d UseAPT=%d PIL=%d VA=%06o\r\n",
-                       pageTable, VPN, (uint32_t)pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
-            mpv25++;
-        }
+        // if (1) {  /* trace ALL access-denied MPVs */
+        //     static int mpv25 = 0;
+        //     if (mpv25 < 5)
+        //         printf("\r\nACCESS_DENIED: PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d UseAPT=%d PIL=%d VA=%06o\r\n",
+        //                pageTable, VPN, (uint32_t)pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
+        //     mpv25++;
+        // }
         UpdatePGS(pageTable, VPN, am, true);
         HandleMPV(virtualAddress);
         return false;
@@ -908,6 +911,7 @@ void HandleMemoryOutOfRange(uint physicalAddress)
 /// @param virtualAddress 
 void HandleMPV(uint virtualAddress)
 {
+#ifdef DEBUG_MMS
     static int mpv_count = 0;
     uint VPN = (virtualAddress >> 10) & 0x3F;
     if (mpv_count < 5) {
@@ -925,7 +929,8 @@ void HandleMPV(uint virtualAddress)
                virtualAddress, VPN, pt, pte, CurrLEVEL, gPC);
     }
     mpv_count++;
-    interrupt(14, 1 << 2);            
+#endif
+    interrupt(14, 1 << 2);
 }
 
 /// @brief Handle page fault. Will TRAP the instruction

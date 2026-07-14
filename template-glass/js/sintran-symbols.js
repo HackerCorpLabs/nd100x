@@ -27,7 +27,8 @@
     SEGST:  0x8D1,   // 004321 - segment table offset within bank
     CORMB:  0x8D2,   // 004322 - core map bank number
     RTEND:  0x8D3,   // 004323 - RT description table end pointer
-    CNVRT:  0x8D7    // 004327 - CCNVRT array (32 group offsets for LOGDBANK)
+    CNVRT:  0x8D7,   // 004327 - CCNVRT array (32 group offsets for LOGDBANK)
+    SINVER: 0x82D    // 004055 - SINVER0: version letter (low byte), OS type (bits 8-10)
   };
 
   // =========================================================
@@ -453,6 +454,98 @@
   }
 
   // =========================================================
+  // Linker symbol table (SYMBOL-2-LIST.SYMB.TXT)
+  //
+  // RT-program names are NOT stored in memory (RT descriptions have
+  // no name field). The authoritative name source is the running
+  // version's own linker symbol table, shipped verbatim under
+  // data/symbols/{K03,L07,M06}/ and parsed here at load time into an
+  // address -> name map. The version letter detected from SINVER0 in
+  // memory selects which table to load.
+  // Line format: "NAME=OCTALVALUE" (possibly space-padded).
+  // =========================================================
+
+  var VERSION_DIRS = { K: 'K03', L: 'L07', M: 'M06' };
+
+  // { letter: { addrToName: {addr: name}, count: N } }
+  var symbolTables = {};
+  // { letter: Promise } - in-flight loads
+  var symbolTableLoads = {};
+
+  // Parse "NAME=OCTAL" lines into an address -> name map.
+  // Several symbols can share one address (range markers like 9FBPR
+  // sit on the same slot as the real name, e.g. BAK01). Preference:
+  // a name starting with a letter beats one starting with a digit;
+  // between two names of the same class, the later line wins.
+  function parseSymbolList(text) {
+    var addrToName = {};
+    var count = 0;
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].trim().match(/^([^=\s]+)=([0-7]+)$/);
+      if (!m) continue;
+      var name = m[1];
+      var addr = parseInt(m[2], 8);
+      var prev = addrToName[addr];
+      if (prev !== undefined) {
+        var prevAlpha = /^[A-Z]/i.test(prev);
+        var newAlpha = /^[A-Z]/i.test(name);
+        if (prevAlpha && !newAlpha) continue;   // keep letter-name over marker
+      }
+      addrToName[addr] = name;
+      count++;
+    }
+    return { addrToName: addrToName, count: count };
+  }
+
+  // Load the symbol table for a version letter (K/L/M).
+  // Returns Promise<table|null>; result is cached.
+  function loadSymbolTable(letter) {
+    if (!letter) return Promise.resolve(null);
+    var key = letter.toUpperCase();
+    if (symbolTables[key]) return Promise.resolve(symbolTables[key]);
+    if (symbolTableLoads[key]) return symbolTableLoads[key];
+    var dir = VERSION_DIRS[key];
+    if (!dir) {
+      console.warn('[symtab] No symbol table shipped for SINTRAN version ' + key);
+      return Promise.resolve(null);
+    }
+    var url = 'data/symbols/' + dir + '/SYMBOL-2-LIST.SYMB.TXT';
+    symbolTableLoads[key] = fetch(url)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text) {
+        var table = parseSymbolList(text);
+        symbolTables[key] = table;
+        delete symbolTableLoads[key];
+        console.log('[symtab] Loaded ' + dir + ' symbol table: ' + table.count + ' symbols');
+        return table;
+      })
+      .catch(function(err) {
+        delete symbolTableLoads[key];
+        console.warn('[symtab] Failed to load ' + url + ':', err.message);
+        return null;
+      });
+    return symbolTableLoads[key];
+  }
+
+  // Sync: symbol table for the currently detected version, or null
+  function getSymbolTableSync() {
+    if (typeof sintranState === 'undefined' || !sintranState.versionLetter) return null;
+    return symbolTables[sintranState.versionLetter.toUpperCase()] || null;
+  }
+
+  // Sync: reverse-lookup a name for an address in the detected
+  // version's symbol table. Returns name or null.
+  function lookupSymbolName(addr) {
+    var table = getSymbolTableSync();
+    if (!table) return null;
+    return table.addrToName[addr] || null;
+  }
+
+  // =========================================================
   // RT table discovery (shared by all SINTRAN windows)
   // =========================================================
 
@@ -548,6 +641,9 @@
     ensurePTCache: ensurePTCache,
     invalidatePTCache: invalidatePTCache,
     getVersionSymbols: getVersionSymbols,
+    loadSymbolTable: loadSymbolTable,
+    getSymbolTableSync: getSymbolTableSync,
+    lookupSymbolName: lookupSymbolName,
     decodeNDString: decodeNDString,
     toOctal: toOctal,
     testBit: testBit,

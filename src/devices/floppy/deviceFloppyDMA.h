@@ -318,8 +318,9 @@ typedef union {
         uint16_t deletedRecord : 1;    // Bit 5: Deleted record
         uint16_t retryOnController : 1;// Bit 6: Retry on controller
         uint16_t hardError : 1;        // Bit 7: Hard error
-        uint16_t errorCode : 7;        // Bits 8-14: Error code
-        uint16_t dualDensity : 1;      // Bit 15: Dual density controller
+        uint16_t notUsed8 : 1;         // Bit 8: Not used (ND-11.021.1 §3.4)
+        uint16_t errorCode : 6;        // Bits 9-14: Error code (§3.9)
+        uint16_t dualDensity : 1;      // Bit 15: Dual density controller (hardware status word only)
 
     } bits;
 } StatusRegister1;

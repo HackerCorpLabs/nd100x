@@ -45,34 +45,56 @@
   // (Legacy SEGFIL-base discovery removed 2026-05-01; BLSTX values now hardcoded
   // from NPL research — see project_segfil_layout_verified.md and SEGMENT-DISK-MEMORY-MAP.md.)
 
-  // Read up to 256 disk sectors via Dbg_ReadSMDSectors. Works for both file-backed
-  // and in-memory drives. Returns a Uint8Array view (count*1024 bytes) into the
-  // C-side static buffer. Throws Error with specific reason on failure.
-  // IMPORTANT: the view is invalidated by the next readSectors() call (static buffer reuse).
-  function readSectors(lba, count) {
+  // Read up to 256 disk sectors. Resolves with a Uint8Array of count*1024 bytes.
+  // Goes through emu.readSMDSectorsAsync, which works in both Direct and Worker mode
+  // and for every backing store (in-memory, MEMFS file, OPFS, gateway).
+  function readSectorsAsync(lba, count) {
     var emuRef = (typeof emu !== 'undefined') ? emu : null;
     if (!emuRef) {
-      throw new Error('readSectors: emu proxy not loaded');
+      return Promise.reject(new Error('readSectors: emu proxy not loaded'));
     }
-    if (!emuRef.readSMDSectors) {
-      throw new Error('readSectors: emu.readSMDSectors missing (WASM Dbg_ReadSMDSectors not exported — rebuild?)');
-    }
-    if (!emuRef.getHEAPU8) {
-      throw new Error('readSectors: emu.getHEAPU8 missing');
+    if (!emuRef.readSMDSectorsAsync) {
+      return Promise.reject(new Error('readSectors: emu.readSMDSectorsAsync missing (stale emu-proxy — hard reload?)'));
     }
     if (count <= 0 || count > 256) {
-      throw new Error('readSectors: count=' + count + ' out of range [1,256]');
+      return Promise.reject(new Error('readSectors: count=' + count + ' out of range [1,256]'));
     }
-    var ptr = emuRef.readSMDSectors(0, lba, count);
-    if (!ptr) {
-      throw new Error('readSectors: Dbg_ReadSMDSectors returned 0 ' +
-        '(unit=0 lba=' + lba + ' count=' + count + ' — drive not mounted? read past end?)');
-    }
-    var heapu8 = emuRef.getHEAPU8();
-    if (!heapu8) {
-      throw new Error('readSectors: HEAPU8 not accessible after Dbg_ReadSMDSectors');
-    }
-    return new Uint8Array(heapu8.buffer, ptr, count * 1024);
+    return emuRef.readSMDSectorsAsync(0, lba, count).then(function(buf) {
+      if (!buf || buf.length < count * 1024) {
+        throw new Error('readSectors: short read at lba=' + lba +
+          ' (got ' + (buf ? buf.length : 0) + ' of ' + (count * 1024) + ' bytes)');
+      }
+      return buf;
+    });
+  }
+
+  // Read one page (CABLPAGE sectors) at `lba` into result[pg*WORDS_PER_PAGE...].
+  // Never rejects: records the failure in pageSource[pg] and resolves with the error.
+  function readPageInto(lba, pg, result, pageSource, tag) {
+    return readSectorsAsync(lba, CABLPAGE).then(function(view) {
+      var resBase = pg * WORDS_PER_PAGE;
+      var nonZero = false;
+      for (var w = 0; w < WORDS_PER_PAGE; w++) {
+        var word = ((view[w * 2] << 8) | view[w * 2 + 1]) & 0xFFFF;
+        result[resBase + w] = word;
+        if (word) nonZero = true;
+      }
+      pageSource[pg] = (nonZero ? tag : tag + '-zero') + ':lba' + lba;
+      return null;
+    }, function(rerr) {
+      pageSource[pg] = 'err:' + rerr.message;
+      return rerr;
+    });
+  }
+
+  // Run `fn(item, index)` over the list one at a time, collecting results.
+  function sequential(list, fn) {
+    var out = [];
+    return list.reduce(function(chain, item, idx) {
+      return chain.then(function() {
+        return fn(item, idx);
+      }).then(function(r) { out.push(r); });
+    }, Promise.resolve()).then(function() { return out; });
   }
 
   // =========================================================
@@ -119,35 +141,25 @@
     console.log('[disasm] disk-only read (' + sourceName + '): ' + label +
       ' base=' + base + ' madr=' + oct6(madr) + ' CABLPAGE=' + CABLPAGE);
 
-    var firstReadFailure = null;
-    for (var pg = 0; pg < pages; pg++) {
-      var lba = base + (madr + pg) * CABLPAGE;
-      try {
-        var view = readSectors(lba, CABLPAGE);
-        var resBase = pg * WORDS_PER_PAGE;
-        var nonZero = false;
-        for (var w = 0; w < WORDS_PER_PAGE; w++) {
-          var word = ((view[w*2] << 8) | view[w*2 + 1]) & 0xFFFF;
-          result[resBase + w] = word;
-          if (word) nonZero = true;
-        }
-        pageSource[pg] = nonZero ? (sourceName.toLowerCase() + ':lba' + lba)
-                                 : (sourceName.toLowerCase() + '-zero:lba' + lba);
-      } catch (rerr) {
-        pageSource[pg] = 'err:' + rerr.message;
-        if (!firstReadFailure) firstReadFailure = rerr;
+    var pageList = [];
+    for (var pg = 0; pg < pages; pg++) pageList.push(pg);
+
+    return sequential(pageList, function(p) {
+      return readPageInto(base + (madr + p) * CABLPAGE, p, result, pageSource,
+                          sourceName.toLowerCase());
+    }).then(function(errs) {
+      var firstReadFailure = errs.filter(Boolean)[0] || null;
+      if (firstReadFailure && pageSource.every(function(s) { return s && s.slice(0, 3) === 'err'; })) {
+        throw new Error('readFromDiskOnly: all ' + pages +
+          ' reads failed — first error: ' + firstReadFailure.message);
       }
-    }
-    if (firstReadFailure && pageSource.every(function(s) { return s && s.slice(0,3) === 'err'; })) {
-      return Promise.reject(new Error('readFromDiskOnly: all ' + pages +
-        ' reads failed — first error: ' + firstReadFailure.message));
-    }
-    // Run the same per-page diagnostic as the main path
-    var totalNZ = 0;
-    for (var i = 0; i < result.length; i++) if (result[i]) totalNZ++;
-    console.log('[disasm] ' + sourceName + ' result: total ' + totalNZ + '/' +
-      (pages * WORDS_PER_PAGE) + ' words non-zero | sources: ' + pageSource.join(' '));
-    return Promise.resolve(result);
+      // Run the same per-page diagnostic as the main path
+      var totalNZ = 0;
+      for (var i = 0; i < result.length; i++) if (result[i]) totalNZ++;
+      console.log('[disasm] ' + sourceName + ' result: total ' + totalNZ + '/' +
+        (pages * WORDS_PER_PAGE) + ' words non-zero | sources: ' + pageSource.join(' '));
+      return result;
+    });
   }
 
   // =========================================================
@@ -249,33 +261,19 @@
         ' segfil=' + segfilNum + ' BLSTX[' + segfilNum + ']=' + blstx +
         ' madr=' + oct6(madr) + ' CABLPAGE=' + CABLPAGE);
 
-      var firstReadFailure = null;
-      for (var i = 0; i < missing.length; i++) {
-        var pg = missing[i];
-        // Verified formula (IP-P2-SEGADM.NPL:1576-1585):
-        // LBA = BLSTX[segfile] + (MADR + relPage) × CABLPAGE
-        var lba = blstx + (madr + pg) * CABLPAGE;
-        try {
-          // 1 page = CABLPAGE sectors (= 2 sectors = 1024 words on standard SINTRAN)
-          var view = readSectors(lba, CABLPAGE);
-          var resBase = pg * WORDS_PER_PAGE;
-          var nonZero = false;
-          for (var w = 0; w < WORDS_PER_PAGE; w++) {
-            var word = ((view[w*2] << 8) | view[w*2 + 1]) & 0xFFFF;
-            result[resBase + w] = word;
-            if (word) nonZero = true;
-          }
-          pageSource[pg] = nonZero ? ('disk:lba' + lba) : ('disk-zero:lba' + lba);
-        } catch (rerr) {
-          pageSource[pg] = 'err:' + rerr.message;
-          if (!firstReadFailure) firstReadFailure = rerr;
+      // Verified formula (IP-P2-SEGADM.NPL:1576-1585):
+      // LBA = BLSTX[segfile] + (MADR + relPage) × CABLPAGE
+      // 1 page = CABLPAGE sectors (= 2 sectors = 1024 words on standard SINTRAN)
+      return sequential(missing, function(pg) {
+        return readPageInto(blstx + (madr + pg) * CABLPAGE, pg, result, pageSource, 'disk');
+      }).then(function(errs) {
+        var firstReadFailure = errs.filter(Boolean)[0] || null;
+        if (firstReadFailure && missing.every(function(pg) { return pageSource[pg].slice(0, 3) === 'err'; })) {
+          throw new Error('readSegmentDataAsync: all ' + missing.length +
+            ' disk reads failed — first error: ' + firstReadFailure.message);
         }
-      }
-      if (firstReadFailure && missing.every(function(pg) { return pageSource[pg].slice(0,3) === 'err'; })) {
-        throw new Error('readSegmentDataAsync: all ' + missing.length +
-          ' disk reads failed — first error: ' + firstReadFailure.message);
-      }
-      return physForRelPage;
+        return physForRelPage;
+      });
     }).then(function() {
       var memCnt  = pageSource.filter(function(s) { return s && s.slice(0,3) === 'mem'; }).length;
       var diskCnt = pageSource.filter(function(s) { return s && s.slice(0,4) === 'disk'; }).length;
@@ -495,27 +493,33 @@
         '</div>';
     }
 
-    if (emu.loadInspectBuffer && emu.disassembleFromBuffer &&
-        typeof Module !== 'undefined' && Module._Dbg_LoadInspectBuffer) {
-      var byteLen = iWords.length * 2;
-      var ptr = Module._malloc(byteLen);
-      if (ptr) {
-        Module.HEAPU8.set(new Uint8Array(iWords.buffer), ptr);
-        emu.loadInspectBuffer(ptr, iWords.length, logicalBase);
-        Module._free(ptr);
-        var result = emu.disassembleFromBuffer(0, iWords.length);
-        iPanel.innerHTML = banner + parseDisasmText(result);
-        scrollToFirstNonzero(iPanel, firstNZ);
-        return;
-      }
+    // Hex dump with ASCII column — shown while the disassembler runs, and left in
+    // place if it is unavailable or fails.
+    function renderHexFallback(reason) {
+      iPanel.innerHTML = banner +
+        '<div style="padding:4px 8px 6px;color:rgba(255,200,80,0.7);font-size:10px;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+        escHtml(reason) + ' — showing hex dump with ASCII.</div>' +
+        buildHexHtml(iWords, logicalBase);
+      scrollToFirstNonzero(iPanel, firstNZ);
     }
 
-    // Fallback: hex dump with ASCII column (works without WASM rebuild)
-    iPanel.innerHTML = banner +
-      '<div style="padding:4px 8px 6px;color:rgba(255,200,80,0.7);font-size:10px;border-bottom:1px solid rgba(255,255,255,0.06);">' +
-      'WASM disassembler not available — showing hex dump with ASCII.</div>' +
-      buildHexHtml(iWords, logicalBase);
-    scrollToFirstNonzero(iPanel, firstNZ);
+    if (!emu.disassembleWordsAsync) {
+      renderHexFallback('WASM disassembler not available');
+      return;
+    }
+
+    // The words may be replaced while the disassembly is in flight (user picks
+    // another segment) — bind to the array we were called with.
+    var pending = iWords;
+    emu.disassembleWordsAsync(pending, logicalBase).then(function(text) {
+      if (iWords !== pending) return;   // superseded
+      iPanel.innerHTML = banner + parseDisasmText(text);
+      scrollToFirstNonzero(iPanel, firstNZ);
+    }, function(err) {
+      if (iWords !== pending) return;
+      console.warn('[disasm] disassembleWordsAsync failed:', err.message);
+      renderHexFallback('Disassembler failed: ' + err.message);
+    });
   }
 
   // Scroll the panel so the line containing word index `wordIdx` is visible at top.

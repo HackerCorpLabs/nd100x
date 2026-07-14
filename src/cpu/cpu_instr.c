@@ -3007,14 +3007,22 @@ void rdiv(ushort instr)
 	// Check for carry (ie, value is bigger than 16 bits)
 	setbit(_STS, _C, ((quotient & 0xFFFF0000) != 0));
 
+	// Overflow: the quotient does not fit a signed 16-bit A register.
+	// The ND-100 Reference Manual (ND-06.014.2A, RDIV) only says overflow sets Z,
+	// and lists "Affected: (A),(D)" - it does NOT say A/D are left untouched.
+	// VERIFIED on a microcode emulator: RDIV ST with A=0, D=0xEE6C (61036), T=1
+	// yields A=0xEE6C (low 16 bits of the quotient), D=0 (remainder), Z set.
+	// i.e. real hardware STILL writes the quotient (low 16 bits) and remainder on
+	// overflow, then sets Z. The previous early-return left A unwritten (stale) and
+	// broke SINTRAN's SCSI ENTER-DIRECTORY geometry check ((UHLIM/2)/1 = 61036
+	// overflows): the stale A made "SKP IF DD EQL 0" see a zero quotient and abort
+	// the mount with a spurious error 243B. So set Z on overflow but ALWAYS write A/D.
 	if (abs(quotient) >= 32768)
 	{
 		setbit(_STS, _Z, 1);
-		return;
 	}
 	gA = quotient;
 	gD = reminder;
-	;
 }
 
 /*
