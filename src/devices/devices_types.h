@@ -121,6 +121,7 @@ typedef enum {
     DEVICE_TYPE_HDLC,
     DEVICE_TYPE_LINE_PRINTER,
     DEVICE_TYPE_PAPER_TAPE_WRITER,
+    DEVICE_TYPE_DISC_SCSI,   /* ND-3201/3204 SCSI disk controller (NCR-5386) */
     DEVICE_TYPE_MAX
 } DeviceType;
 
@@ -148,7 +149,7 @@ typedef struct Device {
     // Device functions
     void (*Reset)(struct Device *self);
     uint16_t (*Tick)(struct Device *self);
-    int (*Boot)(struct Device *self, uint16_t device_id);
+    int (*Boot)(struct Device *self, int unit);
     uint16_t (*Read)(struct Device *self, uint32_t address);
     void (*Write)(struct Device *self, uint32_t address, uint16_t value);
     uint16_t (*Ident)(struct Device *self, uint16_t level);
@@ -210,6 +211,13 @@ typedef struct {
 #include "./papertape/devicePapertape.h"
 #include "./rtc/deviceRTC.h"
 #include "./smd/deviceSMD.h"
+/* SCSI: bus first (defines SCSIDevice/SCSIBus), then the chip, then the card. */
+#include "./scsi/scsiBus.h"
+#include "./scsi/ncr5386.h"
+#include "./scsi/scsiDevice.h"
+#include "./scsi/diskSCSI.h"
+#include "./scsi/scsiHDD.h"
+#include "./scsi/deviceSCSI.h"
 #include "./terminal/deviceTerminal.h"
 #include "./lineprinter/deviceLinePrinter.h"
 #include "./papertapewriter/devicePaperTapeWriter.h"

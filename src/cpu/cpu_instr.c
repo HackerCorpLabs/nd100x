@@ -1526,6 +1526,33 @@ void ndfunc_clepu(ushort operand)
  * ADDR+7: Normal return
  *
  */
+/*
+ * Stack instructions (INIT / ENTR / LEAVE / ELEAV) and the page table they use.
+ *
+ * Verified against the ND-110 RASK microcode source (ND-110-RASK.uc):
+ *
+ *   5INIT (001144)  reads its inline parameters at P+1.. with COMM,RDRQ,PT
+ *   ENTR  (001162)  frame reads                        COMM,RDRQ,APT
+ *   ENTRC (001174)  frame writes                       COMM,WRRQ,APT
+ *                   BUT the argument read at "A,P"     COMM,RDRQ,PT
+ *   ENTRB (001206)  frame writes                       COMM,WRRQ,APT
+ *   ELEAV (001213)  frame read + writes                COMM,RDRQ/WRRQ,APT
+ *   LEAV  (001224)  frame reads                        COMM,RDRQ,APT
+ *
+ * The rule the microcode follows, without exception:
+ *   - the stack FRAME (LINK/PREVB/STP/SMAX/ERRCODE) is DATA  -> APT
+ *   - the inline PARAMETERS live in the instruction stream    -> PT
+ * (5INIT jumps into the shared ENTRC/ENTRB code, which is why INIT reads its
+ *  parameters via PT yet builds the frame via APT.)
+ *
+ * APT is gated on PTM by the MMU itself - mapVirtualToPhysical() does
+ * "if ((STS_PTM) && (UseAPT))" (cpu_mms.c) - so passing UseAPT=1 here means
+ * "alternative table when PTM is set, standard table otherwise", exactly like
+ * the hardware. No PTM test belongs in these functions.
+ *
+ * Reading the frame with UseAPT=0 while PTM=1 (split I/D space) fetches a word
+ * from the CODE page where SMAX should be, producing a bogus stack overflow.
+ */
 void ndfunc_init(ushort operand)
 {
 	ushort demand, start, maxsize, flag;
@@ -1544,12 +1571,12 @@ void ndfunc_init(ushort operand)
 		gPC += 5;
 		return;
 	}
-	MemoryWrite(gL + 1, start, 0, 2); /* L+1 ==> LINK */
-	MemoryWrite(gB, start + 1, 0, 2); /* B   ==> PREVB */
-	MemoryWrite(start + maxsize, start + 3, 0, 2); /* SMAX */
+	MemoryWrite(gL + 1, start, 1, 2); /* L+1 ==> LINK */
+	MemoryWrite(gB, start + 1, 1, 2); /* B   ==> PREVB */
+	MemoryWrite(start + maxsize, start + 3, 1, 2); /* SMAX */
 	gB = start + 128; /* + 200 oct. */
 	/*:TODO:  Flag */
-	MemoryWrite(gB + demand - 122, start + 2, 0, 2); /* STP */
+	MemoryWrite(gB + demand - 122, start + 2, 1, 2); /* STP */
 	gPC += 6;
 	return;
 }
@@ -1566,19 +1593,19 @@ void ndfunc_entr(ushort operand)
 {
 	ushort oldB, demand, smax, stp;
 	demand = MemoryRead(gPC + 0, 0);
-	smax = MemoryRead(gB - 125, 0); /* SMAX */
+	smax = MemoryRead(gB - 125, 1); /* SMAX */
 	if ((gB + demand - 122) > (smax))
 	{ /* stack overflow */
 		gPC += 1;
 		return;
 	}
-	stp = MemoryRead(gB - 126, 0); /* STP */
+	stp = MemoryRead(gB - 126, 1); /* STP */
 	oldB = gB;
 	gB = stp + 128;									/* Advance stack frame */
-	MemoryWrite(gL + 1, gB - 128, 0, 2);			/* L+1 ==> LINK */
-	MemoryWrite(oldB, gB - 127, 0, 2);				/* B   ==> PREVB */
-	MemoryWrite(smax, gB - 125, 0, 2);				/* SMAX */
-	MemoryWrite(gB + demand - 122, gB - 126, 0, 2); /* STP */
+	MemoryWrite(gL + 1, gB - 128, 1, 2);			/* L+1 ==> LINK */
+	MemoryWrite(oldB, gB - 127, 1, 2);				/* B   ==> PREVB */
+	MemoryWrite(smax, gB - 125, 1, 2);				/* SMAX */
+	MemoryWrite(gB + demand - 122, gB - 126, 1, 2); /* STP */
 	gPC += 2;
 }
 
@@ -1586,8 +1613,8 @@ void ndfunc_entr(ushort operand)
  */
 void ndfunc_leave(ushort operand)
 {
-	gPC = MemoryRead(gB - 128, 0);
-	gB = MemoryRead(gB - 127, 0);
+	gPC = MemoryRead(gB - 128, 1);
+	gB = MemoryRead(gB - 127, 1);
 }
 
 /* ELEAV
@@ -1595,11 +1622,11 @@ void ndfunc_leave(ushort operand)
 void ndfunc_eleav(ushort operand)
 {
 	ushort tmp;
-	tmp = MemoryRead(gB - 128, 0) - 1;
-	MemoryWrite(tmp, gB - 128, 0, 2); /* LINK */
-	MemoryWrite(gA, gB - 123, 0, 2);  /* A ==> ERRCODE */
-	gPC = MemoryRead(gB - 128, 0);
-	gB = MemoryRead(gB - 127, 0);
+	tmp = MemoryRead(gB - 128, 1) - 1;
+	MemoryWrite(tmp, gB - 128, 1, 2); /* LINK */
+	MemoryWrite(gA, gB - 123, 1, 2);  /* A ==> ERRCODE */
+	gPC = MemoryRead(gB - 128, 1);
+	gB = MemoryRead(gB - 127, 1);
 }
 
 

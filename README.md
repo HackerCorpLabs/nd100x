@@ -5,7 +5,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/HackerCorpLabs/nd100x?include_prereleases&sort=semver)](https://github.com/HackerCorpLabs/nd100x/releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20RISC--V%20%7C%20WebAssembly-blue)
 
-ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
+ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD, SCSI and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
 
 For more information about the ND-100 series of minicomputers: <https://www.ndwiki.org/wiki/ND-100>
 
@@ -63,6 +63,7 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * Console and additional terminals (up to 11 terminals, with telnet server for remote access)
   * Floppy (PIO and DMA) for 8" and 5.25" formats
   * SMD Hard Disk (75MB, 4 units)
+  * SCSI Hard Disk (ND-3201/3204 controller with NCR-5386 chip, Micropolis 1375-ND disks, SCSI IDs 0-6)
   * Paper Tape Reader (buffer-based, BPUN file loading via CLI or Glass UI upload)
   * Paper Tape Punch (output to file and Glass UI hex/ASCII display with download)
   * Line Printer (CDC 9380, output to file and Glass UI window)
@@ -84,7 +85,8 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * RISC-V cross-compilation
   * DAP debugger integration for step-by-step debugging
 * Planned
-  * Ethernet and SCSI device emulation
+  * Ethernet device emulation
+  * SCSI tape, CD-ROM and floppy targets (the SCSI hard disk is implemented)
 
 ## Project Structure
 
@@ -247,17 +249,34 @@ The emulator supports the following command line options:
 Usage: build/bin/nd100x [options]
 
 Options:
-  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)
+  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd[0-3], scsi[0-6])
+                          smd/scsi take an optional boot unit digit,
+                          e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)
   -i,      --image=FILE   Image file to load (aout, bpun, floppy only)
            --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)
            --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)
            --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)
            --smd3=FILE    SMD unit 3 disk image (default: SMD3.IMG)
+           --scsi0=[TYPE:]FILE  SCSI ID 0 target image (adds the ND-3201 controller)
+           --scsi1=[TYPE:]FILE  SCSI ID 1 target image
+           --scsi2=[TYPE:]FILE  SCSI ID 2 target image
+           --scsi3=[TYPE:]FILE  SCSI ID 3 target image
+           --scsi4=[TYPE:]FILE  SCSI ID 4 target image
+           --scsi5=[TYPE:]FILE  SCSI ID 5 target image
+           --scsi6=[TYPE:]FILE  SCSI ID 6 target image
+                          TYPE is one of:
+                            hdd     Micropolis 1375-ND hard disk (default)
+                            tape    streamer tape           (not implemented yet)
+                            cdrom   CD-ROM                  (not implemented yet)
+                            floppy  SCSI floppy             (not implemented yet)
+                          SCSI ID 7 is the controller itself and cannot be a target.
+                          Example: --scsi0=hdd:SCSI-K.image
   -s,      --start=ADDR   Start address (default: 0)
   -a,      --disasm       Enable disassembly output
   -d,      --debugger     Enable DAP debugger
   -p PORT, --port=PORT    Set debugger port (default: 4711)
   -S,      --smd-debug    Enable SMD disk controller debug log (stderr)
+           --scsi-debug   Enable SCSI disk controller debug log (stderr)
   -t,      --trace        Enable CPU execution trace to stderr
   -n N,    --max-instr=N  Stop after N instructions
   -B ADDR, --breakpoint=ADDR  Stop at address (octal/hex/decimal)
@@ -288,6 +307,8 @@ Examples:
   build/bin/nd100x --hdlc=1:1362                  # HDLC 1 server on port 1362
   build/bin/nd100x --hdlc=1:192.168.1.10:1362     # HDLC 1 client
   build/bin/nd100x --boot=smd --smd0=myboot.img --smd1=data.img
+  build/bin/nd100x --boot=smd1                     # Boot from SMD unit 1
+  build/bin/nd100x --boot=scsi0 --scsi0=hdd:SCSI-K.image  # Boot from SCSI ID 0
   build/bin/nd100x --hdlc=1:5000 --hdlc=2:5001    # Two HDLC devices
   build/bin/nd100x --boot=smd --telnet=9000        # SINTRAN with telnet server
   build/bin/nd100x --boot=smd --throttle           # Real-time CPU speed
@@ -295,13 +316,14 @@ Examples:
 ```
 
 Boot Types:
-* `smd`: SMD disk boot (default)
+* `smd`: SMD disk boot (default). An optional unit digit selects the boot unit: `smd0`-`smd3`.
+* `scsi`: SCSI disk boot. An optional unit digit selects the boot SCSI ID: `scsi0`-`scsi6`. The boot ID must be configured as an `hdd` target with `--scsiN`.
 * `bp`: Boot program
 * `bpun`: Boot program unprotected
 * `aout`: BSD 2.11 a.out format
 * `floppy`: Floppy disk boot
 
-### Block devices (Floppy and SMD)
+### Block devices (Floppy, SMD and SCSI)
 
 Default image file names (looked up in the current directory):
 
@@ -310,6 +332,12 @@ Default image file names (looked up in the current directory):
 
 SMD images can be overridden per unit with `--smd0=FILE` through `--smd3=FILE`.
 Other floppy images can be mounted at runtime via the F12 menu.
+
+The SCSI controller (ND-3201/3204) is opt-in: it is only added to the machine
+when at least one `--scsi0` through `--scsi6` target is given, so existing SMD
+machine configurations are unaffected. Both controllers can be enabled at the
+same time with their own disks, and the `--boot` selector picks which one to
+boot from.
 
 ## Running SINTRAN in the Emulator
 

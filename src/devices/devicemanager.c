@@ -124,6 +124,39 @@ void DeviceManager_AddAllDevices(void)
 
     // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
     // based on command line configuration
+
+    // Note: the SCSI controller is added conditionally via
+    // DeviceManager_AddSCSIDevice_WithConfig() based on command line
+    // configuration. It is deliberately NOT added here - putting an extra card
+    // in every machine's IOX map would change the hardware configuration of
+    // every existing boot.
+}
+
+/* Add the ND-3201/3204 SCSI controller and set the target class for each SCSI
+ * ID. unitTypes must have SCSI_MAX_UNITS entries, indexed by SCSI ID (0-6);
+ * SCSI_UNIT_NONE means "no target at this ID".
+ *
+ * SCSI IOX bases by thumbwheel TW2: 0=0144300, 1=0144400, 2=0144500, 3=0144600.
+ */
+bool DeviceManager_AddSCSIDevice_WithConfig(int thumbwheel, const SCSIUnitType *unitTypes)
+{
+    bool success = DeviceManager_AddDevice(DEVICE_TYPE_DISC_SCSI, (uint8_t)thumbwheel);
+
+    if (success && unitTypes)
+    {
+        static const uint16_t scsiBaseAddr[] = { 0144300, 0144400, 0144500, 0144600 };
+        Device *dev = DeviceManager_GetDeviceByAddress(scsiBaseAddr[thumbwheel & 0x03]);
+        if (dev)
+        {
+            for (int unit = 0; unit < SCSI_MAX_UNITS; unit++)
+            {
+                if (unitTypes[unit] != SCSI_UNIT_NONE)
+                    SCSI_SetUnitType(dev, unit, unitTypes[unit]);
+            }
+        }
+    }
+
+    return success;
 }
 
 bool DeviceManager_AddHDLCDevice_WithConfig(int thumbwheel, bool isServer, const char *address, int port)
@@ -193,6 +226,14 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create SMD device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_DISC_SCSI:
+        dev = CreateSCSIDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create SCSI device\n");
             return NULL;
         }
         break;
@@ -395,36 +436,29 @@ Device *DeviceManager_GetDeviceByIndex(int index)
     return deviceManager.devices[index].device;
 }
 
-// Loads boot code from disk to memory. Returns the boot address, or -1 if error
-int DeviceManager_Boot(uint16_t device_id)
+// Loads boot code from disk to memory. Returns the boot address, or -1 if error.
+//
+// The controller is found by its device TYPE (DEVICE_TYPE_DISC_SMD,
+// DEVICE_TYPE_DISC_SCSI, ...), not by IOX address. The old address lookup had
+// to mask boot-mode flag bits (bit 15 = BPUN load, bit 13 = bootstrap, as the
+// real ND boot code encodes them in the load device number) out of the id
+// first, which broke for the SCSI card: its IOX base 0144300 has bit 15 set as
+// part of the ADDRESS. Booting by type + unit sidesteps that entirely.
+//
+// Note: each controller's Boot function performs a MEMORY boot (first blocks
+// of the unit loaded to address 0). BPUN and bootstrap boot modes are handled
+// elsewhere (program_load) or not implemented.
+int DeviceManager_BootFrom(DeviceType type, int unit)
 {
+    for (int i = 0; i < deviceManager.deviceCount; i++)
+    {
+        Device *dev = deviceManager.devices[i].device;
+        if (dev && dev->type == type)
+        {
+            return Device_Boot(dev, unit);
+        }
+    }
 
-    Device *dev = DeviceManager_GetDeviceByAddress(device_id & ~(1<<15 | 1<<13)); // mask off bit 15 and 13 when searching for device
-    if (!dev) return -1;
-
-
-    // Boot the device
-    // Autodetect if the boot is a BPUN, MEMORY BOOT or BOOTSTRAP
-    //
-    // If BPUN, then we need to load the BPUN from the device 
-    // If MEMORY BOOT, then we need to load the memory image from the device 
-    // If BOOTSTRAP, then we need to load the bootstrap code from the device 
-
-    // Load the BPUN image IF bit 15 in device_id is 1 - Typical paper-tape or floppy disk (400 or 1560)
-    // Load using "Bootstrap"" IF bit 13 in device is 1 - Used for device 500 (Winchester disk) and 1540 (SMD disk)
-    // Load the memory image IF bit 15 in device_id is 0 - Winchester disk or SMD disk (1540) (first 2KB of disk is loaded to memory at 000000-001777)
-
-    
-    // At the moment.. 
-    // Only implemented for SMD, and only MEMORY boot
-    
-    return Device_Boot(dev,device_id);
-    
-    
-#ifdef LOG_DEVICE_NOT_FOUND
-    // interrupt(14,1<<7); /* IOX error lvl14 */s
-     Log(LOG_WARNING, "No device found for BOOT id: %d\n", device_id);
-#endif    
-
+    Log(LOG_WARNING, "No controller of device type %d present to boot from\n", type);
     return -1;
 }

@@ -471,7 +471,7 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
 #endif    
 
     // Check for page protection
-    if (!checkPageProtection(VPN, pageTable, pageTableEntry, UseAPT, am, virtualAddress))
+    if (!checkPageProtection(VPN, pageTable, pageTableEntry, am, virtualAddress))
     {
          // We should never get here, but added a return statement anyway! (Will end up here if interrupts are disabled?)
         return -1;
@@ -627,7 +627,7 @@ void UpdatePGS(uint pageTable, uint VPN, AccessMode am, bool permitViolation)
 }
 
 // Check page protection
-bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, bool UseAPT, AccessMode am, uint virtualAddress)
+bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, AccessMode am, uint virtualAddress)
 {
     ulong accessBits = 0;
     ulong pfMask = 7L << 29;
