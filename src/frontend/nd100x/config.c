@@ -63,6 +63,14 @@ static struct option long_options[] = {
     {"smd1",       required_argument, 0, 0x101},
     {"smd2",       required_argument, 0, 0x102},
     {"smd3",       required_argument, 0, 0x103},
+    {"scsi0",      required_argument, 0, 0x110},
+    {"scsi1",      required_argument, 0, 0x111},
+    {"scsi2",      required_argument, 0, 0x112},
+    {"scsi3",      required_argument, 0, 0x113},
+    {"scsi4",      required_argument, 0, 0x114},
+    {"scsi5",      required_argument, 0, 0x115},
+    {"scsi6",      required_argument, 0, 0x116},
+    {"scsi-debug", no_argument,       0, 0x117},
     {0, 0, 0, 0}
 };
 
@@ -70,6 +78,7 @@ void Config_Init(Config_t *config) {
     if (!config) return;
     
     config->bootType = BOOT_NONE;
+    config->bootUnit = 0;
     config->imageFile = NULL;
     config->startAddress = 0;
     config->disasmEnabled = false;
@@ -90,6 +99,12 @@ void Config_Init(Config_t *config) {
     config->tapeDir = NULL;
     config->tapeFile = NULL;
     for (int i = 0; i < 4; i++) config->smdFile[i] = NULL;
+    config->scsiEnabled = false;
+    config->scsiDebug = false;
+    for (int i = 0; i < SCSI_MAX_UNITS; i++) {
+        config->scsiFile[i] = NULL;
+        config->scsiType[i] = SCSI_UNIT_NONE;
+    }
     config->telnetEnabled = false;
     config->telnetPort = 9000;
     config->watchCount = 0;
@@ -106,16 +121,47 @@ void Config_Init(Config_t *config) {
     }
 }
 
-static BOOT_TYPE parseBootType(const char *bootStr) {
-    if (!bootStr) return BOOT_NONE;
-    
-    if (strcmp("bp", bootStr) == 0) return BOOT_BP;
-    if (strcmp("bpun", bootStr) == 0) return BOOT_BPUN;
-    if (strcmp("aout", bootStr) == 0) return BOOT_AOUT;
-    if (strcmp("floppy", bootStr) == 0) return BOOT_FLOPPY;
-    if (strcmp("smd", bootStr) == 0) return BOOT_SMD;
-    
-    return BOOT_NONE;
+/* Parse a --boot argument into bootType + bootUnit.
+ * Accepts the bare names (bp, bpun, aout, floppy, smd, scsi) plus an optional
+ * unit digit on the disk controllers: smd0-smd3 and scsi0-scsi6. A bare
+ * "smd"/"scsi" means unit 0. Prints its own error message and returns false
+ * on an unknown name or an out-of-range unit. */
+static bool parseBootSpec(Config_t *config, const char *bootStr) {
+    if (!bootStr || !config) return false;
+
+    config->bootUnit = 0;
+
+    if (strcmp("bp", bootStr) == 0)     { config->bootType = BOOT_BP;     return true; }
+    if (strcmp("bpun", bootStr) == 0)   { config->bootType = BOOT_BPUN;   return true; }
+    if (strcmp("aout", bootStr) == 0)   { config->bootType = BOOT_AOUT;   return true; }
+    if (strcmp("floppy", bootStr) == 0) { config->bootType = BOOT_FLOPPY; return true; }
+
+    if (strncmp("smd", bootStr, 3) == 0) {
+        const char *u = bootStr + 3;
+        if (*u == '\0') { config->bootType = BOOT_SMD; return true; }
+        if (u[0] >= '0' && u[0] <= '3' && u[1] == '\0') {
+            config->bootType = BOOT_SMD;
+            config->bootUnit = u[0] - '0';
+            return true;
+        }
+        fprintf(stderr, "Invalid SMD boot unit in '%s' (use smd or smd0-smd3)\n", bootStr);
+        return false;
+    }
+
+    if (strncmp("scsi", bootStr, 4) == 0) {
+        const char *u = bootStr + 4;
+        if (*u == '\0') { config->bootType = BOOT_SCSI; return true; }
+        if (u[0] >= '0' && u[0] <= '6' && u[1] == '\0') {
+            config->bootType = BOOT_SCSI;
+            config->bootUnit = u[0] - '0';
+            return true;
+        }
+        fprintf(stderr, "Invalid SCSI boot unit in '%s' (use scsi or scsi0-scsi6; ID 7 is the controller)\n", bootStr);
+        return false;
+    }
+
+    fprintf(stderr, "Invalid boot type: %s\n", bootStr);
+    return false;
 }
 
 // Parse HDLC config: "N:PORT" (server) or "N:HOST:PORT" (client)
@@ -257,9 +303,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
-                config->bootType = parseBootType(optarg);
-                if (config->bootType == BOOT_NONE) {
-                    fprintf(stderr, "Invalid boot type: %s\n", optarg);
+                if (!parseBootSpec(config, optarg)) {
                     return false;
                 }
                 break;
@@ -450,6 +494,61 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 break;
             }
 
+            case 0x110: case 0x111: case 0x112: case 0x113:
+            case 0x114: case 0x115: case 0x116: {
+                /* --scsiN=[TYPE:]FILE  e.g. --scsi0=hdd:/path/disk.img
+                 * TYPE is optional and defaults to hdd. The type prefix is only
+                 * honoured when the text before the first ':' is a known type
+                 * name, so a bare path (including a Windows "C:\..." path) is
+                 * still treated as a filename. */
+                int unit = c - 0x110;
+                SCSIUnitType type = SCSI_UNIT_HDD;
+                const char *file = optarg;
+
+                const char *colon = strchr(optarg, ':');
+                const char *slash = strchr(optarg, '/');
+                /* A colon only introduces a type when it comes before any '/',
+                 * so "/tmp/a:b.img" stays a filename. If the text there is not
+                 * a known type it is a typo, not a path - say so rather than
+                 * silently trying to open a file named "hdX:...". */
+                if (colon && colon != optarg && (!slash || colon < slash)) {
+                    size_t len = (size_t)(colon - optarg);
+                    char prefix[16];
+                    if (len >= sizeof(prefix)) {
+                        fprintf(stderr, "Error: --scsi%d has an unknown type prefix in '%s'\n", unit, optarg);
+                        return false;
+                    }
+                    memcpy(prefix, optarg, len);
+                    prefix[len] = '\0';
+                    SCSIUnitType parsed = SCSI_ParseUnitType(prefix);
+                    if (parsed == SCSI_UNIT_NONE) {
+                        fprintf(stderr, "Error: --scsi%d unknown type '%s' "
+                                        "(expected hdd, tape, cdrom or floppy)\n", unit, prefix);
+                        return false;
+                    }
+                    type = parsed;
+                    file = colon + 1;
+                }
+
+                if (*file == '\0') {
+                    fprintf(stderr, "Error: --scsi%d needs a file (got '%s')\n", unit, optarg);
+                    return false;
+                }
+
+                config->scsiFile[unit] = strdup(file);
+                if (!config->scsiFile[unit]) {
+                    fprintf(stderr, "Failed to allocate memory for SCSI%d file\n", unit);
+                    return false;
+                }
+                config->scsiType[unit] = type;
+                config->scsiEnabled = true;
+                break;
+            }
+
+            case 0x117:
+                config->scsiDebug = true;
+                break;
+
             case '?':
                 return false;
 
@@ -472,11 +571,28 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             fprintf(stderr, "Error: --image is not used with --boot=smd. Use --smd0..--smd3 instead.\n");
             return false;
         }
+        if (config->imageFile && config->bootType == BOOT_SCSI) {
+            fprintf(stderr, "Error: --image is not used with --boot=scsi. Use --scsi0..--scsi6 instead.\n");
+            return false;
+        }
+        if (config->bootType == BOOT_SCSI) {
+            int u = config->bootUnit;
+            if (!config->scsiFile[u]) {
+                fprintf(stderr, "Error: --boot=scsi%d needs a boot image on SCSI ID %d. Use --scsi%d=hdd:FILE.\n", u, u, u);
+                return false;
+            }
+            if (config->scsiType[u] != SCSI_UNIT_HDD) {
+                fprintf(stderr, "Error: --boot=scsi%d needs a 'hdd' target on SCSI ID %d (it is '%s').\n",
+                        u, u, SCSI_UnitTypeName(config->scsiType[u]));
+                return false;
+            }
+        }
         if (!config->imageFile) {
             if (config->bootType == BOOT_FLOPPY) {
                 config->imageFile = strdup("FLOPPY.IMG");
             } else
-            if (config->bootType != BOOT_SMD) {
+            // SMD and SCSI take their images from --smdN / --scsiN, not --image.
+            if (config->bootType != BOOT_SMD && config->bootType != BOOT_SCSI) {
                 fprintf(stderr, "Image file must be specified\n");
                 return false;
             }
@@ -485,7 +601,11 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     
    if (config->verbose) {
         printf("Configuration:\n");
-        printf("  Boot type: %s\n", boot_type_str[config->bootType]);
+        if (config->bootType == BOOT_SMD || config->bootType == BOOT_SCSI) {
+            printf("  Boot type: %s unit %d\n", boot_type_str[config->bootType], config->bootUnit);
+        } else {
+            printf("  Boot type: %s\n", boot_type_str[config->bootType]);
+        }
         printf("  Image file: %s\n", config->imageFile);
         for (int i = 0; i < 4; i++) {
             if (config->smdFile[i])
@@ -512,17 +632,34 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 void Config_PrintHelp(const char *progName) {
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
-    printf("  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd)\n");
+    printf("  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd[0-3], scsi[0-6])\n");
+    printf("                          smd/scsi take an optional boot unit digit,\n");
+    printf("                          e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)\n");
     printf("  -i,      --image=FILE   Image file to load (aout, bpun, floppy only)\n");
     printf("           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)\n");
     printf("           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)\n");
     printf("           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)\n");
     printf("           --smd3=FILE    SMD unit 3 disk image (default: SMD3.IMG)\n");
+    printf("           --scsi0=[TYPE:]FILE  SCSI ID 0 target image (adds the ND-3201 controller)\n");
+    printf("           --scsi1=[TYPE:]FILE  SCSI ID 1 target image\n");
+    printf("           --scsi2=[TYPE:]FILE  SCSI ID 2 target image\n");
+    printf("           --scsi3=[TYPE:]FILE  SCSI ID 3 target image\n");
+    printf("           --scsi4=[TYPE:]FILE  SCSI ID 4 target image\n");
+    printf("           --scsi5=[TYPE:]FILE  SCSI ID 5 target image\n");
+    printf("           --scsi6=[TYPE:]FILE  SCSI ID 6 target image\n");
+    printf("                          TYPE is one of:\n");
+    printf("                            hdd     Micropolis 1375-ND hard disk (default)\n");
+    printf("                            tape    streamer tape           (not implemented yet)\n");
+    printf("                            cdrom   CD-ROM                  (not implemented yet)\n");
+    printf("                            floppy  SCSI floppy             (not implemented yet)\n");
+    printf("                          SCSI ID 7 is the controller itself and cannot be a target.\n");
+    printf("                          Example: --scsi0=hdd:SCSI-K.image\n");
     printf("  -s,      --start=ADDR   Start address (default: 0)\n");
     printf("  -a,      --disasm       Enable disassembly output\n");
     printf("  -d,      --debugger     Enable DAP debugger\n");
     printf("  -p PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
+    printf("           --scsi-debug   Enable SCSI disk controller debug log (stderr)\n");
     printf("           --bsd-debug    Track BSD kernel-stack high-water (KSTKHW, stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");
@@ -553,5 +690,7 @@ void Config_PrintHelp(const char *progName) {
     printf("  %s --hdlc=1:%d                  # HDLC 1 server on port %d\n", progName, HDLC_DEFAULT_PORT, HDLC_DEFAULT_PORT);
     printf("  %s --hdlc=1:192.168.1.10:%d     # HDLC 1 client\n", progName, HDLC_DEFAULT_PORT);
     printf("  %s --boot=smd --smd0=myboot.img --smd1=data.img\n", progName);
+    printf("  %s --boot=smd1                  # Boot from SMD unit 1\n", progName);
+    printf("  %s --boot=scsi0 --scsi0=hdd:SCSI-K.image  # Boot from SCSI ID 0\n", progName);
     printf("  %s --hdlc=1:5000 --hdlc=2:5001  # Two HDLC devices\n", progName);
 } 

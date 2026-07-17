@@ -679,14 +679,20 @@ static uint16_t SMD_Ident(Device *self, uint16_t level)
     return 0;
 }
 
-static int SMD_Boot(Device *self, uint16_t device_id)
+static int SMD_Boot(Device *self, int unit)
 {
     SMDData *data = (SMDData *)self->deviceData;
     ControllerRegs *regs = &data->regs;
 
     if ((!self->blockCallbacks.readFunc) || (!self->blockCallbacks.writeFunc)) return -1; // Need callbacks hooked up
 
-    regs->selectedUnit = 0;
+    if (unit < 0 || unit >= regs->maxUnits)
+    {
+        printf("Error: SMD boot unit %d out of range (0-%d)\n", unit, regs->maxUnits - 1);
+        return -1;
+    }
+
+    regs->selectedUnit = unit;
     regs->selectedDisk = &regs->disks[regs->selectedUnit];
 
     // Initialize disk geometry if not already configured

@@ -9,6 +9,7 @@ SRCS := device.c \
         papertape/devicePapertape.c \
         smd/deviceSMD.c \
         smd/diskSMD.c \
+        scsi/deviceSCSI.c \
         rtc/deviceRTC.c \
         panel/panel.c \
         terminal/deviceTerminal.c
@@ -20,6 +21,7 @@ INCLUDES := -I$(SRC_DIR) \
            -I$(SRC_DIR)/floppy \
            -I$(SRC_DIR)/papertape \
            -I$(SRC_DIR)/smd \
+           -I$(SRC_DIR)/scsi \
            -I$(SRC_DIR)/rtc \
            -I$(SRC_DIR)/panel \
            -I../cpu \
@@ -89,6 +91,7 @@ $(MODULE_OBJ_DIR)/floppy/deviceFloppyDMA.o: floppy/deviceFloppyDMA.h devices_pro
 $(MODULE_OBJ_DIR)/papertape/devicePapertape.o: papertape/devicePapertape.h devices_protos.h
 $(MODULE_OBJ_DIR)/smd/deviceSMD.o: smd/deviceSMD.h smd/diskSMD.h devices_protos.h
 $(MODULE_OBJ_DIR)/smd/diskSMD.o: smd/diskSMD.h
+$(MODULE_OBJ_DIR)/scsi/deviceSCSI.o: scsi/deviceSCSI.h devices_protos.h
 $(MODULE_OBJ_DIR)/rtc/deviceRTC.o: rtc/deviceRTC.h devices_protos.h
 $(MODULE_OBJ_DIR)/panel/panel.o: panel/panel.h devices_protos.h
 $(MODULE_OBJ_DIR)/terminal/deviceTerminal.o: terminal/deviceTerminal.h devices_protos.h

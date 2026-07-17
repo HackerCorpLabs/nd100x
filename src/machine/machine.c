@@ -47,6 +47,7 @@
 // Global arrays for mounted drive information
 MountedDriveInfo_t* floppy_drives = NULL;
 MountedDriveInfo_t* smd_drives = NULL;
+MountedDriveInfo_t* scsi_drives = NULL;
 
 
 const char* boot_type_str[] = {
@@ -55,7 +56,8 @@ const char* boot_type_str[] = {
     "aout",
     "bp",
     "floppy",
-    "smd"
+    "smd",
+    "scsi"
 };
 
 
@@ -66,6 +68,9 @@ void init_drive_arrays() {
     }
     if (!smd_drives) {
         smd_drives = calloc(4, sizeof(MountedDriveInfo_t));
+    }
+    if (!scsi_drives) {
+        scsi_drives = calloc(SCSI_MAX_UNITS, sizeof(MountedDriveInfo_t));
     }
 }
 
@@ -78,6 +83,75 @@ static void cleanup_drive_arrays() {
     if (smd_drives) {
         free(smd_drives);
         smd_drives = NULL;
+    }
+    if (scsi_drives) {
+        free(scsi_drives);
+        scsi_drives = NULL;
+    }
+}
+
+// Map a drive type to its mounted-drive array and unit count.
+// Returns NULL for an unknown drive type, or if the array is not allocated.
+// This is the single place that knows the per-type array layout - callers must
+// not re-derive it, or a new drive type silently aliases onto another one.
+static MountedDriveInfo_t *drives_for_type(DRIVE_TYPE drive_type, int *max_units)
+{
+    MountedDriveInfo_t *drives = NULL;
+    int units = 0;
+
+    switch (drive_type) {
+    case DRIVE_SMD:
+        drives = smd_drives;
+        units = 4;              // SMD has units 0-3
+        break;
+    case DRIVE_FLOPPY:
+        drives = floppy_drives;
+        units = 3;              // Floppy has units 0-2
+        break;
+    case DRIVE_SCSI:
+        drives = scsi_drives;
+        units = SCSI_MAX_UNITS; // SCSI targets are IDs 0-6 (7 is the controller)
+        break;
+    default:
+        break;
+    }
+
+    if (max_units)
+        *max_units = units;
+    return drives;
+}
+
+// Human-readable drive type, for log messages.
+static const char *drive_type_name(DRIVE_TYPE drive_type)
+{
+    switch (drive_type) {
+    case DRIVE_SMD:    return "SMD";
+    case DRIVE_FLOPPY: return "floppy";
+    case DRIVE_SCSI:   return "SCSI";
+    default:           return "unknown";
+    }
+}
+
+// Map a device type to its drive type. Returns false if the device is not a
+// block device this machine layer knows how to back with an image.
+static bool drive_type_for_device(const Device *device, DRIVE_TYPE *drive_type)
+{
+    if (!device || !drive_type)
+        return false;
+
+    switch (device->type) {
+    case DEVICE_TYPE_DISC_SMD:
+        *drive_type = DRIVE_SMD;
+        return true;
+    case DEVICE_TYPE_DISC_SCSI:
+        *drive_type = DRIVE_SCSI;
+        return true;
+    case DEVICE_TYPE_FLOPPY_PIO:
+    case DEVICE_TYPE_FLOPPY_DMA:
+        *drive_type = DRIVE_FLOPPY;
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -142,6 +216,15 @@ cleanup_machine (void)
 		}
 	}
 	
+	// Unmount all SCSI drives
+	if (scsi_drives) {
+		for (int i = 0; i < SCSI_MAX_UNITS; i++) {
+			if (scsi_drives[i].name[0] != '\0') {
+				unmount_drive(DRIVE_SCSI, i);
+			}
+		}
+	}
+
 	// Clean up drive arrays
 	cleanup_drive_arrays();
 
@@ -274,6 +357,40 @@ void mount_smd(const char *imageFile, int unit)
 }
 
 
+/* Mount a SCSI target image on the given unit (SCSI ID 0-6; ID 7 is the
+ * ND-3201/3204 controller itself and is never a target).
+ *
+ * The unit's device type (hdd/tape/cdrom/floppy) is NOT needed here - it only
+ * decides which SCSI target class the controller instantiates, and is passed
+ * separately to DeviceManager_AddSCSIDevice_WithConfig(). The block offset math
+ * in machine_block_read/write uses device->blockSizeBytes, not the mount's
+ * block_size, so the mount stays type-agnostic.
+ */
+void mount_scsi(const char *imageFile, int unit)
+{
+    char path[256];
+    sprintf(path, "SCSI%d.IMG", unit);
+
+    const char *scsi_img = imageFile ? imageFile : path;
+
+    // if file exists mount it
+    FILE *ftmp = fopen(scsi_img, "rb");
+    if (ftmp) {
+        fclose(ftmp);
+        if (unit == 0) {
+            mount_drive(DRIVE_SCSI, unit, "md5-unknown", "Boot SCSI", "Boot SCSI image", scsi_img);
+        } else {
+            mount_drive(DRIVE_SCSI, unit, "md5-unknown", "DATA SCSI", "DATA SCSI image", scsi_img);
+        }
+    } else {
+        // Unlike floppy/SMD there is no automount for SCSI - the unit was asked
+        // for explicitly on the command line, so a missing image is an error
+        // worth reporting rather than a silently absent drive.
+        fprintf(stderr, "Error: SCSI unit %d image '%s' could not be opened\n", unit, scsi_img);
+    }
+}
+
+
 // As a default, mount floppy and SMD drives (IF they exists)
 void autoMountDrives()
 {
@@ -294,7 +411,7 @@ void autoMountDrives()
 
 }
 
- int program_load(BOOT_TYPE bootType, const char *imageFile, bool verbose, uint16_t text_start, bool overlay_deposit)
+ int program_load(BOOT_TYPE bootType, int bootUnit, const char *imageFile, bool verbose, uint16_t text_start, bool overlay_deposit)
  {
      int bootAddress;
      int result;
@@ -377,14 +494,33 @@ void autoMountDrives()
      case BOOT_SMD:
 
         // Only mount from MEMFS file if not already mounted (gateway/OPFS mounts take priority)
-        if (!isMounted(DRIVE_SMD, 0)) {
-            mount_smd(imageFile, 0);
+        if (!isMounted(DRIVE_SMD, bootUnit)) {
+            mount_smd(imageFile, bootUnit);
         }
 
-         bootAddress = DeviceManager_Boot(01540);
+         bootAddress = DeviceManager_BootFrom(DEVICE_TYPE_DISC_SMD, bootUnit);
          if (bootAddress < 0)
          {
-             printf("Error booting from SMD device\n");
+             printf("Error booting from SMD unit %d\n", bootUnit);
+#ifdef __EMSCRIPTEN__
+             return -1;
+#else
+             exit(10);
+#endif
+         }
+         STARTADDR = bootAddress;
+         break;
+     case BOOT_SCSI:
+
+        // Only mount from MEMFS file if not already mounted
+        if (!isMounted(DRIVE_SCSI, bootUnit)) {
+            mount_scsi(imageFile, bootUnit);
+        }
+
+         bootAddress = DeviceManager_BootFrom(DEVICE_TYPE_DISC_SCSI, bootUnit);
+         if (bootAddress < 0)
+         {
+             printf("Error booting from SCSI unit %d\n", bootUnit);
 #ifdef __EMSCRIPTEN__
              return -1;
 #else
@@ -410,13 +546,8 @@ void autoMountDrives()
     int max_units = 0;
 
     // Determine which array to use and max units
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-        max_units = 4;  // SMD has units 0-3
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-        max_units = 3;  // Floppy has units 0-2
-    } else {
+    drives = drives_for_type(drive_type, &max_units);
+    if (!max_units) {
         //printf("Error: Invalid drive type\n");
         return false;
     }
@@ -440,14 +571,9 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
     int max_units = 0;
 
     // Determine which array to use and max units
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-        max_units = 4;  // SMD has units 0-3
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-        max_units = 3;  // Floppy has units 0-2
-    } else {
-        return;
+    drives = drives_for_type(drive_type, &max_units);
+    if (!max_units) {
+        return; // Unknown drive type
     }
 
     // Check if unit is valid
@@ -458,17 +584,19 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
     // Lazy init if drive arrays not yet allocated
     if (!drives) {
         init_drive_arrays();
-        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        drives = drives_for_type(drive_type, NULL);
         if (!drives) {
             return;
         }
     }
-    
+
     // Handle image path (HTTP download or local file)
     if (image_path) {
         // Set block size based on drive type
         if (drive_type == DRIVE_SMD) {
             drives[unit].block_size = 1024;  // 1KB for SMD
+        } else if (drive_type == DRIVE_SCSI) {
+            drives[unit].block_size = 1024;  // 1KB for the ND SCSI disk (Micropolis 1375-ND)
         } else {
             // For floppy, we'll use 512 bytes as default, but could be determined from file
             drives[unit].block_size = 512;   // 512 bytes for floppy
@@ -542,8 +670,8 @@ void mount_drive(DRIVE_TYPE drive_type, int unit, const char *md5, const char *n
     
 #if _debug_    
     printf("Mounted %s to %s unit %d:\n", 
-           drive_type == DRIVE_SMD ? "SMD" : "floppy",
-           drive_type == DRIVE_SMD ? "SMD" : "floppy",
+           drive_type_name(drive_type),
+           drive_type_name(drive_type),
            unit);
     printf("  Name: %s\n", name);
     printf("  Description: %s\n", description);
@@ -559,13 +687,8 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
     int max_units = 0;
     
     // Determine which array to use and max units
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-        max_units = 4;  // SMD has units 0-3
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-        max_units = 3;  // Floppy has units 0-2
-    } else {
+    drives = drives_for_type(drive_type, &max_units);
+    if (!max_units) {
         printf("Error: Invalid drive type\n");
         return;
     }
@@ -585,14 +708,14 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
     // Check if drive is mounted
     if (drives[unit].name[0] == '\0') {
         printf("Error: No drive mounted on %s unit %d\n", 
-               drive_type == DRIVE_SMD ? "SMD" : "floppy", unit);
+               drive_type_name(drive_type), unit);
         return;
     }
     
     // Unmount the drive
     printf("Unmounting %s from %s unit %d:\n", 
            drives[unit].name,
-           drive_type == DRIVE_SMD ? "SMD" : "floppy",
+           drive_type_name(drive_type),
            unit);
     
     // Clean up data based on type
@@ -628,13 +751,7 @@ void unmount_drive(DRIVE_TYPE drive_type, int unit) {
 
 // List mounted drives for the specified drive type
 MountedDriveInfo_t* list_mount(DRIVE_TYPE drive_type) {
-    if (drive_type == DRIVE_SMD) {
-        return smd_drives;
-    } else if (drive_type == DRIVE_FLOPPY) {
-        return floppy_drives;
-    } else {
-        return NULL;  // Invalid drive type
-    }
+    return drives_for_type(drive_type, NULL);
 }
 
 #ifdef __EMSCRIPTEN__
@@ -700,21 +817,14 @@ void mount_drive_opfs(DRIVE_TYPE drive_type, int unit, const char *name,
     MountedDriveInfo_t* drives = NULL;
     int max_units = 0;
 
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-        max_units = 4;
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-        max_units = 3;
-    } else {
-        return;
-    }
+    drives = drives_for_type(drive_type, &max_units);
+    if (!max_units) return; // Unknown drive type
 
     if (unit < 0 || unit >= max_units) return;
 
     if (!drives) {
         init_drive_arrays();
-        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        drives = drives_for_type(drive_type, NULL);
         if (!drives) return;
     }
 
@@ -724,7 +834,7 @@ void mount_drive_opfs(DRIVE_TYPE drive_type, int unit, const char *name,
     drives[unit].is_writeprotected = false;
     drives[unit].data.local_file = NULL;
     drives[unit].data_size = imageSize;
-    drives[unit].block_size = (drive_type == DRIVE_SMD) ? 1024 : 512;
+    drives[unit].block_size = (drive_type == DRIVE_FLOPPY) ? 512 : 1024;
 
     strncpy(drives[unit].md5, "opfs", sizeof(drives[unit].md5) - 1);
     strncpy(drives[unit].name, name, sizeof(drives[unit].name) - 1);
@@ -741,21 +851,14 @@ void mount_drive_gateway(DRIVE_TYPE drive_type, int unit, const char *name,
     MountedDriveInfo_t* drives = NULL;
     int max_units = 0;
 
-    if (drive_type == DRIVE_SMD) {
-        drives = smd_drives;
-        max_units = 4;
-    } else if (drive_type == DRIVE_FLOPPY) {
-        drives = floppy_drives;
-        max_units = 3;
-    } else {
-        return;
-    }
+    drives = drives_for_type(drive_type, &max_units);
+    if (!max_units) return; // Unknown drive type
 
     if (unit < 0 || unit >= max_units) return;
 
     if (!drives) {
         init_drive_arrays();
-        drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+        drives = drives_for_type(drive_type, NULL);
         if (!drives) return;
     }
 
@@ -766,7 +869,7 @@ void mount_drive_gateway(DRIVE_TYPE drive_type, int unit, const char *name,
     drives[unit].is_writeprotected = false;
     drives[unit].data.local_file = NULL;
     drives[unit].data_size = imageSize;
-    drives[unit].block_size = (drive_type == DRIVE_SMD) ? 1024 : 512;
+    drives[unit].block_size = (drive_type == DRIVE_FLOPPY) ? 512 : 1024;
 
     strncpy(drives[unit].md5, "gateway", sizeof(drives[unit].md5) - 1);
     strncpy(drives[unit].name, name, sizeof(drives[unit].name) - 1);
@@ -780,8 +883,13 @@ void mount_drive_gateway(DRIVE_TYPE drive_type, int unit, const char *name,
 int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
 
-    DRIVE_TYPE drive_type = (device->type == DEVICE_TYPE_DISC_SMD) ? DRIVE_SMD : DRIVE_FLOPPY;
-    MountedDriveInfo_t *drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+    DRIVE_TYPE drive_type;
+    int max_units = 0;
+    if (!drive_type_for_device(device, &drive_type)) return -1;
+    MountedDriveInfo_t *drives = drives_for_type(drive_type, &max_units);
+    // drives[unit] is indexed below - bound it. SCSI has 7 units where SMD has 4
+    // and floppy 3, so an unchecked unit would index past the shorter arrays.
+    if (unit < 0 || unit >= max_units) return -1;
 
 #ifdef FLOPPY_DIAG
     // Diagnostic: log first floppy block read attempt
@@ -857,8 +965,13 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
 int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint32_t blockAddress, int unit) {
     if (!device || !buffer || size == 0) return -1;
 
-    DRIVE_TYPE drive_type = (device->type == DEVICE_TYPE_DISC_SMD) ? DRIVE_SMD : DRIVE_FLOPPY;
-    MountedDriveInfo_t *drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+    DRIVE_TYPE drive_type;
+    int max_units = 0;
+    if (!drive_type_for_device(device, &drive_type)) return -1;
+    MountedDriveInfo_t *drives = drives_for_type(drive_type, &max_units);
+    // drives[unit] is indexed below - bound it. SCSI has 7 units where SMD has 4
+    // and floppy 3, so an unchecked unit would index past the shorter arrays.
+    if (unit < 0 || unit >= max_units) return -1;
     if (!drives) return -1;
 
     // block size is determined by the device; size is number of blocks
@@ -903,8 +1016,13 @@ int machine_block_disk_info(Device *device, size_t *image_size, bool *is_write_p
     *image_size = 0;
     *is_write_protected = true;
 
-    DRIVE_TYPE drive_type = (device->type == DEVICE_TYPE_DISC_SMD) ? DRIVE_SMD : DRIVE_FLOPPY;
-    MountedDriveInfo_t *drives = (drive_type == DRIVE_SMD) ? smd_drives : floppy_drives;
+    DRIVE_TYPE drive_type;
+    int max_units = 0;
+    if (!drive_type_for_device(device, &drive_type)) return -1;
+    MountedDriveInfo_t *drives = drives_for_type(drive_type, &max_units);
+    // drives[unit] is indexed below - bound it. SCSI has 7 units where SMD has 4
+    // and floppy 3, so an unchecked unit would index past the shorter arrays.
+    if (unit < 0 || unit >= max_units) return -1;
     if (!drives) return -1;
 
     MountedDriveInfo_t *entry = &drives[unit];

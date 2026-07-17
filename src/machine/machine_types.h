@@ -38,8 +38,9 @@ typedef enum {
     BOOT_BPUN, 
     BOOT_AOUT,
     BOOT_BP,
-    BOOT_FLOPPY, 
-    BOOT_SMD
+    BOOT_FLOPPY,
+    BOOT_SMD,
+    BOOT_SCSI
 } BOOT_TYPE;
 
 extern const char* boot_type_str[];
@@ -48,8 +49,13 @@ extern const char* boot_type_str[];
 // Drive types
 typedef enum {
     DRIVE_SMD,
-    DRIVE_FLOPPY
+    DRIVE_FLOPPY,
+    DRIVE_SCSI
 } DRIVE_TYPE;
+
+// NOTE: the SCSI unit count is SCSI_MAX_UNITS, defined in
+// devices/scsi/deviceSCSI.h (reachable from here - this header includes
+// devices_types.h, which includes deviceSCSI.h).
 
 // Mounted drive information structure
 typedef struct {

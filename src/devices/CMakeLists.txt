@@ -12,6 +12,7 @@ file(GLOB TERMINAL_SOURCES "terminal/*.c")
 file(GLOB PAPERTAPE_SOURCES "papertape/*.c")
 file(GLOB FLOPPY_SOURCES "floppy/*.c")
 file(GLOB SMD_SOURCES "smd/*.c")
+file(GLOB SCSI_SOURCES "scsi/*.c")
 file(GLOB HDLC_SOURCES "hdlc/*.c")
 file(GLOB LINEPRINTER_SOURCES "lineprinter/*.c")
 file(GLOB PAPERTAPEWRITER_SOURCES "papertapewriter/*.c")
@@ -24,6 +25,7 @@ list(APPEND SOURCES
     ${PAPERTAPE_SOURCES} 
     ${FLOPPY_SOURCES}
     ${SMD_SOURCES}
+    ${SCSI_SOURCES}
     ${HDLC_SOURCES}
     ${LINEPRINTER_SOURCES}
     ${PAPERTAPEWRITER_SOURCES}
@@ -50,6 +52,13 @@ add_custom_command(
     # Add SMD device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/deviceSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/diskSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add SCSI device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/scsiBus.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/ncr5386.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/scsiDevice.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/diskSCSI.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/scsiHDD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/deviceSCSI.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add line printer device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter/deviceLinePrinter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add paper tape writer device sources
@@ -90,6 +99,7 @@ target_include_directories(devices PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/papertape
     ${CMAKE_CURRENT_SOURCE_DIR}/floppy
     ${CMAKE_CURRENT_SOURCE_DIR}/smd
+    ${CMAKE_CURRENT_SOURCE_DIR}/scsi
     ${CMAKE_CURRENT_SOURCE_DIR}/hdlc
     ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter
     ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter

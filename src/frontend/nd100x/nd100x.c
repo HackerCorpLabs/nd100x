@@ -243,7 +243,20 @@ void initialize()
 		}
 	}
 
-	program_load(config.bootType, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
+	// Add the ND-3201/3204 SCSI controller only if a --scsiN target was given.
+	// It is opt-in: adding the card unconditionally would change the IOX map and
+	// the SINTRAN device scan of every existing machine configuration.
+	if (config.scsiEnabled) {
+		for (int i = 0; i < SCSI_MAX_UNITS; i++) {
+			if (config.scsiFile[i]) {
+				mount_scsi(config.scsiFile[i], i);
+			}
+		}
+		// Thumbwheel 0 -> IOX 0144300, ident 0140440, logical device 2202.
+		DeviceManager_AddSCSIDevice_WithConfig(0, config.scsiType);
+	}
+
+	program_load(config.bootType, config.bootUnit, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
 	gPC = STARTADDR;
 
 	/* Direct input/output enabled */
@@ -489,6 +502,7 @@ int main(int argc, char *argv[])
     DISASM = config.disasmEnabled;
     STARTADDR = config.startAddress;
     smd_debug_enabled = config.smdDebug;
+    scsi_debug_enabled = config.scsiDebug;
     CPU_TRACE = config.traceEnabled;
     BSD_DEBUG = config.bsdDebug;
     CPU_MAX_INSTR = config.maxInstructions;
