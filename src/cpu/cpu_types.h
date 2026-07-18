@@ -274,6 +274,58 @@ typedef union ndram {
 #define ND_Memsize	(sizeof(VolatileMemory)/sizeof(ushort))
 
 
+/*
+ * ND-100 physical-memory TYPE identification (LOCAL vs shared / MPM).
+ *
+ * On a real ND-100 every physical memory bank is one of several KINDS, and
+ * SINTRAN must know which is which.  The kind matters because:
+ *   - Only LOCAL ND-100 memory (KMECCR) is ECC/parity checked (the ECCR error-
+ *     correction network lives on the local memory modules), and
+ *   - SINTRAN "selects the first MPM5 memory for its shared memory" (the memory
+ *     shared with an attached ND-500/ND-5000 through the 3022/5015 interface).
+ *
+ * SINTRAN builds a per-bank MEMARRAY of these codes at start-up: it initially
+ * marks every found bank as MPM5, then PROBES each page (OPPSTART: RETU / MPM3MAP
+ * / MPM4MAP) - a page that responds to the ECCR error-correction network via
+ * TRR ECCR + the internal ECC status register is reclassified as LOCAL (KMECCR),
+ * MPM3 pages via IOX 751, MPM4 ports via IOX 100200.., the ECC controller
+ * presence via IOX 100115.  Whatever is left stays MPM5.  The MON MEMORY-
+ * CONFIGURATION info reads MEMARRAY back (RP-P2-CONFG: MEMCON), and FN5MEM/FMPM5
+ * pick the first MPM5 page as the ND-500 shared window.
+ *
+ * These codes are the SINTRAN K-symbols (KMECCR/KMPM5/...) as used by RetroCore's
+ * ND100Memory.MemoryType byte; we keep the same numeric values so the two
+ * emulators agree.  nd100x currently models only LOCAL RAM and (as a documented
+ * stub) the ND-500 MPM5 window; the other kinds are defined for completeness.
+ */
+typedef enum {
+	ND_MEM_NONE   = 0x00, // Unmapped / not memory
+	ND_MEM_MPM5   = 0x04, // KMPM5  - MPM-5 multiport (ND-500/ND-5000 shared memory)
+	ND_MEM_LOCAL  = 0x08, // KMECCR - Local ND-100 memory (ECC/parity checked)
+	ND_MEM_PIOC   = 0x02, // KMPIOC - PIOC memory        (not modelled here)
+	ND_MEM_MPM3   = 0x05, // KMPM3  - MPM-3 multiport     (not modelled here)
+	ND_MEM_MPM4   = 0x06  // KMPM4  - MPM-4 multiport     (not modelled here)
+} NDMemoryType;
+
+/*
+ * ND-500 shared (MPM5) window as seen from the ND-100 side.
+ *
+ * RetroCore places Port-A of the 3022/5015 multiport memory at ND-100 physical
+ * BYTE address 0x00420000 (physical page 0x420), 8 MB long.  nd100x is natively
+ * WORD-addressed, so the same window in WORD address space is:
+ *     base = 0x00420000 >> 1 = 0x00210000 words
+ *     size = 0x00800000 >> 1 = 0x00400000 words (4 MW / 8 MB)
+ *
+ * NOTE: with the default installed memory (ND_Memsize = 4 MW = 0x200000 words)
+ * this window sits entirely ABOVE local RAM, so nd100x does not yet back it with
+ * a device - it is a documented STUB used only for TYPE classification.  When an
+ * ND-500 interface is ported it should register real backing over this range;
+ * the classifier already reports it as ND_MEM_MPM5 so the ECC path skips it.
+ */
+#define ND_MPM5_WINDOW_START_WORD  0x00210000u   // ND-100 word address of MPM5 base
+#define ND_MPM5_WINDOW_SIZE_WORD   0x00400000u   // 4 MW (8 MB) MPM5 window
+
+
 struct CpuRegs {
 	ushort	reg[16][16];	/* main CPU registers for all runlevels */
 
@@ -300,6 +352,7 @@ struct CpuRegs {
 	ushort	reg_PGC;	/* */
 	ushort	reg_PEA;	/* */
 	ushort	reg_ECCR;	/* */
+	ushort	reg_ECBits;	/* Simulated ECC latch (store-on-write); see cpu_mms.c ECC block */
 
 	/* Personally Added to do Prefetch and Instruction more alike ND */
 	ushort	myreg_IR;	/* InstructionRegister */
@@ -379,6 +432,7 @@ typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, 
 #define gPGC	gReg->reg_PGC
 #define gPEA	gReg->reg_PEA
 #define gECCR	gReg->reg_ECCR
+#define gECBits	gReg->reg_ECBits
 
 
 #define gPEA_Lock 	gReg->mylock_PEA
@@ -549,6 +603,8 @@ typedef struct {
 
 // Extern globals for hot-path access from cpu.c (defined in cpu_bkpt.c)
 extern int watchpoint_count;
+extern int watchpoint_skip_hits;   // --watch-skip: ignore first N hits before halting
+extern int watchpoint_min_value;   // --watch-min-value: WRITE triggers only if value >= this
 extern uint8_t watchpoint_bitmap[8192]; // 64K addresses, 1 bit each
 
 // PC-breakpoint hot-path gates (defined in cpu_bkpt.c). Mirror the watchpoint

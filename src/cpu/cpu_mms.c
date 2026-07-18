@@ -551,46 +551,10 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
         pageTableEntry = SetPageWritten(pageTable, VPN, ptm, pageTableEntry);
     }
 
-    // Check for ECC Memory Parity
-    if ((gECCR & (1 << 3)) == 0) // If Bit 3 is set, ECC is disabled
-    {
-        int eccBits = 0;
-        if ((gECCR & 1 << 0) != 0) eccBits++; // Simulate memory error in bit 0
-        if ((gECCR & 1 << 1) != 0) eccBits++; // Simulate memory error in bit 15
-        if ((gECCR & 1 << 4) != 0) eccBits++; // Simulate memory error in bit 6
-
-        if (eccBits > 0)
-        {
-            uint16_t tmpPEA = physicalAddress & 0xFFFF;
-            uint16_t tmpPES = (physicalAddress >> 16) & 0xFF;
-            uint16_t errorCode = 0;
-
-            if (eccBits == 1)
-            {
-                // Single bit, error table  Figure 2.18, page 2-51 in ND-06.014.02
-                if ((gECCR & 1 << 0) != 0) errorCode = 3; // Simulate memory error in bit 0
-                if ((gECCR & 1 << 1) != 0) errorCode = 0x1C; // Simulate memory error in bit 15
-                if ((gECCR & 1 << 4) != 0) errorCode = 0x0D; // Simulate memory error in bit 6
-                tmpPES |= errorCode << 8;
-            }
-            else
-            {
-                // no error code as its multiple bits	
-                tmpPES |= 1 << 13; // FATAL ERROR
-            }
-
-            if (am & FETCH)
-            {
-                 // Error during fetch (or DEPOSIT or EXAM)
-                tmpPES |= 1 << 15; // Error during fetch
-            }
-
-            setPEA(tmpPEA);
-            setPES(tmpPES);
-
-            interrupt(14, 1 << 8); // PTY - MEMORY_PARITY_ERROR bit 8            
-        }
-    }
+    // ECC Memory Parity is checked on the PHYSICAL read/write path
+    // (ReadPhysicalMemory / WritePhysicalMemoryWM), NOT here - so it also covers
+    // EXAM/DEPO physical accesses that never go through mapVirtualToPhysical.
+    // See GetPhysicalMemoryType / nd_ecc_write_latch / nd_ecc_read_detect below.
 
 #ifdef DEBUG_MMS
     if (physicalAddress == 0)
@@ -785,6 +749,86 @@ void WriteVirtualMemory(uint virtualAddress, ushort value, bool UseAPT, WriteMod
 
 
 
+// Classify a PHYSICAL word address into its ND-100 memory TYPE (local vs shared).
+//
+// Mirrors RetroCore's ND100Memory.FindMemoryBank()/GetMemoryTypeCode(): walk the
+// memory-mapped regions in the same priority order - the ND-500 MPM5 window (a
+// documented STUB at ND_MPM5_WINDOW_*, above installed RAM at the default size),
+// then plain local ND-100 RAM. Only LOCAL RAM (KMECCR) is ECC/parity checked, so
+// this gates the parity path exactly like RetroCore's CheckECCR.
+NDMemoryType GetPhysicalMemoryType(uint physicalWordAddress)
+{
+    // ND-500 MPM5 shared-memory window (3022/5015 Port-A). Highest priority.
+    if ((physicalWordAddress >= ND_MPM5_WINDOW_START_WORD) &&
+        (physicalWordAddress <  ND_MPM5_WINDOW_START_WORD + ND_MPM5_WINDOW_SIZE_WORD))
+    {
+        return ND_MEM_MPM5; // KMPM5 - not ECC checked
+    }
+
+    // Installed local ND-100 RAM (ECC/parity checked).
+    if (physicalWordAddress < ND_Memsize)
+    {
+        return ND_MEM_LOCAL; // KMECCR
+    }
+
+    // Nothing claims this address.
+    return ND_MEM_NONE;
+}
+
+// -- ECC Memory Parity: store-on-write latch + detect-on-read --------------------
+// Mirrors RetroCore CpuND100.MMS.cs (CheckECCR / CheckWriteECCR / CheckReadECCR).
+// Lives on the PHYSICAL read/write path so it ALSO covers EXAM/DEPO physical
+// accesses - which is exactly how TPE CONFIGURATION / SINTRAN probe each bank:
+// arm ECCR = SimBit0 + DisableECC(bit3), WRITE the bank (must latch the simulated
+// bad ECC even with bit 3 set), then clear bit 3 and READ back; a level-14 parity
+// interrupt => the bank has ECC => LOCAL, silence => MPM5. Only LOCAL ND-100 RAM
+// (KMECCR) carries ECC. 0x13 = SimBit0(1<<0) | SimBit15(1<<1) | SimBit6(1<<4).
+static void nd_ecc_write_latch(int physicalAddress)
+{
+    if ((gECCR & 0x13) == 0 && gECBits == 0) return; // hot path
+    if (GetPhysicalMemoryType((uint)physicalAddress) != ND_MEM_LOCAL) return;
+    // STORE-ON-WRITE: latch regardless of DisableECC(bit 3).
+    gECBits = 0;
+    if ((gECCR & (1 << 0)) != 0) gECBits |= (1 << 0);
+    if ((gECCR & (1 << 1)) != 0) gECBits |= (1 << 1);
+    if ((gECCR & (1 << 4)) != 0) gECBits |= (1 << 4);
+}
+
+static void nd_ecc_read_detect(int physicalAddress)
+{
+    if ((gECCR & 0x13) == 0 && gECBits == 0) return;   // hot path
+    if ((gECCR & (1 << 3)) != 0) return;               // DisableECC gates DETECTION only
+    if (GetPhysicalMemoryType((uint)physicalAddress) != ND_MEM_LOCAL) return;
+
+    // Fire on EITHER a live simulate bit OR a latch from a prior local write.
+    uint16_t eff = (uint16_t)(gECCR | gECBits);
+    int eccBits = 0;
+    if ((eff & (1 << 0)) != 0) eccBits++;
+    if ((eff & (1 << 1)) != 0) eccBits++;
+    if ((eff & (1 << 4)) != 0) eccBits++;
+    if (eccBits == 0) return;
+
+    uint16_t tmpPEA = physicalAddress & 0xFFFF;
+    uint16_t tmpPES = (physicalAddress >> 16) & 0xFF;
+    uint16_t errorCode = 0;
+    if (eccBits == 1)
+    {
+        // Single bit, error table Figure 2.18, page 2-51 in ND-06.014.02
+        if ((eff & (1 << 0)) != 0) errorCode = 3;
+        if ((eff & (1 << 1)) != 0) errorCode = 0x1C;
+        if ((eff & (1 << 4)) != 0) errorCode = 0x0D;
+        tmpPES |= errorCode << 8;
+    }
+    else
+    {
+        tmpPES |= 1 << 13; // FATAL ERROR (multiple bits)
+    }
+    setPEA(tmpPEA);
+    setPES(tmpPES);
+    gECBits = 0; // consumed on detection
+    interrupt(14, 1 << 8); // PTY - MEMORY_PARITY_ERROR bit 8
+}
+
 // Read from physical memory
 int ReadPhysicalMemory(int physicalAddress, bool privileged)
 {
@@ -816,6 +860,7 @@ int ReadPhysicalMemory(int physicalAddress, bool privileged)
         return 0x00;
     }
 
+    nd_ecc_read_detect(physicalAddress);
     return VolatileMemory.n_Array[physicalAddress];
 }
 
@@ -867,6 +912,8 @@ void WritePhysicalMemoryWM(int physicalAddress, uint16_t value, bool privileged,
         HandleMemoryOutOfRange(physicalAddress);
         return;
     }
+
+    nd_ecc_write_latch(physicalAddress);
 
     ushort *p_phy_addr;
     p_phy_addr = &VolatileMemory.n_Array[physicalAddress];
