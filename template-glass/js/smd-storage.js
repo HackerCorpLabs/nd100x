@@ -208,7 +208,10 @@ var smdStorage = (function() {
       description: (meta && meta.description) || '',
       size: data.byteLength,
       date: new Date().toISOString().split('T')[0],
-      sourceName: (meta && meta.sourceName) || ''
+      sourceName: (meta && meta.sourceName) || '',
+      // Disk type this image is for: 'smd' (default), 'scsi', or 'winchester'.
+      // Used as a hard mount constraint - a SCSI ID accepts only 'scsi' images.
+      diskType: (meta && meta.diskType) || 'smd'
     };
     _saveMetadata();
 

@@ -29,5 +29,14 @@
     "images": [
       "../../FLOPPY.IMG"
     ]
+  },
+  "scsi": {
+    "images": [
+      {
+        "path": "../../SCSI0.IMG",
+        "name": "SCSI ID 0",
+        "description": "ND-3201/3204 SCSI hard disk (target ID 0). Array index = SCSI ID (0-6)."
+      }
+    ]
   }
 }

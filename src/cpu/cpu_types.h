@@ -402,7 +402,7 @@ typedef enum {
 	CPU_SHUTDOWN // Shut down and exit 
 }  CPURunMode;
 
-typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX} CpuType;
+typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX, ND120CX} CpuType;
 
 #define gPC	gReg->reg[gPIL][_P]
 #define gA	gReg->reg[gPIL][_A]

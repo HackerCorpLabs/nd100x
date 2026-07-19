@@ -116,13 +116,21 @@ const hdlcBindings = new Map();  // channel -> { socket, clientAddr }
 const hdlcServers = [];          // Active HDLC TCP servers
 
 // Disk image state
-const diskFds = { smd: {}, floppy: {} };  // [type][unit] -> { fd, path, size, name }
+const diskFds = { smd: {}, floppy: {}, scsi: {}, winchester: {} };  // [type][unit] -> { fd, path, size, name }
+
+// driveType byte (wire protocol) -> config/name. Index matches the C DRIVE_TYPE
+// enum: 0=SMD, 1=floppy, 2=SCSI, 3=Winchester. An unknown driveType falls back
+// to 'smd' so older clients that only ever send 0/1 stay fully compatible.
+const DRIVE_TYPE_NAMES = ['smd', 'floppy', 'scsi', 'winchester'];
+function driveTypeName(driveType) {
+  return DRIVE_TYPE_NAMES[driveType] || 'smd';
+}
 
 // =========================================================
 // Disk image file management
 // =========================================================
 function openDiskImages() {
-  ['smd', 'floppy'].forEach(function(type) {
+  ['smd', 'floppy', 'scsi', 'winchester'].forEach(function(type) {
     var imgConfig = config[type];
     if (!imgConfig || !imgConfig.images) return;
     imgConfig.images.forEach(function(img, unit) {
@@ -148,7 +156,7 @@ function openDiskImages() {
 }
 
 function closeDiskImages() {
-  ['smd', 'floppy'].forEach(function(type) {
+  DRIVE_TYPE_NAMES.forEach(function(type) {
     for (var unit in diskFds[type]) {
       try { fs.closeSync(diskFds[type][unit].fd); } catch(e) {}
     }
@@ -160,15 +168,13 @@ function closeDiskImages() {
 // Disk listing JSON (sent to disk sub-worker on connect)
 // =========================================================
 function buildDiskList() {
-  return JSON.stringify({
-    type: 'disk-list',
-    smd: Object.entries(diskFds.smd).map(function(e) {
+  var list = { type: 'disk-list' };
+  DRIVE_TYPE_NAMES.forEach(function(type) {
+    list[type] = Object.entries(diskFds[type]).map(function(e) {
       return { unit: parseInt(e[0]), name: e[1].name, size: e[1].size };
-    }),
-    floppy: Object.entries(diskFds.floppy).map(function(e) {
-      return { unit: parseInt(e[0]), name: e[1].name, size: e[1].size };
-    })
+    });
   });
+  return JSON.stringify(list);
 }
 
 // =========================================================
@@ -413,9 +419,9 @@ function setupDiskWs(ws) {
     if (buf.length < 3) return;
 
     var type = buf[0];
-    var driveType = buf[1];  // 0=smd, 1=floppy
+    var driveType = buf[1];  // 0=smd, 1=floppy, 2=scsi, 3=winchester
     var unit = buf[2];
-    var typeName = driveType === 0 ? 'smd' : 'floppy';
+    var typeName = driveTypeName(driveType);
     var disk = diskFds[typeName] && diskFds[typeName][unit];
 
     if ((type === 0x20 || type === 0x22) && !disk) {

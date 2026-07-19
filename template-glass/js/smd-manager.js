@@ -99,10 +99,12 @@ function smdRefreshInstalledList() {
   var container = document.getElementById('smd-installed-list');
   if (!container) return;
 
-  var images = smdStorage.listImages();
+  // Hard constraint: the SMD tab lists only SMD-type images (diskType defaults
+  // to 'smd' for images stored before disk-type tagging existed).
+  var images = smdStorage.listImages().filter(function(i) { return (i.diskType || 'smd') === 'smd'; });
 
   if (images.length === 0) {
-    container.innerHTML = '<div class="smd-empty-msg">No disk images stored. Use the Server Catalog or Import to add images.</div>';
+    container.innerHTML = '<div class="smd-empty-msg">No SMD disk images stored. Use the Server Catalog or Import to add images.</div>';
     return;
   }
 
@@ -531,7 +533,7 @@ function smdRefreshCatalogList() {
     return;
   }
 
-  fetch('smd-catalog.json').then(function(r) { return r.json(); }).then(function(catalog) {
+  fetch('hdd-catalog.json').then(function(r) { return r.json(); }).then(function(catalog) {
     _catalogData = catalog || [];
     smdRenderCatalog(container, _catalogData);
   }).catch(function(err) {
@@ -647,7 +649,7 @@ function smdDoCopy(uuid, name, description, entry) {
     if (!entry.url) {
       console.error('[SMD Copy] CATALOG ERROR: entry has no URL and generate is not set');
       if (statusEl) statusEl.textContent = 'Failed: catalog entry has no download URL';
-      alert('Catalog error: "' + name + '" has no download URL configured.\n\nThe smd-catalog.json entry needs a "url" field pointing to the image file.');
+      alert('Catalog error: "' + name + '" has no download URL configured.\n\nThe hdd-catalog.json entry needs a "url" field pointing to the image file.');
       return;
     }
     dataPromise = downloadImageBuffer(entry.url).then(function(buf) {
@@ -1240,3 +1242,150 @@ window.smdManagerHide = smdManagerHide;
     smdRefreshAll();
   }
 })();
+
+// =========================================================
+// HDD manager tabs (SMD / SCSI / Winchester) - added for the SCSI controller.
+// SMD keeps its existing UI (#smd-manager-body); SCSI uses #hdd-scsi-body.
+// =========================================================
+function hddSelectTab(tab) {
+  var smdBody = document.getElementById('smd-manager-body');
+  var scsiBody = document.getElementById('hdd-scsi-body');
+  if (smdBody) smdBody.style.display = (tab === 'smd') ? '' : 'none';
+  if (scsiBody) scsiBody.style.display = (tab === 'scsi') ? '' : 'none';
+  var btns = document.querySelectorAll('#hdd-tabs .hdd-tab');
+  for (var i = 0; i < btns.length; i++) {
+    var active = btns[i].getAttribute('data-hdd-tab') === tab;
+    btns[i].classList.toggle('hdd-tab-active', active);
+  }
+  if (tab === 'scsi') hddScsiRefresh();
+}
+
+// Refresh the SCSI target rows (IDs 0-6) from the drive registry.
+function hddScsiRefresh() {
+  for (var u = 0; u <= 6; u++) {
+    var nameEl = document.getElementById('scsi-unit-' + u + '-name');
+    var ejectEl = document.getElementById('scsi-unit-' + u + '-eject');
+    var entry = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', u) : null;
+    if (entry && entry.name) {
+      if (nameEl) nameEl.textContent = entry.name;
+      if (ejectEl) ejectEl.style.display = '';
+    } else {
+      if (nameEl) nameEl.textContent = 'Not assigned';
+      if (ejectEl) ejectEl.style.display = 'none';
+    }
+  }
+  hddScsiRefreshLibrary();
+}
+
+// Render the SCSI local library: only images tagged diskType 'scsi' (hard
+// constraint), each with an "Assign to ID 0-6" dropdown.
+function hddScsiRefreshLibrary() {
+  var container = document.getElementById('hdd-scsi-installed-list');
+  if (!container) return;
+  if (typeof smdStorage === 'undefined') return;
+
+  var images = smdStorage.listImages().filter(function(i) { return (i.diskType || 'smd') === 'scsi'; });
+  if (images.length === 0) {
+    container.innerHTML = '<div class="smd-empty-msg">No SCSI disk images stored. Import an image and tag it as SCSI to assign it to a SCSI ID.</div>';
+    return;
+  }
+
+  // Which UUID is on which SCSI ID (from the registry).
+  var idOf = {};
+  for (var id = 0; id <= 6; id++) {
+    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', id) : null;
+    if (e && e.fileName) idOf[e.fileName] = id;
+  }
+
+  var html = '';
+  images.forEach(function(img) {
+    var uuid = img.uuid;
+    var assigned = (idOf[uuid] !== undefined) ? idOf[uuid] : -1;
+    html += '<div class="smd-image-card" data-uuid="' + escapeHtml(uuid) + '">';
+    html += '<div class="smd-image-info">';
+    html += '<span class="smd-image-name">' + escapeHtml(img.name) + '</span>';
+    html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; ' + (img.date || '');
+    if (assigned >= 0) html += ' &middot; ID ' + assigned;
+    html += '</span>';
+    if (img.description) html += '<span class="smd-image-meta">' + escapeHtml(img.description) + '</span>';
+    html += '</div>';
+    html += '<div class="smd-image-actions">';
+    html += '<select class="hdd-scsi-assign-select" data-uuid="' + escapeHtml(uuid) + '" title="Assign to SCSI ID">';
+    html += '<option value="">' + (assigned >= 0 ? 'ID ' + assigned + ' (move...)' : 'Assign to...') + '</option>';
+    for (var i = 0; i <= 6; i++) {
+      if (i === assigned) continue;
+      html += '<option value="' + i + '">ID ' + i + '</option>';
+    }
+    html += '</select>';
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.hdd-scsi-assign-select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      if (this.value !== '') {
+        hddScsiAssign(this.getAttribute('data-uuid'), parseInt(this.value));
+        this.value = '';
+      }
+    });
+  });
+}
+
+// Assign a SCSI-tagged image to a SCSI ID (0-6) and mount it live.
+function hddScsiAssign(uuid, id) {
+  if (id < 0 || id > 6) return;
+  var meta = smdStorage.getMetadata(uuid);
+  if (!meta || (meta.diskType || 'smd') !== 'scsi') {
+    alert('Only images tagged as SCSI can be assigned to a SCSI ID.');
+    return;
+  }
+  var displayName = meta.name || uuid;
+
+  // Eject the same image from any other ID, and the current occupant of this ID.
+  for (var i = 0; i <= 6; i++) {
+    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', i) : null;
+    if (e && e.fileName === uuid && i !== id) hddScsiEjectUnit(i);
+  }
+  var cur = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', id) : null;
+  if (cur && cur.fileName && cur.fileName !== uuid) hddScsiEjectUnit(id);
+
+  if (typeof driveRegistry !== 'undefined') {
+    driveRegistry.mount('scsi', id, 'opfs', displayName, uuid, meta.size || 0);
+  }
+
+  if (emu && isSmdPersistenceEnabled()) {
+    if (emu.isWorkerMode()) {
+      if (emu.opfsMountSCSI) emu.opfsMountSCSI(id, uuid).then(function(r) {
+        if (r && r.ok && typeof driveRegistry !== 'undefined') {
+          driveRegistry.mount('scsi', id, 'opfs', displayName, uuid, r.size || 0);
+        }
+      });
+    } else {
+      smdStorage.retrieveImage(uuid).then(function(data) {
+        if (data && emu.mountSCSIFromBuffer) {
+          var rc = emu.mountSCSIFromBuffer(id, data);
+          if (rc !== 0) {
+            alert('Failed to mount "' + displayName + '" on SCSI ID ' + id + '.');
+            if (typeof driveRegistry !== 'undefined') driveRegistry.eject('scsi', id);
+          }
+        }
+      });
+    }
+  }
+  hddScsiRefresh();
+}
+
+// Eject a SCSI target (ID 0-6).
+function hddScsiEjectUnit(unit) {
+  if (unit < 0 || unit > 6) return;
+  if (emu) {
+    if (emu.isWorkerMode()) {
+      if (emu.opfsUnmountSCSI) emu.opfsUnmountSCSI(unit);
+      else if (emu.unmountSCSI) emu.unmountSCSI(unit);
+    } else if (emu.unmountSCSI) {
+      emu.unmountSCSI(unit);
+    }
+  }
+  if (typeof driveRegistry !== 'undefined') driveRegistry.eject('scsi', unit);
+  hddScsiRefresh();
+}

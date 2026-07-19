@@ -59,6 +59,8 @@ static struct option long_options[] = {
     {"throttle",   optional_argument, 0, 'Z'},
     {"ring-dump",  optional_argument, 0, 'R'},
     {"overlay-deposit", no_argument, 0, 'O'},
+    {"watch-skip", required_argument, 0, 0x130},
+    {"watch-min-value", required_argument, 0, 0x131},
     {"smd0",       required_argument, 0, 0x100},
     {"smd1",       required_argument, 0, 0x101},
     {"smd2",       required_argument, 0, 0x102},
@@ -71,6 +73,10 @@ static struct option long_options[] = {
     {"scsi5",      required_argument, 0, 0x115},
     {"scsi6",      required_argument, 0, 0x116},
     {"scsi-debug", no_argument,       0, 0x117},
+    {"config",     required_argument, 0, 0x120},
+    {"ini",        required_argument, 0, 0x120},
+    {"show-config",no_argument,       0, 0x121},
+    {"write-config",required_argument,0, 0x122},
     {0, 0, 0, 0}
 };
 
@@ -79,6 +85,9 @@ void Config_Init(Config_t *config) {
     
     config->bootType = BOOT_NONE;
     config->bootUnit = 0;
+    config->iniFile = NULL;
+    config->showConfig = false;
+    config->writeConfig = NULL;
     config->imageFile = NULL;
     config->startAddress = 0;
     config->disasmEnabled = false;
@@ -427,8 +436,8 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 int n = 50; // default
                 if (optarg) {
                     n = (int)strtol(optarg, &endptr, 0);
-                    if (*endptr != '\0' || n < 1 || n > 512) {
-                        fprintf(stderr, "Invalid ring-dump size (1-512): %s\n", optarg);
+                    if (*endptr != '\0' || n < 1 || n > 65536) {
+                        fprintf(stderr, "Invalid ring-dump size (1-65536): %s\n", optarg);
                         return false;
                     }
                 }
@@ -467,6 +476,22 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 
             case 'W':
                 if (!parseWatchConfig(config, optarg)) {
+                    return false;
+                }
+                break;
+
+            case 0x130:  /* --watch-skip N */
+                config->watchSkip = (int)strtol(optarg, &endptr, 0);
+                if (*endptr != '\0' || config->watchSkip < 0) {
+                    fprintf(stderr, "Invalid --watch-skip value: %s\n", optarg);
+                    return false;
+                }
+                break;
+
+            case 0x131:  /* --watch-min-value V */
+                config->watchMinValue = (int)strtoul(optarg, &endptr, 0);
+                if (*endptr != '\0') {
+                    fprintf(stderr, "Invalid --watch-min-value: %s\n", optarg);
                     return false;
                 }
                 break;
@@ -549,6 +574,26 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->scsiDebug = true;
                 break;
 
+            case 0x120: /* --config / --ini */
+                config->iniFile = strdup(optarg);
+                if (!config->iniFile) {
+                    fprintf(stderr, "Failed to allocate memory for config file path\n");
+                    return false;
+                }
+                break;
+
+            case 0x121: /* --show-config */
+                config->showConfig = true;
+                break;
+
+            case 0x122: /* --write-config=FILE */
+                config->writeConfig = strdup(optarg);
+                if (!config->writeConfig) {
+                    fprintf(stderr, "Failed to allocate memory for write-config path\n");
+                    return false;
+                }
+                break;
+
             case '?':
                 return false;
 
@@ -559,7 +604,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     }
     
     // Check required arguments
-    if ((!config->showHelp && !config->debuggerEnabled)) {
+    if ((!config->showHelp && !config->showConfig && !config->writeConfig && !config->iniFile && !config->debuggerEnabled)) {
         if (config->bootType == BOOT_NONE) {
             config->bootType = BOOT_SMD;
 
@@ -601,7 +646,10 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     
    if (config->verbose) {
         printf("Configuration:\n");
-        if (config->bootType == BOOT_SMD || config->bootType == BOOT_SCSI) {
+        if (config->iniFile && config->bootType == BOOT_NONE) {
+            // Boot device comes from the INI, resolved after this summary prints.
+            printf("  Boot type: (from config file %s)\n", config->iniFile);
+        } else if (config->bootType == BOOT_SMD || config->bootType == BOOT_SCSI) {
             printf("  Boot type: %s unit %d\n", boot_type_str[config->bootType], config->bootUnit);
         } else {
             printf("  Boot type: %s\n", boot_type_str[config->bootType]);
@@ -680,8 +728,13 @@ void Config_PrintHelp(const char *progName) {
     printf("                          Server: --hdlc=N:PORT  (N=1-4)\n");
     printf("                          Client: --hdlc=N:HOST:PORT\n");
     printf("  -O,      --overlay-deposit Deposit data_click at phys word 1 for kernel boot-info\n");
-    printf("  -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 512)\n");
+    printf("  -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 65536)\n");
     printf("  -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)\n");
+    printf("           --config=FILE  Machine configuration INI file\n");
+    printf("           --ini=FILE     Alias for --config\n");
+    printf("                          (default: autoload <binaryname>.ini in the current dir)\n");
+    printf("           --show-config  Resolve+validate the machine config, print it, and exit\n");
+    printf("           --write-config=FILE  Write the resolved machine config to an INI file and exit\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);

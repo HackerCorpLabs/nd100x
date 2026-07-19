@@ -45,6 +45,7 @@
 #include "../ndlib/ndlib_protos.h"
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
+#include "../machine/machine_config.h"
 #include "../devices/terminal/deviceTerminal.h"
 #include "../devices/papertape/devicePapertape.h"
 #include "../devices/papertapewriter/devicePaperTapeWriter.h"
@@ -335,6 +336,9 @@ EMSCRIPTEN_EXPORT int Boot(int boot_type)
         break;
     case 2: // BPUN
         rc = program_load(BOOT_BPUN, 0, "BPUN_UPLOAD.IMG", 1, 0, false);
+        break;
+    case 3: // SCSI (ID 0)
+        rc = program_load(BOOT_SCSI, 0, "SCSI0.IMG", 1, 0, false);
         break;
     default: // FLOPPY (0)
         rc = program_load(BOOT_FLOPPY, 0, "FLOPPY0.IMG", 1, 0, false);
@@ -666,8 +670,8 @@ static uint8_t s_smdSectorBuf[SMD_READ_BUF_SECTORS * 1024];
 
 #ifdef __EMSCRIPTEN__
 // Defined as EM_JS in machine.c
-extern int opfs_block_read_js(int unit, uint8_t *buffer, int bytes, int offset);
-extern int opfs_is_available_js(int unit);
+extern int opfs_block_read_js(int driveType, int unit, uint8_t *buffer, int bytes, int offset);
+extern int opfs_is_available_js(int driveType, int unit);
 extern int gateway_block_read_js(int driveType, int unit, uint8_t *buffer, int bytes, int offset);
 extern int gateway_is_available_js(int driveType, int unit);
 #endif
@@ -688,8 +692,8 @@ EMSCRIPTEN_EXPORT int Dbg_ReadSMDSectors(int unit, int lba, int count)
     if (entry->data_size && byte_offset + byte_count > entry->data_size) return 0;
 
 #ifdef __EMSCRIPTEN__
-    if (entry->is_opfs && opfs_is_available_js(unit)) {
-        int rc = opfs_block_read_js(unit, s_smdSectorBuf, (int)byte_count, (int)byte_offset);
+    if (entry->is_opfs && opfs_is_available_js((int)DRIVE_SMD, unit)) {
+        int rc = opfs_block_read_js((int)DRIVE_SMD, unit, s_smdSectorBuf, (int)byte_count, (int)byte_offset);
         if (rc < 0) return 0;
         if ((size_t)rc < byte_count) memset(s_smdSectorBuf + rc, 0, byte_count - rc);
         return (int)(uintptr_t)s_smdSectorBuf;
@@ -808,6 +812,169 @@ EMSCRIPTEN_EXPORT int MountFloppyFromGateway(int unit, int imageSize)
     mount_drive_gateway(DRIVE_FLOPPY, unit, name, desc, (size_t)imageSize);
 
     return isMounted(DRIVE_FLOPPY, unit) ? 0 : -1;
+}
+
+// =========================================================
+// SCSI drive mounting (ND-3201/3204 controller, SCSI IDs 0-6)
+// =========================================================
+// Mirrors the SMD mount exports. The SCSI controller is opt-in: it is added
+// lazily the first time a SCSI disk is mounted (ensure_scsi_controller), so a
+// machine with no SCSI disks keeps the exact IOX map it has today. Block I/O
+// for OPFS/gateway is namespaced by driveType (DRIVE_SCSI) so SCSI unit 0 does
+// not alias SMD unit 0. SCSI targets are IDs 0-6; ID 7 is the controller.
+
+// SCSI controller IOX base for thumbwheel 0.
+#define SCSI_TW0_IOX_BASE 0144300
+
+// Add the SCSI controller at thumbwheel 0 (if not already present) and mark the
+// given unit as an HDD target so it answers transfers. Returns the Device* or NULL.
+static Device *ensure_scsi_controller(int unit)
+{
+    Device *dev = DeviceManager_GetDeviceByAddress(SCSI_TW0_IOX_BASE);
+    if (!dev) {
+        SCSIUnitType types[SCSI_MAX_UNITS];
+        for (int i = 0; i < SCSI_MAX_UNITS; i++) types[i] = SCSI_UNIT_NONE;
+        DeviceManager_AddSCSIDevice_WithConfig(0, types);
+        dev = DeviceManager_GetDeviceByAddress(SCSI_TW0_IOX_BASE);
+    }
+    if (dev && unit >= 0 && unit < SCSI_MAX_UNITS)
+        SCSI_SetUnitType(dev, unit, SCSI_UNIT_HDD);
+    return dev;
+}
+
+// Mount a SCSI drive from OPFS (Worker mode, block I/O via JS keyed on driveType)
+EMSCRIPTEN_EXPORT int MountSCSIFromOPFS(int unit, int imageSize)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return -1;
+    if (!ensure_scsi_controller(unit)) return -1;
+    if (isMounted(DRIVE_SCSI, unit)) unmount_drive(DRIVE_SCSI, unit);
+
+    const char *name = (unit == 0) ? "Boot SCSI (OPFS)" : "Data SCSI (OPFS)";
+    const char *desc = (unit == 0) ? "Boot SCSI from persistent storage" : "Data SCSI from persistent storage";
+    mount_drive_opfs(DRIVE_SCSI, unit, name, desc, (size_t)imageSize);
+    return isMounted(DRIVE_SCSI, unit) ? 0 : -1;
+}
+
+// Mount a SCSI drive from gateway (Worker mode, block I/O via WebSocket sub-worker)
+EMSCRIPTEN_EXPORT int MountSCSIFromGateway(int unit, int imageSize)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return -1;
+    if (!ensure_scsi_controller(unit)) return -1;
+    if (isMounted(DRIVE_SCSI, unit)) unmount_drive(DRIVE_SCSI, unit);
+
+    const char *name = (unit == 0) ? "Boot SCSI (Gateway)" : "Data SCSI (Gateway)";
+    const char *desc = (unit == 0) ? "Boot SCSI from gateway server" : "Data SCSI from gateway server";
+    mount_drive_gateway(DRIVE_SCSI, unit, name, desc, (size_t)imageSize);
+    return isMounted(DRIVE_SCSI, unit) ? 0 : -1;
+}
+
+// Mount a SCSI drive from a JS buffer (Direct mode, in-memory writable image)
+EMSCRIPTEN_EXPORT int MountSCSIFromBuffer(int unit, const uint8_t *data, int size)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS || !data || size <= 0) return -1;
+    if (!ensure_scsi_controller(unit)) return -1;
+    if (isMounted(DRIVE_SCSI, unit)) unmount_drive(DRIVE_SCSI, unit);
+
+    char *buf = malloc((size_t)size);
+    if (!buf) return -1;
+    memcpy(buf, data, (size_t)size);
+
+    init_drive_arrays();
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SCSI);
+    if (!drives) { free(buf); return -1; }
+
+    MountedDriveInfo_t *entry = &drives[unit];
+    entry->is_mounted = true;
+    entry->is_remote = true;
+    entry->is_opfs = false;
+    entry->is_writeprotected = false;
+    entry->data.remote_data = buf;
+    entry->data_size = (size_t)size;
+    entry->block_size = 1024;
+
+    const char *name = (unit == 0) ? "Boot SCSI (Buffer)" : "Data SCSI (Buffer)";
+    strncpy(entry->name, name, sizeof(entry->name) - 1);
+    entry->name[sizeof(entry->name) - 1] = '\0';
+    strncpy(entry->description, "SCSI from persistent storage buffer", sizeof(entry->description) - 1);
+    entry->description[sizeof(entry->description) - 1] = '\0';
+    strncpy(entry->md5, "buffer", sizeof(entry->md5) - 1);
+    entry->image_path[0] = '\0';
+    return 0;
+}
+
+// Get the in-memory buffer pointer for a SCSI drive (Direct mode save-back)
+EMSCRIPTEN_EXPORT int GetSCSIBuffer(int unit)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SCSI);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted || !entry->is_remote || !entry->data.remote_data) return 0;
+    return (int)(uintptr_t)entry->data.remote_data;
+}
+
+EMSCRIPTEN_EXPORT int GetSCSIBufferSize(int unit)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_SCSI);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted) return 0;
+    return (int)entry->data_size;
+}
+
+// Remount a SCSI drive from MEMFS ("/SCSIN.IMG")
+EMSCRIPTEN_EXPORT int RemountSCSI(int unit)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return -1;
+    if (!ensure_scsi_controller(unit)) return -1;
+
+    char filename[32];
+    sprintf(filename, "/SCSI%d.IMG", unit);
+    if (isMounted(DRIVE_SCSI, unit)) unmount_drive(DRIVE_SCSI, unit);
+    mount_drive(DRIVE_SCSI, unit, "md5-unknown", "SCSI", "Mounted SCSI image", filename);
+    return isMounted(DRIVE_SCSI, unit) ? 0 : -1;
+}
+
+// Unmount a SCSI drive
+EMSCRIPTEN_EXPORT int UnmountSCSI(int unit)
+{
+    if (unit < 0 || unit >= SCSI_MAX_UNITS) return -1;
+    if (isMounted(DRIVE_SCSI, unit)) unmount_drive(DRIVE_SCSI, unit);
+    return 0;
+}
+
+// =========================================================
+// Machine configuration (INI) validation for the Machine Setup window
+// =========================================================
+// Reuses the native MachineConfig INI parser + validator (machine_config.c) so
+// the browser gets identical, friendly error messages. The INI text is written
+// to a MEMFS temp file and parsed with the same MachineConfig_LoadFile path the
+// native binary uses. Returns "" (empty string) when the config is valid, or a
+// "file:line message" describing the first problem.
+EMSCRIPTEN_EXPORT const char* ValidateMachineINI(const char* iniText)
+{
+    static char result[MC_ERR_LEN];
+    const char* tmp = "/machine-setup.ini";
+
+    FILE* f = fopen(tmp, "w");
+    if (!f) { snprintf(result, sizeof(result), "internal error: cannot create temp file"); return result; }
+    fputs(iniText ? iniText : "", f);
+    fclose(f);
+
+    MachineConfig mc;
+    char err[MC_ERR_LEN];
+    MachineConfig_InitBaseline(&mc);
+    if (!MachineConfig_LoadFile(&mc, tmp, err, sizeof(err))) {
+        snprintf(result, sizeof(result), "%s", err);
+        return result;
+    }
+    if (!MachineConfig_Validate(&mc, err, sizeof(err))) {
+        snprintf(result, sizeof(result), "%s", err);
+        return result;
+    }
+    result[0] = '\0';   // valid
+    return result;
 }
 
 // =========================================================
@@ -1634,6 +1801,7 @@ EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
 
     MountedDriveInfo_t *smd = list_mount(DRIVE_SMD);
     MountedDriveInfo_t *floppy = list_mount(DRIVE_FLOPPY);
+    MountedDriveInfo_t *scsi = list_mount(DRIVE_SCSI);
 
     pos += snprintf(buf + pos, sizeof(buf) - pos, "[");
 
@@ -1655,6 +1823,19 @@ EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
         MountedDriveInfo_t *d = floppy ? &floppy[i] : NULL;
         pos += snprintf(buf + pos, sizeof(buf) - pos,
             "{\"type\":\"floppy\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
+            i,
+            (d && d->is_mounted) ? "true" : "false",
+            (d && d->is_mounted) ? d->name : "",
+            (d && d->is_opfs) ? "true" : "false",
+            (d && d->is_gateway) ? "true" : "false",
+            (d && d->is_mounted) ? (int)d->data_size : 0);
+    }
+
+    for (int i = 0; i < SCSI_MAX_UNITS && pos < (int)sizeof(buf) - 256; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, ",");
+        MountedDriveInfo_t *d = scsi ? &scsi[i] : NULL;
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "{\"type\":\"scsi\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
             i,
             (d && d->is_mounted) ? "true" : "false",
             (d && d->is_mounted) ? d->name : "",

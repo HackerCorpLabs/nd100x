@@ -49,6 +49,9 @@ typedef enum {
 typedef struct {
     BOOT_TYPE bootType;
     int bootUnit;        // Boot unit on the boot controller (--boot=smd1, --boot=scsi2; default 0)
+    char *iniFile;       // --config/--ini: machine INI file (NULL = autoload <binaryname>.ini)
+    bool showConfig;     // --show-config: resolve+print machine config and exit
+    char *writeConfig;   // --write-config=FILE: serialize resolved config to INI and exit
     char *imageFile;
     uint32_t startAddress;
     bool disasmEnabled;
@@ -86,6 +89,8 @@ typedef struct {
         uint32_t address;
         int type;            // WatchpointType: 1=read, 2=write, 3=readwrite
     } watch[MAX_CLI_WATCHPOINTS];
+    int watchSkip;           // --watch-skip N: ignore first N watchpoint hits before halting
+    int watchMinValue;       // --watch-min-value V: WRITE watchpoint triggers only if value >= V
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
     CharsetVariant charset;       // --charset= option: local-console national 7-bit charset (default: CHARSET_OFF)

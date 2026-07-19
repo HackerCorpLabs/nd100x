@@ -46,11 +46,16 @@ typedef enum {
 extern const char* boot_type_str[];
 
 
-// Drive types
+// Drive types. The numeric values are part of the gateway wire protocol
+// (driveType byte) and the JS DRIVE_TYPE table - keep them stable:
+//   0=SMD, 1=FLOPPY, 2=SCSI, 3=WINCHESTER.
+// WINCHESTER is a reserved stub: it has no mounted-drive array and no mount or
+// boot path yet (drives_for_type returns NULL/0 for it).
 typedef enum {
     DRIVE_SMD,
     DRIVE_FLOPPY,
-    DRIVE_SCSI
+    DRIVE_SCSI,
+    DRIVE_WINCHESTER
 } DRIVE_TYPE;
 
 // NOTE: the SCSI unit count is SCSI_MAX_UNITS, defined in

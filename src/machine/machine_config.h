@@ -1,0 +1,169 @@
+/*
+ * nd100x - ND100 Virtual Machine
+ *
+ * machine_config.h - machine configuration model, controller registry, and
+ * INI parser/validator.
+ *
+ * This is the single in-memory model of "what machine to build": the CPU type,
+ * the configured controllers (each a type + thumbwheel + disks/settings), the
+ * boot device, and default runtime options. The native CLI, the WASM config
+ * window, and the gateway all read from this one model instead of re-deriving
+ * the hardware layout.
+ *
+ * The controller registry (ControllerDescriptor table) is the ONLY place that
+ * knows a controller's IOX address map. Adding a controller type is one new row.
+ *
+ * Ident codes are deliberately NOT here - they are computed inside each device
+ * from the thumbwheel and are never surfaced to config.
+ *
+ * See docs/MACHINE-CONFIG-DESIGN.md for the full design.
+ */
+
+#ifndef MACHINE_CONFIG_H
+#define MACHINE_CONFIG_H
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+#include "machine_types.h"                 /* BOOT_TYPE */
+#include "../devices/scsi/deviceSCSI.h"    /* SCSIUnitType, SCSI_MAX_UNITS */
+
+#define MC_MAX_CONTROLLERS 16
+#define MC_MAX_DISK_SLOTS  SCSI_MAX_UNITS  /* 7 - the largest slot count (SCSI) */
+#define MC_MAX_TERMINALS   16
+#define MC_PATH_LEN        256
+#define MC_ERR_LEN         512
+
+/* Configurable controller types. Core devices (CPU, RTC, console) are always
+ * present and are not represented here. */
+typedef enum {
+    CTRL_NONE = 0,
+    CTRL_FLOPPY,
+    CTRL_SMD,
+    CTRL_SCSI,
+    CTRL_HDLC
+} CtrlType;
+
+/* One disk image slot on a disc controller. media uses the SCSI unit-type
+ * vocabulary (hdd/cdrom/tape/floppy); for SMD and floppy controllers media is
+ * SCSI_UNIT_HDD by convention (single fixed media) and is not shown. */
+typedef struct {
+    bool         present;
+    SCSIUnitType media;
+    char         image[MC_PATH_LEN];
+} MC_DiskSlot;
+
+typedef struct {
+    CtrlType type;
+    int            wheel;
+    bool           enabled;
+    MC_DiskSlot    disks[MC_MAX_DISK_SLOTS];
+
+    /* HDLC-only settings (ignored for other types). */
+    bool           hdlc_is_server;   /* true = server (listen), false = client */
+    char           hdlc_host[MC_PATH_LEN];
+    int            hdlc_port;
+} MC_Controller;
+
+/* Boot device. For a disc boot, (type,wheel,unit) name the controller slot.
+ * For a file boot (bpun/aout), file_boot_type + file are used instead. */
+typedef struct {
+    bool           is_disc;
+    CtrlType type;
+    int            wheel;
+    int            unit;
+    BOOT_TYPE      file_boot_type;   /* BOOT_BPUN / BOOT_AOUT when !is_disc */
+    char           file[MC_PATH_LEN];
+} MC_BootSpec;
+
+/* Non-hardware runtime options. A CLI flag overrides the INI value per run. */
+typedef struct {
+    int    telnet_port;     /* 0 = off */
+    double throttle_mhz;    /* 0 = off */
+    char   charset[16];     /* "off"|"norwegian"|"swedish"|"german" */
+    char   printdir[MC_PATH_LEN];
+    char   tapedir[MC_PATH_LEN];
+    int    debugger_port;   /* 0 = off */
+    bool   trace;
+} MC_Runtime;
+
+typedef struct {
+    int            cpu_type;        /* 100 | 110 | 120 */
+
+    MC_Controller  controllers[MC_MAX_CONTROLLERS];
+    int            controllerCount;
+
+    int            terminals[MC_MAX_TERMINALS];
+    int            terminalCount;
+
+    bool           ptreader_enabled;
+    bool           ptpunch_enabled;
+    bool           lineprinter_enabled;
+
+    MC_BootSpec    boot;
+    MC_Runtime     runtime;
+
+    bool           loaded_from_file;
+    char           source_path[MC_PATH_LEN];
+} MachineConfig;
+
+/* ---- Controller registry ---- */
+typedef struct {
+    CtrlType  type;
+    const char     *name;        /* INI section name: controller.<name>.<wheel> */
+    int             min_wheel;
+    int             max_wheel;
+    const uint16_t *iox_base;    /* iox_base[wheel], valid for min..max_wheel */
+    int             iox_span;    /* IOX addresses claimed (for overlap checks) */
+    int             disk_slots;  /* 0 = not a disc controller */
+    bool            is_disc;
+    bool            bootable;
+} ControllerDescriptor;
+
+const ControllerDescriptor *MC_DescriptorForType(CtrlType type);
+const ControllerDescriptor *MC_DescriptorForName(const char *name);
+CtrlType              MC_CtrlTypeFromName(const char *name);
+const char                 *MC_CtrlTypeName(CtrlType type);
+
+/* Baseline machine with NO disc/network controllers: cpu 100, terminals 5-11,
+ * peripherals on, boot smd.0.0, default runtime. Use this before loading an INI
+ * (the INI fully specifies the controllers). */
+void MachineConfig_InitBaseline(MachineConfig *cfg);
+
+/* Build the built-in default machine: baseline PLUS floppy + SMD + SCSI enabled
+ * on thumbwheel 0 - identical to today's behavior when no INI is present. */
+void MachineConfig_SetDefaults(MachineConfig *cfg);
+
+/* Parse an INI file into cfg (cfg should be default-initialized first). On a
+ * syntax/semantic error returns false and writes a user-friendly, file:line
+ * qualified message into err. */
+bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
+                            char *err, size_t errlen);
+
+/* Validate a populated config (wheel ranges, duplicate controllers, IOX overlap,
+ * boot device sanity). Returns false + friendly message on the first problem. */
+bool MachineConfig_Validate(const MachineConfig *cfg, char *err, size_t errlen);
+
+/* Print the resolved machine (for --show-config): controllers, wheels, IOX
+ * ranges, disks, boot, runtime. No ident codes. */
+void MachineConfig_Print(const MachineConfig *cfg, FILE *out);
+
+/* Serialize the machine to INI text (the native twin of the web Download-.ini).
+ * Writes a commented, round-trippable file. Returns false on a write error with
+ * a friendly message in err. */
+bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
+                             char *err, size_t errlen);
+
+/* Map the INI cpu number (100/110) to the CPU emulator's CpuType. Returns true
+ * and sets *outType on success; false if the number has no CpuType yet (e.g.
+ * 120), leaving *outType untouched. Declared with int to avoid pulling the CPU
+ * header into every config consumer. */
+bool MachineConfig_CpuTypeForNumber(int cpuNumber, int *outType);
+
+/* Derive the autoload INI filename from argv[0]: basename, strip directory and
+ * a trailing ".exe", append ".ini". e.g. ".../nd110x" -> "nd110x.ini". */
+void MachineConfig_DefaultIniName(const char *argv0, char *outbuf, size_t outlen);
+
+#endif /* MACHINE_CONFIG_H */

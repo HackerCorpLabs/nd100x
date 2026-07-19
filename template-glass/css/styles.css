@@ -3523,3 +3523,23 @@ button:disabled {
   background: rgba(0, 200, 150, 0.2);
   border-color: rgba(0, 200, 150, 0.35);
 }
+
+/* HDD Disk Manager tabs (SMD / SCSI / Winchester) */
+.hdd-tab {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: inherit;
+  padding: 4px 14px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.hdd-tab:hover:not(:disabled) { opacity: 1; }
+.hdd-tab-active {
+  opacity: 1;
+  background: rgba(255,255,255,0.16);
+  border-bottom-color: transparent;
+  font-weight: 600;
+}
+.hdd-tab:disabled { opacity: 0.35; cursor: not-allowed; }

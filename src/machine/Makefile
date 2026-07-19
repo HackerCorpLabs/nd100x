@@ -2,7 +2,7 @@
 SRC_DIR := .
 
 # Source files in dependency order
-SRCS := io.c machine.c
+SRCS := io.c machine.c machine_config.c
 
 # Machine module specific flags
 CFLAGS += -D_GNU_SOURCE -DDEBUG

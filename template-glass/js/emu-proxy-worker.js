@@ -615,6 +615,9 @@
     ccall: function(name, retType, argTypes, argValues) {
       return postRequest('ccall', { name: name, retType: retType, argTypes: argTypes || [], argValues: argValues || [] });
     },
+    validateMachineINI: function(ini) {
+      return postRequest('ccall', { name: 'ValidateMachineINI', retType: 'string', argTypes: ['string'], argValues: [ini] });
+    },
 
     // --- Page tables (from snapshot) ---
     getPageTableCount:    function() { return _snapshot.pageTableCount || 0; },
@@ -637,6 +640,8 @@
     },
     unmountFloppy: function(u) { postCmd('unmountFloppy', { unit: u }); },
     unmountSMD:    function(u) { postCmd('unmountSMD', { unit: u }); },
+    remountSCSI:   function(u) { postRequest('remountSCSI', { unit: u }); return 0; },
+    unmountSCSI:   function(u) { postCmd('unmountSCSI', { unit: u }); },
 
     // --- FS (routed through Worker) ---
     fsWriteFile: function(p, d) {
@@ -695,11 +700,24 @@
     opfsUnmountSMD: function(unit) {
       return postRequest('opfsUnmountSMD', { unit: unit });
     },
+    // SCSI OPFS mount reuses the driveType-aware opfsMountDisc handler (driveType 2).
+    opfsMountSCSI: function(unit, fileName) {
+      return postRequest('opfsMountDisc', { unit: unit, fileName: fileName, driveType: 2 });
+    },
+    opfsUnmountSCSI: function(unit) {
+      return postRequest('opfsUnmountDisc', { unit: unit, driveType: 2 });
+    },
     mountSMDFromBuffer: function(unit, data) {
       // Not used in Worker mode - Worker uses OPFS directly
       console.warn('mountSMDFromBuffer not applicable in Worker mode');
       return Promise.reject(new Error('Use opfsMountSMD in Worker mode'));
     },
+    mountSCSIFromBuffer: function(unit, data) {
+      console.warn('mountSCSIFromBuffer not applicable in Worker mode');
+      return Promise.reject(new Error('Use opfsMountSCSI in Worker mode'));
+    },
+    getSCSIBuffer: function(unit) { return 0; },
+    getSCSIBufferSize: function(unit) { return 0; },
     getSMDBuffer: function(unit) { return 0; },
     getSMDBufferSize: function(unit) { return 0; },
     // Mode-independent sector read. Resolves with a copy (count*1024 bytes)
@@ -725,6 +743,12 @@
     },
     gatewayUnmountSMD: function(unit) {
       return postRequest('gatewayUnmountSMD', { unit: unit });
+    },
+    gatewayMountSCSI: function(unit, imageSize) {
+      return postRequest('gatewayMountSCSI', { unit: unit, imageSize: imageSize });
+    },
+    gatewayUnmountSCSI: function(unit) {
+      return postRequest('gatewayUnmountSCSI', { unit: unit });
     },
     gatewayMountFloppy: function(unit, imageSize) {
       return postRequest('gatewayMountFloppy', { unit: unit, imageSize: imageSize });

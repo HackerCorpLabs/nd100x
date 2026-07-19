@@ -1039,7 +1039,7 @@ function logBootDriveInfo() {
 // boot_type values: 0=FLOPPY, 1=SMD, 2=BPUN
 function performBoot(bootType) {
   var bootBtn = document.getElementById('toolbar-boot');
-  var bootNames = ['FLOPPY', 'SMD', 'BPUN'];
+  var bootNames = ['FLOPPY', 'SMD', 'BPUN', 'SCSI'];
 
   console.log("Booting type " + (bootNames[bootType] || bootType));
 
@@ -1153,8 +1153,8 @@ document.getElementById('toolbar-boot').addEventListener('click', function() {
     return;
   }
 
-  // 0=FLOPPY, 1=SMD
-  var bootType = (bootDevice === 'smd') ? 1 : 0;
+  // 0=FLOPPY, 1=SMD, 2=BPUN, 3=SCSI (must match nd100wasm.c Boot())
+  var bootType = (bootDevice === 'smd') ? 1 : (bootDevice === 'scsi') ? 3 : 0;
 
   // Check SMD image was loaded (XHR demo, OPFS, or gateway)
   if (bootType === 1) {
@@ -1164,7 +1164,19 @@ document.getElementById('toolbar-boot').addEventListener('click', function() {
       document.getElementById('status').textContent = 'Boot failed - no SMD image on unit 0';
       terminals[activeTerminalId].term.writeln(
         '\r\n\x1b[31mCannot boot: No SMD image mounted on unit 0.\x1b[0m\r\n' +
-        '\x1b[33mMount an image via the SMD Disk Manager or ensure SMD0.IMG is served.\x1b[0m');
+        '\x1b[33mMount an image via the HDD Disk Manager or ensure SMD0.IMG is served.\x1b[0m');
+      return;
+    }
+  }
+
+  // Check SCSI image was loaded on ID 0
+  if (bootType === 3) {
+    var hasScsi = (typeof driveRegistry !== 'undefined' && driveRegistry.isOccupied('scsi', 0));
+    if (!hasScsi) {
+      document.getElementById('status').textContent = 'Boot failed - no SCSI image on ID 0';
+      terminals[activeTerminalId].term.writeln(
+        '\r\n\x1b[31mCannot boot: No SCSI image mounted on ID 0.\x1b[0m\r\n' +
+        '\x1b[33mMount a SCSI (hdd) image via the HDD Disk Manager first.\x1b[0m');
       return;
     }
   }
@@ -1652,7 +1664,7 @@ windowManager.register('seg-disasm-window', 'Disassembler');
 windowManager.register('io-devices-window', 'I/O Devices');
 windowManager.register('page-table-window', 'Page Tables');
 windowManager.register('config-window', 'Config');
-windowManager.register('smd-manager-window', 'SMD Manager');
+windowManager.register('smd-manager-window', 'HDD Manager');
 windowManager.register('gateway-stats-window', 'Gateway');
 windowManager.register('pdf-handbok-window', 'Håndbok');
 windowManager.register('pdf-supervisor-window', 'System Supervisor');

@@ -72,67 +72,86 @@ var Module = {
 importScripts('../nd100wasm.js');
 
 // =========================================================
-// OPFS SyncAccessHandle pool for persistent SMD block I/O
+// OPFS SyncAccessHandle pool for persistent disc block I/O
 // =========================================================
-var _opfsHandles = [null, null, null, null];  // SyncAccessHandle per SMD unit
-var _opfsReady = [false, false, false, false];
+// Handles are keyed by "driveType-unit" so SCSI unit 0 does not alias SMD
+// unit 0. driveType matches the C DRIVE_TYPE enum (0=SMD, 2=SCSI); the OPFS
+// directory is per type ('smd-images', 'scsi-images'). See disk-types.js.
+var _opfsHandles = {};   // key -> SyncAccessHandle
+var _opfsReady = {};     // key -> bool
 
-// Open OPFS file for a unit using SyncAccessHandle (synchronous I/O in Worker)
-// Always closes any existing handle on this unit first to prevent leaks.
-async function opfsOpenUnit(unit, fileName) {
-  if (unit < 0 || unit > 3) return false;
+function opfsKey(driveType, unit) { return driveType + '-' + unit; }
+
+// OPFS directory for a driveType. Kept in one place so the naming is stable.
+function opfsDirForType(driveType) {
+  return (driveType === 2) ? 'scsi-images' : 'smd-images';
+}
+
+// Open OPFS file for a (driveType, unit) using SyncAccessHandle (synchronous
+// I/O in Worker). Always closes any existing handle on this key first.
+async function opfsOpenUnit(driveType, unit, fileName) {
+  if (unit < 0) return false;
+
+  var key = opfsKey(driveType, unit);
 
   // Close existing handle first (prevents SyncAccessHandle leaks)
-  opfsCloseUnit(unit);
+  opfsCloseUnit(driveType, unit);
 
   try {
     var root = await navigator.storage.getDirectory();
-    var dir = await root.getDirectoryHandle('smd-images', { create: false });
+    var dir = await root.getDirectoryHandle(opfsDirForType(driveType), { create: false });
     var fileHandle = await dir.getFileHandle(fileName);
     var accessHandle = await fileHandle.createSyncAccessHandle();
-    _opfsHandles[unit] = accessHandle;
-    _opfsReady[unit] = true;
-    postMessage({ type: 'log', level: 'info', text: '[OPFS] Unit ' + unit + ' opened: ' + fileName + ' (' + accessHandle.getSize() + ' bytes)' });
+    _opfsHandles[key] = accessHandle;
+    _opfsReady[key] = true;
+    postMessage({ type: 'log', level: 'info', text: '[OPFS] ' + key + ' opened: ' + fileName + ' (' + accessHandle.getSize() + ' bytes)' });
     return true;
   } catch (e) {
-    postMessage({ type: 'log', level: 'error', text: '[OPFS] Failed to open unit ' + unit + ': ' + e.message });
-    _opfsHandles[unit] = null;
-    _opfsReady[unit] = false;
+    postMessage({ type: 'log', level: 'error', text: '[OPFS] Failed to open ' + key + ': ' + e.message });
+    _opfsHandles[key] = null;
+    _opfsReady[key] = false;
     return false;
   }
 }
 
-function opfsCloseUnit(unit) {
-  if (unit < 0 || unit > 3) return;
-  if (_opfsHandles[unit]) {
+function opfsCloseUnit(driveType, unit) {
+  var key = opfsKey(driveType, unit);
+  if (_opfsHandles[key]) {
     try {
-      _opfsHandles[unit].flush();
-      _opfsHandles[unit].close();
+      _opfsHandles[key].flush();
+      _opfsHandles[key].close();
     } catch (e) {}
-    _opfsHandles[unit] = null;
-    _opfsReady[unit] = false;
+    _opfsHandles[key] = null;
+    _opfsReady[key] = false;
   }
 }
 
+function opfsGetSize(driveType, unit) {
+  var h = _opfsHandles[opfsKey(driveType, unit)];
+  return h ? h.getSize() : 0;
+}
+
 // Synchronous block read from OPFS (called from C via EM_JS -> opfsBlockRead)
-function opfsBlockRead(unit, wasmPtr, bytes, offset) {
-  if (!_opfsReady[unit] || !_opfsHandles[unit]) return -1;
+function opfsBlockRead(driveType, unit, wasmPtr, bytes, offset) {
+  var key = opfsKey(driveType, unit);
+  if (!_opfsReady[key] || !_opfsHandles[key]) return -1;
   var dest = new Uint8Array(Module.HEAPU8.buffer, wasmPtr, bytes);
-  var read = _opfsHandles[unit].read(dest, { at: offset });
+  var read = _opfsHandles[key].read(dest, { at: offset });
   return read;
 }
 
 // Synchronous block write to OPFS (called from C via EM_JS -> opfsBlockWrite)
-function opfsBlockWrite(unit, wasmPtr, bytes, offset) {
-  if (!_opfsReady[unit] || !_opfsHandles[unit]) return -1;
+function opfsBlockWrite(driveType, unit, wasmPtr, bytes, offset) {
+  var key = opfsKey(driveType, unit);
+  if (!_opfsReady[key] || !_opfsHandles[key]) return -1;
   var src = new Uint8Array(Module.HEAPU8.buffer, wasmPtr, bytes);
-  var written = _opfsHandles[unit].write(src, { at: offset });
+  var written = _opfsHandles[key].write(src, { at: offset });
   return written;
 }
 
-// Check if OPFS is available for a unit
-function opfsIsAvailable(unit) {
-  return _opfsReady[unit] ? 1 : 0;
+// Check if OPFS is available for a (driveType, unit)
+function opfsIsAvailable(driveType, unit) {
+  return _opfsReady[opfsKey(driveType, unit)] ? 1 : 0;
 }
 
 // =========================================================
@@ -143,9 +162,10 @@ var _diskControlArray = null;  // Int32Array view (8 x Int32)
 var _diskDataArray = null;     // Uint8Array view at offset 32
 var _diskSharedBuffer = null;
 var _diskReady = false;
-var _diskGatewayDrives = { smd: {}, floppy: {} };  // [type][unit] -> true
+var _diskGatewayDrives = { smd: {}, floppy: {}, scsi: {}, winchester: {} };  // [type][unit] -> true
 
-var DRIVE_TYPE_NAMES = ['smd', 'floppy'];
+// driveType number -> name. Index matches the C DRIVE_TYPE enum. See disk-types.js.
+var DRIVE_TYPE_NAMES = ['smd', 'floppy', 'scsi', 'winchester'];
 var _fullReadRequestId = null;  // pending gatewayReadFullImage request id
 
 // Block read cache: key = "driveType-unit-offset-bytes" -> Uint8Array
@@ -213,7 +233,7 @@ function closeDiskWorker() {
     _diskWorker = null;
   }
   _diskReady = false;
-  _diskGatewayDrives = { smd: {}, floppy: {} };
+  _diskGatewayDrives = { smd: {}, floppy: {}, scsi: {}, winchester: {} };
   _diskBlockCache.clear();
 }
 
@@ -1214,28 +1234,53 @@ onmessage = function(e) {
       break;
     }
 
+    case 'remountSCSI': {
+      var rsc = Module._RemountSCSI(msg.unit);
+      postMessage({ type: 'fsResult', id: msg.id, result: rsc });
+      break;
+    }
+
+    case 'unmountSCSI': {
+      Module._UnmountSCSI(msg.unit);
+      break;
+    }
+
     // --- OPFS persistent storage ---
-    case 'opfsMountSMD': {
-      // Open OPFS SyncAccessHandle and mount in C as OPFS drive
-      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsMountSMD unit=' + msg.unit + ' file=' + msg.fileName });
-      opfsOpenUnit(msg.unit, msg.fileName).then(function(ok) {
+    // driveType defaults to 0 (SMD) for backward-compatible messages. SCSI
+    // (driveType 2) sends the same message with driveType set. The C mount
+    // export is chosen by driveType so one handler serves both.
+    case 'opfsMountSMD':
+    case 'opfsMountDisc': {
+      var mdType = msg.driveType || 0;
+      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsMountDisc type=' + mdType + ' unit=' + msg.unit + ' file=' + msg.fileName });
+      opfsOpenUnit(mdType, msg.unit, msg.fileName).then(function(ok) {
         if (ok) {
-          var size = _opfsHandles[msg.unit].getSize();
-          Module._MountSMDFromOPFS(msg.unit, size);
-          postMessage({ type: 'log', level: 'info', text: '[Worker] MountSMDFromOPFS unit=' + msg.unit + ' size=' + size + ' OK' });
+          var size = opfsGetSize(mdType, msg.unit);
+          if (mdType === 2) {
+            Module._MountSCSIFromOPFS(msg.unit, size);
+          } else {
+            Module._MountSMDFromOPFS(msg.unit, size);
+          }
+          postMessage({ type: 'log', level: 'info', text: '[Worker] MountDiscFromOPFS type=' + mdType + ' unit=' + msg.unit + ' size=' + size + ' OK' });
           postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: true, size: size });
         } else {
-          postMessage({ type: 'log', level: 'error', text: '[Worker] opfsMountSMD FAILED unit=' + msg.unit });
+          postMessage({ type: 'log', level: 'error', text: '[Worker] opfsMountDisc FAILED type=' + mdType + ' unit=' + msg.unit });
           postMessage({ type: 'opfsMountResult', id: msg.id, unit: msg.unit, ok: false, size: 0 });
         }
       });
       break;
     }
 
-    case 'opfsUnmountSMD': {
-      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsUnmountSMD unit=' + msg.unit });
-      opfsCloseUnit(msg.unit);
-      Module._UnmountSMD(msg.unit);
+    case 'opfsUnmountSMD':
+    case 'opfsUnmountDisc': {
+      var muType = msg.driveType || 0;
+      postMessage({ type: 'log', level: 'info', text: '[Worker] opfsUnmountDisc type=' + muType + ' unit=' + msg.unit });
+      opfsCloseUnit(muType, msg.unit);
+      if (muType === 2) {
+        Module._UnmountSCSI(msg.unit);
+      } else {
+        Module._UnmountSMD(msg.unit);
+      }
       postMessage({ type: 'fsResult', id: msg.id, result: 0 });
       break;
     }
@@ -1280,6 +1325,20 @@ onmessage = function(e) {
     case 'gatewayUnmountFloppy': {
       delete _diskGatewayDrives.floppy[msg.unit];
       Module._UnmountFloppy(msg.unit);
+      postMessage({ type: 'fsResult', id: msg.id, result: 0 });
+      break;
+    }
+
+    case 'gatewayMountSCSI': {
+      _diskGatewayDrives.scsi[msg.unit] = true;
+      var gmscResult = Module._MountSCSIFromGateway(msg.unit, msg.imageSize);
+      postMessage({ type: 'gatewayMountResult', id: msg.id, unit: msg.unit, driveType: 'scsi', ok: gmscResult === 0 });
+      break;
+    }
+
+    case 'gatewayUnmountSCSI': {
+      delete _diskGatewayDrives.scsi[msg.unit];
+      Module._UnmountSCSI(msg.unit);
       postMessage({ type: 'fsResult', id: msg.id, result: 0 });
       break;
     }

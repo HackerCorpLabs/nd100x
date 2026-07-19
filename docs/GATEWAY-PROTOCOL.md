@@ -89,6 +89,7 @@ Disk image entries support two formats: a simple string path (`"../../SMD1.IMG"`
 | `hdlc[].enabled` | `false` | Enable this HDLC TCP server |
 | `smd.images` | `[]` | Array of SMD disk image entries (index = unit number). Each entry is either a string path or an object `{ path, name, description }`. |
 | `floppy.images` | `[]` | Array of floppy disk image entries (index = unit number). Same format as `smd.images`. |
+| `scsi.images` | `[]` | Array of SCSI (ND-3201/3204) disk image entries (index = SCSI ID 0-6). Same format as `smd.images`. |
 
 ### CLI Options
 
@@ -250,6 +251,15 @@ Main Worker: reads data from SharedArrayBuffer
 |-------|------|
 | 0 | SMD |
 | 1 | Floppy |
+| 2 | SCSI |
+| 3 | Winchester |
+
+The `driveType` byte matches the C `DRIVE_TYPE` enum. It is present in every
+disk frame (`0x20`-`0x23`), so adding SCSI/Winchester needed no new opcode. For
+backward compatibility the gateway maps any unknown `driveType` to SMD, so
+older clients that only ever send 0/1 are unaffected. Per-type images are
+configured in `gateway.conf.json` under `smd` / `floppy` / `scsi`
+(array index = unit / SCSI ID).
 
 ### Block Read Request (0x20) -- Disk Worker to Gateway
 
@@ -335,7 +345,7 @@ The main Worker and disk sub-worker share a 65568-byte SharedArrayBuffer (32 byt
 ```
 Offset  Type         Purpose
 0       Int32        control: 0=idle, 1=request pending, 2=response ready
-4       Int32        driveType (0=SMD, 1=Floppy)
+4       Int32        driveType (0=SMD, 1=Floppy, 2=SCSI, 3=Winchester)
 8       Int32        unit number
 12      Int32        byte offset into image
 16      Int32        size (bytes to read/write)

@@ -125,10 +125,11 @@ static MountedDriveInfo_t *drives_for_type(DRIVE_TYPE drive_type, int *max_units
 static const char *drive_type_name(DRIVE_TYPE drive_type)
 {
     switch (drive_type) {
-    case DRIVE_SMD:    return "SMD";
-    case DRIVE_FLOPPY: return "floppy";
-    case DRIVE_SCSI:   return "SCSI";
-    default:           return "unknown";
+    case DRIVE_SMD:        return "SMD";
+    case DRIVE_FLOPPY:     return "floppy";
+    case DRIVE_SCSI:       return "SCSI";
+    case DRIVE_WINCHESTER: return "Winchester";
+    default:               return "unknown";
     }
 }
 
@@ -761,23 +762,26 @@ MountedDriveInfo_t* list_mount(DRIVE_TYPE drive_type) {
  * These EM_JS functions call into the global opfsBlockRead/Write
  * which are set up by emu-worker.js or emu-proxy.js.
  */
-EM_JS(int, opfs_block_read_js, (int unit, uint8_t *buffer, int bytes, int offset), {
+/* driveType is threaded through so OPFS storage is namespaced per type - SCSI
+ * unit 0 must not alias SMD unit 0 in the SyncAccessHandle pool. Matches the
+ * gateway_block_*_js signature. */
+EM_JS(int, opfs_block_read_js, (int driveType, int unit, uint8_t *buffer, int bytes, int offset), {
     if (typeof opfsBlockRead === 'function') {
-        return opfsBlockRead(unit, buffer, bytes, offset);
+        return opfsBlockRead(driveType, unit, buffer, bytes, offset);
     }
     return -1;
 });
 
-EM_JS(int, opfs_block_write_js, (int unit, const uint8_t *buffer, int bytes, int offset), {
+EM_JS(int, opfs_block_write_js, (int driveType, int unit, const uint8_t *buffer, int bytes, int offset), {
     if (typeof opfsBlockWrite === 'function') {
-        return opfsBlockWrite(unit, buffer, bytes, offset);
+        return opfsBlockWrite(driveType, unit, buffer, bytes, offset);
     }
     return -1;
 });
 
-EM_JS(int, opfs_is_available_js, (int unit), {
+EM_JS(int, opfs_is_available_js, (int driveType, int unit), {
     if (typeof opfsIsAvailable === 'function') {
-        return opfsIsAvailable(unit);
+        return opfsIsAvailable(driveType, unit);
     }
     return 0;
 });
@@ -920,8 +924,8 @@ int machine_block_read(Device *device, uint8_t *buffer, size_t size, uint32_t bl
     if (!entry->is_mounted) return -1; // not mounted
 
 #ifdef __EMSCRIPTEN__
-    if (entry->is_opfs && opfs_is_available_js(unit)) {
-        int rc = opfs_block_read_js(unit, buffer, (int)bytes, (int)offset);
+    if (entry->is_opfs && opfs_is_available_js((int)drive_type, unit)) {
+        int rc = opfs_block_read_js((int)drive_type, unit, buffer, (int)bytes, (int)offset);
         if (rc < 0) return -1;
         if ((size_t)rc < bytes) {
             memset(buffer + rc, 0, bytes - rc);
@@ -982,8 +986,8 @@ int machine_block_write(Device *device, const uint8_t *buffer, size_t size, uint
     if (!entry->is_mounted) return -1; // not mounted
 
 #ifdef __EMSCRIPTEN__
-    if (entry->is_opfs && opfs_is_available_js(unit)) {
-        int rc = opfs_block_write_js(unit, buffer, (int)bytes, (int)offset);
+    if (entry->is_opfs && opfs_is_available_js((int)drive_type, unit)) {
+        int rc = opfs_block_write_js((int)drive_type, unit, buffer, (int)bytes, (int)offset);
         return (rc >= 0) ? (int)size : -1;
     }
 

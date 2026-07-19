@@ -54,6 +54,7 @@
 
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
+#include "../machine/machine_config.h"
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
@@ -87,6 +88,63 @@ double usertime;
 double systemtime;
 double totaltime;
 Config_t config;
+
+// Resolved machine configuration, populated when --config is given.
+// When active, initialize() builds the machine from this model instead of the
+// legacy per-flag path.
+static MachineConfig g_machineConfig;
+static bool g_useMachineConfig = false;
+
+// Map a config controller type to the boot enum.
+static BOOT_TYPE boot_type_for_ctrl(CtrlType t)
+{
+    switch (t) {
+    case CTRL_SMD:    return BOOT_SMD;
+    case CTRL_FLOPPY: return BOOT_FLOPPY;
+    case CTRL_SCSI:   return BOOT_SCSI;
+    default:          return BOOT_NONE;
+    }
+}
+
+// Build the machine (CPU type, terminals, disc controllers + mounts, HDLC) from
+// a resolved MachineConfig. Core devices (RTC, console, floppy DMA, SMD, tape,
+// printer) are still added by DeviceManager_AddAllDevices inside machine_init;
+// this adds the config-driven parts on top and mounts the configured images.
+static void apply_machine_config(const MachineConfig *mc)
+{
+    int ct;
+    if (MachineConfig_CpuTypeForNumber(mc->cpu_type, &ct))
+        CurrentCPUType = (CpuType)ct;
+
+    for (int i = 0; i < mc->terminalCount; i++)
+        DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, (uint8_t)mc->terminals[i]);
+
+    for (int i = 0; i < mc->controllerCount; i++) {
+        const MC_Controller *c = &mc->controllers[i];
+        if (!c->enabled) continue;
+
+        if (c->type == CTRL_SMD) {
+            for (int s = 0; s < 4 && s < MC_MAX_DISK_SLOTS; s++)
+                if (c->disks[s].present) mount_smd(c->disks[s].image, s);
+        } else if (c->type == CTRL_FLOPPY) {
+            for (int s = 0; s < 3 && s < MC_MAX_DISK_SLOTS; s++)
+                if (c->disks[s].present) mount_floppy(c->disks[s].image, s);
+        } else if (c->type == CTRL_SCSI) {
+            SCSIUnitType types[SCSI_MAX_UNITS];
+            for (int s = 0; s < SCSI_MAX_UNITS; s++) types[s] = SCSI_UNIT_NONE;
+            for (int s = 0; s < SCSI_MAX_UNITS; s++) {
+                if (c->disks[s].present) {
+                    types[s] = c->disks[s].media;
+                    mount_scsi(c->disks[s].image, s);
+                }
+            }
+            DeviceManager_AddSCSIDevice_WithConfig(c->wheel, types);
+        } else if (c->type == CTRL_HDLC) {
+            machine_add_hdlc(c->wheel, c->hdlc_is_server,
+                             c->hdlc_host[0] ? c->hdlc_host : NULL, c->hdlc_port);
+        }
+    }
+}
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static TelnetServer *telnetServer = NULL;
@@ -212,48 +270,52 @@ void initialize()
 
 	machine_init(config.debuggerEnabled, config.debuggerPort);
 
-    //     {0340, 044, 044, "TERMINAL 5/ TET12"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
-    
-    // {0350, 045, 045, "TERMINAL 6/ TET11"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 6);
-    
+	if (g_useMachineConfig) {
+		// INI-driven machine setup (from --config). Adds terminals, disc
+		// controllers, HDLC and CPU type from the resolved MachineConfig.
+		apply_machine_config(&g_machineConfig);
+	} else {
+		//     {0340, 044, 044, "TERMINAL 5/ TET12"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);
 
-    // {0360, 046, 046, "TERMINAL 7/ TET10"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
+		// {0350, 045, 045, "TERMINAL 6/ TET11"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 6);
 
+		// {0360, 046, 046, "TERMINAL 7/ TET10"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 7);
 
-    // {0370, 047, 047, "TERMINAL 8/ TET9"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 8);
+		// {0370, 047, 047, "TERMINAL 8/ TET9"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 8);
 
-    // {01300, 050, 060, "TERMINAL 9"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 9);
+		// {01300, 050, 060, "TERMINAL 9"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 9);
 
-    // {01310, 051, 061, "TERMINAL 10"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 10);
+		// {01310, 051, 061, "TERMINAL 10"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 10);
 
-    // {01320, 052, 062, "TERMINAL 11"},
-    DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 11);
+		// {01320, 052, 062, "TERMINAL 11"},
+		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 11);
 
-	// Mount explicitly specified SMD images before program_load
-	// (autoMountDrives will skip already-mounted units)
-	for (int i = 0; i < 4; i++) {
-		if (config.smdFile[i]) {
-			mount_smd(config.smdFile[i], i);
-		}
-	}
-
-	// Add the ND-3201/3204 SCSI controller only if a --scsiN target was given.
-	// It is opt-in: adding the card unconditionally would change the IOX map and
-	// the SINTRAN device scan of every existing machine configuration.
-	if (config.scsiEnabled) {
-		for (int i = 0; i < SCSI_MAX_UNITS; i++) {
-			if (config.scsiFile[i]) {
-				mount_scsi(config.scsiFile[i], i);
+		// Mount explicitly specified SMD images before program_load
+		// (autoMountDrives will skip already-mounted units)
+		for (int i = 0; i < 4; i++) {
+			if (config.smdFile[i]) {
+				mount_smd(config.smdFile[i], i);
 			}
 		}
-		// Thumbwheel 0 -> IOX 0144300, ident 0140440, logical device 2202.
-		DeviceManager_AddSCSIDevice_WithConfig(0, config.scsiType);
+
+		// Add the ND-3201/3204 SCSI controller only if a --scsiN target was given.
+		// It is opt-in: adding the card unconditionally would change the IOX map and
+		// the SINTRAN device scan of every existing machine configuration.
+		if (config.scsiEnabled) {
+			for (int i = 0; i < SCSI_MAX_UNITS; i++) {
+				if (config.scsiFile[i]) {
+					mount_scsi(config.scsiFile[i], i);
+				}
+			}
+			// Thumbwheel 0 -> IOX 0144300, ident 0140440, logical device 2202.
+			DeviceManager_AddSCSIDevice_WithConfig(0, config.scsiType);
+		}
 	}
 
 	program_load(config.bootType, config.bootUnit, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
@@ -493,7 +555,108 @@ int main(int argc, char *argv[])
         Config_PrintHelp(argv[0]);
         return EXIT_SUCCESS;
     }
+
+    // Resolve and (optionally) print the machine configuration.
+    // --config/--ini names the INI; otherwise autoload <binaryname>.ini if it
+    // exists. With --show-config we validate + print the resolved machine and
+    // exit without booting.
+    if (config.showConfig || config.writeConfig) {
+        MachineConfig mc;
+        char mcErr[MC_ERR_LEN];
+
+        char iniName[MC_PATH_LEN];
+        const char *iniPath = config.iniFile;
+        if (!iniPath) {
+            MachineConfig_DefaultIniName(argv[0], iniName, sizeof(iniName));
+            FILE *probe = fopen(iniName, "r");
+            if (probe) { fclose(probe); iniPath = iniName; }
+        }
+
+        if (iniPath) {
+            /* An INI fully specifies the controllers, so start from the
+             * controller-less baseline before loading. */
+            MachineConfig_InitBaseline(&mc);
+            if (!MachineConfig_LoadFile(&mc, iniPath, mcErr, sizeof(mcErr))) {
+                fprintf(stderr, "Config error: %s\n", mcErr);
+                return EXIT_FAILURE;
+            }
+        } else {
+            if (config.showConfig)
+                printf("(no INI file found; showing built-in defaults)\n");
+            MachineConfig_SetDefaults(&mc);
+        }
+
+        if (!MachineConfig_Validate(&mc, mcErr, sizeof(mcErr))) {
+            fprintf(stderr, "Config error: %s\n", mcErr);
+            return EXIT_FAILURE;
+        }
+
+        if (config.writeConfig) {
+            if (!MachineConfig_WriteFile(&mc, config.writeConfig, mcErr, sizeof(mcErr))) {
+                fprintf(stderr, "Config error: %s\n", mcErr);
+                return EXIT_FAILURE;
+            }
+            printf("Wrote machine config to %s\n", config.writeConfig);
+        }
+        if (config.showConfig)
+            MachineConfig_Print(&mc, stdout);
+        return EXIT_SUCCESS;
+    }
     
+    // Resolve an explicit --config INI into the machine model. This drives the
+    // machine build (see apply_machine_config) and the boot device. Autoloaded
+    // INI does not yet drive a normal boot - only an explicit --config does, so
+    // existing invocations without --config are unaffected.
+    if (config.iniFile) {
+        char mcErr[MC_ERR_LEN];
+        MachineConfig_InitBaseline(&g_machineConfig);
+        if (!MachineConfig_LoadFile(&g_machineConfig, config.iniFile, mcErr, sizeof(mcErr))) {
+            fprintf(stderr, "Config error: %s\n", mcErr);
+            return EXIT_FAILURE;
+        }
+        if (!MachineConfig_Validate(&g_machineConfig, mcErr, sizeof(mcErr))) {
+            fprintf(stderr, "Config error: %s\n", mcErr);
+            return EXIT_FAILURE;
+        }
+        g_useMachineConfig = true;
+
+        // Translate the INI boot device into the loader's boot type/unit.
+        if (g_machineConfig.boot.is_disc) {
+            config.bootType = boot_type_for_ctrl(g_machineConfig.boot.type);
+            config.bootUnit = g_machineConfig.boot.unit;
+        } else {
+            config.bootType = g_machineConfig.boot.file_boot_type;
+            if (!config.imageFile && g_machineConfig.boot.file[0])
+                config.imageFile = strdup(g_machineConfig.boot.file);
+        }
+
+        // Apply [runtime] settings as defaults. A CLI flag always wins, so only
+        // apply an INI value when the corresponding CLI option was not given
+        // (detected via its default-initialized value in config).
+        const MC_Runtime *rt = &g_machineConfig.runtime;
+        if (!config.telnetEnabled && rt->telnet_port > 0) {
+            config.telnetEnabled = true;
+            config.telnetPort = rt->telnet_port;
+        }
+        if (!config.debuggerEnabled && rt->debugger_port > 0) {
+            config.debuggerEnabled = true;
+            config.debuggerPort = rt->debugger_port;
+        }
+        if (!config.traceEnabled && rt->trace)
+            config.traceEnabled = true;
+        if (config.charset == CHARSET_OFF && rt->charset[0] &&
+            strcmp(rt->charset, "off") != 0) {
+            CharsetVariant cs;
+            if (charset_from_name(rt->charset, &cs)) config.charset = cs;
+        }
+        if (!config.printDir && rt->printdir[0]) config.printDir = strdup(rt->printdir);
+        if (!config.tapeDir  && rt->tapedir[0])  config.tapeDir  = strdup(rt->tapedir);
+        if (rt->throttle_mhz > 0) {
+            cpu_throttle_set_enabled(true);
+            cpu_throttle_set_mhz(rt->throttle_mhz);
+        }
+    }
+
     if (config.debuggerEnabled) {
         printf("DAP Debugger enabled on port %d\n", config.debuggerPort);
     }
@@ -534,6 +697,16 @@ int main(int argc, char *argv[])
                     config.watch[i].address, typeStr);
         }
     }
+    /* --watch-skip N: ignore the first N watchpoint hits before halting.
+     * (declared here; cpu_protos.h is auto-generated so cannot host the extern) */
+    extern int watchpoint_skip_hits;
+    extern int watchpoint_min_value;
+    watchpoint_skip_hits = config.watchSkip;
+    watchpoint_min_value = config.watchMinValue;
+    if (config.watchSkip > 0)
+        fprintf(stderr, "Watchpoint skip: ignoring first %d hit(s)\n", config.watchSkip);
+    if (config.watchMinValue > 0)
+        fprintf(stderr, "Watchpoint min-value: %06o\n", config.watchMinValue);
 #else
     if (config.watchCount > 0) {
         fprintf(stderr, "Warning: --watch requires a debugger-enabled build; ignoring\n");

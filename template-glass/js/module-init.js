@@ -391,7 +391,7 @@ function loadDiskImagesPersistent() {
     }).then(function() {
       // If no disk on unit 0 after mounting, show a helpful message
       if (!smdStorage.getUnitAssignment(0)) {
-        if (statusEl) statusEl.textContent = 'No disk on Unit 0. Open SMD Disk Manager to assign an image.';
+        if (statusEl) statusEl.textContent = 'No disk on Unit 0. Open HDD Disk Manager to assign an image.';
       }
     });
   });

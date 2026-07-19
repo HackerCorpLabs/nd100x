@@ -24,6 +24,13 @@
     // --- Lifecycle ---
     init:          function()  { return Module._Init(); },
     boot:          function(t) { return Module._Boot(t); },
+    // Validate a machine INI string via the native validator. Returns "" if OK,
+    // or a "file:line message" string. Promise-wrapped for a uniform API with
+    // Worker mode.
+    validateMachineINI: function(ini) {
+      try { return Promise.resolve(Module.ccall('ValidateMachineINI', 'string', ['string'], [ini])); }
+      catch (e) { return Promise.resolve('validation unavailable: ' + e.message); }
+    },
     step:          function(n) { Module._Step(n); },
     stop:          function()  { Module._Stop(); },
     isInitialized: function()  { return Module._IsInitialized ? Module._IsInitialized() : 0; },
@@ -261,6 +268,23 @@
     remountSMD:     function(u) { return Module._RemountSMD(u); },
     unmountFloppy:  function(u) { Module._UnmountFloppy(u); },
     unmountSMD:     function(u) { Module._UnmountSMD(u); },
+
+    // --- SCSI (IDs 0-6) ---
+    remountSCSI:    function(u) { return Module._RemountSCSI(u); },
+    unmountSCSI:    function(u) { Module._UnmountSCSI(u); },
+    mountSCSIFromBuffer: function(unit, data) {
+      var ptr = Module._malloc(data.byteLength);
+      Module.HEAPU8.set(data instanceof Uint8Array ? data : new Uint8Array(data), ptr);
+      var rc = Module._MountSCSIFromBuffer(unit, ptr, data.byteLength);
+      Module._free(ptr);
+      return rc;
+    },
+    getSCSIBuffer: function(unit) { return Module._GetSCSIBuffer(unit); },
+    getSCSIBufferSize: function(unit) { return Module._GetSCSIBufferSize(unit); },
+    opfsMountSCSI: function(unit, fileName) {
+      return Promise.reject(new Error('OPFS SyncAccessHandle not available in Direct mode'));
+    },
+    opfsUnmountSCSI: function(unit) { Module._UnmountSCSI(unit); },
 
     // --- FS (pass-through in direct mode) ---
     fsWriteFile: function(p, d) { Module.FS.writeFile(p, d); },
