@@ -579,6 +579,14 @@ extern int CPU_BREAKPOINT_ENABLED;
 extern ushort CPU_BREAKPOINT_ADDR;
 extern int CPU_RING_DUMP_SIZE;
 
+/*
+ * ND-110 diagnostic trace sink (see cpu.c do_op()).  NULL when tracing is off.
+ * Enabled by ND100X_TRACE_ND110; redirected to a side file by ND100X_TRACE_ND110_FILE
+ * so that console-driven sessions (TPE, the SINTRAN SMD boot) keep a clean screen buffer.
+ * Declared here and NOT in cpu_protos.h - that header is auto-generated from the .c files.
+ */
+extern FILE *nd110_trace_fp;
+
 
 
 //********** Breakpoints **********

@@ -193,6 +193,15 @@ jmp_buf cpu_jmp_buf;
 /* Cached ND100X_TRACE_ND110 state: -1 = not yet read, 0 = off, 1 = on. See do_op(). */
 static int nd110_trace_enabled = -1;
 
+/*
+ * Destination of the ND-110 trace.  Defaults to stdout, but when ND100X_TRACE_ND110_FILE
+ * names a path the trace is written THERE instead.  That matters for the console-driven
+ * diagnostics (TPE, the SINTRAN SMD boot): those sessions are read back out of the Windows
+ * console SCREEN BUFFER, so a trace on stdout scrolls the guest's own output away.  Writing
+ * the trace to a side file keeps the screen pristine while still capturing every opcode.
+ */
+FILE *nd110_trace_fp = NULL;
+
 void do_op(ushort operand, bool isEXR)
 {
 
@@ -213,7 +222,25 @@ void do_op(ushort operand, bool isEXR)
 	 * The getenv() result is cached: this is the instruction hot path.
 	 */
 	if (nd110_trace_enabled < 0)
-		nd110_trace_enabled = (getenv("ND100X_TRACE_ND110") != NULL) ? 1 : 0;
+	{
+		/*
+		 * An EMPTY value counts as OFF.  Some shells (PowerShell `$env:X = ""`) leave the
+		 * variable defined-but-empty, and treating that as ON floods the guest console.
+		 */
+		const char *on = getenv("ND100X_TRACE_ND110");
+
+		nd110_trace_enabled = (on != NULL && on[0] != '\0') ? 1 : 0;
+
+		if (nd110_trace_enabled)
+		{
+			const char *path = getenv("ND100X_TRACE_ND110_FILE");
+
+			if (path != NULL && path[0] != '\0')
+				nd110_trace_fp = fopen(path, "w");
+			if (nd110_trace_fp == NULL)
+				nd110_trace_fp = stdout;
+		}
+	}
 
 	if (nd110_trace_enabled)
 	{
@@ -222,8 +249,10 @@ void do_op(ushort operand, bool isEXR)
 		    (operand >= 0140500 && operand <= 0140517) ||
 		    (operand >= 0140700 && operand <= 0140777))
 		{
-			printf("ND110OP %06o at %06o A=%06o T=%06o X=%06o D=%06o B=%06o\r\n",
-			       operand, (ushort)(gPC - 1), gA, gT, gX, gD, gB);
+			fprintf(nd110_trace_fp,
+				"ND110OP %06o at %06o A=%06o T=%06o X=%06o D=%06o B=%06o STBNK=%06o STSRT=%06o CMBUK=%06o\n",
+				operand, (ushort)(gPC - 1), gA, gT, gX, gD, gB, gSTBNK, gSTSRT, gCMBUK);
+			fflush(nd110_trace_fp);
 		}
 	}
 

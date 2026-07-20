@@ -629,6 +629,36 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, AccessM
         // NOT this bit: not-present raises IIC=3 (PF, called just below),
         // access-denied raises IIC=2 (MPV, in the branch further down).
         // Re-check against TPE test 6 before touching this line again.
+
+        /*
+         * DIAG (ND100X_TRACE_PF_RINGAT=<n>): one-shot CPU instruction ring dump at the n'th
+         * page fault, so we can see the SINTRAN page-fault handler path that leads back into
+         * the ENPT/CLPT swap loop without ever mapping the demanded page.
+         */
+        {
+            static long pf_calls = 0;
+            static long pf_ring_at = -1;    /* -1 = env not read yet, 0 = disabled */
+
+            if (pf_ring_at < 0)
+            {
+                const char *at = getenv("ND100X_TRACE_PF_RINGAT");
+
+                pf_ring_at = (at != NULL && at[0] != '\0') ? atol(at) : 0;
+            }
+
+            pf_calls++;
+            if (pf_ring_at > 0 && pf_calls == pf_ring_at)
+                ring_dump();
+        }
+
+        /* DIAG (ND100X_TRACE_ND110): correlate page faults with the ENPT/CLPT swap loop. */
+        if (nd110_trace_fp != NULL)
+        {
+            fprintf(nd110_trace_fp, "  PF   VA=%06o PT=%d VPN=%d PTe=0x%08X am=%d APT=%d PIL=%d PC=%06o\n",
+                    virtualAddress, pageTable, VPN, (uint32_t)pageTableEntry, am, gUseAPT ? 1 : 0, CurrLEVEL, gPC);
+            fflush(nd110_trace_fp);
+        }
+
         UpdatePGS(pageTable, VPN, am, true);
         HandlePF(virtualAddress);
         return false;
@@ -648,6 +678,14 @@ bool checkPageProtection(uint VPN, uint pageTable, ulong pageTableEntry, AccessM
         //                pageTable, VPN, (uint32_t)pageTableEntry, (unsigned long)accessBits, am, UseAPT, CurrLEVEL, virtualAddress);
         //     mpv25++;
         // }
+        /* DIAG (ND100X_TRACE_ND110): correlate permit violations with the ENPT/CLPT swap loop. */
+        if (nd110_trace_fp != NULL)
+        {
+            fprintf(nd110_trace_fp, "  MPV  VA=%06o PT=%d VPN=%d PTe=0x%08X need=0x%08lX am=%d APT=%d PIL=%d PC=%06o\n",
+                    virtualAddress, pageTable, VPN, (uint32_t)pageTableEntry,
+                    (unsigned long)accessBits, am, gUseAPT ? 1 : 0, CurrLEVEL, gPC);
+            fflush(nd110_trace_fp);
+        }
         UpdatePGS(pageTable, VPN, am, true);
         HandleMPV(virtualAddress);
         return false;

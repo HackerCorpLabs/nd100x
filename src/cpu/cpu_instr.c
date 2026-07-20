@@ -2156,6 +2156,39 @@ void ndfunc_clpt(ushort operand)
 
 			if (r3 != 0)
 				WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 2) & 0xFFFF)), r3, true);
+
+			/*
+			 * DIAG (ND100X_TRACE_ND110_RINGAT=<n>): once the swap-in/swap-out livelock is
+			 * in steady state, dump the CPU instruction ring so we can see what the guest
+			 * actually executed between the ENPT that mapped the segment and this CLPT that
+			 * unmapped it again.  One-shot.
+			 */
+			{
+				static long clpt_calls = 0;
+				static long clpt_ring_at = -1;	/* -1 = env not read yet, 0 = disabled */
+
+				if (clpt_ring_at < 0)
+				{
+					const char *at = getenv("ND100X_TRACE_ND110_RINGAT");
+
+					clpt_ring_at = (at != NULL && at[0] != '\0') ? atol(at) : 0;
+				}
+
+				clpt_calls++;
+				if (clpt_ring_at > 0 && clpt_calls == clpt_ring_at)
+					ring_dump();
+			}
+
+			/* DIAG (ND100X_TRACE_ND110): what CLPT read back out of the page table. */
+			if (nd110_trace_fp != NULL)
+			{
+				fprintf(nd110_trace_fp,
+					"  CLPT node X=%06o e=%06o -> B=%06o APT[B]=%06o shadow=%d PCR=%06o PONI=%d\n",
+					x_reg, entry, b_reg, r3,
+					IsAddressShadowMemory(b_reg, false) ? 1 : 0,
+					gReg->reg_PCR[CurrLEVEL], STS_PONI ? 1 : 0);
+				fflush(nd110_trace_fp);
+			}
 		}
 
 		/* 004577-004600: advance X := [X] (forward link, physical CMBUK segment). */
@@ -2201,6 +2234,17 @@ void nd110_enter_page_table(ushort r4_mask)
 		/* 004573: APT[B] := A (masked word0).  004575: APT[B+1] := X >> 2 (physical page frame). */
 		WriteVirtualMemory(b_reg, gA, true, WRITEMODE_WORD);
 		WriteVirtualMemory((ushort)((b_reg + 1) & 0xFFFF), (ushort)(x_reg >> 2), true, WRITEMODE_WORD);
+
+		/* DIAG (ND100X_TRACE_ND110): per-node dump of the page-table entry actually written. */
+		if (nd110_trace_fp != NULL)
+		{
+			fprintf(nd110_trace_fp,
+				"  ENPT node X=%06o w0=%06o w1=%06o -> B=%06o APT[B]=%06o APT[B+1]=%06o shadow=%d PCR=%06o PONI=%d\n",
+				x_reg, word0, word1, b_reg, gA, (ushort)(x_reg >> 2),
+				IsAddressShadowMemory(b_reg, false) ? 1 : 0,
+				gReg->reg_PCR[CurrLEVEL], STS_PONI ? 1 : 0);
+			fflush(nd110_trace_fp);
+		}
 
 		/* 004577-004600: advance X := [X] (forward link, physical CMBUK segment). */
 		gX = (ushort)ReadPhysicalMemory((int)(cmbnk | x_reg), true);
