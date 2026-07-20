@@ -1499,40 +1499,77 @@ void ndfunc_clept(ushort operand)
 	 * LOOP:	JMP *-7		(goto CLEPT)
 	 * END:		...
 	 */
-	ushort cnt;
 
-	while (gX)
+	/*
+	 * Ported from RetroCore CLEPT (Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs),
+	 * which carries the oracle-verified access ORDER.  The equivalent-assembler comment above
+	 * is a paraphrase and is NOT the access order the hardware uses - the real RASK microcode
+	 * body is CLPT1 (ND-110-RASK.LISTING.TXT 9339-9420, shared with CLEPU when R7 = 0):
+	 *
+	 *   004071 CLPT1:  Q := D, ARG 600
+	 *   004072          R4 := ...,  T,PUSH PATA1      <-- the FIRST memory touch of every node
+	 *   004120 PATA1:   LDSEG T                          (segment for the physical T,X accesses)
+	 *   004121 PATA2:   R1 := X                          (R1 = the node pointer)
+	 *   004122          EXRQ @X,  COND,F=0               (read [X]; F latches "X was 0")
+	 *   004123          X := DBR,  T,JMP T,POP           (X := [X] - happens on EVERY pass,
+	 *                                                     including the terminating X == 0 one)
+	 *   004124-004130   R1 := R1+1; EXRQ @[X+1];         (LDBTX 10: page index at [X+1] ->
+	 *                   B := 177000 | (2 * [X+1])         page-table entry address in B)
+	 *   004074          RDRQ,APT  -> PATA4 (004131)      (LDA ,B via the ALTERNATIVE page table)
+	 *   004075          COND on A == 0                   (JAZ *3: skip an unused entry)
+	 *   004077          DERQ  -> [X+2] := A              (STATX 20: save the used entry)
+	 *   004116          WRRQ,APT  ZERO                   (STZ ,B: clear the entry)
+	 *
+	 * Two bugs are fixed here versus the previous implementation:
+	 *
+	 *  1) ACCESS ORDER.  [X] (the next-node pointer) is read at the START of each node by
+	 *     PATA2 (004121-004123) - BEFORE the [X+1] page-index read - not at the end.  The old
+	 *     code read [X+1] first and [X] last, so a node that modified its own [X] word (which
+	 *     is exactly what SINTRAN's page-table chains do) walked the wrong successor.
+	 *
+	 *  2) FINAL X.  004123 loads X := [X] unconditionally, so on the terminating pass (X == 0)
+	 *     the microcode still reads [X] and puts that word in X.  The old code instead returned
+	 *     a LOOP COUNTER in X - copied from SETPT, which really does report a count - and worse,
+	 *     that counter (`ushort cnt;`) was NEVER INITIALISED, so CLEPT returned a garbage X that
+	 *     varied run to run.  That undefined behaviour is why the TPE INSTRUCTION failure looked
+	 *     "timing sensitive" and why one traced run appeared clean.  CLPT1 has no counter at all.
+	 */
+
+	while (1)
 	{
-		uint EL = 0;
+		ushort nextX;
+		uint elval;
 
-		/* LDBTX 10 */
-		EL = calcEL(1);
-		uint elval = ReadEL(EL);
-		gB = (ushort)(((elval + elval) & 0xFFFF) | 0xFE00); // 177000
+		/* 004121-004122 (PATA2): read the next-node pointer at [X] (physical, bank T). */
+		nextX = (ushort)ReadEL(calcEL(0));
 
-		// LDA, B
+		/* 004123: X == 0 ends the walk - but X is still loaded from [X] on this final pass. */
+		if (gX == 0)
+		{
+			gX = nextX;
+			break;
+		}
+
+		/* 004124-004130 (LDBTX 10): page index at [X+1] -> entry address B = 0177000 | (2*index). */
+		elval = ReadEL(calcEL(1));
+		gB = (ushort)(((elval + elval) & 0xFFFF) | 0xFE00); /* 177000 */
+
+		/* 004074 / PATA4 (LDA ,B): read the page-table entry via the ALTERNATIVE page table. */
 		gA = (ushort)ReadVirtualMemory(gB, true);
 
-		// JAZ *3 (jump 3 instruction if A is zero)
+		/* 004075 (JAZ *3): a zero (unused) entry is skipped; a used entry is saved then cleared. */
 		if (gA != 0)
 		{
-			// STATX 20  =>  (EL) = A
-			EL = calcEL(2); // Calculates using X, T and mriDisplacement	//020 OCT  >>3
-			WriteEL(EL, (ushort)gA);
+			/* 004077 (STATX 20): save the entry to [X+2] (physical, bank T). */
+			WriteEL(calcEL(2), (ushort)gA);
 
-			// STZ, B
+			/* 004116 (STZ ,B): clear the page-table entry via the ALTERNATIVE page table. */
 			WriteVirtualMemory(gB, 0, true, WRITEMODE_WORD);
 		}
 
-		//  LDXTX 00 <=  X:= (EL)
-		EL = calcEL(0); // Calculates using X, T and mriDisplacement
-		gX = (ushort)ReadEL(EL);
-
-		// Increase counter
-		cnt++;
+		/* Advance to the next node (X := [X], already read at the top of this iteration). */
+		gX = nextX;
 	}
-
-	gX = cnt;
 }
 
 /// <summary>

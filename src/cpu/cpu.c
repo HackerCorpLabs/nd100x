@@ -134,14 +134,18 @@ _NDRAM_ VolatileMemory;
  * cpu_set_type_from_env()).  Setting ND110CX makes TPE report "CPU type: ND-110/CX" and
  * run the ND-110 variants of its subtests - verified clean, zero "*** ERROR ***".
  *
- * The DEFAULT is deliberately still ND100CX, which reproduces the previously verified
- * behaviour bit-for-bit: SINTRAN III boots from SMD only on this setting.  Under ND110CX
- * SINTRAN takes its ND-110 segment-handling path (WGLOB/RGLOB/INSPL/REMPL/ENPT/CLPT plus
- * the 14070x bank group) and live-locks in an ENPT/CLPT retry loop before the banner - an
- * unresolved divergence in that path, NOT a reason to hide the identity mechanism.  Flip
- * the default once that live-lock is root-caused.
+ * The DEFAULT is ND110CX (Phase 6).  It used to be ND100CX, because under ND110CX SINTRAN
+ * takes its ND-110 segment-handling path (WGLOB/RGLOB/INSPL/REMPL/ENPT/CLPT plus the
+ * 14070x bank group) and used to live-lock in an ENPT/CLPT retry loop before the banner.
+ * That live-lock (ledger B26) was root-caused and fixed - CLPT in save mode was not
+ * clearing the page-table entry - so SINTRAN III now boots from SMD under ND110CX with the
+ * ND-110 group live.  Defaulting to ND110CX is the point of Phase 6: nd100x and RetroCore
+ * must run the IDENTICAL instruction set in their normal configuration.
+ *
+ * ND100X_CPUTYPE remains a full run-time override in BOTH directions (including selecting
+ * ND100CX again) - see cpu_set_type_from_env().
  */
-CpuType CurrentCPUType = ND100CX;
+CpuType CurrentCPUType = ND110CX;
 
 // Installed main-memory size in 16-bit WORDS. Default 4 MB (4 MW = 2097152 words);
 // overridden at start-up by --memory / the .ini memory= key (range 1..16 MB). The
