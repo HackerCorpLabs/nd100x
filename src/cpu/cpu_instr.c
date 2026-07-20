@@ -2114,8 +2114,8 @@ void ndfunc_cnrek(ushort operand)
  * page-table entry address B = (descriptor | 0176000) << 1.
  *
  * Bit 15 of A selects the mode for the WHOLE instruction:
- *   set   -> clear the entry (APT[B] := 0)
- *   clear -> read APT[B] and, if non-zero, deposit it physically to [X+2]
+ *   set   -> clear the entry (APT[B] := 0) WITHOUT saving it
+ *   clear -> read APT[B] and, if non-zero, deposit it physically to [X+2] and THEN clear it
  *
  * Faithful to RASK microcode CLPK1/CLPK4/CLPK3 (ND-110-RASK.LISTING.TXT 10585-10704).
  * Port of RetroCore CLPT().
@@ -2155,7 +2155,34 @@ void ndfunc_clpt(ushort operand)
 			ushort r3 = (ushort)ReadVirtualMemory(b_reg, true);
 
 			if (r3 != 0)
+			{
 				WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 2) & 0xFFFF)), r3, true);
+
+				/*
+				 * 004553 falls through into CLPK4 (004554) whose CONDENABL routes the TRUE
+				 * case to 004555 - the SAME `ALUF,ZERO / COMM,WRRQ,APT` clear the bit-15 path
+				 * uses.  So a SAVED entry is also CLEARED; the instruction is, after all,
+				 * CLear Page Tables and the bit-15 flag only selects whether the old entry is
+				 * saved first.  The 004552 CONDENABL has already jumped to CLPK3 when the
+				 * entry read back as zero, so a zero entry is neither saved nor cleared -
+				 * hence this sits inside `r3 != 0`.
+				 *
+				 * HONESTY NOTE: the listing latches `COND,F=0` at 004553 on an ALU operand
+				 * whose register select (`A,R3  B,A  ALUF,PASSB`) is not decidable from the
+				 * listing text alone, so "always clear here" cannot be formally separated from
+				 * "clear only when the A register is 0".  Every CLPT executed in the validated
+				 * SINTRAN III ND-110 boot has A = 0 (91 of 91, measured on the RetroCore B26
+				 * harness), so the two readings are indistinguishable on the available
+				 * evidence; pin it against the microcode oracle if it ever matters.
+				 *
+				 * Without this clear the ND-110 SINTRAN boot never releases a page-table
+				 * entry and live-locks re-entering the same pages forever (ledger B26): the
+				 * ND100CX control run performs 91 clearing writes into page table 9 while the
+				 * ND110CX run performed ZERO.  With it, RetroCore's ND110CX harness reaches
+				 * "SINTRAN III RUNNING -" in 23 s.
+				 */
+				WriteVirtualMemory(b_reg, 0, true, WRITEMODE_WORD);
+			}
 
 			/*
 			 * DIAG (ND100X_TRACE_ND110_RINGAT=<n>): once the swap-in/swap-out livelock is
