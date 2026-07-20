@@ -214,10 +214,11 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(void)snprintf(opstr, BUFSTRSIZE, "MOVBF");
 		break;
 	case 0140133:																				  /* VERSN - ND110 specific */
-		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
+		if ((CurrentCPUType == ND100) || (CurrentCPUType == ND100CE) || (CurrentCPUType == ND100CX)) /* We are ND100 */
 			break;
 		else /* We are a ND110, print instruction */
 			(void)snprintf(opstr, BUFSTRSIZE, "VERSN");
+		break; /* WAS MISSING: fell through and overwrote "VERSN" with "INIT" */
 	case 0140134: /* INIT */
 		(void)snprintf(opstr, BUFSTRSIZE, "INIT");
 		break;
@@ -249,7 +250,7 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(void)snprintf(opstr, BUFSTRSIZE, "USER0");
 		break;
 	case 0140500:																				  /* USER1 or ND110 instruction WGLOB */
-		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
+		if ((CurrentCPUType == ND100) || (CurrentCPUType == ND100CE) || (CurrentCPUType == ND100CX)) /* We are ND100 */
 			(void)snprintf(opstr, BUFSTRSIZE, "USER1");
 		else
 			(void)snprintf(opstr, BUFSTRSIZE, "WGLOB"); /* We are ND110 */
@@ -297,7 +298,7 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(void)snprintf(opstr, BUFSTRSIZE, "EXR %s", skipregn_src[((operand & 0x0038) >> 3)]);
 		break;
 	case 0140700:																				  /* USER2 */
-		if ((CurrentCPUType = ND100) || (CurrentCPUType = ND100CE) || (CurrentCPUType = ND100CX)) /* We are ND100 */
+		if ((CurrentCPUType == ND100) || (CurrentCPUType == ND100CE) || (CurrentCPUType == ND100CX)) /* We are ND100 */
 			(void)snprintf(opstr, BUFSTRSIZE, "USER2");
 		else
 			(void)snprintf(opstr, BUFSTRSIZE, "LASB %s", deltastr); /* We are ND110 */

@@ -30,6 +30,7 @@
 
 #include "cpu_types.h"
 #include "cpu_protos.h"
+#include <stdlib.h>
 
 
 // Initialize the instruction function array
@@ -135,7 +136,13 @@ void WriteEL(uint el, ushort value)
 
 void illegal_instr(ushort operand)
 {
-	// printf("Illegal instruction %6o  at %6o\r\n", operand, gPC);
+	/*
+	 * Set ND100X_TRACE_ILLEGAL to log every illegal-instruction trap.  This is how a
+	 * guest's CPU-type probe is observed: TPE's INSTRUCTION program executes VERSN
+	 * (140133) and decides "ND-100" if - and only if - it traps here.
+	 */
+	if (getenv("ND100X_TRACE_ILLEGAL") != NULL)
+		printf("ILLEGAL %06o at %06o\r\n", operand, gPC);
 
 	interrupt(14, 1 << 4); /* Illegal Instruction <= WILL TRAP! */
 }
@@ -1330,44 +1337,60 @@ void ndfunc_sex(ushort operand)
 
 /******************** CX FUNCTIONS  *******************/
 
+/*
+ * ================================================================================
+ *  ND-110 S3SEG helpers
+ * ================================================================================
+ *
+ * The ND-110 SINTRAN-III segment-handling instructions address PHYSICAL memory as
+ * "segment:offset": a loaded segment (LDSEG in the microcode) selects a physical 64K
+ * bank and the 16-bit offset indexes inside it.  Everything below shares that model.
+ *
+ * Ported from RetroCore Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs
+ * (SegPhys / BankGroupPhysAddr), which was derived from the RASK microcode listing
+ * E:\Dev\Repos\Ronny\ND110Compile\ND110Compile\uCode\ND-110-RASK.LISTING.TXT and
+ * validated against the live ND-110 microcode oracle.
+ */
+
+/* WIP ("written in page") bit tested by CHREENTPAGES; R4 = BMG(14 octal) = 2^12. */
+#define ND110_WIP_BIT	(1 << 12)
+
+/* PGU ("page used") bit collected by CLEPU; R7 = BMG(013 octal) = 04000 octal = 2^11. */
+#define ND110_PGU_BIT	(1 << 11)
+
+/*
+ * Computes a physical word address from a segment (physical 64K bank) and an offset.
+ * address = (seg & 0xFF) << 16 | (offset & 0xFFFF).
+ */
+uint nd110_seg_phys(ushort seg, ushort offset)
+{
+	return ((uint)(seg & 0xFF) << 16) | (uint)(offset & 0xFFFF);
+}
+
+/*
+ * Computes the physical word address for one of the ND-110 "bank group" instructions
+ * (LASB/SASB/SZSB/LXSB against STBNK, LACB/SACB/SZCB/LXCB against CMBUK).
+ *
+ * The address is bank << 16 | ((index + delta) & 0xFFFF), where delta is the
+ * instruction's 3-bit displacement (bits 3-5 of the opcode).  The index register
+ * differs per group: the segment-table group uses B, the core-map group uses X (the
+ * physical page number) - verified against the RASK microcode oracle (see the
+ * BankGroupPhysAddr remarks in RetroCore Instructions.ND110Specific.cs).
+ */
+uint nd110_bankgroup_phys(ushort bank, ushort index, ushort operand)
+{
+	ushort delta = (ushort)((operand >> 3) & 0x07);
+	uint ea = (uint)((index + delta) & 0xFFFF);
+
+	return ((uint)(bank & 0xFF) << 16) | ea;
+}
+
 
 
 /* SETPT - ND110+
  *
  * NOTE: Privileged instruction
  */
-// LBIT (140510): load the K 1-bit accumulator from a LOGICAL memory bit.
-// (X)=bit-array start word, (A)=bit index; word=X+(A>>4), bit=A&0xF, APT access.
-// Mirrors RetroCore Instructions.ND110Specific.cs LBIT. Manual ND-06.029.1 EN.
-void ndfunc_lbit(ushort operand)
-{
-	(void)operand;
-	if (!CheckPriv())
-		return;
-	uint bitIndex = gA;
-	uint wordAddr = (uint)((gX + (bitIndex >> 4)) & 0xFFFF);
-	int bitInWord = (int)(bitIndex & 0x0F);
-	ushort word = (ushort)ReadVirtualMemory(wordAddr, true);
-	setbit(_STS, _K, (char)((word >> bitInWord) & 1));
-}
-
-// SBIT (140512): store the K 1-bit accumulator into a LOGICAL memory bit (read-modify-write).
-// (X)=bit-array start word, (A)=bit index. Mirrors RetroCore SBIT.
-void ndfunc_sbit(ushort operand)
-{
-	(void)operand;
-	if (!CheckPriv())
-		return;
-	uint bitIndex = gA;
-	uint wordAddr = (uint)((gX + (bitIndex >> 4)) & 0xFFFF);
-	int bitInWord = (int)(bitIndex & 0x0F);
-	ushort word = (ushort)ReadVirtualMemory(wordAddr, true);
-	if (getbit(_STS, _K))
-		word |= (ushort)(1 << bitInWord);
-	else
-		word &= (ushort)~(1 << bitInWord);
-	WriteVirtualMemory(wordAddr, word, true, WRITEMODE_WORD);
-}
 
 void ndfunc_setpt(ushort operand)
 {
@@ -1527,9 +1550,15 @@ void ndfunc_clept(ushort operand)
 /// </summary>
 void ndfunc_clnreent(ushort operand)
 {
+	ushort a_reg;
+	ushort x_reg;
+	ushort t_reg;
+	ushort r1;	/* page-table clear cursor (APT-relative) */
+	ushort r2;	/* bitmap read cursor */
+	ushort r3;	/* bitmap end (exclusive) */
+
 	if (!CheckPriv())
 		return;
-	// TODO: Implement
 
 	/*
 	OPCODE 140302 : CLNREENT
@@ -1539,6 +1568,73 @@ void ndfunc_clnreent(ushort operand)
 	CLEAR PAGE-TABLE ENTRIES CORRESPONDING TO 1 - BITS IN BITMAP.
 	THE LAST BITMAP—ADDRESS IS IN ADDRESS X + T.
 	*/
+
+	/*
+	 * Ported verbatim from RetroCore CLNREENT
+	 * (Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs), which is faithful to
+	 * RASK microcode CLNR1 (ND-110-RASK.LISTING.TXT lines 9460-9538) and was validated
+	 * against the ND-110 microcode oracle.  All memory accesses go through the
+	 * ALTERNATIVE page table (the operated-on process's page table).
+	 */
+	a_reg = gA;
+	x_reg = gX;
+	t_reg = gT;
+
+	/*
+	 * 004132: the S3SG1 prologue leaves Q = A + 1, so F = Q + 1 = A + 2.  If A + 2 == 0
+	 * the instruction does nothing and returns (RASK LISTING 9460 / 9467, cond0 -> CONTINUE).
+	 */
+	if ((ushort)(a_reg + 2) == 0)
+		return;
+
+	/*
+	 * 004133: read the page-table pointer word via APT[A+2].  Its value is latched into Q
+	 * but the rest of CLNR1 uses the fixed APT base 0177000 instead, so this read is a side
+	 * effect only - it is kept so the memory-access trace matches the microcode oracle.
+	 */
+	(void)ReadVirtualMemory((ushort)(a_reg + 2), true);
+
+	/*
+	 * 004135-004141: R1 = 0177000 (octal) APT-relative page-table base; R2 = X + 25 (octal)
+	 *                bitmap read cursor; R3 = X + T + 1 bitmap end (last bitmap word at X + T).
+	 */
+	r1 = 0xFE00;				/* 0177000 octal */
+	r2 = (ushort)(x_reg + 0x15);		/* + 025 octal (= 21 decimal) */
+	r3 = (ushort)(x_reg + t_reg + 1);
+
+	/* Outer loop over the bitmap words (CLNR1 004142..CLNR2 004152, LISTING 9490-9537). */
+	while (r3 != r2)			/* CLNR2: bitmap exhausted -> done */
+	{
+		ushort addr = r2;		/* 004142: address = old R2, then R2++ */
+		ushort word;
+		int bit;
+
+		r2 = (ushort)(r2 + 1);
+		word = (ushort)ReadVirtualMemory(addr, true);	/* 004143 */
+
+		if (word == 0)
+		{
+			/*
+			 * CLNR5 004156: a zero bitmap word clears nothing; skip its 16 entries
+			 * (R1 += 040 octal = 32 = 16 entries * 2-word stride).
+			 */
+			r1 = (ushort)(r1 + 0x20);
+			continue;
+		}
+
+		/*
+		 * Inner loop: 16 bit positions, LSB first.  Clear the page-table entry when its bit
+		 * is set (RASK 004150-004155; stride 2, one entry per bit).  The clear-when-set
+		 * predicate is the documented intent (LISTING 9246); the exact microcode latch is
+		 * oracle-validated.
+		 */
+		for (bit = 0; bit < 16; bit++)
+		{
+			if ((word & (1 << bit)) != 0)
+				WriteVirtualMemory(r1, 0, true, WRITEMODE_WORD);	/* 004155 */
+			r1 = (ushort)(r1 + 2);		/* 004153: 2-word stride per entry */
+		}
+	}
 }
 
 /// <summary>
@@ -1561,9 +1657,16 @@ void ndfunc_clnreent(ushort operand)
 /// </summary>
 void ndfunc_chreent_pages(ushort operand)
 {
+	ushort prog_d;
+	ushort prog_x;
+	ushort prog_t;
+	ushort prev_seg;
+	ushort prev_off;
+	ushort seg;
+	ushort off;
+
 	if (!CheckPriv())
 		return;
-	// TODO: Implement
 
 	/*
 		OPCODE 140303 : CHREENTPAGES
@@ -1576,6 +1679,69 @@ void ndfunc_chreent_pages(ushort operand)
 		6. WRITE R2 -> ADDRESS PREVIOUS
 		7. R1 -> X ; PREVIOUS -> D.A ; RETURN
 	*/
+
+	/*
+	 * Ported verbatim from RetroCore CHREENT_PAGES
+	 * (Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs), faithful to RASK microcode
+	 * CHRE1 (ND-110-RASK.LISTING.TXT lines 9540-9599) and validated against the microcode
+	 * oracle.  The chain lives in PHYSICAL memory addressed as segment:offset (a loaded
+	 * segment selects a 64K bank) - NOT through the page table.
+	 */
+	prog_d = gD;
+	prog_x = gX;
+	prog_t = gT;
+
+	/* PREVIOUS slot, initially the chain head at D:X (R6/R7 = progD/progX, LISTING 9540-9543). */
+	prev_seg = prog_d;
+	prev_off = prog_x;
+
+	seg = prog_d;			/* loaded segment register */
+	off = prog_x;			/* MAR offset */
+
+	for (;;)
+	{
+		ushort link;
+		ushort status;
+
+		/* CHRE2 004161: read the link word at segment:offset. */
+		link = (ushort)ReadPhysicalMemory((int)nd110_seg_phys(seg, off), true);
+
+		/*
+		 * 004162-004163 / CHRE4 004200: a zero link ends the chain -> SKIP return
+		 * (extra P+1), registers unchanged.
+		 */
+		if (link == 0)
+		{
+			gPC++;
+			return;
+		}
+
+		seg = prog_t;		/* 004163: the status/link reads use the descriptor segment T */
+
+		/* 004164-004166: read the status word at T:(link+2) and test WIP (bit 12). */
+		status = (ushort)ReadPhysicalMemory((int)nd110_seg_phys(prog_t, (ushort)(link + 2)), true);
+
+		if ((status & ND110_WIP_BIT) != 0)
+		{
+			/*
+			 * WIP set: unlink this page.  004170: read successor at T:link;
+			 * 004174: DEPOSIT it into the previous slot; 004172-004175: set D/A/X,
+			 * normal return.
+			 */
+			ushort successor = (ushort)ReadPhysicalMemory((int)nd110_seg_phys(prog_t, link), true);
+
+			WritePhysicalMemory((int)nd110_seg_phys(prev_seg, prev_off), successor, true);
+			gD = prev_seg;
+			gA = prev_off;
+			gX = link;
+			return;
+		}
+
+		/* NOT WIP (CHRE3 004176-004177): advance PREVIOUS to T:link, then follow the chain link. */
+		prev_seg = prog_t;
+		prev_off = link;
+		off = link;		/* next CHRE2 reads T:link = the successor link */
+	}
 }
 
 /// <summary>
@@ -1617,8 +1783,759 @@ void ndfunc_clepu(ushort operand)
 		WORD			3	# PAGE 177								   160 #
 
 	*/
+
+	/*
+	 * Ported verbatim from RetroCore CLEPU
+	 * (Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs), faithful to RASK
+	 * CLPU1/CLPT1 (ND-110-RASK.LISTING.TXT 9340-9418; the CLEPU dispatch at 005764 preloads
+	 * R7 = BMG(013 octal) = 04000 octal = bit 11) and validated against the microcode oracle.
+	 *
+	 * CLEPU is CLEPT plus: for every entry whose PGU (page-used) bit is set, BEFORE clearing
+	 * it, set that page's bit in an 8-word working-set table in the page-map bank pointed to
+	 * by L (PGU block LISTING 9370-9408).  Per the header table layout above, page = the
+	 * entry index at [X+1]; word number = page >> 4 (0..7), bit number = page & 0xF; the
+	 * table word lives at L + word (physical).  The save/PGU/clear order matches the
+	 * microcode: save [X+2] (004077), collect (004101-114), then clear (004116).
+	 *
+	 * NOTE: unlike the older ndfunc_clept above, the next-node pointer at [X] is read FIRST,
+	 * on every pass including the terminating one - that access order and the final X are
+	 * oracle-verified (see the RetroCore CLEPT/CLEPU comments).
+	 */
+	for (;;)
+	{
+		ushort next_x;
+		uint idx;
+
+		/* 004122 (PATA2): next-node pointer at [X], read first (physical, bank T). */
+		next_x = (ushort)ReadEL(calcEL(0));
+
+		/* 004123: X == 0 terminates; load X from [X] on the final pass. */
+		if (gX == 0)
+		{
+			gX = next_x;
+			break;
+		}
+
+		/* 004124-004130: page index at [X+1] -> entry address B = 0177000 | (2*index). */
+		idx = ReadEL(calcEL(1));
+		gB = (ushort)(((idx + idx) & 0xFFFF) | 0xFE00);	/* 177000 */
+
+		/* 004074 / PATA4: read the page-table entry via the alternative page table. */
+		gA = (ushort)ReadVirtualMemory(gB, true);
+
+		/* 004075 (JAZ *3): skip unused (zero) entries. */
+		if (gA != 0)
+		{
+			/* 004077 (STATX 20): save the entry to [X+2] (physical, bank T). */
+			WriteEL(calcEL(2), gA);
+
+			/*
+			 * 004100-004114 (PGU block): if the entry's PGU bit is set, mark the page in
+			 * the 8-word working-set table at L (page-map bank).
+			 * word = page >> 4, bit = page & 0xF.
+			 */
+			if ((gA & ND110_PGU_BIT) != 0)
+			{
+				uint page = idx & 0x7F;		/* 8 words * 16 bits = 128 pages */
+				uint word = page >> 4;		/* word number (0..7) */
+				int bit = (int)(page & 0x0F);	/* bit within the word */
+				uint table_addr = (uint)((gL + word) & 0xFFFF);
+				ushort tw = (ushort)ReadPhysicalMemory((int)table_addr, true);	/* 004107 EXRQ */
+
+				tw |= (ushort)(1 << bit);					/* 004112 set bit */
+				WritePhysicalMemory((int)table_addr, tw, true);			/* 004114 DERQ */
+			}
+
+			/* 004116 (STZ ,B): clear the page-table entry via the alternative page table. */
+			WriteVirtualMemory(gB, 0, true, WRITEMODE_WORD);
+		}
+
+		/* Advance to the next node. */
+		gX = next_x;
+	}
 }
 
+
+
+/*
+ * ================================================================================
+ *  ND-110 SPECIFIC INSTRUCTIONS - "INSTRUCTIONS TO SPEED UP SINTRAN III SEGMENT
+ *  HANDLING", opcode groups 14050x / 14051x / 14070x.
+ * ================================================================================
+ *
+ * ALL of these are PRIVILEGED and exist on ND-110/CX and ND-120/CX only.
+ *
+ * Every body below is a verbatim port of the corresponding RetroCore implementation in
+ *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\ND\CPU\ND100\Instructions.ND110Specific.cs
+ * which was itself derived from the RASK microcode listing
+ *   E:\Dev\Repos\Ronny\ND110Compile\ND110Compile\uCode\ND-110-RASK.LISTING.TXT
+ * and validated instruction-by-instruction against the live ND-110 microcode oracle.
+ * The RASK micro-addresses quoted in the comments are the ones in that listing; do NOT
+ * delete them, they are the only traceability back to the silicon.
+ *
+ * Reference manuals: ND-06.029.1 EN (ND-110 Instruction Set) and ND-06.026.1 EN
+ * (ND-110 Functional Description, p.196 for the WGLOB/RGLOB global pointers).
+ */
+
+/* WGLOB - 140500 (privileged)
+ *
+ * Initialize the global pointers:
+ *   (T) => bank number of segment table  (STBNK)
+ *   (A) => start address within bank     (STSRT - must be divisible by 8)
+ *   (D) => bank number of core map table (CMBUK)
+ *
+ * Ref ND-06.026.1 EN, page 196. Port of RetroCore WGLOB().
+ */
+void ndfunc_wglob(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gSTBNK = gT;
+	gSTSRT = gA;
+	gCMBUK = gD;
+}
+
+/* RGLOB - 140501 (privileged)
+ *
+ * Examine the global pointers - the exact inverse of WGLOB:
+ *   (T) <= STBNK, (A) <= STSRT, (D) <= CMBUK
+ *
+ * Ref ND-06.026.1 EN, page 196. Port of RetroCore RGLOB().
+ */
+void ndfunc_rglob(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gT = gSTBNK;
+	gA = gSTSRT;
+	gD = gCMBUK;
+}
+
+/* INSPL - 140502 (privileged)
+ *
+ * Insert a page's core-map entry at the HEAD of a segment's page list.  Atomic - no
+ * loop, normal P+1 return.  Operand registers:
+ *   B = base word of the segment descriptor (in STBNK; page-list head lives at B+7)
+ *   X = base word of the page's core-map entry (in CMBUK)
+ *   T = the tag word stored at X+3
+ *
+ * Faithful to RASK microcode INSP1 (ND-110-RASK.LISTING.TXT 10386-10501).
+ * Port of RetroCore INSPL().
+ */
+void ndfunc_inspl(ushort operand)
+{
+	uint stbnk;
+	uint cmbnk;
+	ushort b_reg;
+	ushort x_reg;
+	ushort t_reg;
+	ushort old_head;
+	ushort marker;
+
+	if (!CheckPriv())
+		return;
+
+	stbnk = (uint)(gSTBNK & 0xFF) << 16;
+	cmbnk = (uint)(gCMBUK & 0xFF) << 16;
+	b_reg = gB;
+	x_reg = gX;
+	t_reg = gT;
+
+	/* 004454-004457: R1 := old page-list head at STBNK[B+7]. */
+	old_head = (ushort)ReadPhysicalMemory((int)(stbnk | (uint)((b_reg + 7) & 0xFFFF)), true);
+	/* 004460-004461: new head := X. */
+	WritePhysicalMemory((int)(stbnk | (uint)((b_reg + 7) & 0xFFFF)), x_reg, true);
+	/* 004462-004464: X's forward link (CMBUK[X]) := old head. */
+	WritePhysicalMemory((int)(cmbnk | x_reg), old_head, true);
+
+	if (old_head == 0)
+	{
+		/*
+		 * 004473-004474 (INSP2, empty list): back link := anchor marker segIndex | 3,
+		 * where segIndex = (B - STSRT) >> 1.
+		 */
+		ushort seg_index = (ushort)(((b_reg - gSTSRT) & 0xFFFF) >> 1);
+
+		marker = (ushort)(seg_index | 3);
+	}
+	else
+	{
+		/* 004466-004472 (non-empty): X inherits the old head's back link; old head.prev := X. */
+		marker = (ushort)ReadPhysicalMemory((int)(cmbnk | (uint)((old_head + 1) & 0xFFFF)), true);
+		WritePhysicalMemory((int)(cmbnk | (uint)((old_head + 1) & 0xFFFF)), x_reg, true);
+	}
+
+	/* 004475-004476 (INSP3): X's back link (CMBUK[X+1]) := marker. */
+	WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 1) & 0xFFFF)), marker, true);
+	/* 004477-004501: X's tag word (CMBUK[X+3]) := T. */
+	WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 3) & 0xFFFF)), t_reg, true);
+}
+
+/* REMPL - 140503 (privileged)
+ *
+ * Remove a page's core-map entry from its segment's page list.  Atomic - no loop,
+ * normal P+1 return.  The ONLY operand register is X = base word of the page's core-map
+ * entry (in CMBUK); the segment and links are recovered from the entry's own words plus
+ * the STBNK/STSRT globals.  Forward link at X, back link (or anchor marker) at X+1.
+ * A marker (low 2 bits set) means this is the segment's tail.
+ *
+ * Faithful to RASK microcode REMP1 (ND-110-RASK.LISTING.TXT 10463-10527).
+ * Port of RetroCore REMPL().
+ */
+void ndfunc_rempl(ushort operand)
+{
+	uint stbnk;
+	uint cmbnk;
+	ushort x_reg;
+	ushort r1;		/* successor */
+	ushort r2;		/* back link / anchor marker */
+	bool tail;
+	bool skip_inherit;
+
+	if (!CheckPriv())
+		return;
+
+	stbnk = (uint)(gSTBNK & 0xFF) << 16;
+	cmbnk = (uint)(gCMBUK & 0xFF) << 16;
+	x_reg = gX;
+
+	/* 004502-004507: R1 := successor (CMBUK[X]); R2 := back link / anchor marker (CMBUK[X+1]). */
+	r1 = (ushort)ReadPhysicalMemory((int)(cmbnk | x_reg), true);
+	r2 = (ushort)ReadPhysicalMemory((int)(cmbnk | (uint)((x_reg + 1) & 0xFFFF)), true);
+
+	tail = ((r2 & 3) != 0);
+	if (tail)
+	{
+		/*
+		 * 004514-004520 (REMP2, tail page): the back link is the anchor marker; the
+		 * segment head slot is STBNK[(STSRT + 2*marker) | 7] (== B+7).  Set it to the
+		 * successor.
+		 */
+		uint head_off = (uint)(((gSTSRT + 2 * r2) | 7) & 0xFFFF);
+
+		WritePhysicalMemory((int)(stbnk | head_off), r1, true);
+		skip_inherit = (r1 == 0);
+	}
+	else
+	{
+		/* 004512-004513 (middle page): predecessor.next := successor (executes even if R2==0). */
+		WritePhysicalMemory((int)(cmbnk | r2), r1, true);
+		skip_inherit = (r2 == 0);
+	}
+
+	/* 004521-004523 (REMP3): unless the successor is nil, successor.prev := R2 (predecessor/marker). */
+	if (!skip_inherit)
+		WritePhysicalMemory((int)(cmbnk | (uint)((r1 + 1) & 0xFFFF)), r2, true);
+
+	/* 004524-004527 (REMP4): zero the removed entry's forward and back links. */
+	WritePhysicalMemory((int)(cmbnk | x_reg), 0, true);
+	WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 1) & 0xFFFF)), 0, true);
+}
+
+/* CNREK - 140504 (privileged)
+ *
+ * Faithful to RASK CNRE1 (ND-110-RASK.LISTING.TXT 10545-10581) plus the shared CLNR4
+ * clear loop (9498-9537 - the SAME loop validated in CLNREENT).  CNREK reads the segment
+ * descriptor at STBNK[A+2] (its value is dead in the clear path), then walks 8 RT-
+ * description bitmap words at T[X..X+8) (examined PHYSICALLY in segment T, not through
+ * the APT) and, for every set bit, clears the corresponding page-table entry via the
+ * alternative page table: base 0174000, stride 2, 16 entries per word LSB-first (R1
+ * advances continuously).  Early-out (clean no-op) if A+2 == 0 or X == 0.
+ *
+ * Only differs from CLNREENT in: clear base (0174000 vs 0177000), first word ([X] vs
+ * [X+025]), bound (X+8 vs X+T+1), and the bitmap read path (physical segment T vs APT).
+ *
+ * Port of RetroCore CNREK().
+ */
+void ndfunc_cnrek(ushort operand)
+{
+	ushort a_reg;
+	ushort x_reg;
+	ushort t_reg;
+	uint stbnk;
+	uint tseg;
+	ushort r1;
+	ushort r2;
+	ushort r3;
+
+	if (!CheckPriv())
+		return;
+
+	a_reg = gA;
+	x_reg = gX;
+	t_reg = gT;
+	stbnk = (uint)(gSTBNK & 0xFF) << 16;
+	tseg = (uint)(t_reg & 0xFF) << 16;
+
+	/* 004530-004531: examine the descriptor at STBNK[A+2] (value unused in this path). */
+	(void)ReadPhysicalMemory((int)(stbnk | (uint)((a_reg + 2) & 0xFFFF)), true);
+
+	/* 004532: A+2 == 0 -> no-op.  004536/004540: X == 0 -> no-op. */
+	if ((ushort)(a_reg + 2) == 0)
+		return;
+	if (x_reg == 0)
+		return;
+
+	r1 = 0xF800;			/* 0174000 octal - page-table clear base (APT) */
+	r2 = x_reg;			/* first bitmap word */
+	r3 = (ushort)(x_reg + 8);	/* bound = X + 010 octal (8 words) */
+
+	while (r3 != r2)
+	{
+		ushort word;
+		int bit;
+
+		/* 004541: examine the bitmap word physically in segment T. */
+		word = (ushort)ReadPhysicalMemory((int)(tseg | r2), true);
+		r2 = (ushort)(r2 + 1);
+
+		if (word == 0)
+		{
+			r1 = (ushort)(r1 + 0x20);	/* all-zero word clears nothing; skip its 16 entries */
+			continue;
+		}
+
+		for (bit = 0; bit < 16; bit++)
+		{
+			if ((word & (1 << bit)) != 0)
+				WriteVirtualMemory(r1, 0, true, WRITEMODE_WORD);	/* 004155 clear via APT */
+			r1 = (ushort)(r1 + 2);
+		}
+	}
+}
+
+/* CLPT - 140505 (privileged)
+ *
+ * Clear (or re-link) a segment's entries from the page tables.  Walks a forward-linked
+ * chain of core-map nodes in the core-map bank (CMBUK) from X (a null next-pointer at [X]
+ * terminates).  For each node it reads the descriptor at [X+3] and forms the alternative-
+ * page-table entry address B = (descriptor | 0176000) << 1.
+ *
+ * Bit 15 of A selects the mode for the WHOLE instruction:
+ *   set   -> clear the entry (APT[B] := 0)
+ *   clear -> read APT[B] and, if non-zero, deposit it physically to [X+2]
+ *
+ * Faithful to RASK microcode CLPK1/CLPK4/CLPK3 (ND-110-RASK.LISTING.TXT 10585-10704).
+ * Port of RetroCore CLPT().
+ */
+void ndfunc_clpt(ushort operand)
+{
+	uint cmbnk;
+	bool clear_mode;
+
+	if (!CheckPriv())
+		return;
+
+	cmbnk = (uint)(gCMBUK & 0xFF) << 16;			/* segment = core-map bank (LDSEG from CMBNK) */
+	clear_mode = ((gA & 0x8000) != 0);			/* 004545/004546: bit 15 of A (constant) */
+
+	/* 004543-004544: X == 0 terminates (normal P+1, no writes). */
+	while (gX != 0)
+	{
+		ushort x_reg = gX;
+		ushort entry;
+		ushort b_reg;
+
+		/* 004545: examine the segment descriptor at (CMBUK : X+3). */
+		entry = (ushort)ReadPhysicalMemory((int)(cmbnk | (uint)((x_reg + 3) & 0xFFFF)), true);
+		/* 004546: B := (entry | 0176000) << 1. */
+		b_reg = (ushort)(((entry | 0xFC00) << 1) & 0xFFFF);
+		gB = b_reg;
+
+		if (clear_mode)
+		{
+			/* CLPK4 004554-004555 (bit 15 of A set): clear the page-table entry to 0. */
+			WriteVirtualMemory(b_reg, 0, true, WRITEMODE_WORD);
+		}
+		else
+		{
+			/* 004550-004553 (bit 15 clear): read APT[B]; if non-zero, deposit it physically to [X+2]. */
+			ushort r3 = (ushort)ReadVirtualMemory(b_reg, true);
+
+			if (r3 != 0)
+				WritePhysicalMemory((int)(cmbnk | (uint)((x_reg + 2) & 0xFFFF)), r3, true);
+		}
+
+		/* 004577-004600: advance X := [X] (forward link, physical CMBUK segment). */
+		gX = (ushort)ReadPhysicalMemory((int)(cmbnk | x_reg), true);
+	}
+}
+
+/*
+ * Shared body of ENPT (140506) and REPT (140507) - RASK REPK2, LISTING 10644-10704.
+ *
+ * The segment register is the core-map bank CMBUK.  For each node at X (a null forward
+ * link at [X] terminates the walk): read descriptor word0 at [X+2], mask it with r4_mask
+ * into A; read word1 at [X+3]; the page-table entry address is B = (word1 | 0176000) << 1;
+ * write A to APT[B] and the physical page frame X >> 2 to APT[B+1]; then advance X := [X].
+ * Page-table writes use the alternative page table; the descriptor/link reads are physical
+ * in the CMBUK segment.
+ *
+ * r4_mask is 0173777 for ENPT (clears bit 11) and 073777 for REPT (clears bits 15 and 11).
+ *
+ * Port of RetroCore EnterPageTable().
+ */
+void nd110_enter_page_table(ushort r4_mask)
+{
+	uint cmbnk = (uint)(gCMBUK & 0xFF) << 16;	/* segment = core-map bank (LDSEG from CMBNK) */
+
+	/* 004561-004562: X == 0 terminates (nothing entered). */
+	while (gX != 0)
+	{
+		ushort x_reg = gX;
+		ushort word0;
+		ushort word1;
+		ushort b_reg;
+
+		/* 004563-004564: descriptor word0 at [X+2] (physical, CMBUK segment); A := word0 & mask. */
+		word0 = (ushort)ReadPhysicalMemory((int)(cmbnk | (uint)((x_reg + 2) & 0xFFFF)), true);
+		gA = (ushort)(word0 & r4_mask);
+
+		/* 004566: descriptor word1 at [X+3].  004571: B register := (word1 | 0176000) << 1. */
+		word1 = (ushort)ReadPhysicalMemory((int)(cmbnk | (uint)((x_reg + 3) & 0xFFFF)), true);
+		b_reg = (ushort)(((word1 | 0xFC00) << 1) & 0xFFFF);
+		gB = b_reg;
+
+		/* 004573: APT[B] := A (masked word0).  004575: APT[B+1] := X >> 2 (physical page frame). */
+		WriteVirtualMemory(b_reg, gA, true, WRITEMODE_WORD);
+		WriteVirtualMemory((ushort)((b_reg + 1) & 0xFFFF), (ushort)(x_reg >> 2), true, WRITEMODE_WORD);
+
+		/* 004577-004600: advance X := [X] (forward link, physical CMBUK segment). */
+		gX = (ushort)ReadPhysicalMemory((int)(cmbnk | x_reg), true);
+	}
+}
+
+/* ENPT - 140506 (privileged)
+ *
+ * Enter a segment's pages into the page tables.  Faithful to RASK ENPK1/REPK2
+ * (ND-110-RASK.LISTING.TXT 10634-10704).  Port of RetroCore ENPT().
+ */
+void ndfunc_enpt(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	nd110_enter_page_table(0xF7FF);		/* R4 = 0173777 octal - clears bit 11 */
+}
+
+/* REPT - 140507 (privileged)
+ *
+ * Enter a REENTRANT segment's pages into the page tables.  Identical to ENPT except it
+ * masks BOTH bit 15 and bit 11 out of the descriptor word - marking the entered pages
+ * reentrant.  Faithful to RASK REPK1/REPK2 (ND-110-RASK.LISTING.TXT 10640-10704).
+ * Port of RetroCore REPT().
+ */
+void ndfunc_rept(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	nd110_enter_page_table(0x77FF);		/* R4 = 073777 octal - clears bits 15 and 11 */
+}
+
+/* LBIT - 140510 (privileged)
+ *
+ * Load the single-bit accumulator K with a bit from LOGICAL memory.
+ *   X = start of the bit array (word address), A = bit index within the array.
+ * The word read is X + (A >> 4) and the selected bit is A & 0xF (bit 0 = LSB).
+ * Logical access uses the alternative page table, like the rest of the S3SEG group.
+ *
+ * Port of RetroCore LBIT().
+ */
+void ndfunc_lbit(ushort operand)
+{
+	uint bit_index;
+	uint word_addr;
+	int bit_in_word;
+	ushort word;
+
+	if (!CheckPriv())
+		return;
+
+	bit_index = gA;
+	word_addr = (uint)((gX + (bit_index >> 4)) & 0xFFFF);
+	bit_in_word = (int)(bit_index & 0x0F);
+	word = (ushort)ReadVirtualMemory(word_addr, true);
+	setbit(_STS, _K, (char)((word >> bit_in_word) & 1));
+}
+
+/* LBITP - 140511 (privileged)
+ *
+ * The PHYSICAL variant of LBIT: T = bank number, X = bit-array start word (offset within
+ * the bank), A = bit index.  The physical word is (T & 0xFF) << 16 | ((X + (A >> 4)) &
+ * 0xFFFF) and the selected bit is A & 0xF.
+ *
+ * Port of RetroCore LBITP().
+ */
+void ndfunc_lbitp(ushort operand)
+{
+	uint bit_index;
+	uint bank;
+	uint word_offset;
+	uint phys_addr;
+	int bit_in_word;
+	ushort word;
+
+	if (!CheckPriv())
+		return;
+
+	bit_index = gA;
+	bank = (uint)(gT & 0xFF);
+	word_offset = (uint)((gX + (bit_index >> 4)) & 0xFFFF);
+	phys_addr = (bank << 16) | word_offset;
+	bit_in_word = (int)(bit_index & 0x0F);
+	word = (ushort)ReadPhysicalMemory((int)phys_addr, true);
+	setbit(_STS, _K, (char)((word >> bit_in_word) & 1));
+}
+
+/* SBIT - 140512 (privileged)
+ *
+ * Store the single-bit accumulator K into a bit in LOGICAL memory.  X = bit-array start
+ * word, A = bit index; target word X + (A >> 4), bit A & 0xF.  Read-modify-write via the
+ * alternative page table.
+ *
+ * Port of RetroCore SBIT().
+ */
+void ndfunc_sbit(ushort operand)
+{
+	uint bit_index;
+	uint word_addr;
+	int bit_in_word;
+	ushort word;
+
+	if (!CheckPriv())
+		return;
+
+	bit_index = gA;
+	word_addr = (uint)((gX + (bit_index >> 4)) & 0xFFFF);
+	bit_in_word = (int)(bit_index & 0x0F);
+	word = (ushort)ReadVirtualMemory(word_addr, true);
+	if (STS_K)
+		word |= (ushort)(1 << bit_in_word);
+	else
+		word &= (ushort)(~(1 << bit_in_word));
+	WriteVirtualMemory(word_addr, word, true, WRITEMODE_WORD);
+}
+
+/* SBITP - 140513 (privileged)
+ *
+ * The PHYSICAL variant of SBIT: T = bank, X = bit-array start word, A = bit index;
+ * read-modify-write of the word at (T & 0xFF) << 16 | ((X + (A >> 4)) & 0xFFFF).
+ *
+ * Port of RetroCore SBITP().
+ */
+void ndfunc_sbitp(ushort operand)
+{
+	uint bit_index;
+	uint bank;
+	uint word_offset;
+	uint phys_addr;
+	int bit_in_word;
+	ushort word;
+
+	if (!CheckPriv())
+		return;
+
+	bit_index = gA;
+	bank = (uint)(gT & 0xFF);
+	word_offset = (uint)((gX + (bit_index >> 4)) & 0xFFFF);
+	phys_addr = (bank << 16) | word_offset;
+	bit_in_word = (int)(bit_index & 0x0F);
+	word = (ushort)ReadPhysicalMemory((int)phys_addr, true);
+	if (STS_K)
+		word |= (ushort)(1 << bit_in_word);
+	else
+		word &= (ushort)(~(1 << bit_in_word));
+	WritePhysicalMemory((int)phys_addr, word, true);
+}
+
+/* LBYTP - 140514 (privileged)
+ *
+ * The PHYSICAL variant of LBYT: D = bank number, T = byte-array start word, X = byte index.
+ * The physical word is (D & 0xFF) << 16 | ((T + (X >> 1)) & 0xFFFF); an EVEN X selects the
+ * high (MSB) byte, an ODD X the low (LSB) byte - ND big-endian order, as in LBYT.
+ *
+ * Port of RetroCore LBYTP().
+ */
+void ndfunc_lbytp(ushort operand)
+{
+	uint bank;
+	uint word_offset;
+	uint phys_addr;
+	ushort memval;
+
+	if (!CheckPriv())
+		return;
+
+	bank = (uint)(gD & 0xFF);
+	word_offset = (uint)((gT + (gX >> 1)) & 0xFFFF);
+	phys_addr = (bank << 16) | word_offset;
+	memval = (ushort)ReadPhysicalMemory((int)phys_addr, true);
+	if ((gX & 1) != 0)
+		gA = (ushort)(memval & 0xFF);		/* odd byte  -> low  */
+	else
+		gA = (ushort)((memval >> 8) & 0xFF);	/* even byte -> high */
+}
+
+/* SBYTP - 140515 (privileged)
+ *
+ * The PHYSICAL variant of SBYT: D = bank, T = byte-array start word, X = byte index.
+ * Read-modify-write of the word at (D & 0xFF) << 16 | ((T + (X >> 1)) & 0xFFFF);
+ * even X = high byte, odd X = low byte.
+ *
+ * Port of RetroCore SBYTP().
+ */
+void ndfunc_sbytp(ushort operand)
+{
+	uint bank;
+	uint word_offset;
+	uint phys_addr;
+	ushort memval;
+	unsigned char b;
+
+	if (!CheckPriv())
+		return;
+
+	bank = (uint)(gD & 0xFF);
+	word_offset = (uint)((gT + (gX >> 1)) & 0xFFFF);
+	phys_addr = (bank << 16) | word_offset;
+	memval = (ushort)ReadPhysicalMemory((int)phys_addr, true);
+	b = (unsigned char)(gA & 0xFF);
+	if ((gX & 1) != 0)
+		memval = (ushort)((memval & 0xFF00) | b);		/* odd byte  -> low  */
+	else
+		memval = (ushort)((memval & 0x00FF) | (b << 8));	/* even byte -> high */
+	WritePhysicalMemory((int)phys_addr, memval, true);
+}
+
+/* TSETP - 140516 (privileged)
+ *
+ * Atomically read a PHYSICAL memory word into A and write all-ones (0xFFFF) back - the
+ * physical test-and-set used for multi-processor synchronisation.  T = bank, X = address
+ * within the bank.  The read is always from memory and the write never reaches cache.
+ * Unlike the logical TSET there is NO page-table side effect (physical access bypasses
+ * paging).
+ *
+ * Port of RetroCore TSETP().
+ */
+void ndfunc_tsetp(ushort operand)
+{
+	uint bank;
+	uint offset;
+	uint phys_addr;
+
+	if (!CheckPriv())
+		return;
+
+	bank = (uint)(gT & 0xFF);
+	offset = (uint)(gX & 0xFFFF);
+	phys_addr = (bank << 16) | offset;
+	gA = (ushort)ReadPhysicalMemory((int)phys_addr, true);
+	WritePhysicalMemory((int)phys_addr, 0xFFFF, true);
+}
+
+/* RDUSP - 140517 (privileged)
+ *
+ * The PHYSICAL variant of RDUS: load A with the word at (T & 0xFF) << 16 | (X & 0xFFFF),
+ * always from memory, never cache (cache is not modelled).
+ *
+ * Port of RetroCore RDUSP().
+ */
+void ndfunc_rdusp(ushort operand)
+{
+	uint bank;
+	uint offset;
+
+	if (!CheckPriv())
+		return;
+
+	bank = (uint)(gT & 0xFF);
+	offset = (uint)(gX & 0xFFFF);
+	gA = (ushort)ReadPhysicalMemory((int)((bank << 16) | offset), true);
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ *  The 14070x "bank group": direct physical access to the segment table (STBNK,
+ *  indexed by B) and to the core map (CMBUK, indexed by X - the physical page
+ *  number, NOT B; that asymmetry is oracle-verified, see RetroCore
+ *  BankGroupPhysAddr).  Opcode = 14070x + (delta << 3), delta = 3-bit displacement.
+ * ---------------------------------------------------------------------------
+ */
+
+/* LASB - 140700 + (delta << 3) (privileged): A := STBNK[B + delta]. */
+void ndfunc_lasb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gA = (ushort)ReadPhysicalMemory((int)nd110_bankgroup_phys(gSTBNK, gB, operand), true);
+}
+
+/* SASB - 140701 + (delta << 3) (privileged): STBNK[B + delta] := A. */
+void ndfunc_sasb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	WritePhysicalMemory((int)nd110_bankgroup_phys(gSTBNK, gB, operand), gA, true);
+}
+
+/* LACB - 140702 + (delta << 3) (privileged): A := CMBUK[X + delta]. */
+void ndfunc_lacb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gA = (ushort)ReadPhysicalMemory((int)nd110_bankgroup_phys(gCMBUK, gX, operand), true);
+}
+
+/* SACB - 140703 + (delta << 3) (privileged): CMBUK[X + delta] := A. */
+void ndfunc_sacb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	WritePhysicalMemory((int)nd110_bankgroup_phys(gCMBUK, gX, operand), gA, true);
+}
+
+/* LXSB - 140704 + (delta << 3) (privileged): X := STBNK[B + delta]. */
+void ndfunc_lxsb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gX = (ushort)ReadPhysicalMemory((int)nd110_bankgroup_phys(gSTBNK, gB, operand), true);
+}
+
+/* LXCB - 140705 + (delta << 3) (privileged): X := CMBUK[X + delta]. */
+void ndfunc_lxcb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	gX = (ushort)ReadPhysicalMemory((int)nd110_bankgroup_phys(gCMBUK, gX, operand), true);
+}
+
+/* SZSB - 140706 + (delta << 3) (privileged): STBNK[B + delta] := 0. */
+void ndfunc_szsb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	WritePhysicalMemory((int)nd110_bankgroup_phys(gSTBNK, gB, operand), 0, true);
+}
+
+/* SZCB - 140707 + (delta << 3) (privileged): CMBUK[X + delta] := 0. */
+void ndfunc_szcb(ushort operand)
+{
+	if (!CheckPriv())
+		return;
+
+	WritePhysicalMemory((int)nd110_bankgroup_phys(gCMBUK, gX, operand), 0, true);
+}
 
 
 /********************* STACK INSTRUCTIONS *********************/
@@ -3575,22 +4492,27 @@ void Setup_Instructions()
 	case ND110PCX:
 	case ND120CX:    /* ND-120 is instruction-set-identical to the ND-110/CX - same ND-110 opcode group. */
 		// ALL are priveleged!
-		Instruction_Add(0140500, &unimplemented_instr); /* WGLOB - ND110 Specific */
-		Instruction_Add(0140501, &unimplemented_instr); /* RGLOB - ND110 Specific */
-		Instruction_Add(0140502, &unimplemented_instr); /* INSPL - ND110 Specific */
-		Instruction_Add(0140503, &unimplemented_instr); /* REMPL - ND110 Specific */
-		Instruction_Add(0140504, &unimplemented_instr); /* CNREK - ND110 Specific */
-		Instruction_Add(0140505, &unimplemented_instr); /* CLPT  - ND110 Specific */
-		Instruction_Add(0140506, &unimplemented_instr); /* ENPT  - ND110 Specific */
-		Instruction_Add(0140507, &unimplemented_instr); /* REPT  - ND110 Specific */
-		Instruction_Add(0140510, &ndfunc_lbit); /* LBIT  - ND110 Specific */
-		Instruction_Add(0140512, &ndfunc_sbit); /* SBIT  - ND110 Specific */
-
-		Instruction_Add(0140513, &unimplemented_instr); /* SBITP - ND110 Specific */
-		Instruction_Add(0140514, &unimplemented_instr); /* LBYTP - ND110 Specific */
-		Instruction_Add(0140515, &unimplemented_instr); /* SBYTP - ND110 Specific */
-		Instruction_Add(0140516, &unimplemented_instr); /* TSETP - ND110 Specific */
-		Instruction_Add(0140517, &unimplemented_instr); /* RDUSP - ND110 Specific */
+		Instruction_Add(0140500, &ndfunc_wglob); /* WGLOB - ND110 Specific */
+		Instruction_Add(0140501, &ndfunc_rglob); /* RGLOB - ND110 Specific */
+		Instruction_Add(0140502, &ndfunc_inspl); /* INSPL - ND110 Specific */
+		Instruction_Add(0140503, &ndfunc_rempl); /* REMPL - ND110 Specific */
+		Instruction_Add(0140504, &ndfunc_cnrek); /* CNREK - ND110 Specific */
+		Instruction_Add(0140505, &ndfunc_clpt);	 /* CLPT  - ND110 Specific */
+		Instruction_Add(0140506, &ndfunc_enpt);	 /* ENPT  - ND110 Specific */
+		Instruction_Add(0140507, &ndfunc_rept);	 /* REPT  - ND110 Specific */
+		Instruction_Add(0140510, &ndfunc_lbit);	 /* LBIT  - ND110 Specific */
+		/*
+		 * 140511 LBITP and 140512 SBIT were MISSING from this table entirely (not even
+		 * registered as unimplemented) - see ND-06.029.1 EN and RetroCore
+		 * Instructions.cs (hasND110Group), which registers the full 140510-140517 run.
+		 */
+		Instruction_Add(0140511, &ndfunc_lbitp); /* LBITP - ND110 Specific */
+		Instruction_Add(0140512, &ndfunc_sbit);	 /* SBIT  - ND110 Specific */
+		Instruction_Add(0140513, &ndfunc_sbitp); /* SBITP - ND110 Specific */
+		Instruction_Add(0140514, &ndfunc_lbytp); /* LBYTP - ND110 Specific */
+		Instruction_Add(0140515, &ndfunc_sbytp); /* SBYTP - ND110 Specific */
+		Instruction_Add(0140516, &ndfunc_tsetp); /* TSETP - ND110 Specific */
+		Instruction_Add(0140517, &ndfunc_rdusp); /* RDUSP - ND110 Specific */
 
 		break;
 	default:
@@ -3606,15 +4528,22 @@ void Setup_Instructions()
 	case ND110CX:
 	case ND110PCX:
 	case ND120CX:    /* ND-120 is instruction-set-identical to the ND-110/CX - same ND-110 opcode group. */
-		// ALL are priveleged!
-		Instruction_Add(0140700, &unimplemented_instr); /* LASB - ND110 Specific */
-		Instruction_Add(0140701, &unimplemented_instr); /* SASB - ND110 Specific */
-		Instruction_Add(0140702, &unimplemented_instr); /* LACB - ND110 Specific */
-		Instruction_Add(0140703, &unimplemented_instr); /* SASB - ND110 Specific */
-		Instruction_Add(0140704, &unimplemented_instr); /* LXSB - ND110 Specific */
-		Instruction_Add(0140705, &unimplemented_instr); /* LXCB - ND110 Specific */
-		Instruction_Add(0140706, &unimplemented_instr); /* SZSB - ND110 Specific */
-		Instruction_Add(0140707, &unimplemented_instr); /* SZCB - ND110 Specific */
+		/*
+		 * ALL are priveleged!
+		 *
+		 * These carry a 3-bit displacement in bits 3-5 of the opcode (14070x + delta<<3),
+		 * so they MUST be registered with mask 0xFFC7 (bits 3-5 left free) - registering
+		 * only the bare 14070x word left the 56 displaced encodings undecoded.
+		 * Note also that 0140703 was mislabelled "SASB" here; it is SACB.
+		 */
+		Instruction_Add_Mask(0140700, 0xFFC7, &ndfunc_lasb); /* LASB - ND110 Specific */
+		Instruction_Add_Mask(0140701, 0xFFC7, &ndfunc_sasb); /* SASB - ND110 Specific */
+		Instruction_Add_Mask(0140702, 0xFFC7, &ndfunc_lacb); /* LACB - ND110 Specific */
+		Instruction_Add_Mask(0140703, 0xFFC7, &ndfunc_sacb); /* SACB - ND110 Specific */
+		Instruction_Add_Mask(0140704, 0xFFC7, &ndfunc_lxsb); /* LXSB - ND110 Specific */
+		Instruction_Add_Mask(0140705, 0xFFC7, &ndfunc_lxcb); /* LXCB - ND110 Specific */
+		Instruction_Add_Mask(0140706, 0xFFC7, &ndfunc_szsb); /* SZSB - ND110 Specific */
+		Instruction_Add_Mask(0140707, 0xFFC7, &ndfunc_szcb); /* SZCB - ND110 Specific */
 		break;
 	default:
 		break;

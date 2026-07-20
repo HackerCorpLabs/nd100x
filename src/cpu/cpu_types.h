@@ -372,6 +372,22 @@ struct CpuRegs {
 	ushort	reg_ECCR;	/* */
 	ushort	reg_ECBits;	/* Simulated ECC latch (store-on-write); see cpu_mms.c ECC block */
 
+	/*
+	 * ND-110 "global pointers" (the S3SEG / SINTRAN-III segment-handling group).
+	 *
+	 * These three internal registers are written by WGLOB (140500) and read back by
+	 * RGLOB (140501); every one of the ND-110 core-map / segment-table instructions
+	 * (INSPL, REMPL, CNREK, CLPT, ENPT, REPT and the LASB/LACB/... bank group) uses
+	 * them as the *implicit* base of its physical accesses.  See ND-06.026.1 EN
+	 * (ND-110 Functional Description) p.196 and RetroCore
+	 * Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs (WGLOB/RGLOB).
+	 *
+	 * They are NOT per-runlevel: there is exactly one set for the whole CPU.
+	 */
+	ushort	reg_STBNK;	/* Bank number of the segment table  (written from T by WGLOB) */
+	ushort	reg_STSRT;	/* Start address of the segment table within that bank (from A; must be /8) */
+	ushort	reg_CMBUK;	/* Bank number of the core-map table (written from D by WGLOB) */
+
 	/* Personally Added to do Prefetch and Instruction more alike ND */
 	ushort	myreg_IR;	/* InstructionRegister */
 	ushort	myreg_PFB;	/* PrefetchBuffer */
@@ -451,6 +467,11 @@ typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, 
 #define gPEA	gReg->reg_PEA
 #define gECCR	gReg->reg_ECCR
 #define gECBits	gReg->reg_ECBits
+
+/* ND-110 global pointers - see the reg_STBNK/reg_STSRT/reg_CMBUK comment above. */
+#define gSTBNK	gReg->reg_STBNK
+#define gSTSRT	gReg->reg_STSRT
+#define gCMBUK	gReg->reg_CMBUK
 
 
 #define gPEA_Lock 	gReg->mylock_PEA

@@ -56,6 +56,7 @@ static uint64_t throttle_get_ns(void) {
 
 
 #include <string.h>
+#include <stdlib.h>	/* getenv() - ND100X_CPUTYPE override, see cpu_set_type_from_env() */
 #include <setjmp.h>
 #ifndef __EMSCRIPTEN__
 #include <unistd.h>
@@ -112,7 +113,35 @@ void debugger_update_jpl_entrypoint(uint16_t ea);
 
 // Global CPU variable definitions
 _NDRAM_ VolatileMemory;
-CpuType CurrentCPUType;
+
+/*
+ * The CPU model this emulator presents to the guest.
+ *
+ * WHY THIS MATTERS: Setup_Instructions() gates whole instruction groups on this value,
+ * and the guest software detects the CPU by *probing* those instructions.  The TPE
+ * "INSTRUCTION" diagnostic executes VERSN (140133) at PC 003774 before it prints its
+ * "CPU type.............:" line: if VERSN traps as an illegal instruction the program
+ * concludes it is running on an ND-100, otherwise on an ND-110/ND-120 (SINTRAN's SYSEVAL
+ * in PH-P2-OPPSTART.NPL:3467-3532 uses the same probe-and-trap technique for its
+ * HWINFO(0) family/instruction-set bytes).
+ *
+ * This used to be a plain uninitialised global, i.e. 0 == ND1.  That silently disabled
+ * EVERY ND-110-gated registration below (VERSN, the 14050x/14051x S3SEG group and the
+ * 14070x bank group), so nd100x could ONLY ever identify as an ND-100/CX - which is
+ * exactly what TPE's INSTRUCTION printed ("ND-100/CX upgraded for 16 PITs").
+ *
+ * It is now an explicit, run-time-selectable value (ND100X_CPUTYPE, see
+ * cpu_set_type_from_env()).  Setting ND110CX makes TPE report "CPU type: ND-110/CX" and
+ * run the ND-110 variants of its subtests - verified clean, zero "*** ERROR ***".
+ *
+ * The DEFAULT is deliberately still ND100CX, which reproduces the previously verified
+ * behaviour bit-for-bit: SINTRAN III boots from SMD only on this setting.  Under ND110CX
+ * SINTRAN takes its ND-110 segment-handling path (WGLOB/RGLOB/INSPL/REMPL/ENPT/CLPT plus
+ * the 14070x bank group) and live-locks in an ENPT/CLPT retry loop before the banner - an
+ * unresolved divergence in that path, NOT a reason to hide the identity mechanism.  Flip
+ * the default once that live-lock is root-caused.
+ */
+CpuType CurrentCPUType = ND100CX;
 
 // Installed main-memory size in 16-bit WORDS. Default 4 MB (4 MW = 2097152 words);
 // overridden at start-up by --memory / the .ini memory= key (range 1..16 MB). The
@@ -161,6 +190,9 @@ jmp_buf cpu_jmp_buf;
 
 
 
+/* Cached ND100X_TRACE_ND110 state: -1 = not yet read, 0 = off, 1 = on. See do_op(). */
+static int nd110_trace_enabled = -1;
+
 void do_op(ushort operand, bool isEXR)
 {
 
@@ -168,9 +200,31 @@ void do_op(ushort operand, bool isEXR)
 		gPC++; // Move P before starting instruction. (but not if executed from register)
 
 	if (instr_funcs[operand] == NULL)
-	{	
+	{
 		illegal_instr(operand);
 		return;
+	}
+
+	/*
+	 * ND100X_TRACE_ND110: log every execution of an ND-110-only opcode (VERSN, the
+	 * 1403xx S3SEG group, the 14050x/14051x group and the 14070x bank group).  Used to
+	 * see which of them the guest actually reaches when the CPU presents as ND-110/CX.
+	 *
+	 * The getenv() result is cached: this is the instruction hot path.
+	 */
+	if (nd110_trace_enabled < 0)
+		nd110_trace_enabled = (getenv("ND100X_TRACE_ND110") != NULL) ? 1 : 0;
+
+	if (nd110_trace_enabled)
+	{
+		if (operand == 0140133 ||
+		    (operand >= 0140300 && operand <= 0140304) ||
+		    (operand >= 0140500 && operand <= 0140517) ||
+		    (operand >= 0140700 && operand <= 0140777))
+		{
+			printf("ND110OP %06o at %06o A=%06o T=%06o X=%06o D=%06o B=%06o\r\n",
+			       operand, (ushort)(gPC - 1), gA, gT, gX, gD, gB);
+		}
 	}
 
 	instr_funcs[operand](operand); /* call using a function pointer from the array
@@ -920,6 +974,41 @@ int cpu_run(int ticks)
 }
 
 
+/*
+ * Selects the emulated CPU model from the ND100X_CPUTYPE environment variable.
+ *
+ * Accepted (case sensitive, matching the CpuType enum spelling):
+ *   ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX
+ *
+ * Unset or unrecognised leaves the compiled-in default (ND110CX) untouched.  This exists
+ * so a machine's SINTRAN-/TPE-visible identity can be changed without a rebuild; it is
+ * read once, from cpu_init(), BEFORE Setup_Instructions() builds the dispatch table.
+ */
+void cpu_set_type_from_env(void)
+{
+	const char *name = getenv("ND100X_CPUTYPE");
+
+	if (name == NULL)
+		return;
+
+	if (strcmp(name, "ND100") == 0)
+		CurrentCPUType = ND100;
+	else if (strcmp(name, "ND100CE") == 0)
+		CurrentCPUType = ND100CE;
+	else if (strcmp(name, "ND100CX") == 0)
+		CurrentCPUType = ND100CX;
+	else if (strcmp(name, "ND110") == 0)
+		CurrentCPUType = ND110;
+	else if (strcmp(name, "ND110CE") == 0)
+		CurrentCPUType = ND110CE;
+	else if (strcmp(name, "ND110CX") == 0)
+		CurrentCPUType = ND110CX;
+	else if (strcmp(name, "ND110PCX") == 0)
+		CurrentCPUType = ND110PCX;
+	else
+		fprintf(stderr, "Unknown ND100X_CPUTYPE '%s' - keeping the default\r\n", name);
+}
+
 void cpu_init(bool debuggerEnabled, int debuggerPort)
 {
 	/* initialize an empty register set */
@@ -938,6 +1027,9 @@ void cpu_init(bool debuggerEnabled, int debuggerPort)
 
 	// Allocate ShadowMemory for pagetables
 	CreatePagingTables();
+
+	/* Pick the CPU model BEFORE the dispatch table is built - it gates whole groups. */
+	cpu_set_type_from_env();
 
 	/* OK lets set up the parsing for our current cpu before we start it. */
 	Setup_Instructions();
