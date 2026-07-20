@@ -858,4 +858,22 @@ void Config_PrintHelp(const char *progName) {
     printf("  %s --boot=smd1                  # Boot from SMD unit 1\n", progName);
     printf("  %s --boot=scsi0 --scsi0=hdd:SCSI-K.image  # Boot from SCSI ID 0\n", progName);
     printf("  %s --hdlc=1:5000 --hdlc=2:5001  # Two HDLC devices\n", progName);
+
+    /*
+     * Machine identity is configured through environment variables (nd100x has no
+     * .ini/config-file layer). Listed here because --help is where users look.
+     * Implemented in cpu_versn_set_identity_from_env(), src/cpu/cpu_instr.c.
+     */
+    printf("\nEnvironment variables (CPU identity):\n");
+    printf("  ND100X_CPUTYPE=NAME             ND100|ND100CE|ND100CX|ND110|ND110CE|ND110CX|ND110PCX\n");
+    printf("  ND100X_CPU_NUMBER=N             SYSNO   -> SINTRAN banner \"CPU NUMBER\" (or none)\n");
+    printf("  ND100X_SYSTEM_TYPE=N            HWINFO(2) -> banner \"CPU TYPE\": 100/102/500/502/5561,\n");
+    printf("                                  any other number is accepted too (or none)\n");
+    printf("  ND100X_LEGAL_USERS=N            NLEGU, 0-254, or none to keep SINTRAN's own value\n");
+    printf("  ND100X_INSTALLATION_NUMBER=HEX  Raw 16-byte back-wiring PROM, 32 hex digits\n");
+    printf("  ND100X_MICROCODE_VERSION=V      Revision letter (L), ND octal (014/0o14/14B),\n");
+    printf("                                  hex (0x0C) or decimal (12)\n");
+    printf("  ND100X_PRINT_VERSION=N          PCB artwork version, 12 bits\n");
+    printf("  Numbers: 0x..=hex, 0o../..B/leading 0=octal, otherwise decimal.\n");
+    printf("  The identity PROM is only read by SINTRAN on an ND-110/ND-120 CPU.\n");
 } 

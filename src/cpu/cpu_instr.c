@@ -31,6 +31,8 @@
 #include "cpu_types.h"
 #include "cpu_protos.h"
 #include <stdlib.h>
+#include <string.h>	/* strlen()/strcmp() - VERSN identity parsing, see ndfunc_versn() */
+#include <stdio.h>	/* fprintf() - diagnostics for a bad ND100X_* identity value */
 
 
 // Initialize the instruction function array
@@ -996,17 +998,454 @@ void ndfunc_geco(ushort operand)
  * so instruction has to be called 16 times, with incremented A each time.
  * OUT: Sets A, T, D
  */
-/* VERSN instruction constants */
-static unsigned char installation_number[] = {0x01, 0x04, 0x00, 0x01, 0x07, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01}; // 040171 = CPU?
-static int microcode_version = 0x0708;																									 // During SINTRAN boot will load new microcode, but it must be minimum 013. Read from "control store" address 0100 for new microcode to load
-static int print_version = 0x80C;
+/*
+ * ---------------------------------------------------------------------------
+ * VERSN identity - the BACK-WIRING PROM
+ * ---------------------------------------------------------------------------
+ *
+ * WHAT THESE BYTES ACTUALLY ARE (verified):
+ * They are NOT an opaque "installation number". They are the ND-110/ND-120
+ * BACK-WIRING PROM, read by VERSN itself through the dedicated microcode IDB
+ * source IDBS,INR (code 35 octal) which is wired to eight backplane pins; the
+ * CPU board drives PIL[3:0] out to the B-plug and reads INR[7:0] back.
+ *   - E:/Dev/Ronny/nd-120/Verilog/DECODE-GateArray/DGA/circuit/DECODE_DGA_IDBS.v:32
+ *   - E:/Dev/Ronny/nd-120/Verilog/CPU-BOARD-3202/circuit/ND3202D.v:83,89
+ * The byte address is the PIL, loaded from A bits 8-11 by COMM,LDPIL. A
+ * microcode bug (LDPIL has not settled when the next microword samples
+ * IDBS,INR) means the CURRENT PIL is used, which is why SINTRAN's GCPUNR runs
+ * VERSN once on each of levels 0-7 to collect bytes 0-7:
+ *   "DUE TO ERROR IN MICROPROGRAM THE VERSN INSTRUCTION HAS TO BE EXECUTED ON
+ *    THE LEVEL CORRESPONDING TO THE BYT NO. TO BE READ"
+ *   E:/Dev/Ronny/NDInsight/SINTRAN/NPL-SOURCE/NPL/PH-P2-OPPSTART.NPL:3534-3570
+ * GCPUNR also sets A = level << 8 before each VERSN, so indexing from A bits
+ * 8-11 (as below) returns exactly the byte the real hardware returns. No extra
+ * device, memory region or IOX port is needed to model the PROM.
+ *
+ * DECODED LAYOUT (all verified against GCPUNR):
+ *   byte 0 (MSB) + 1 (LSB)  INF0  SYSNO      -> banner "CPU NUMBER"; skipped if word == -1
+ *   byte 2 (MSB) + 3 (LSB)  INF1  HWINFO(2)  -> banner "CPU TYPE";   skipped if word == -1
+ *   byte 4                  INF2 high byte   NLEGU, legal users;      skipped if byte == 0377
+ *   byte 5                  INF2 low byte    NEVER read by SINTRAN
+ *   byte 6 (MSB) + 7 (LSB)  INF3  signature  MUST be 52652 octal = 21930 = 0x55AA,
+ *                                            otherwise GCPUNR exits at once and SINTRAN
+ *                                            keeps the values baked into the disk image
+ *   bytes 8-15                               NEVER read by SINTRAN; meaning UNKNOWN, filler
+ *
+ * TWO DEFECTS FIXED HERE (2026-07-20):
+ *   1. The array had only 15 entries while the A-register byte index is a full
+ *      4-bit field (0..15), so index 15 read one byte PAST the array.
+ *   2. The three values were file-scope statics with no way to configure them.
+ *      They now live in one named module-state struct that cpu_versn_reset()
+ *      re-initialises from the CPU type on every cpu_init(), and that
+ *      cpu_versn_set_identity_from_env() can override - mirroring the RetroCore
+ *      machine-config keys cpu_number / system_type / legal_users /
+ *      installation_number / microcode_version / print_version.
+ */
+
+/* Byte indices inside the 16-byte back-wiring PROM image. */
+#define VERSN_PROM_SIZE				16
+#define VERSN_PROM_SYSNO_HI			0
+#define VERSN_PROM_SYSNO_LO			1
+#define VERSN_PROM_SYSTYPE_HI		2
+#define VERSN_PROM_SYSTYPE_LO		3
+#define VERSN_PROM_LEGAL_USERS		4
+#define VERSN_PROM_UNUSED			5
+#define VERSN_PROM_SIGNATURE_HI		6
+#define VERSN_PROM_SIGNATURE_LO		7
+
+/* INF3 signature GCPUNR demands: 52652 octal = 21930 decimal = 0x55AA. */
+#define VERSN_PROM_SIGNATURE		0x55AA
+
+/* NLEGU byte value meaning "GCPUNR must NOT set the number of legal users". */
+#define VERSN_PROM_LEGAL_USERS_SKIP	0xFF
+
+/* Lowest microprogram version SINTRAN's LOCOSTORE accepts: octal 013 = 11. */
+#define VERSN_MIN_MICROCODE_VERSION	0x0B
+
+/*
+ * Identity reported by VERSN. ONE named module-state struct instead of three
+ * loose statics, so a re-init genuinely starts from a known state.
+ */
+struct versn_identity
+{
+	unsigned char	prom[VERSN_PROM_SIZE];	/* back-wiring PROM image, bytes 0-15 */
+	int				microcode_version;		/* T register; see VERSN_MIN_MICROCODE_VERSION */
+	int				print_version;			/* A register, 12 bits (PCB artwork version) */
+};
+
+static struct versn_identity g_versn;
+
+/*
+ * Fill the PROM image with the default for the current CPU type.
+ *
+ * ND100 / ND100CE / ND100CX: the HISTORICAL filler bytes, byte for byte.
+ * SINTRAN calls GCPUNR only on a 110/120 CPU ("CALLED ONLY IF 110/120 CPU",
+ * OPPSTART.NPL:3538), so these machines are deliberately left untouched.
+ * Index 15 is the placeholder that fixes the old out-of-range read; it is NOT
+ * taken from any manual or EPROM dump.
+ *
+ * ND110 / ND110CE / ND110CX / ND110PCX: a VALID PROM image so GCPUNR succeeds
+ * and the SINTRAN banner reflects the emulated machine.
+ *
+ * The concrete values below are CHOSEN DEFAULTS, not sourced PROM contents:
+ *  - SYSNO = 102 is a real OBSERVED value (SINTRAN-STRUCTURES.md:2036-2039),
+ *    not a dump of any physical PROM. SYSNO is FUNCTIONAL (COSMOS local vs
+ *    remote routing, MP-P2-1.NPL:232), so give each node its own.
+ *  - HWINFO(2) = 100 is one of the documented legal system-type codes
+ *    (100,102,500,502,5561.. - OPPSTART.NPL:3440). CHOICE, not documentation.
+ *  - NLEGU = 0377 octal = "do not touch SINTRAN's own licensed-user count".
+ *  - byte 5 and bytes 8-15 are zero filler; SINTRAN never reads them and their
+ *    real meaning is UNKNOWN.
+ */
+static void versn_load_default_prom(void)
+{
+	int i;
+
+	for (i = 0; i < VERSN_PROM_SIZE; i++)
+		g_versn.prom[i] = 0x00;
+
+	if ((CurrentCPUType == ND100) || (CurrentCPUType == ND100CE) || (CurrentCPUType == ND100CX)) {
+		/* Historical filler - preserved byte for byte. 040171 = CPU? */
+		static const unsigned char historical[VERSN_PROM_SIZE] = {
+			0x01, 0x04, 0x00, 0x01, 0x07, 0x01, 0x01, 0x01,
+			0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01
+		};
+
+		for (i = 0; i < VERSN_PROM_SIZE; i++)
+			g_versn.prom[i] = historical[i];
+		return;
+	}
+
+	g_versn.prom[VERSN_PROM_SYSNO_HI]      = (unsigned char)(102 >> 8);	/* SYSNO = 102 */
+	g_versn.prom[VERSN_PROM_SYSNO_LO]      = (unsigned char)(102 & 0xFF);
+	g_versn.prom[VERSN_PROM_SYSTYPE_HI]    = (unsigned char)(100 >> 8);	/* HWINFO(2) = 100 */
+	g_versn.prom[VERSN_PROM_SYSTYPE_LO]    = (unsigned char)(100 & 0xFF);
+	g_versn.prom[VERSN_PROM_LEGAL_USERS]   = VERSN_PROM_LEGAL_USERS_SKIP;
+	g_versn.prom[VERSN_PROM_UNUSED]        = 0x00;
+	g_versn.prom[VERSN_PROM_SIGNATURE_HI]  = (unsigned char)(VERSN_PROM_SIGNATURE >> 8);
+	g_versn.prom[VERSN_PROM_SIGNATURE_LO]  = (unsigned char)(VERSN_PROM_SIGNATURE & 0xFF);
+}
+
+/*
+ * Re-initialise the whole VERSN identity from the current CPU type.
+ * Called from cpu_init() BEFORE cpu_versn_set_identity_from_env().
+ */
+void cpu_versn_reset(void)
+{
+	versn_load_default_prom();
+
+	/*
+	 * 0x0708 (octal 3410, printed by TPE as "3410B" - the trailing B is Norsk
+	 * Data octal notation, NOT a revision letter). Kept byte for byte; the
+	 * CORRECT ND-110 revision is UNKNOWN and is deliberately not invented.
+	 */
+	g_versn.microcode_version = 0x0708;
+	g_versn.print_version = 0x80C;
+}
+
+/*
+ * Overlay a decoded PROM field and force the INF3 signature.
+ *
+ * A friendly field is only ever set because the caller wants GCPUNR to READ the
+ * result, and GCPUNR exits immediately unless bytes 6-7 hold 52652 octal - so
+ * writing a field always repairs the signature.
+ */
+static void versn_set_word(int hi_index, int lo_index, int value)
+{
+	g_versn.prom[hi_index] = (unsigned char)((value >> 8) & 0xFF);
+	g_versn.prom[lo_index] = (unsigned char)(value & 0xFF);
+
+	g_versn.prom[VERSN_PROM_SIGNATURE_HI] = (unsigned char)(VERSN_PROM_SIGNATURE >> 8);
+	g_versn.prom[VERSN_PROM_SIGNATURE_LO] = (unsigned char)(VERSN_PROM_SIGNATURE & 0xFF);
+}
+
+/*
+ * True when an identity value means "leave SINTRAN's own value alone".
+ * GCPUNR skips SYSNO / HWINFO(2) when the PROM word is -1, and skips NLEGU when
+ * its byte is 0377 octal.
+ */
+static bool versn_identity_is_skip(const char *text)
+{
+	if (text == NULL)
+		return false;
+
+	return (strcmp(text, "none") == 0) || (strcmp(text, "NONE") == 0)
+		|| (strcmp(text, "keep") == 0) || (strcmp(text, "KEEP") == 0)
+		|| (strcmp(text, "image") == 0) || (strcmp(text, "IMAGE") == 0)
+		|| (strcmp(text, "-1") == 0);
+}
+
+/* Value of one hexadecimal digit, or -1 when the character is not hex. */
+static int versn_hex_digit(char c)
+{
+	if ((c >= '0') && (c <= '9'))
+		return c - '0';
+	if ((c >= 'a') && (c <= 'f'))
+		return c - 'a' + 10;
+	if ((c >= 'A') && (c <= 'F'))
+		return c - 'A' + 10;
+	return -1;
+}
+
+/*
+ * Parse one identity number, mirroring the RetroCore machine-config parser.
+ *
+ * Accepted radix forms:
+ *   0x0C / 0X0C  hexadecimal
+ *   0o14         octal, explicit prefix
+ *   14B / 14b    octal, Norsk Data trailing-B convention
+ *   014          octal, bare leading zero (how ND manuals write it)
+ *   12           decimal
+ *
+ * Returns true and writes *out on success.
+ */
+static bool versn_parse_number(const char *text, int *out)
+{
+	int radix = 10;
+	int acc = 0;
+	size_t len;
+	size_t i;
+	size_t start = 0;
+	size_t end;
+
+	if ((text == NULL) || (out == NULL))
+		return false;
+
+	len = strlen(text);
+	if (len == 0)
+		return false;
+
+	end = len;
+
+	if ((len > 2) && (text[0] == '0') && ((text[1] == 'x') || (text[1] == 'X'))) {
+		radix = 16;
+		start = 2;
+	} else if ((len > 2) && (text[0] == '0') && ((text[1] == 'o') || (text[1] == 'O'))) {
+		radix = 8;
+		start = 2;
+	} else if ((len > 1) && ((text[len - 1] == 'b') || (text[len - 1] == 'B'))) {
+		radix = 8;
+		end = len - 1;
+	} else if ((len > 1) && (text[0] == '0')) {
+		radix = 8;
+		start = 1;
+	}
+
+	if (start >= end)
+		return false;
+
+	for (i = start; i < end; i++) {
+		int d = versn_hex_digit(text[i]);
+
+		if ((d < 0) || (d >= radix))
+			return false;
+		acc = acc * radix + d;
+		if (acc > 0xFFFF)			/* identity values are at most 16 bits */
+			return false;
+	}
+
+	*out = acc;
+	return true;
+}
+
+/*
+ * Parse the microprogram version, which additionally accepts the REVISION
+ * LETTER printed on the microcode EPROM label.
+ *
+ * The letter is the PLAIN alphabet position and the alphabet is NOT compressed
+ * - "I" is NOT skipped. A=1 ... K=11 (octal 013) ... L=12 (octal 014). A letter
+ * supplies only the LOW 8 bits; the high byte is kept, because no source
+ * documents what the high byte should be.
+ *
+ * "L", "014", "0o14", "14B", "0x0C" and "12" therefore all mean revision L.
+ * A lone "B" is the revision letter B (=2); the trailing-B octal form always has
+ * at least one digit in front of it, so the two never collide.
+ */
+static bool versn_parse_microcode_version(const char *text, int *out)
+{
+	if ((text == NULL) || (out == NULL))
+		return false;
+
+	if (strlen(text) == 1) {
+		char c = text[0];
+		int letter = -1;
+
+		if ((c >= 'A') && (c <= 'Z'))
+			letter = c - 'A' + 1;
+		else if ((c >= 'a') && (c <= 'z'))
+			letter = c - 'a' + 1;
+
+		if (letter > 0) {
+			*out = (g_versn.microcode_version & 0x7F00) | letter;
+			return true;
+		}
+	}
+
+	return versn_parse_number(text, out);
+}
+
+/*
+ * Apply one environment-variable identity override.
+ * Prints a diagnostic and leaves the value alone when the text is unusable, so
+ * a typo can never silently produce a machine with a different identity.
+ */
+static bool versn_env_number(const char *name, int *out)
+{
+	const char *text = getenv(name);
+
+	if (text == NULL)
+		return false;
+
+	if (!versn_parse_number(text, out)) {
+		fprintf(stderr, "Bad %s '%s' - keeping the default\r\n", name, text);
+		return false;
+	}
+	return true;
+}
+
+/*
+ * Configure the VERSN identity from environment variables.
+ *
+ * This is nd100x's machine-config mechanism (the same one CPU type selection
+ * uses, cpu_set_type_from_env), and it mirrors the RetroCore .ini keys:
+ *
+ *   ND100X_CPU_NUMBER           <-> cpu_number / sysno    PROM bytes 0-1
+ *   ND100X_SYSTEM_TYPE          <-> system_type           PROM bytes 2-3
+ *   ND100X_LEGAL_USERS          <-> legal_users           PROM byte 4
+ *   ND100X_INSTALLATION_NUMBER  <-> installation_number   PROM bytes 0-15, raw
+ *   ND100X_MICROCODE_VERSION    <-> microcode_version     T register
+ *   ND100X_PRINT_VERSION        <-> print_version         A register
+ *
+ * PRECEDENCE, identical to RetroCore: ND100X_INSTALLATION_NUMBER writes all
+ * sixteen bytes verbatim (and MAY deliberately produce an invalid signature);
+ * the friendly variables then overlay their own field bytes and force the
+ * signature back on.
+ *
+ * "none" / "keep" / "image" / "-1" select SINTRAN's skip markers, i.e. leave
+ * the value baked into the SINTRAN disk image alone.
+ *
+ * NOTE: environment variables are what nd100x has. There is no .ini / config
+ * file layer here; adding one would mean a machine-config module plus a
+ * front-end command-line surface in src/frontend/nd100x, which is out of scope.
+ */
+void cpu_versn_set_identity_from_env(void)
+{
+	const char *text;
+	int value;
+
+	/* 1. The RAW whole-image escape hatch, applied first. */
+	text = getenv("ND100X_INSTALLATION_NUMBER");
+	if (text != NULL) {
+		unsigned char parsed[VERSN_PROM_SIZE];
+		int digits = 0;
+		int i;
+		bool ok = true;
+
+		for (i = 0; (text[i] != '\0') && ok; i++) {
+			char c = text[i];
+			int d;
+
+			/* Separators are ignored so "01 04 .." and "0104.." both work. */
+			if ((c == ' ') || (c == '\t') || (c == ',') || (c == ':') || (c == '-') || (c == '_'))
+				continue;
+
+			d = versn_hex_digit(c);
+			if ((d < 0) || (digits >= VERSN_PROM_SIZE * 2)) {
+				ok = false;
+				break;
+			}
+
+			if ((digits & 1) == 0)
+				parsed[digits / 2] = (unsigned char)(d << 4);
+			else
+				parsed[digits / 2] |= (unsigned char)d;
+			digits++;
+		}
+
+		if (ok && (digits == VERSN_PROM_SIZE * 2)) {
+			for (i = 0; i < VERSN_PROM_SIZE; i++)
+				g_versn.prom[i] = parsed[i];
+		} else {
+			fprintf(stderr, "Bad ND100X_INSTALLATION_NUMBER '%s' - need exactly 32 hex digits\r\n", text);
+		}
+	}
+
+	/* 2. Friendly decoded fields overlay the image. */
+	text = getenv("ND100X_CPU_NUMBER");
+	if (text != NULL) {
+		if (versn_identity_is_skip(text))
+			versn_set_word(VERSN_PROM_SYSNO_HI, VERSN_PROM_SYSNO_LO, 0xFFFF);
+		else if (versn_parse_number(text, &value))
+			versn_set_word(VERSN_PROM_SYSNO_HI, VERSN_PROM_SYSNO_LO, value);
+		else
+			fprintf(stderr, "Bad ND100X_CPU_NUMBER '%s' - keeping the default\r\n", text);
+	}
+
+	text = getenv("ND100X_SYSTEM_TYPE");
+	if (text != NULL) {
+		/*
+		 * The documented codes are 100/102/500/502/5561, but the SINTRAN source
+		 * writes that list with a trailing ".." (OPPSTART.NPL:3440), i.e. it is
+		 * OPEN-ENDED - any 16-bit value is accepted here on purpose.
+		 */
+		if (versn_identity_is_skip(text))
+			versn_set_word(VERSN_PROM_SYSTYPE_HI, VERSN_PROM_SYSTYPE_LO, 0xFFFF);
+		else if (versn_parse_number(text, &value))
+			versn_set_word(VERSN_PROM_SYSTYPE_HI, VERSN_PROM_SYSTYPE_LO, value);
+		else
+			fprintf(stderr, "Bad ND100X_SYSTEM_TYPE '%s' - keeping the default\r\n", text);
+	}
+
+	text = getenv("ND100X_LEGAL_USERS");
+	if (text != NULL) {
+		if (versn_identity_is_skip(text)) {
+			value = VERSN_PROM_LEGAL_USERS_SKIP;
+		} else if (!versn_parse_number(text, &value) || (value > 0xFE)) {
+			fprintf(stderr, "Bad ND100X_LEGAL_USERS '%s' - want 0..254 or none\r\n", text);
+			value = -1;
+		}
+
+		if (value >= 0) {
+			g_versn.prom[VERSN_PROM_LEGAL_USERS] = (unsigned char)value;
+			/* Same reason as versn_set_word(): the field is only useful if GCPUNR reads it. */
+			g_versn.prom[VERSN_PROM_SIGNATURE_HI] = (unsigned char)(VERSN_PROM_SIGNATURE >> 8);
+			g_versn.prom[VERSN_PROM_SIGNATURE_LO] = (unsigned char)(VERSN_PROM_SIGNATURE & 0xFF);
+		}
+	}
+
+	/* 3. The two register-only values. */
+	text = getenv("ND100X_MICROCODE_VERSION");
+	if (text != NULL) {
+		if (!versn_parse_microcode_version(text, &value))
+			fprintf(stderr, "Bad ND100X_MICROCODE_VERSION '%s' - keeping the default\r\n", text);
+		else if (value < VERSN_MIN_MICROCODE_VERSION)
+			fprintf(stderr, "ND100X_MICROCODE_VERSION '%s' is below the SINTRAN minimum of octal 013\r\n", text);
+		else if (value > 0xFFFF)
+			fprintf(stderr, "ND100X_MICROCODE_VERSION '%s' does not fit in 16 bits\r\n", text);
+		else
+			g_versn.microcode_version = value;
+	}
+
+	if (versn_env_number("ND100X_PRINT_VERSION", &value)) {
+		/* VERSN builds A as (print_version << 4) | (ALD & 0x0F) - only 12 bits survive. */
+		if (value <= 0x0FFF)
+			g_versn.print_version = value;
+		else
+			fprintf(stderr, "ND100X_PRINT_VERSION must fit in 12 bits - keeping the default\r\n");
+	}
+}
 
 void ndfunc_versn(ushort operand)
 {
+	/*
+	 * A bits 8-11 select which of the SIXTEEN PROM bytes to return in D.
+	 * The array is now VERSN_PROM_SIZE (16) entries long; it used to be 15,
+	 * so index 15 read one byte past the end of the array.
+	 */
 	int offset = (gA >> 8) & 0x0F;
 
-	// Set D register to the installation number byte at the specified offset
-	gD = installation_number[offset];
+	// Set D register to the back-wiring PROM byte at the specified offset
+	gD = g_versn.prom[offset];
 
 	// ND-120/CX identity. Reapplied verbatim (constants + citations) from the validated
 	// session-windows-work implementation; RetroCore CpuND100.Default*-aligned and TPE-validated.
@@ -1037,10 +1476,10 @@ void ndfunc_versn(ushort operand)
 	else
 	{
 		// Set A register with print version in upper 12 bits and preserve ALD in lower 4 bits
-		gA = (print_version << 4) | (gALD & 0x0F);
+		gA = (g_versn.print_version << 4) | (gALD & 0x0F);
 
 		// Set T register with microcode version
-		gT = microcode_version;
+		gT = g_versn.microcode_version;
 	}
 }
 
