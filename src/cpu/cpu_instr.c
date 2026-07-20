@@ -3299,69 +3299,60 @@ void regop(ushort operand)
 	sr = ((operand & 0x0038) >> 3);
 	dr = (operand & 0x0007);
 
-	source = (sr == 0) ? 0 : gReg->reg[CurrLEVEL][sr] & 0xFFFF;	 /* handles special case when sr=STS reg */
-	destination = (CLD) ? 0 : gReg->reg[CurrLEVEL][dr] & 0xFFFF; // Get destination value
+	/* Register field 0 = "no register": reading yields 0, writing is DISCARDED. In nd100x reg[0] is
+	 * the STS register, so a write to register 0 must be suppressed or it corrupts STS. dr=0 must read
+	 * as 0 here too (NOT reg[0]=STS). Oracle-validated against the RASK microcode; see RetroCore commits
+	 * 0890b6fbb (SWAP reg-0), 7dbdbe729 (REXO;CM1), 581e7270a (RADD dr=0). */
+	source = (sr == 0) ? 0 : gReg->reg[CurrLEVEL][sr] & 0xFFFF;
+	destination = (CLD) ? 0 : ((dr == 0) ? 0 : gReg->reg[CurrLEVEL][dr] & 0xFFFF);
 
 	switch (RAD)
 	{
-	case 0: /* Logical operation - SWAP RAND REXO RORA */
-		if (dr != 0)
+	case 0: /* Logical operation - SWAP RAND REXO RORA. NO dr!=0 guard: reg field 0 writes are discarded
+	         * (SWAP writes BOTH sr and dr, so dr=0 still writes the source-register half). */
+		switch ((operand & 0x0300) >> 8)
 		{
-			switch ((operand & 0x0300) >> 8)
-			{
-			case 0:								/* SWAP */
-				tmp = gReg->reg[CurrLEVEL][dr]; /* temp if we need to do the swap */
-				gReg->reg[CurrLEVEL][dr] = (CM1) ? ~source : source;
-				gReg->reg[CurrLEVEL][sr] = (CLD) ? 0 : (ushort)(tmp & 0xFFFF);
-				break;
-			case 1: /* RAND */
-				gReg->reg[CurrLEVEL][dr] &= (CM1) ? ~source : source;
-				gReg->reg[CurrLEVEL][dr] = (CLD) ? 0 : gReg->reg[CurrLEVEL][dr];
-				break;
-			case 2: /* REXO */
-				gReg->reg[CurrLEVEL][dr] = (CLD) ? ((CM1) ? ~source : source) : ((CM1) ? gReg->reg[CurrLEVEL][dr] ^ ~source : gReg->reg[CurrLEVEL][dr] ^ source);
-				break;
-			case 3: /* RORA */
-				gReg->reg[CurrLEVEL][dr] = (CLD) ? ((CM1) ? ~source : source) : ((CM1) ? gReg->reg[CurrLEVEL][dr] | ~source : gReg->reg[CurrLEVEL][dr] | source);
-				break;
-			}
+		case 0:								/* SWAP: dr <- source (CM1->~source), sr <- old dr (CLD->0) */
+		{
+			ushort old_dr = (dr == 0) ? 0 : (ushort)(gReg->reg[CurrLEVEL][dr] & 0xFFFF);
+			ushort new_dr = (CM1) ? (ushort)~source : source;
+			ushort new_sr = (CLD) ? 0 : old_dr;
+			if (dr != 0) gReg->reg[CurrLEVEL][dr] = new_dr;      /* discard write to register 0 (=STS) */
+			if (sr != 0) gReg->reg[CurrLEVEL][sr] = new_sr;      /* discard write to register 0 (=STS) */
+			break;
+		}
+		case 1: /* RAND: dr <- dest & (CM1?~src:src) */
+			if (dr != 0) gReg->reg[CurrLEVEL][dr] = (ushort)(destination & ((CM1) ? (ushort)~source : source));
+			break;
+		case 2: /* REXO: plain = dest ^ src; but CM1 is OR-of-complement (dest | ~src), NOT XOR - the RASK
+		         * REXO;CM1;CLD=0 routes through REX02 (ALUF,ORAB). CLD (dest=0) yields ~src / src for free. */
+			if (dr != 0)
+				gReg->reg[CurrLEVEL][dr] = (CM1) ? (ushort)(destination | (ushort)~source)
+				                                : (ushort)(destination ^ source);
+			break;
+		case 3: /* RORA: dr <- dest | (CM1?~src:src) */
+			if (dr != 0) gReg->reg[CurrLEVEL][dr] = (ushort)(destination | ((CM1) ? (ushort)~source : source));
+			break;
 		}
 		break;
-	case 1: /* Arithmetic operation - RADD RCLR EXIT RDCR RINC RSUB */
-		if (dr != 0)
+	case 1: /* Arithmetic - RADD/RSUB. RASK has NO dr==0 special case: run do_add (which sets C/O/Q) on
+	         * EVERY path and only discard the register write for dr=0. The manual's "dr=0 resets carry,
+	         * else no-op" is WRONG for the ND-110 silicon (oracle-confirmed). */
+		tmp = (dr == 0) ? 0 : gReg->reg[CurrLEVEL][dr]; /* NOOP-variant fallthrough value (unchanged dr) */
+		switch ((operand & 0x0380) >> 7)
 		{
-			tmp = gReg->reg[CurrLEVEL][dr]; /* use this insted of (dr) as we need to check for carry and things */
-			switch ((operand & 0x0380) >> 7)
-			{
-			case 0: /* RADD */
-				tmp = do_add(destination, source, 0);
-				break;
-			case 1: /* RADD CM1 */
-				tmp = do_add(destination, ~source, 0);
-				break;
-			case 2: /* RADD AD1 */
-				tmp = do_add(destination, source, 1);
-				break;
-			case 3: /* RADD AD1 CM1 */
-				tmp = do_add(destination, ~source, 1);
-				break;
-			case 4: /* RADD ADC */
-				tmp = do_add(destination, source, getbit(_STS, _C));
-				break;
-			case 5: /* RADD ADC CM1 */
-				tmp = do_add(destination, ~source, getbit(_STS, _C));
-				break;
-			case 6: /* NOOP */
-				break;
-			case 7: /* NOOP */
-				break;
-			}
-			gReg->reg[CurrLEVEL][dr] = (ushort)(tmp & 0xFFFF);
+		case 0: tmp = do_add(destination, source, 0); break;                 /* RADD */
+		case 1: tmp = do_add(destination, ~source, 0); break;                /* RADD CM1 */
+		case 2: tmp = do_add(destination, source, 1); break;                 /* RADD AD1 */
+		case 3: tmp = do_add(destination, ~source, 1); break;                /* RADD AD1 CM1 */
+		case 4: tmp = do_add(destination, source, getbit(_STS, _C)); break;  /* RADD ADC */
+		case 5: tmp = do_add(destination, ~source, getbit(_STS, _C)); break; /* RADD ADC CM1 */
+		case 6: /* NOOP */
+			break;
+		case 7: /* NOOP */
+			break;
 		}
-		else
-		{
-			setbit(_STS, _C, 0);
-		}
+		if (dr != 0) gReg->reg[CurrLEVEL][dr] = (ushort)(tmp & 0xFFFF); /* discard write to register 0 (=STS) */
 		break;
 	}
 
@@ -3932,7 +3923,11 @@ void do_bops(ushort operand)
 ushort ShiftReg(ushort reg, ushort instr)
 {
 	bool isneg = ((instr & 0x0020) >> 5) ? 1 : 0;
-	ushort offset = (isneg) ? (~((instr & 0x003F) | 0xFFC0) + 1) : (instr & 0x003F);
+	/* Right-shift count is the two's complement of the 6-bit field, but the hardware shift counter is
+	 * only 5 BITS, so it wraps mod 32: field 040 octal (= 32) loads as 0 -> NO shift (register unchanged,
+	 * M preserved). Oracle-validated (RetroCore CpuND100.Fetch, commit 135a2ff28). Fields 041..077
+	 * (counts 31..1) already fit and are unaffected. M-on-count-0 is already correct here (tmp inits to M). */
+	ushort offset = (isneg) ? (ushort)((~((instr & 0x003F) | 0xFFC0) + 1) & 0x1F) : (instr & 0x003F);
 	ushort shifttype = ((instr >> 9) & 0x03);
 	int i, tmp, msb;
 	int m = getbit(_STS, _M);
@@ -3965,7 +3960,9 @@ ushort ShiftReg(ushort reg, ushort instr)
 ulong ShiftDoubleReg(ulong reg, ushort instr)
 {
 	bool isneg = ((instr & 0x0020) >> 5) ? 1 : 0;
-	ushort offset = (isneg) ? (~((instr & 0x003F) | 0xFFC0) + 1) : (instr & 0x003F);
+	/* 5-bit shift-counter wrap: field 040 octal (=32) -> 0 = NO shift (SAD register pair unchanged, M
+	 * preserved). Oracle-validated (RetroCore 135a2ff28). See ShiftReg for the full note. */
+	ushort offset = (isneg) ? (ushort)((~((instr & 0x003F) | 0xFFC0) + 1) & 0x1F) : (instr & 0x003F);
 	ushort shifttype = ((instr >> 9) & 0x03);
 	int i, tmp, msb;
 	int m = getbit(_STS, _M);
@@ -4658,40 +4655,60 @@ void rdiv_org(ushort instr)
 /// </summary>
 void rdiv(ushort instr)
 {
-	int dividend = ((int)gA << 16) | gD;
+	/* FAITHFUL to RASK RDIV6 (CS 000430-000463); oracle-validated (RetroCore 4c29170d1). The success
+	 * "loop path" results are UNCHANGED (what SINTRAN depends on); only the ERROR paths and the
+	 * negative-dividend C/O/Q flags are corrected. Divide-by-zero / true overflow leave the dividend's
+	 * two's-complement MAGNITUDE in A/D (minus |divisor| in the high word) and OR-set Z; the ND manual's
+	 * "divide-by-zero -> A/D unchanged" is an abstraction (magnitude == original for a POSITIVE dividend,
+	 * so they coincide there - which is why the old code passed only for positive dividends). */
+	int dividend = ((int)gA << 16) | (int)gD;
 	short divisor = ((instr & 0x0038) >> 3) ? (short)gReg->reg[gPIL][((instr & 0x0038) >> 3)] : 0;
 
-	if (divisor == 0)
+	int dividendNegative = (dividend < 0);
+	ushort origLow = gD; /* low word the microcode negates at CS 000434 (`-B`) */
+
+	/* CS 000434 (NEGATIVE DIVIDEND): negate the 32-bit dividend to its magnitude; STS,EA latches the
+	 * flags of the LOW-word (D) two's-complement negation. This precedes the STS save that brackets the
+	 * loop, so these flags PERSIST on both the loop and error paths. Positive dividend: C/O/Q untouched. */
+	if (dividendNegative)
 	{
-		// Division by zero - set error
+		int negOvf = (origLow == 0x8000); /* only 0x8000 overflows a 16-bit two's-complement negate */
+		setbit(_STS, _C, (origLow == 0)); /* carry-out of -Dlow set iff Dlow == 0 */
+		setbit(_STS, _Q, negOvf);
+		if (negOvf)
+			setbit(_STS, _O, 1); /* static overflow is sticky */
+	}
+
+	/* Operand magnitudes via UNSIGNED arithmetic (correct even for 0x80000000 / -32768). */
+	unsigned int dividendMag = dividendNegative ? (0u - (unsigned int)dividend) : (unsigned int)dividend;
+	ushort divisorMag = (ushort)((divisor < 0) ? (0u - (unsigned int)(int)divisor) : (unsigned int)(int)divisor);
+	ushort dividendMagHigh = (ushort)(dividendMag >> 16);
+
+	/* CS 000436 RDIV2 overflow PRE-CHECK: A := |dividend|_high - |divisor| (written back, ALUD,B). If
+	 * |dividend|_high >= |divisor| (unsigned, no borrow) OR divisor == 0, the quotient cannot fit 16
+	 * bits, so branch to RDIVZ BEFORE the loop: OR-set Z, leave A = that subtract and D = |dividend| low.
+	 * The quotient/remainder are NEVER computed on this path. */
+	if (divisorMag == 0 || dividendMagHigh >= divisorMag)
+	{
+		gA = (ushort)(dividendMagHigh - divisorMag);
+		gD = (ushort)(dividendMag & 0xFFFF);
 		setbit(_STS, _Z, 1);
-		// TODO: check for Z error
 		return;
 	}
 
-	int quotient = dividend / divisor;
+	/* LOOP PATH (|dividend|_high < |divisor|): the quotient magnitude fits 16 bits. */
+	unsigned int quotientMag = dividendMag / divisorMag;
+	unsigned int remainderMag = dividendMag % divisorMag;
 
-	int reminder = dividend - (quotient * divisor);
+	/* Quotient sign = sign(AD) XOR sign(SRCE); remainder sign = dividend sign (CS 000456). */
+	int quotientNegative = dividendNegative ^ (divisor < 0);
+	gA = quotientNegative ? (ushort)(0u - quotientMag) : (ushort)quotientMag;
+	gD = dividendNegative ? (ushort)(0u - remainderMag) : (ushort)remainderMag;
 
-	// Check for carry (ie, value is bigger than 16 bits)
-	setbit(_STS, _C, ((quotient & 0xFFFF0000) != 0));
-
-	// Overflow: the quotient does not fit a signed 16-bit A register.
-	// The ND-100 Reference Manual (ND-06.014.2A, RDIV) only says overflow sets Z,
-	// and lists "Affected: (A),(D)" - it does NOT say A/D are left untouched.
-	// VERIFIED on a microcode emulator: RDIV ST with A=0, D=0xEE6C (61036), T=1
-	// yields A=0xEE6C (low 16 bits of the quotient), D=0 (remainder), Z set.
-	// i.e. real hardware STILL writes the quotient (low 16 bits) and remainder on
-	// overflow, then sets Z. The previous early-return left A unwritten (stale) and
-	// broke SINTRAN's SCSI ENTER-DIRECTORY geometry check ((UHLIM/2)/1 = 61036
-	// overflows): the stale A made "SKP IF DD EQL 0" see a zero quotient and abort
-	// the mount with a spurious error 243B. So set Z on overflow but ALWAYS write A/D.
-	if (abs(quotient) >= 32768)
-	{
+	/* CS 000457 RDIV5 sign check: Z on SIGNED overflow (positive q > 32767, negative q > 32768 - so a
+	 * -32768 quotient is VALID and does NOT set Z, unlike a naive |q| >= 32768 test). */
+	if (quotientNegative ? (quotientMag > 0x8000u) : (quotientMag > 0x7FFFu))
 		setbit(_STS, _Z, 1);
-	}
-	gA = quotient;
-	gD = reminder;
 }
 
 /*
@@ -4757,15 +4774,23 @@ void rmpy(ushort instr)
 		minusCnt++;
 	}
 
-	int result = abs_src * abs_dst;
+	int result = abs_src * abs_dst; /* magnitude of the product (always non-negative here) */
 
-	// Check for carry (ie, value is bigger than 16 bits)
-	setbit(_STS, _C, ((result & 0xFFFF0000) != 0));
-
+	/* STATUS FLAGS from the RASK microcode, NOT "product > 16 bits" (that was a guess and is wrong).
+	 * RMPY runs its own routine RMPY4 (CS 004350-004363): a SAME-SIGN result writes NO status (C/O/Q/M
+	 * left unchanged); an OPPOSITE-SIGN result negates the product and STS,EA (CS 004362) latches the
+	 * flags of the LOW-word two's-complement negation: C = carry-out (low word == 0), Q = overflow
+	 * (low word == 0x8000), O = O OR that overflow. Oracle-validated (RetroCore 135a2ff28). */
 	if (minusCnt == 1)
 	{
-		result = -result;
+		int lowWord = result & 0xFFFF;         /* low word of the positive magnitude (what -Q negates) */
+		int ovf = (lowWord == 0x8000);         /* only 0x8000 overflows a 16-bit two's-complement negate */
+		setbit(_STS, _C, (lowWord == 0));      /* carry-out of -Q is set iff Q == 0 */
+		setbit(_STS, _Q, ovf);
+		if (ovf) setbit(_STS, _O, 1);          /* static overflow is sticky (OVF | O) */
+		result = -result;                      /* sign-correct the product */
 	}
+	/* else (minusCnt 0 or 2): same-sign result -> microcode writes NO status; leave C/O/Q/M unchanged. */
 
 	// set A and D registers
 	gA = (ushort)((result >> 16) & 0xFFFF);
