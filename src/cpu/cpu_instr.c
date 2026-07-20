@@ -335,7 +335,21 @@ void CJP(bool jmp_flag, ushort operand)
 		ushort old_gPC = gPC - 1;
 
 		ushort temp = signExtend(operand & 0xff);
-		gPC = do_add(gPC - 1, temp, 0);
+
+		/* MICROCODE-VALIDATED 2026-07-20: the address arithmetic must NOT touch STS.
+		 * do_add() writes STS C (and O/Q) as a side effect, but the whole CJP family
+		 * (RASK CS 007300-007337, ND-110-RASK.LISTING.TXT:12249-12287) carries NO "STS,xx"
+		 * token - so no status bit is written by a conditional jump, taken or not. Each
+		 * entry is "A,<reg> ALUF,PASSA ALUD,NONE IDBS,LA COMM,CJMP,<cond> T,JMP T,HOLD":
+		 * ALUD,NONE means the ALU result is not even latched, and the target address is
+		 * formed by the COMM,CJMP command from the latched displacement (IDBS,LA), not by
+		 * a status-updating ALU pass. STS bits 0-7 are written only by the STS,EA / STS,ES
+		 * / STS,LO tokens, none of which appear here. Confirmed live against the RASK
+		 * oracle: C keeps whatever it was seeded with across a taken and a non-taken jump.
+		 * Plain wrapping 16-bit add - identical arithmetic to the old do_add() call, minus
+		 * the flag write-back.
+		 */
+		gPC = (ushort)((ushort)(gPC - 1) + (ushort)temp);
 
 		if (DISASM)
 			disasm_userel(old_gPC, gPC);
@@ -377,9 +391,17 @@ void ndfunc_jan(ushort operand)
 /// </summary>
 void ndfunc_jaz(ushort operand)
 {
-	bool carry = (gA == 0);
-	setbit(_STS, _C, carry);
-
+	/* MICROCODE-VALIDATED 2026-07-20: JAZ does NOT touch STS.
+	 * RASK CS 007310-007313 (ND-110-RASK.LISTING.TXT:12259-12262) is
+	 *   "A,A ALUF,PASSA ALUD,NONE IDBS,LA COMM,CJMP,F=0 T,JMP T,HOLD CJP1"
+	 * - there is NO "STS,xx" token in the micro-word, and STS bits 0-7 are written only by
+	 * the STS,EA / STS,ES / STS,LO tokens. ALUD,NONE means the PASSA result is not even
+	 * latched. The same holds for every other CJP entry (JAP 007300, JAN 007304,
+	 * JAF 007314, JPC 007320, JNC 007324, JXZ 007330, JXN 007334).
+	 * The live RASK oracle confirms it: with A=0 and C seeded 0 the taken jump leaves C=0,
+	 * with C seeded 1 it leaves C=1 - C is simply PRESERVED.
+	 * The removed line ("setbit(_STS, _C, gA == 0)") was a fabricated carry side effect.
+	 */
 	CJP(gA == 0, operand);
 }
 
@@ -456,7 +478,26 @@ void ndfunc_jpl(ushort operand)
 
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	gL = gPC;
+	/* MICROCODE-VALIDATED 2026-07-20: addressing mode 5 (",X ,B" - X=1 I=0 B=1, i.e.
+	 * (B)+disp+(X)) does NOT update L on real ND-110/ND-120 silicon.
+	 *
+	 * Seven of the eight JPL entries begin with "A,P B,L ALUF,PASSA ALUD,B", i.e. L := P
+	 * (RASK CS 007340/007344/007350/007354/007360/007370/007374 =
+	 *  ND-110-RASK.LISTING.TXT:12289, 12294, 12299, 12304, 12309, 12319, 12324).
+	 * The mode-5 entry, RASK CS 007364-007367 (:12314-12317), is instead
+	 *   "A,X B,B ALUF,A+B ALUD,NONE IDBS,GPR T,JMP T,HOLD JMPXB"
+	 * - it forms X+B and hands over to JMPXB (CS 000213, :433) which is
+	 *   "ALUD,NONE IDBS,LA COMM,JMP,XB T,JMP T,HOLD".
+	 * Neither micro-word writes L, and the sequence is BIT-IDENTICAL to plain JMP's mode-5
+	 * entry (CS 007264-007267, :12233-12236) - the two instructions literally share the
+	 * JMPXB tail, so JPL,X,B cannot save a link. The ND-120 DELILAH microcode agrees
+	 * verbatim (ND-120-DELILAH-L.LISTING.TXT:15417-15429 vs :15365 for mode 0).
+	 * Confirmed live against the RASK oracle: mode 5 leaves L at its seeded value while the
+	 * mode-4 control returns L = P+1.
+	 */
+	if (((operand >> 8) & 0x07) != 5)
+		gL = gPC;
+
 	gPC = gEA;
 
 	if (DISASM)
@@ -2752,6 +2793,10 @@ void DoMOVB(ushort instr)
 			addr_d = dest + ((i + d_lr) >> 1);							  /* Word adress of byte to write */
 			MemoryWrite(thebyte, addr_d, d_apt, ((i + d_lr) & 1));
 		}
+		/* NOTE: resetting i to 0 here used to leak into the end-state "next free byte"
+		 * parity below. That was WRONG - see the end_half computation after the loop,
+		 * which no longer uses i. The reset is kept because i is the loop cursor only.
+		 */
 		i = 0;
 	}
 	else
@@ -2766,10 +2811,32 @@ void DoMOVB(ushort instr)
 		}
 	}
 
+	/* MICROCODE-VALIDATED 2026-07-20: the end-state byte-half parity is (len + d_lr) & 1,
+	 * NOT (i + d_lr) & 1.
+	 *
+	 * The manual is explicit - "After execution, bit 15 of the D and T registers point to
+	 * the end of the field that has been moved" (nd100-markdown cpu_documentation.md:5481).
+	 * "End of the field" = the byte AFTER the last one written, so its half is the start
+	 * half advanced by the number of bytes moved: (len + d_lr) & 1.
+	 *
+	 * The descending (dir != 0, source < dest) branch above resets i to 0, so the old
+	 * "(i + d_lr) & 1" evaluated the START half instead of the END half whenever the move
+	 * ran high-to-low. It only shows up for ODD byte counts (an even count leaves the
+	 * parity unchanged, which is why len=2 vectors always passed and len=3 always failed).
+	 *
+	 * Live RASK oracle, source 01500 -> dest 01540 (descending), destination word 0360:
+	 *   len=3 half=L -> D=8000 T=8003 X=0361   (parity 1 = (3+0)&1)
+	 *   len=3 half=R -> D=0000 T=0003 X=0362   (parity 0 = (3+1)&1)
+	 * Both are self-consistent with the bytes actually written (the next free byte really
+	 * is 0361-right / 0362-left), and reproduce bit-for-bit across runs. The ASCENDING
+	 * branch is unaffected: there i ends at len, so (i + d_lr) == (len + d_lr) already.
+	 */
+	int end_half = (len + d_lr) & 1;
+
 	gD &= 0x7000;				  /* Null number of bytes, as per manual, also null bit 15 */
 	gT &= 0x7000;				  /* Null number of bytes, also null bit 15 */
-	gD |= ((i + d_lr) & 1) << 15; /* set bit 15 to point to next free byte */
-	gT |= ((i + d_lr) & 1) << 15; /* set bit 15 to point to next free byte */
+	gD |= end_half << 15;		  /* set bit 15 to point to next free byte */
+	gT |= end_half << 15;		  /* set bit 15 to point to next free byte */
 	gT |= len & 0x0fff;			  /* number of bytes done to lowest 12 bits*/
 
 	gA = addr_s + ((len + s_lr) >> 1);
@@ -2823,10 +2890,30 @@ void DoMOVBF(ushort instr)
 	gA = source + ((len + s_lr) >> 1);
 	gX = dest + ((len + d_lr) >> 1);
 
+	/* MICROCODE-VALIDATED 2026-07-20: bit 15 must be ASSIGNED the end-of-field parity, not
+	 * OR-ed on top of the start half.
+	 *
+	 * Manual: "After execution, bit 15 of the D and T registers point to the end of the
+	 * field that has been moved" (nd100-markdown cpu_documentation.md:5526). The masks
+	 * below (0xEFFF / 0xCFFF, and the later 0xF000) all PRESERVE bit 15, so the old
+	 * "|= parity << 15" could only ever SET it - a descriptor that started on the right
+	 * byte (bit 15 = 1) could never come back pointing at a left byte. It therefore only
+	 * diverged when the parity had to flip back to 0 (odd length starting on the right).
+	 *
+	 * Live RASK oracle, source 01500 -> dest 01540, destination word 0360:
+	 *   len=2 half=L -> D=0000 T=0000 X=0361   len=2 half=R -> D=8000 T=8000 X=0361
+	 *   len=3 half=L -> D=8000 T=8000 X=0361   len=3 half=R -> D=0000 T=0000 X=0362
+	 * i.e. exactly (len + d_lr) & 1 in all four cases (i == len here, the loop is always
+	 * ascending, so (i + d_lr) is already the right parity - only the CLEAR was missing).
+	 */
+	int end_half = (i + d_lr) & 1;
+
 	gD &= 0xefff;				  /* Null bit 12 */
 	gT &= 0xcfff;				  /* Null bit 12 & 13 */
-	gD |= ((i + d_lr) & 1) << 15; /* set bit 15 to point to next free byte */
-	gT |= ((i + d_lr) & 1) << 15; /* set bit 15 to point to next free byte */
+	gD &= 0x7fff;				  /* Null bit 15 before assigning the end-of-field half */
+	gT &= 0x7fff;				  /* Null bit 15 before assigning the end-of-field half */
+	gD |= end_half << 15;		  /* set bit 15 to point to next free byte */
+	gT |= end_half << 15;		  /* set bit 15 to point to next free byte */
 
 	gD &= 0xf000;		 /* clean lowest bits before or */
 	gT &= 0xf000;		 /* clean lowest bits before or */
