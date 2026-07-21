@@ -437,6 +437,17 @@ void cpu_watchpoint_triggered(uint32_t addr, bool isWrite)
 	if (!gDebuggerEnabled) {
 		fprintf(stderr, "\n--- CPU stopped: watchpoint %s at %06o (PC=%06o) ---\n",
 			isWrite ? "write" : "read", addr, gPC);
+		/* Caller frame context: B, B[-1]=NNN (frame size), and a window
+		 * so the offending .word NNN and arg-store offset can be read
+		 * directly instead of reconstructed. D-space (UseAPT=true). */
+		{
+			int i;
+			fprintf(stderr, "B=%06o  frame[B-2..B+4]:", gB);
+			for (i = -2; i <= 4; i++)
+				fprintf(stderr, " %06o",
+					(unsigned short)ReadVirtualMemory((gB + i) & 0xFFFF, true));
+			fprintf(stderr, "  (B[-1]=NNN)\n");
+		}
 		ring_dump();
 		set_cpu_run_mode(CPU_SHUTDOWN);
 	}
@@ -455,6 +466,7 @@ void MemoryWrite(ushort value, ushort addr, bool UseAPT, unsigned char byte_sele
 	// Cost when watchpoints active but addr miss: + 1 byte load + 1 bit test
 	if (watchpoint_count > 0
 	    && (watchpoint_bitmap[addr >> 3] & (1 << (addr & 7)))
+	    && (watchpoint_min_value == 0 || value >= (ushort)watchpoint_min_value)
 	    && watchpoint_check_slow(addr, true, UseAPT)) {
 		cpu_watchpoint_triggered(addr, true);
 	}
@@ -682,7 +694,7 @@ bool cpu_instruction_is_jump()
 /// @brief run the CPU for a number of ticks. 
 /// @details This function runs the CPU for a number of ticks. It handles interrupts and checks for level switches.
 /* Ring buffer for last N instructions before exit */
-#define RING_SIZE 512
+#define RING_SIZE 65536
 static struct {
     unsigned short pc;
     unsigned short opcode;

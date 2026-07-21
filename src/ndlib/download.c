@@ -46,6 +46,53 @@ char* download_file(const char* url) {
 
 #include <curl/curl.h>
 
+#ifdef _WIN32
+#include <windows.h>
+// Resolve the CA bundle for TLS verification on Windows. The vendored curl-for-win
+// build verifies HTTPS against a CA *file* (there is no Windows-cert-store default),
+// so we must hand libcurl one or every https:// fetch fails with a verification
+// error. Preference order:
+//   1. curl-ca-bundle.crt staged next to the .exe (build.bat / Makefile copy it there).
+//   2. ND100X_VENDORED_CA_BUNDLE - the external/curl copy, baked in at compile time.
+// If neither exists we set nothing and let libcurl fall back to its own default /
+// the CURL_CA_BUNDLE env var. We NEVER disable peer verification.
+static const char *win_ca_bundle(void)
+{
+    static char path[MAX_PATH];
+    static int  resolved = 0;
+    if (resolved) return path[0] ? path : NULL;
+    resolved = 1;
+
+    // (1) exe-relative curl-ca-bundle.crt
+    char exe[MAX_PATH];
+    DWORD n = GetModuleFileNameA(NULL, exe, (DWORD)sizeof(exe));
+    if (n > 0 && n < sizeof(exe)) {
+        char *slash = strrchr(exe, '\\');
+        if (slash) {
+            size_t dirlen = (size_t)(slash - exe) + 1;      // keep the trailing backslash
+            const char *leaf = "curl-ca-bundle.crt";
+            if (dirlen + strlen(leaf) < sizeof(path)) {
+                memcpy(path, exe, dirlen);
+                strcpy(path + dirlen, leaf);
+                FILE *f = fopen(path, "rb");
+                if (f) { fclose(f); return path; }
+            }
+        }
+    }
+
+#ifdef ND100X_VENDORED_CA_BUNDLE
+    // (2) compile-time vendored path (external/curl/bin/curl-ca-bundle.crt)
+    strncpy(path, ND100X_VENDORED_CA_BUNDLE, sizeof(path) - 1);
+    path[sizeof(path) - 1] = '\0';
+    FILE *f2 = fopen(path, "rb");
+    if (f2) { fclose(f2); return path; }
+#endif
+
+    path[0] = '\0';
+    return NULL;
+}
+#endif // _WIN32
+
 // Global variable to track the actual downloaded size
 static size_t g_downloaded_size = 0;
 
@@ -118,7 +165,16 @@ char* download_file(const char* url) {
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "nd100x/1.0");
-    
+
+#ifdef _WIN32
+    // Give the vendored (CA-file-verifying) libcurl a CA bundle for HTTPS. On
+    // Linux/macOS the system CA store is used automatically, so this is Windows-only.
+    {
+        const char *ca = win_ca_bundle();
+        if (ca) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+    }
+#endif
+
     // Perform the request
     CURLcode res = curl_easy_perform(curl);
     

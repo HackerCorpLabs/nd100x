@@ -35,4 +35,9 @@
 // Returns a KeyEvent; type == KEY_NONE when no input is available.
 KeyEvent read_key_event(void);
 
+// Enable --pipe mode: read keyboard bytes from a redirected stdin (a parent process / automation
+// driver) instead of the interactive console. No-op on POSIX (that path already polls stdin); on
+// Windows it switches read_key_event from ReadConsoleInputW to a non-blocking stdin pipe/file read.
+void keyboard_set_pipe_mode(bool on);
+
 #endif // KEYBOARD_H

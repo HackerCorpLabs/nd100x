@@ -51,10 +51,12 @@
 
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
+#include "../ndlib/floppydb.h"   /* catalog dbmount/dblist over the --pipe control channel */
 
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 #include "../machine/machine_config.h"
+#include "../../cpu/cpu_types.h"   // MMSType enum + extern mmsType (for --mms1/--mms2)
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
@@ -166,6 +168,82 @@ static void set_terminal_carrier(Device *dev, bool missing)
 }
 #endif
 
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_RISCV)
+// --pipe control channel. A line on stdin framed as 0xFF <command> \n is a CONTROL command, not a
+// keystroke (0xFF never occurs in ND keyboard input). Lets an automation driver hot-swap floppies
+// mid-run - the "operator inserts the next install disk" step. Results go to stderr with a
+// [pipe-control] prefix so the driver can confirm them. Commands:
+//    mount <unit> <path>   - eject unit (0-2) and mount <path> (spaces allowed)
+//    eject <unit>          - eject unit
+static bool s_ctrl_active = false;
+static char s_ctrl_buf[512];
+static int  s_ctrl_len = 0;
+
+static void pipe_handle_control(const char *cmd)
+{
+    int unit = -1;
+    char arg[400];
+    if (sscanf(cmd, "mount %d %399[^\n]", &unit, arg) == 2) {
+        // mount <unit> <local-path> : hot-swap a LOCAL floppy image.
+        int rc = machine_floppy_swap(unit, arg);
+        fprintf(stderr, "[pipe-control] mount %d '%s' -> %s\n", unit, arg,
+                rc == 0 ? "ok" : (rc == -2 ? "FILE NOT FOUND" : "BAD UNIT"));
+    } else if (sscanf(cmd, "eject %d", &unit) == 1) {
+        int rc = machine_floppy_swap(unit, NULL);
+        fprintf(stderr, "[pipe-control] eject %d -> %s\n", unit, rc == 0 ? "ok" : "BAD UNIT");
+    } else if (sscanf(cmd, "dbmount %d %399[^\n]", &unit, arg) == 2) {
+        // dbmount <unit> <md5:hash|dir:name|token> : mount straight from the online
+        // catalog (needs libcurl to fetch the image; resolves either way).
+        int rc = machine_floppy_mount_catalog(unit, arg);
+        const char *msg = (rc == 0) ? "ok" :
+                          (rc == -1) ? "BAD UNIT" :
+                          (rc == -2) ? "NOT FOUND" :
+                          (rc == -3) ? "NO CATALOG" : "MOUNT FAILED (no libcurl?)";
+        fprintf(stderr, "[pipe-control] dbmount %d '%s' -> %s\n", unit, arg, msg);
+    } else if (sscanf(cmd, "dblist %399[^\n]", arg) == 1) {
+        // dblist <md5:hash|dir:name|token> : resolve and list catalog matches without
+        // mounting (so a driver can disambiguate before choosing an md5).
+        if (floppydb_count() == 0) floppydb_load(false);
+        const FloppyDbEntry *hits[32];
+        int n = 0;
+        if (strncasecmp(arg, "md5:", 4) == 0) {
+            const FloppyDbEntry *e = floppydb_find_md5(arg + 4);
+            if (e) { hits[0] = e; n = 1; }
+        } else {
+            const char *name = (strncasecmp(arg, "dir:", 4) == 0) ? arg + 4 : arg;
+            n = floppydb_find_directory(name, hits, 32);
+        }
+        fprintf(stderr, "[pipe-control] dblist '%s' -> %d match%s\n", arg, n, n == 1 ? "" : "es");
+        int show = (n < 32) ? n : 32;
+        for (int i = 0; i < show; i++)
+            fprintf(stderr, "    - name='%s' dir='%s' size=%ld pages type=%s md5=%s\n",
+                    hits[i]->name, hits[i]->directory_name, hits[i]->filesystem_pages,
+                    hits[i]->is_smd ? "SMD" : "FLOPPY", hits[i]->md5);
+    } else {
+        fprintf(stderr, "[pipe-control] unknown command: '%s'\n", cmd);
+    }
+    fflush(stderr);
+}
+
+// Feed one raw input byte to the control-line state machine. Returns true if the byte was consumed
+// as part of a control line (the caller must then NOT forward it to the emulated terminal).
+static bool pipe_control_feed(char ch)
+{
+    if (!s_ctrl_active) {
+        if ((unsigned char)ch == 0xFF) { s_ctrl_active = true; s_ctrl_len = 0; return true; }
+        return false;
+    }
+    if (ch == '\r' || ch == '\n') {
+        s_ctrl_buf[s_ctrl_len] = '\0';
+        pipe_handle_control(s_ctrl_buf);
+        s_ctrl_active = false;
+    } else if (s_ctrl_len < (int)sizeof(s_ctrl_buf) - 1) {
+        s_ctrl_buf[s_ctrl_len++] = ch;
+    }
+    return true;
+}
+#endif
+
 void handle_sigint(int sig) {
     printf("\nCaught signal %d (Ctrl-C). Cleaning up...\n", sig);
 
@@ -265,10 +343,41 @@ void initialize()
 
 	//blocksignals();
 	register_signals();
-	
+
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_RISCV)
+	// --pipe: automation mode. Keyboard comes from a redirected stdin (a parent process / driver)
+	// instead of the interactive console, and stdout is UNBUFFERED so an expect-style driver sees the
+	// emulated terminal output as it is produced. Desktop only - WASM drives I/O from the browser and
+	// the RISC-V target has no host console/pipe, so the whole block is compiled out there.
+	if (config.pipeMode) {
+		keyboard_set_pipe_mode(true);
+		setvbuf(stdout, NULL, _IONBF, 0);
+	}
+#endif
+
 	if (DISASM) disasm_init();
 
+	// Select the MMU paging-system type BEFORE machine_init -> cpu_init -> CreatePagingTables(),
+	// which reads this cpu_mms.c global to size/lay out the shadow RAM (MMS1 = 4 page tables;
+	// MMS2 = 16 page tables). Default MMS2 keeps SINTRAN / every existing machine byte-identical.
+	mmsType = (config.mmsType == 1) ? MMS1 : MMS2;
+
+	// Register the TSS drum backing image (if any) BEFORE machine_init, which
+	// runs DeviceManager_AddAllDevices() -> CreateDrumDevice().
+	if (config.drumFile) {
+		DrumDevice_SetBackingFile(config.drumFile);
+	}
+
 	machine_init(config.debuggerEnabled, config.debuggerPort);
+
+	// Add the NORD TSS CDC cartridge system disc @ IOX 500-507 ONLY when a --cdc
+	// image was given, so the 500 slot stays empty otherwise (it never pre-empts
+	// a future Winchester). The backing file MUST be set before CreateCdcDevice
+	// runs, hence the setter call immediately before AddDevice.
+	if (config.cdcFile) {
+		CdcDevice_SetBackingFile(config.cdcFile);
+		DeviceManager_AddDevice(DEVICE_TYPE_CDC, 0);
+	}
 
 	if (g_useMachineConfig) {
 		// INI-driven machine setup (from --config). Adds terminals, disc
@@ -320,6 +429,15 @@ void initialize()
 
 	program_load(config.bootType, config.bootUnit, config.imageFile, config.verbose, (uint16_t)config.textStart, config.overlayDeposit);
 	gPC = STARTADDR;
+
+	// An explicit --start / config `start=` overrides the entry that
+	// program_load() derived from the image. Needed for e.g. NORD TSS, whose
+	// BPUN carries no usable autostart cell, so it must be entered at its real
+	// cold-start rather than at address 0.
+	if (config.startAddress != 0) {
+		STARTADDR = (ushort)config.startAddress;
+		gPC = STARTADDR;
+	}
 
 	/* Direct input/output enabled */
 	setcbreak ();
@@ -936,6 +1054,12 @@ int main(int argc, char *argv[])
                                                         mappedSeq, sizeof(mappedSeq));
                 for (int i = 0; i < mappedLen; i++) {
                     char ch = mappedSeq[i];
+
+#if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__) && !defined(PLATFORM_RISCV)
+                    // --pipe control framing (0xFF <cmd> \n) is intercepted here as a command
+                    // (e.g. floppy hot-swap), NOT forwarded to the emulated terminal as keystrokes.
+                    if (config.pipeMode && pipe_control_feed(ch)) continue;
+#endif
 
                     // ND doesnt like \n
                     if (ch == '\n') {

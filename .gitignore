@@ -79,6 +79,22 @@ template-glass/js/terminal-core.js
 template-glass/js/terminal-manager.js
 template-glass/js/terminal-bridge.js
 template-glass/js/terminal-popout-app.js
+<<<<<<< HEAD
+<<<<<<< HEAD
 
 # Uploaded/vendored PDF manuals (large; kept out of git, served by build)
 template-glass/PDF/*.pdf
+=======
+
+# Python bytecode from tools/ automation
+tools/__pycache__/
+**/__pycache__/
+=======
+
+# Python bytecode from tools/ automation
+tools/__pycache__/
+**/__pycache__/
+
+# Vendored prebuilt MinGW libcurl (fetched by scripts/fetch-curl.sh, not committed)
+external/curl/
+external/curl-*-win64-mingw.zip

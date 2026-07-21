@@ -383,6 +383,23 @@ WatchpointEntry watchpoints[MAX_WATCHPOINTS];
 int watchpoint_count = 0;
 uint8_t watchpoint_bitmap[8192]; // 64K addresses, 1 bit each (8KB, fits L1)
 
+/*
+ * Ignore-count: skip the first N watchpoint hits before halting.  Set from the
+ * CLI --watch-skip option.  Lets a watchpoint pass legitimate early writes to a
+ * reused stack slot (e.g. csav storing a return address) and halt on a later
+ * corrupting write instead.  Decremented on each would-trigger match.
+ */
+int watchpoint_skip_hits = 0;
+
+/*
+ * Value filter: when nonzero, a WRITE watchpoint only triggers if the value
+ * being stored is >= watchpoint_min_value.  Set from --watch-min-value.  Lets a
+ * watchpoint on a reused stack slot ignore legitimate text-range writes (csav
+ * storing a return address) and halt only on an out-of-range value (a heap
+ * pointer smashed into the return slot).  0 = disabled.
+ */
+int watchpoint_min_value = 0;
+
 /// @brief Rebuild bitmap from active watchpoints (called after remove/clear)
 static void watchpoint_bitmap_rebuild(void)
 {
@@ -450,9 +467,17 @@ int watchpoint_check_slow(uint16_t address, bool isWrite, bool useAPT)
         if (w->space == WATCH_SPACE_ISPACE && useAPT) continue;
         if (w->space == WATCH_SPACE_DSPACE && !useAPT) continue;
         WatchpointType t = w->type;
-        if (t == WATCH_READWRITE) return 1;
-        if (isWrite && t == WATCH_WRITE) return 1;
-        if (!isWrite && t == WATCH_READ) return 1;
+        int matched = (t == WATCH_READWRITE)
+                   || (isWrite && t == WATCH_WRITE)
+                   || (!isWrite && t == WATCH_READ);
+        if (matched) {
+            /* Ignore-count: swallow the first N matches, halt after. */
+            if (watchpoint_skip_hits > 0) {
+                watchpoint_skip_hits--;
+                return 0;
+            }
+            return 1;
+        }
     }
     return 0;
 }

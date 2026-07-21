@@ -77,6 +77,12 @@ static struct option long_options[] = {
     {"ini",        required_argument, 0, 0x120},
     {"show-config",no_argument,       0, 0x121},
     {"write-config",required_argument,0, 0x122},
+    {"pipe",       no_argument,       0, 0x140}, // --pipe: keyboard from stdin (automation)
+    {"mms",        required_argument, 0, 0x106}, // --mms=1|2 : MMU paging-system type
+    {"mms1",       no_argument,       0, 0x107}, // --mms1 : NORD-10 paging (MMS1)
+    {"mms2",       no_argument,       0, 0x108}, // --mms2 : 16-page-table MMS (default)
+    {"drum",       required_argument, 0, 0x104}, // --drum=FILE : NORD TSS swapping-drum image @ IOX 540
+    {"cdc",        required_argument, 0, 0x105}, // --cdc=FILE  : NORD TSS CDC cartridge system-disc @ IOX 500
     {0, 0, 0, 0}
 };
 
@@ -115,6 +121,10 @@ void Config_Init(Config_t *config) {
         config->scsiType[i] = SCSI_UNIT_NONE;
     }
     config->telnetEnabled = false;
+    config->pipeMode = false;  // --pipe (pipe automation); desktop only
+    config->mmsType = 2;       // --mms: default MMS2 (16 page tables); SINTRAN/existing machines unchanged
+    config->drumFile = NULL;   // --drum: NORD TSS swapping-drum image (@ IOX 540); no drum image by default
+    config->cdcFile = NULL;    // --cdc:  NORD TSS CDC cartridge system-disc image (@ IOX 500); none by default
     config->telnetPort = 9000;
     config->watchCount = 0;
     config->printerType = PRINTER_TEXT;
@@ -574,6 +584,40 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->scsiDebug = true;
                 break;
 
+            case 0x140: /* --pipe : read keyboard from stdin (pipe automation). Desktop only. */
+                config->pipeMode = true;
+                break;
+
+            case 0x106: {   /* --mms=1|2 : select MMU paging-system type (1=MMS1, 2=MMS2 default) */
+                char *ep; long m = strtol(optarg, &ep, 0);
+                if (*ep != '\0' || (m != 1 && m != 2)) {
+                    fprintf(stderr, "Invalid --mms value: %s (use 1 or 2)\n", optarg);
+                    exit(1);
+                }
+                config->mmsType = (int)m;
+                break;
+            }
+            case 0x107: config->mmsType = 1; break;  /* --mms1 : NORD-10 / Paging-System-I (NORD TSS) */
+            case 0x108: config->mmsType = 2; break;  /* --mms2 : 16-page-table MMS (default) */
+
+            case 0x104: {   /* --drum=FILE : NORD TSS swapping-drum image */
+                config->drumFile = strdup(optarg);
+                if (!config->drumFile) {
+                    fprintf(stderr, "Failed to allocate memory for drum file\n");
+                    return false;
+                }
+                break;
+            }
+
+            case 0x105: {   /* --cdc=FILE : NORD TSS CDC system-disc image @ IOX 500 */
+                config->cdcFile = strdup(optarg);
+                if (!config->cdcFile) {
+                    fprintf(stderr, "Failed to allocate memory for cdc file\n");
+                    return false;
+                }
+                break;
+            }
+
             case 0x120: /* --config / --ini */
                 config->iniFile = strdup(optarg);
                 if (!config->iniFile) {
@@ -708,6 +752,8 @@ void Config_PrintHelp(const char *progName) {
     printf("  -p PORT, --port=PORT    Set debugger port (default: 4711)\n");
     printf("  -S,      --smd-debug    Enable SMD disk controller debug log (stderr)\n");
     printf("           --scsi-debug   Enable SCSI disk controller debug log (stderr)\n");
+    printf("           --drum=FILE    NORD TSS swapping-drum image @ IOX 540\n");
+    printf("           --cdc=FILE     NORD TSS CDC cartridge system-disc image @ IOX 500\n");
     printf("           --bsd-debug    Track BSD kernel-stack high-water (KSTKHW, stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");

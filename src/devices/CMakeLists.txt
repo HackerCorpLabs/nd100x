@@ -13,6 +13,8 @@ file(GLOB PAPERTAPE_SOURCES "papertape/*.c")
 file(GLOB FLOPPY_SOURCES "floppy/*.c")
 file(GLOB SMD_SOURCES "smd/*.c")
 file(GLOB SCSI_SOURCES "scsi/*.c")
+file(GLOB DRUM_SOURCES "drum/*.c")
+file(GLOB CDC_SOURCES "cdc/*.c")
 file(GLOB HDLC_SOURCES "hdlc/*.c")
 file(GLOB LINEPRINTER_SOURCES "lineprinter/*.c")
 file(GLOB PAPERTAPEWRITER_SOURCES "papertapewriter/*.c")
@@ -26,6 +28,8 @@ list(APPEND SOURCES
     ${FLOPPY_SOURCES}
     ${SMD_SOURCES}
     ${SCSI_SOURCES}
+    ${DRUM_SOURCES}
+    ${CDC_SOURCES}
     ${HDLC_SOURCES}
     ${LINEPRINTER_SOURCES}
     ${PAPERTAPEWRITER_SOURCES}
@@ -59,6 +63,10 @@ add_custom_command(
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/diskSCSI.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/scsiHDD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/deviceSCSI.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add drum device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/drum/deviceDrum.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add CDC system-disc device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/cdc/deviceCDC.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add line printer device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter/deviceLinePrinter.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add paper tape writer device sources
@@ -100,6 +108,8 @@ target_include_directories(devices PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/floppy
     ${CMAKE_CURRENT_SOURCE_DIR}/smd
     ${CMAKE_CURRENT_SOURCE_DIR}/scsi
+    ${CMAKE_CURRENT_SOURCE_DIR}/drum
+    ${CMAKE_CURRENT_SOURCE_DIR}/cdc
     ${CMAKE_CURRENT_SOURCE_DIR}/hdlc
     ${CMAKE_CURRENT_SOURCE_DIR}/lineprinter
     ${CMAKE_CURRENT_SOURCE_DIR}/papertapewriter

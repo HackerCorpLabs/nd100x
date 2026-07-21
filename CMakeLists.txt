@@ -78,13 +78,38 @@ endif()
 #   yet and is compiled out via NEED_MENU in src/frontend/nd100x/CMakeLists.txt.
 if(NOT (PLATFORM_WASM OR BUILD_WASM OR PLATFORM_RISCV OR BUILD_RISCV))
     if(PLATFORM_WINDOWS)
-        find_package(CURL QUIET)
-        if(CURL_FOUND)
-            message(STATUS "CURL library found: ${CURL_VERSION_STRING}")
+        # Prefer a VENDORED prebuilt MinGW libcurl under external/curl (fetched by
+        # scripts/fetch-curl.sh — the same "vendor a mingw devel release" approach the
+        # tiki100 project uses for SDL2). This lets a plain w64devkit build link real
+        # libcurl without MSYS2. curl-for-win ships no CMake config, so set the classic
+        # CURL_* result variables by hand; src/ndlib/CMakeLists.txt consumes them.
+        set(VENDORED_CURL_DIR "${CMAKE_SOURCE_DIR}/external/curl")
+        if(EXISTS "${VENDORED_CURL_DIR}/lib/libcurl.dll.a")
+            set(CURL_FOUND TRUE)
+            set(CURL_INCLUDE_DIRS "${VENDORED_CURL_DIR}/include")
+            set(CURL_LIBRARIES    "${VENDORED_CURL_DIR}/lib/libcurl.dll.a")
             add_definitions(-DHAVE_CURL)
+            # Bundled CA file (this curl build verifies TLS against a CA bundle). Baked in
+            # as a compile-time fallback path; build.bat/Makefile also stage it next to the
+            # exe and download.c prefers the exe-relative copy at runtime.
+            add_definitions(-DND100X_VENDORED_CA_BUNDLE="${VENDORED_CURL_DIR}/bin/curl-ca-bundle.crt")
+            # Export the runtime dir so the frontend target can POST_BUILD-stage the DLL +
+            # CA bundle next to the exe. Without this a plain `cmake --build` yields an exe
+            # that cannot start (libcurl-x64.dll not found). CACHE INTERNAL = visible in the
+            # frontend subdirectory scope.
+            set(ND100X_VENDORED_CURL_BIN "${VENDORED_CURL_DIR}/bin" CACHE INTERNAL "vendored libcurl runtime dir")
+            message(STATUS "CURL: using vendored MinGW libcurl at ${VENDORED_CURL_DIR}")
         else()
-            message(STATUS "CURL not found on Windows — download_file() will be a stub "
-                           "(install mingw-w64-x86_64-curl under MSYS2, or vendor libcurl).")
+            # No vendored copy — fall back to a system libcurl (e.g. MSYS2 mingw-w64-curl).
+            find_package(CURL QUIET)
+            if(CURL_FOUND)
+                message(STATUS "CURL library found (system): ${CURL_VERSION_STRING}")
+                add_definitions(-DHAVE_CURL)
+            else()
+                message(STATUS "CURL not found on Windows — download_file() will be a stub. "
+                               "Run 'make fetch-curl' to vendor libcurl, or install "
+                               "mingw-w64-x86_64-curl under MSYS2.")
+            endif()
         endif()
         message(STATUS "Curses lookup skipped on Windows (F12 menu disabled).")
     else()

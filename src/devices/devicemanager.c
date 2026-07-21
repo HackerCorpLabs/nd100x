@@ -122,6 +122,9 @@ void DeviceManager_AddAllDevices(void)
     // Add the SMD at octal 1540-1547
     DeviceManager_AddDevice(DEVICE_TYPE_DISC_SMD, 0);
 
+    // Add the NORD TSS swapping drum at octal 540-547
+    DeviceManager_AddDevice(DEVICE_TYPE_DRUM, 0);
+
     // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
     // based on command line configuration
 
@@ -234,6 +237,22 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
         if (!dev)
         {
             Log(LOG_ERROR, "Failed to create SCSI device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_DRUM:
+        dev = CreateDrumDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create DRUM device\n");
+            return NULL;
+        }
+        break;
+    case DEVICE_TYPE_CDC:
+        dev = CreateCdcDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create CDC disc device\n");
             return NULL;
         }
         break;

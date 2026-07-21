@@ -1257,6 +1257,39 @@ void ndfunc_sex(ushort operand)
  *
  * NOTE: Privileged instruction
  */
+// LBIT (140510): load the K 1-bit accumulator from a LOGICAL memory bit.
+// (X)=bit-array start word, (A)=bit index; word=X+(A>>4), bit=A&0xF, APT access.
+// Mirrors RetroCore Instructions.ND110Specific.cs LBIT. Manual ND-06.029.1 EN.
+void ndfunc_lbit(ushort operand)
+{
+	(void)operand;
+	if (!CheckPriv())
+		return;
+	uint bitIndex = gA;
+	uint wordAddr = (uint)((gX + (bitIndex >> 4)) & 0xFFFF);
+	int bitInWord = (int)(bitIndex & 0x0F);
+	ushort word = (ushort)ReadVirtualMemory(wordAddr, true);
+	setbit(_STS, _K, (char)((word >> bitInWord) & 1));
+}
+
+// SBIT (140512): store the K 1-bit accumulator into a LOGICAL memory bit (read-modify-write).
+// (X)=bit-array start word, (A)=bit index. Mirrors RetroCore SBIT.
+void ndfunc_sbit(ushort operand)
+{
+	(void)operand;
+	if (!CheckPriv())
+		return;
+	uint bitIndex = gA;
+	uint wordAddr = (uint)((gX + (bitIndex >> 4)) & 0xFFFF);
+	int bitInWord = (int)(bitIndex & 0x0F);
+	ushort word = (ushort)ReadVirtualMemory(wordAddr, true);
+	if (getbit(_STS, _K))
+		word |= (ushort)(1 << bitInWord);
+	else
+		word &= (ushort)~(1 << bitInWord);
+	WriteVirtualMemory(wordAddr, word, true, WRITEMODE_WORD);
+}
+
 void ndfunc_setpt(ushort operand)
 {
 	if (!CheckPriv())
@@ -2104,6 +2137,12 @@ void DoTRR(ushort instr)
 			temp &= ~(1 << 2); // Force Clear bit 2 for MMS1 mode
 		}
 		/* PCR0_WRITE tracing removed - was temporary overlay debugging */
+		// The A-register bits 3-6 are the LEVEL SELECTOR (which PCR this TRR writes),
+		// not PCR content, so they must be masked out before the store. Otherwise a
+		// read-back (TRA PCR) returns value | (level<<3), which TPE PAGING-C02 test 2
+		// (PAGING CONTROL REGISTERS on all levels) flags as "Failing data bits" under
+		// MMS1. Real PCR content is ring (0-1), the MMS2 enable (2) and PT/APT (7-14).
+		temp &= ~(0x0f << 3);
 		gReg->reg_PCR[level] = temp;
 
 		break;
@@ -3401,7 +3440,8 @@ void Setup_Instructions()
 		Instruction_Add(0140505, &unimplemented_instr); /* CLPT  - ND110 Specific */
 		Instruction_Add(0140506, &unimplemented_instr); /* ENPT  - ND110 Specific */
 		Instruction_Add(0140507, &unimplemented_instr); /* REPT  - ND110 Specific */
-		Instruction_Add(0140510, &unimplemented_instr); /* LBIT  - ND110 Specific */
+		Instruction_Add(0140510, &ndfunc_lbit); /* LBIT  - ND110 Specific */
+		Instruction_Add(0140512, &ndfunc_sbit); /* SBIT  - ND110 Specific */
 
 		Instruction_Add(0140513, &unimplemented_instr); /* SBITP - ND110 Specific */
 		Instruction_Add(0140514, &unimplemented_instr); /* LBYTP - ND110 Specific */

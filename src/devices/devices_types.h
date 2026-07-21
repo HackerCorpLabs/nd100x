@@ -122,6 +122,8 @@ typedef enum {
     DEVICE_TYPE_LINE_PRINTER,
     DEVICE_TYPE_PAPER_TAPE_WRITER,
     DEVICE_TYPE_DISC_SCSI,   /* ND-3201/3204 SCSI disk controller (NCR-5386) */
+    DEVICE_TYPE_DRUM,          // NORD TSS swapping drum @ IOX 540
+    DEVICE_TYPE_CDC,           // NORD TSS CDC/NCR cartridge system disc @ IOX 500
     DEVICE_TYPE_MAX
 } DeviceType;
 
@@ -218,6 +220,8 @@ typedef struct {
 #include "./scsi/diskSCSI.h"
 #include "./scsi/scsiHDD.h"
 #include "./scsi/deviceSCSI.h"
+#include "./drum/deviceDrum.h"
+#include "./cdc/deviceCDC.h"
 #include "./terminal/deviceTerminal.h"
 #include "./lineprinter/deviceLinePrinter.h"
 #include "./papertapewriter/devicePaperTapeWriter.h"

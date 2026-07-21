@@ -91,6 +91,10 @@ typedef struct {
     } watch[MAX_CLI_WATCHPOINTS];
     int watchSkip;           // --watch-skip N: ignore first N watchpoint hits before halting
     int watchMinValue;       // --watch-min-value V: WRITE watchpoint triggers only if value >= V
+    bool pipeMode;       // --pipe: read keyboard from stdin (automation over pipes). Desktop only.
+    int mmsType;         // --mms1/--mms2/--mms=N: 1=MMS1 (NORD-10/4 page tables), 2=MMS2 (16 PT, default)
+    char *drumFile;      // --drum: NORD TSS swapping-drum image file (@ IOX 540)
+    char *cdcFile;       // --cdc:  NORD TSS CDC cartridge system-disc image (@ IOX 500-507)
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
     CharsetVariant charset;       // --charset= option: local-console national 7-bit charset (default: CHARSET_OFF)

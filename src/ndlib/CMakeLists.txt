@@ -50,6 +50,10 @@ add_library(ndlib STATIC ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h)
 # Include directories
 target_include_directories(ndlib
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    # floppydb.c parses the online floppy catalog with the bundled cJSON. cJSON is
+    # linked into every final executable via the cjson_objects OBJECT library (see the
+    # top-level CMakeLists); ndlib only needs its header on the include path to compile.
+    PRIVATE ${CMAKE_SOURCE_DIR}/external/cJSON
 )
 
 # Set properties

@@ -37,6 +37,7 @@
 
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
+#include "../ndlib/floppydb.h"   /* online floppy/disk catalog (machine_floppy_mount_catalog) */
 
 #ifndef _WIN32
 #  include "../../external/libsymbols/include/symbols.h"
@@ -325,13 +326,129 @@ void write_memory(uint32_t address, uint16_t value)
 void mount_floppy(const char *imageFile, int unit)
 {
     const char *floppy_img = imageFile ? imageFile : "FLOPPY.IMG";
-    
+
     // if file exists  mount it
     FILE *ftmp = fopen(floppy_img, "rb");
     if (ftmp) {
         fclose(ftmp);
         mount_drive(DRIVE_FLOPPY, unit, "md5-unknown", "Boot Floppy", "Boot floppy image", floppy_img);
     }
+}
+
+/*
+ * Runtime floppy HOT-SWAP for automation (the "operator inserts disk 2" step).
+ * Ejects whatever is on floppy `unit` (0-2) and mounts `path`; a NULL/empty path
+ * ejects only. Safe to call while the machine is running - the DMA/PIO floppy
+ * re-reads size + blocks via the machine_block_* callbacks on the next command,
+ * so the guest sees the new disk as soon as it issues its next floppy read
+ * (which is exactly what an installer does after its "insert next disk" prompt).
+ * Returns 0 = ok, -1 = bad unit, -2 = image file could not be opened.
+ */
+int machine_floppy_swap(int unit, const char *path)
+{
+    if (unit < 0 || unit >= 3) return -1;                 /* floppy units 0-2 */
+
+    if (isMounted(DRIVE_FLOPPY, unit))
+        unmount_drive(DRIVE_FLOPPY, unit);                /* eject: closes the old FILE* */
+
+    if (path == NULL || path[0] == '\0')
+        return 0;                                          /* eject only */
+
+    FILE *probe = fopen(path, "rb");                       /* verify before we commit */
+    if (!probe) return -2;
+    fclose(probe);
+
+    mount_drive(DRIVE_FLOPPY, unit, "md5-unknown", "Floppy", "Hot-swapped floppy", path);
+    return 0;
+}
+
+/*
+ * Mount a disk FROM THE ONLINE CATALOG (https://ndlib.hackercorp.no/floppies.json)
+ * onto `unit`, hot-swapping exactly like machine_floppy_swap() - the same eject +
+ * mount_drive() path the F12 browser uses, so an installer's "insert next disk"
+ * step can be driven straight from the catalog.
+ *
+ * `selector` is one of:
+ *    "md5:<hash>"  - the UNIQUE image hash (always resolves to one image).
+ *    "dir:<name>"  - the SINTRAN "Directory name". This MAY match several image
+ *                    versions; we log every match as {directory name, filesystem
+ *                    image size, md5} to stderr and mount the FIRST, so the caller
+ *                    can then pin a specific version by its md5.
+ *    "<token>"     - bare: tried as an md5 first, then as a directory name.
+ *
+ * The catalog is loaded on first use (fresh cache, else download, else stale
+ * cache). The image itself is the remote images/<md5>.img, fetched by mount_drive
+ * via download_file() - real only on libcurl builds; on a build without libcurl
+ * the download is a stub and this returns -4 (resolve the md5 here, fetch the
+ * image out of band, then machine_floppy_swap() the local file instead).
+ *
+ * The drive TYPE (floppy vs SMD) comes from the catalog entry, so `unit` is
+ * range-checked against that type (floppy 0-2, SMD 0-3).
+ *
+ * Returns: 0 ok, -1 bad unit, -2 not found, -3 catalog unavailable, -4 mount failed.
+ */
+int machine_floppy_mount_catalog(int unit, const char *selector)
+{
+    if (!selector || !selector[0]) return -2;
+
+    // Load the catalog once (idempotent - a prior F12 browse leaves it loaded).
+    if (floppydb_count() == 0) {
+        if (floppydb_load(false) <= 0) {
+            fprintf(stderr, "[catalog] no catalog available (offline / no cache / no libcurl)\n");
+            return -3;
+        }
+    }
+
+    const FloppyDbEntry *entry = NULL;
+    if (strncasecmp(selector, "md5:", 4) == 0) {
+        entry = floppydb_find_md5(selector + 4);
+    } else if (strncasecmp(selector, "dir:", 4) == 0) {
+        const FloppyDbEntry *hits[32];
+        int n = floppydb_find_directory(selector + 4, hits, 32);
+        if (n > 1) {
+            // Ambiguous: log the full disambiguation set, then take the first.
+            fprintf(stderr, "[catalog] '%s' is ambiguous - %d images match (mounting the first):\n",
+                    selector + 4, n);
+            int show = (n < 32) ? n : 32;
+            for (int i = 0; i < show; i++)
+                fprintf(stderr, "    - dir='%s' size=%ld pages md5=%s\n",
+                        hits[i]->directory_name, hits[i]->filesystem_pages, hits[i]->md5);
+            fprintf(stderr, "    (pin a specific image with md5:<hash>)\n");
+        }
+        if (n > 0) entry = hits[0];
+    } else {
+        entry = floppydb_find_md5(selector);           // bare token: md5 first...
+        if (!entry) {                                   // ...then directory name.
+            const FloppyDbEntry *hits[1];
+            if (floppydb_find_directory(selector, hits, 1) > 0) entry = hits[0];
+        }
+    }
+
+    if (!entry) { fprintf(stderr, "[catalog] not found: %s\n", selector); return -2; }
+
+    // Map the ndlib is_smd flag to the machine's DRIVE_TYPE, then range-check the unit.
+    DRIVE_TYPE dt = entry->is_smd ? DRIVE_SMD : DRIVE_FLOPPY;
+    int max_units = entry->is_smd ? 4 : 3;
+    if (unit < 0 || unit >= max_units) return -1;
+
+    char url[256];
+    floppydb_image_url(entry, url, sizeof(url));
+
+    if (isMounted(dt, unit))
+        unmount_drive(dt, unit);                        // eject the old disk first
+
+    mount_drive(dt, unit, entry->md5, entry->name, "Catalog mount", url);
+
+    // mount_drive() is void and bails silently if the download failed; isMounted()
+    // is the reliable success signal (is_mounted is set only after a real load).
+    if (!isMounted(dt, unit)) {
+        fprintf(stderr, "[catalog] mount FAILED (no libcurl? offline?): %s\n", url);
+        return -4;
+    }
+    fprintf(stderr, "[catalog] mounted %s '%s' as %s unit %d (md5 %s)\n",
+            entry->is_smd ? "SMD" : "FLOPPY", entry->name,
+            entry->is_smd ? "SMD" : "floppy", unit, entry->md5);
+    return 0;
 }
 
 

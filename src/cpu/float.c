@@ -353,8 +353,19 @@ void DoDNZ(char scaling)
 
 	sh = (gT & 0x7FFF) - 16384 + (int)(signed char)scaling;
 	if (sh < 0) {
-		val = gA;
-		val >>= -sh;
+		/*
+		 * Right-shift the mantissa down to the integer.  A C shift by >= the
+		 * operand width (here -sh >= 32) is UNDEFINED BEHAVIOUR, and on real
+		 * ND hardware such a large downscale simply underflows the fixed-point
+		 * result to zero.  Guard the shift so deep underflow yields 0 instead
+		 * of garbage (matches the ND-100 microcode ZAD2 zero-path).
+		 */
+		if (-sh >= 32) {
+			val = 0;
+		} else {
+			val = gA;
+			val >>= -sh;
+		}
 	} else if (sh > 0) {
 		val = gA;
 		val <<= sh;
