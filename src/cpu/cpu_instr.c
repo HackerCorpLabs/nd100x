@@ -1435,6 +1435,17 @@ void cpu_versn_set_identity_from_env(void)
 	}
 }
 
+/*
+ * True when the emulated CPU is an ND-120 (any ND-120 variant). SINTRAN's SYSEVAL uses
+ * VERSN's T-register bit 15 to tell an ND-120 from an ND-110; this predicate drives that
+ * bit (see ndfunc_versn / the TRA CS path). Ported from the ND-120-support helper
+ * (commit 97c9961); adapted to this tree's CpuType enum, which carries only ND120CX.
+ */
+static bool versn_is_nd120(void)
+{
+	return (CurrentCPUType == ND120CX);
+}
+
 void ndfunc_versn(ushort operand)
 {
 	/*
@@ -1443,6 +1454,7 @@ void ndfunc_versn(ushort operand)
 	 * so index 15 read one byte past the end of the array.
 	 */
 	int offset = (gA >> 8) & 0x0F;
+	ushort a_in = gA; /* input A (PIL/offset selector) before VERSN overwrites it - for the trace below */
 
 	// Set D register to the back-wiring PROM byte at the specified offset
 	gD = g_versn.prom[offset];
@@ -1478,8 +1490,21 @@ void ndfunc_versn(ushort operand)
 		// Set A register with print version in upper 12 bits and preserve ALD in lower 4 bits
 		gA = (g_versn.print_version << 4) | (gALD & 0x0F);
 
-		// Set T register with microcode version
-		gT = g_versn.microcode_version;
+		// T register = microprogram version (bits 0-14) with bit 15 SET on an ND-120. SINTRAN's SYSEVAL
+		// distinguishes ND-120 from ND-110 by this bit ("IF T BIT 17 THEN ..."); it is NEVER configurable.
+		// On an ND-120/CX the if-branch above already forced T = 0x800C.
+		gT = (ushort)((g_versn.microcode_version & 0x7FFF) | (versn_is_nd120() ? 0x8000 : 0));
+	}
+
+	/* Diagnostic (ND100X_TRACE_VERSN=1): log every VERSN so an ND-110-vs-ND-120 boot can be diffed to see
+	 * why GCPUNR applies the PROM on one and not the other. Prints in octal: A_in (offset selector), the
+	 * PROM byte returned in D, and the assembled A / T. Off unless the env var is set. */
+	{
+		static int trace = -1;
+		if (trace < 0) trace = (getenv("ND100X_TRACE_VERSN") != NULL) ? 1 : 0;
+		if (trace)
+			fprintf(stderr, "[VERSN] A_in=%06o off=%2d PC=%06o -> D=%06o A=%06o T=%06o\n",
+			        a_in, offset, gPC, gD, gA, gT);
 	}
 }
 
@@ -3531,6 +3556,16 @@ void DoTRA(ushort instr)
 		// Unlock PEA and PES
 		gPEA_Lock = false;
 		gPES_Lock = false;
+		break;
+	case 017: /* TRA CS - read the writable control store (microprogram version). SINTRAN's LOCOSTORE
+	           * (PH-P2-RESTART.NPL: `X:=100; *150017; A=:MICVER`) reads the CPU's microcode version here
+	           * and compares bit 17 (bit 15) against the loaded microcode SEGMENT's CONVER: a 120 segment
+	           * on a non-120 CPU (or vice-versa) is a fatal "Mismatch CPU / micro-code-segm". Return octal
+	           * 023 (a revision >= SINTRAN's minimum 013 AND >= the on-disk segment rev, so LOCOSTORE takes
+	           * the NOTLOAD path instead of trying an IOX microcode download) with bit 15 SET on an ND-120
+	           * so it matches the ND-120 segment. nd100x has no real WCS; this mirrors RetroCore
+	           * ReadControlStore (commit 24ad44fd8). Without it an ND-120 aborts at RESTART.NPL 035551. */
+		gA = (ushort)(0x13 | (versn_is_nd120() ? 0x8000 : 0));
 		break;
 	default: /* These registers dont exist, so just return 0 for now FIXME: Check correct behaviour.*/
 			 // gA = 0;
