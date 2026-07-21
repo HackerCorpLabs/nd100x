@@ -197,7 +197,7 @@ A native Windows build is produced via **MinGW-w64** — either [w64devkit](http
 - `--debugger` (DAP server) is unavailable — `external/libdap` uses POSIX-only socket headers and hasn't been ported yet.
 - `--boot=aout` is unavailable — `external/libsymbols` needs the same treatment.
 - The F12 floppy-database browser is compiled out — it uses ncurses, which w64devkit doesn't ship. Use `--boot=bpun`, `--boot=floppy`, or `--boot=smd` with a local image instead.
-- `libcurl` is optional. If missing, HTTP image-URL loads fall back to stubs; local disk images still work. Install `mingw-w64-x86_64-curl` under MSYS2 to restore URL loads.
+- `libcurl` is optional but easy to get on w64devkit: run `make fetch-curl` (or let `make debug` do it automatically), which vendors a prebuilt MinGW libcurl into `external/curl/` and stages `libcurl-x64.dll` next to the exe — no MSYS2 needed. Without it, HTTP image-URL / catalog loads fall back to stubs; local disk images still work. (MSYS2 users can instead install `mingw-w64-x86_64-curl`.)
 
 BPUN, SMD, floppy boot and the telnet server all work natively on Windows.
 
@@ -298,6 +298,12 @@ Options:
   -O,      --overlay-deposit Deposit data_click at phys word 1 for kernel boot-info
   -R[N],   --ring-dump[=N]  Dump last N instructions on halt/crash (default: 50, max: 512)
   -Z[MHZ], --throttle[=MHZ] Throttle CPU to real-time speed (default: 0.5275 MHz)
+           --mms=N        MMU paging-system type: 1=MMS1 (NORD-10 / 4 page tables,
+                          for NORD TSS), 2=MMS2 (16 page tables, default).
+                          --mms1 / --mms2 are shorthands.
+           --pipe         Read the keyboard from stdin, unbuffered, for scripted
+                          automation over pipes (see docs/pipe-automation.md).
+                          Desktop builds only (not WASM / RISC-V).
   -h,      --help         Show this help message
 
 Examples:
@@ -417,6 +423,29 @@ While the emulator is running, press **F12** to open the floppy menu.
 * Terminal that supports F12 key
 
 Floppy database is available directly at <https://ndlib.hackercorp.no/>
+
+## Automation & the floppy catalog (`--pipe`)
+
+For scripted runs — automated installs, regression tests, CI — start the emulator with `--pipe` and drive it from Python with the pexpect-style helper `tools/nd100x_expect.py`:
+
+```python
+from nd100x_expect import Nd100x
+
+with Nd100x(boot="floppy", image="TPE.img", extra_args=["--mms1"]) as vm:
+    vm.expect("TPE>", timeout=60)
+    vm.send("PAGING-C02\r"); vm.expect("Test number", timeout=30)
+    vm.send("2\r")
+    vm.expect("End of test", abort=["ABORTED"])
+```
+
+The driver also reaches the **online floppy catalog** (the same database the F12 menu uses), so a script can search it, download an image by md5 or SINTRAN directory name, and hot-swap it into the running machine — e.g. to feed successive install floppies:
+
+```python
+vm.mount_catalog(0, md5="2cb9ffb6b37d367bc9d0426cb56fdfda")   # download + mount on unit 0
+hits = vm.catalog_matches(directory="N-10-102-I")            # md5 is unique; a dir name may repeat
+```
+
+Local files can be hot-swapped too (`vm.mount(unit, path)` / `vm.eject(unit)`), and the C side exposes the same catalog over the `--pipe` control channel (`dbmount` / `dblist`). Full guide and runnable examples: **`docs/pipe-automation.md`** and **`tools/examples/`** (`mount_catalog_demo.py`, `tpe_instruction_nd120.py`).
 
 ## Assembling your own programs
 
