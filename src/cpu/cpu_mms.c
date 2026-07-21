@@ -783,25 +783,51 @@ NDMemoryType GetPhysicalMemoryType(uint physicalWordAddress)
 // bad ECC even with bit 3 set), then clear bit 3 and READ back; a level-14 parity
 // interrupt => the bank has ECC => LOCAL, silence => MPM5. Only LOCAL ND-100 RAM
 // (KMECCR) carries ECC. 0x13 = SimBit0(1<<0) | SimBit15(1<<1) | SimBit6(1<<4).
+// Per-physical-word simulated bad-ECC latch (0 = good). MUST be per-address, not a
+// single global: see nd_ecc_write_latch. Lazily allocated on first simulated error.
+static uint8_t *gEccLatch = NULL;
+static long gEccLatchCount = 0; // number of latched words (hot-path gate)
+
 static void nd_ecc_write_latch(int physicalAddress)
 {
-    if ((gECCR & 0x13) == 0 && gECBits == 0) return; // hot path
+    // The three ECCR simulate bits packed as a byte: SimBit0(1<<0), SimBit15(1<<1), SimBit6(1<<4).
+    uint8_t bits = 0;
+    if ((gECCR & (1 << 0)) != 0) bits |= (1 << 0);
+    if ((gECCR & (1 << 1)) != 0) bits |= (1 << 1);
+    if ((gECCR & (1 << 4)) != 0) bits |= (1 << 4);
+
+    // Nothing armed and nothing latched anywhere -> hot path (common case).
+    if (bits == 0 && gEccLatchCount == 0) return;
+    if (physicalAddress < 0 || physicalAddress >= ND_Memsize) return;
     if (GetPhysicalMemoryType((uint)physicalAddress) != ND_MEM_LOCAL) return;
-    // STORE-ON-WRITE: latch regardless of DisableECC(bit 3).
-    gECBits = 0;
-    if ((gECCR & (1 << 0)) != 0) gECBits |= (1 << 0);
-    if ((gECCR & (1 << 1)) != 0) gECBits |= (1 << 1);
-    if ((gECCR & (1 << 4)) != 0) gECBits |= (1 << 4);
+
+    if (gEccLatch == NULL)
+    {
+        gEccLatch = (uint8_t *)calloc((size_t)ND_Memsize, 1);
+        if (gEccLatch == NULL) return;
+    }
+
+    // STORE-ON-WRITE, PER ADDRESS: a write recomputes THIS word's ECC - bad if a sim bit
+    // is armed, good (cleared) otherwise - regardless of DisableECC(bit 3), which only
+    // gates DETECTION on read. Per-address (not one global) so an unrelated read - e.g.
+    // an instruction FETCH between MEM's write and its read-back - can't consume it.
+    uint8_t prev = gEccLatch[physicalAddress];
+    gEccLatch[physicalAddress] = bits;
+    if (prev == 0 && bits != 0) gEccLatchCount++;
+    else if (prev != 0 && bits == 0) gEccLatchCount--;
 }
 
 static void nd_ecc_read_detect(int physicalAddress)
 {
-    if ((gECCR & 0x13) == 0 && gECBits == 0) return;   // hot path
-    if ((gECCR & (1 << 3)) != 0) return;               // DisableECC gates DETECTION only
+    if ((gECCR & 0x13) == 0 && gEccLatchCount == 0) return; // hot path
+    if ((gECCR & (1 << 3)) != 0) return;                    // DisableECC gates DETECTION only
+    if (physicalAddress < 0 || physicalAddress >= ND_Memsize) return;
     if (GetPhysicalMemoryType((uint)physicalAddress) != ND_MEM_LOCAL) return;
 
-    // Fire on EITHER a live simulate bit OR a latch from a prior local write.
-    uint16_t eff = (uint16_t)(gECCR | gECBits);
+    uint8_t latched = (gEccLatch != NULL) ? gEccLatch[physicalAddress] : 0;
+    // Fire on EITHER a live simulate bit (deterministic capture-on-read, TPE PAGING test 11)
+    // OR the per-address latch from a prior local write (MEM / SINTRAN CONFIG probe).
+    uint16_t eff = (uint16_t)((gECCR & 0x13) | latched);
     int eccBits = 0;
     if ((eff & (1 << 0)) != 0) eccBits++;
     if ((eff & (1 << 1)) != 0) eccBits++;
@@ -825,7 +851,12 @@ static void nd_ecc_read_detect(int physicalAddress)
     }
     setPEA(tmpPEA);
     setPES(tmpPES);
-    gECBits = 0; // consumed on detection
+    // Consume the per-address latch (the read corrects/clears that word's bad ECC).
+    if (latched != 0 && gEccLatch != NULL)
+    {
+        gEccLatch[physicalAddress] = 0;
+        gEccLatchCount--;
+    }
     interrupt(14, 1 << 8); // PTY - MEMORY_PARITY_ERROR bit 8
 }
 
