@@ -31,6 +31,7 @@ typedef enum {
     MENU_HDLC_STATUS,
     MENU_CPU_SPEED,
     MENU_CHARSET,
+    MENU_PANEL_SWITCHES,   // Operator's-panel switch register (OPR / TRA OPR) editor
     MENU_ABOUT,
     MENU_MESSAGE,
 } MenuMode;

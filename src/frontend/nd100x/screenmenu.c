@@ -41,6 +41,7 @@ static void draw_release_prompt(MenuState *state);
 static void draw_hdlc_status(void);
 static void draw_cpu_speed(void);
 static void draw_charset(void);
+static void draw_panel_switches(void);
 static void draw_about(void);
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static void draw_pending_list(void *telnetServer);
@@ -83,6 +84,9 @@ static void menu_set_mode(MenuState *state, MenuMode mode, void *telnetServer)
         break;
     case MENU_CHARSET:
         draw_charset();
+        break;
+    case MENU_PANEL_SWITCHES:
+        draw_panel_switches();
         break;
     case MENU_ABOUT:
         draw_about();
@@ -227,6 +231,56 @@ static void draw_charset(void)
     fflush(stdout);
 }
 
+// Operator's-panel switch register (OPR) editor. On a real ND-100 this is the
+// bank of 16 front-panel DATA switches read by the "TRA OPR" instruction; nd100x
+// has no physical panel so this screen edits gReg->reg_OPR directly. NORD TSS
+// samples OPR at cold start (131313 -> create SYSTEM user, TSS1.SYMB:3180) and
+// while running (111111 -> verbose disc-error diagnostics, TSS2.SYMB:577/585; and
+// on NORD-10 the low 15 bits select a memory word shown in the LEV4 register
+// block, TSS1.SYMB:4031). Full reference: docs/TSS-CONTROL-PANEL-SWITCHES.md.
+static void draw_panel_switches(void)
+{
+    uint16_t opr = (gReg != NULL) ? gOPR : 0;
+
+    printf("\033[2J\033[H");
+    printf("=== Control Panel Switches (OPR register / TRA OPR) ===\n\n");
+    printf("  The 16 operator's-panel DATA switches, read by 'TRA OPR'.\n");
+    printf("  NORD TSS samples this at cold start and while running.\n\n");
+
+    printf("  Current OPR = %06o (octal)   0x%04X   %u (dec)\n\n",
+           opr, opr, (unsigned)opr);
+
+    // 16-bit switch display, bit 15 (MSB) down to bit 0 (LSB).
+    printf("  bit:");
+    for (int b = 15; b >= 0; b--) printf(" %2d", b);
+    printf("\n  sw :");
+    for (int b = 15; b >= 0; b--) printf("  %c", (opr & (1u << b)) ? '1' : '0');
+    printf("\n\n");
+
+    // Decode against the exact values NORD TSS tests (see the doc + source refs).
+    printf("  TSS meaning of the current value:\n");
+    if (opr == 0131313)
+        printf("    131313 -> COLD START: create the SYSTEM user (SINIT/CRUSE)\n");
+    else if (opr == 0111111)
+        printf("    111111 -> verbose disc-error diagnostics (XDISK error path)\n");
+    else if (opr == 025252)
+        printf("    025252 -> (NORD-1 only) panel memory examine/deposit tool\n");
+    else if (opr == 0)
+        printf("    000000 -> normal run (no cold-start action)\n");
+    else
+        printf("    (no special cold-start action; on NORD-10 the low 15 bits\n"
+               "     select the memory word shown in the LEV4 register display)\n");
+
+    printf("\n  Keys:\n");
+    printf("    [0-7] shift an octal digit into OPR (builds right-to-left)\n");
+    printf("    [C]   clear OPR to 000000\n");
+    printf("    [S]   set 131313  (cold start: create the SYSTEM user)\n");
+    printf("    [D]   set 111111  (verbose disc-error diagnostics)\n");
+    printf("    [ESC] Back\n");
+    printf("\n  Takes effect the next time TSS executes 'TRA OPR'.\n");
+    fflush(stdout);
+}
+
 static void draw_f12(void)
 {
     printf("\033[2J\033[H");
@@ -236,8 +290,9 @@ static void draw_f12(void)
     printf("  [3] HDLC Status\n");
     printf("  [4] CPU Speed\n");
     printf("  [5] Character Set  (local console: %s)\n", charset_name(charset_get()));
+    printf("  [6] Control Panel Switches  (OPR = %06o)\n", (unsigned)((gReg != NULL) ? gOPR : 0));
     printf("  [A] About\n");
-    printf("\nPress 1-5/A to select, ESC to cancel: ");
+    printf("\nPress 1-6/A to select, ESC to cancel: ");
     fflush(stdout);
 }
 
@@ -642,6 +697,8 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
             menu_set_mode(state, MENU_CPU_SPEED, telnetServer);
         } else if (ch == '5') {
             menu_set_mode(state, MENU_CHARSET, telnetServer);
+        } else if (ch == '6') {
+            menu_set_mode(state, MENU_PANEL_SWITCHES, telnetServer);
         } else if (ch == 'a' || ch == 'A') {
             menu_set_mode(state, MENU_ABOUT, telnetServer);
         }
@@ -841,6 +898,29 @@ void menu_process_key(MenuState *state, const KeyEvent *key, void *telnetServer)
             charset_set((CharsetVariant)(ch - '1'));
             // Repaint in place so the new selection + mappings show immediately
             draw_charset();
+        }
+        break;
+
+    // ----- Operator's-panel switch register (OPR) editor -----
+    // Edits gReg->reg_OPR live; TSS sees it on its next "TRA OPR". Digits shift in
+    // from the right just like keying the physical ND panel data switches.
+    case MENU_PANEL_SWITCHES:
+        if (is_esc) {
+            menu_set_mode(state, MENU_F12, telnetServer);
+        } else if (gReg != NULL) {
+            if (ch >= '0' && ch <= '7') {
+                gOPR = (uint16_t)(((gOPR << 3) | (uint16_t)(ch - '0')) & 0xFFFFu);
+                draw_panel_switches();
+            } else if (ch == 'c' || ch == 'C') {
+                gOPR = 0;              // clear all switches
+                draw_panel_switches();
+            } else if (ch == 's' || ch == 'S') {
+                gOPR = 0131313;        // cold start: create the SYSTEM user (SINIT)
+                draw_panel_switches();
+            } else if (ch == 'd' || ch == 'D') {
+                gOPR = 0111111;        // verbose disc-error diagnostics (XDISK)
+                draw_panel_switches();
+            }
         }
         break;
 
