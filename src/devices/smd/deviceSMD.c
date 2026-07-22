@@ -1356,7 +1356,12 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     dev->interruptLevel = 11; // disk
     dev->endAddress = dev->startAddress + 7;
 
-    printf("SMD Device object created.\n");
+    // Match the Floppy DMA line shape: name+instance, then Address[lo-hi] (octal),
+    // Ident code (octal), Level (decimal). Values come from THIS instance's real
+    // configured fields (set per thumbwheel above), not literals - so the 1540/1550/
+    // 540/550 slots each print their own address range / ident / level.
+    printf("SMD [%s] Device object created. Address[%o-%o] Ident code: [%o] Level: [%d]\n",
+           dev->memoryName, dev->startAddress, dev->endAddress, dev->identCode, dev->interruptLevel);
 
     return dev;
 }

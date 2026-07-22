@@ -50,7 +50,8 @@ void DeviceManager_Init(LogLevel level)
     deviceManager.minLogLevel = level;
     Log_SetMinLevel(level);
 
-    Log(LOG_INFO, "Initializing device manager (min log level: %s)\n", level_str[level]);
+    // silenced: user wants a clean boot banner (WARN/ERROR still logged)
+    // Log(LOG_INFO, "Initializing device manager (min log level: %s)\n", level_str[level]);
 
     deviceManager.deviceCapacity = INITIAL_DEVICE_CAPACITY;
     deviceManager.deviceCount = 0;
@@ -59,7 +60,8 @@ void DeviceManager_Init(LogLevel level)
     {
         // Zero initialize the device array
         memset(deviceManager.devices, 0, sizeof(DeviceInfo) * INITIAL_DEVICE_CAPACITY);
-        Log(LOG_INFO, "Successfully allocated device array with capacity %d\n", deviceManager.deviceCapacity);
+        // silenced: user wants a clean boot banner (WARN/ERROR still logged)
+        // Log(LOG_INFO, "Successfully allocated device array with capacity %d\n", deviceManager.deviceCapacity);
     }
     else
     {
@@ -122,8 +124,13 @@ void DeviceManager_AddAllDevices(void)
     // Add the SMD at octal 1540-1547
     DeviceManager_AddDevice(DEVICE_TYPE_DISC_SMD, 0);
 
-    // Add the NORD TSS swapping drum at octal 540-547
-    DeviceManager_AddDevice(DEVICE_TYPE_DRUM, 0);
+    // The NORD TSS swapping drum (octal 540-547) is NOT added here. Like the CDC
+    // and the SCSI controller, it is now GATED: installed only when a --drum image
+    // (or the .ini drum= key) was given, via the conditional block in nd100x.c after
+    // machine_init. Adding it unconditionally put an ident-less card at 540 that
+    // tripped the normal-boot device probe ("No identcode found on level 11D ...
+    // Device number 000540B"). Default boot therefore installs no drum.
+    // DeviceManager_AddDevice(DEVICE_TYPE_DRUM, 0);
 
     // Note: HDLC device is added conditionally via DeviceManager_AddHDLCDevice()
     // based on command line configuration
@@ -403,6 +410,16 @@ int DeviceManager_Ident(uint16_t level)
             uint16_t id = Device_Ident(dev, level);
             if (id > 0)
             {
+                // IDENT is the ND-100 interrupt ACKNOWLEDGE: identifying the
+                // highest-priority device on this level clears ITS interrupt
+                // request, so the level de-asserts. (If another device on the
+                // same level is still pending, a subsequent IDENT services it.)
+                // Without this, a device that raised a level kept the request
+                // asserted after being serviced, so its level handler re-fired
+                // forever - e.g. NORD TSS's LEV12 console-input handler did
+                // "IDENT PL12 ... WAIT; JMP LEV12", and the terminal kept
+                // re-asserting level 12 after each char, starving LOGON.
+                dev->interruptBits &= ~(1 << level);
                 return id;
             }
         }
