@@ -114,6 +114,12 @@ void debugger_update_jpl_entrypoint(uint16_t ea);
 _NDRAM_ VolatileMemory;
 CpuType CurrentCPUType;
 
+// Installed main-memory size in 16-bit WORDS. Default 4 MB (4 MW = 2097152 words);
+// overridden at start-up by --memory / the .ini memory= key (range 1..16 MB). The
+// backing VolatileMemory array is always the 16 MB maximum; this caps how much is
+// actually installed/visible (see the `addr >= ND_Memsize` guards in cpu_mms.c).
+uint32_t ND_Memsize = 4u * ND_WORDS_PER_MB;   // 2097152 words
+
 
 struct CpuRegs *gReg = NULL;
 

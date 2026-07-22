@@ -960,11 +960,40 @@ void ndfunc_versn(ushort operand)
 	// Set D register to the installation number byte at the specified offset
 	gD = installation_number[offset];
 
-	// Set A register with print version in upper 12 bits and preserve ALD in lower 4 bits
-	gA = (print_version << 4) | (gALD & 0x0F);
+	// ND-120/CX identity. Reapplied verbatim (constants + citations) from the validated
+	// session-windows-work implementation; RetroCore CpuND100.Default*-aligned and TPE-validated.
+	// The A register is a BIT-FIELD, NOT a flat print_version - the old `print_version << 4 | ALD`
+	// produced A = 0x80C0 whose bits 15-13 = 100, which TPE cannot decode ("Print number: ????").
+	// The ND-120 DELILAH-L microcode (ND-120-DELILAH-L.LISTING.txt:128-129) and the CPU board 3202
+	// straps (IO_REG_41.v:121-130) assemble A (post-XOR, i.e. what the guest sees) as:
+	//   bits 15-13 PRINT NUMBER  = 5   (101 binary => board print 3202)
+	//   bits 12-8  ECO LEVEL     = 20  (straps 6,8,9 fitted)
+	//   bit  7     CX/high-speed = 1   (CX fitted => "Cpu cycle: Fast")
+	//   bits 6-4   PRINT RELEASE = 4   (100 binary => release "D")
+	//   bits 3-0   ALD switch code
+	// This is what makes TPE print a real "Print number: 3202" / "Print release: D" for the ND-120.
+	if (CurrentCPUType == ND120CX)
+	{
+		gA = (ushort)(((5  & 0x07) << 13)   /* PRINT NUMBER  = 5  => 3202 */
+		            | ((20 & 0x1F) << 8)    /* ECO LEVEL     = 20 (straps 6,8,9) */
+		            | (1           << 7)    /* CX/high-speed = 1 */
+		            | ((4  & 0x07) << 4)    /* PRINT RELEASE = 4  => "D" */
+		            | (gALD & 0x0F));
 
-	// Set T register with microcode version
-	gT = microcode_version;
+		// T = microprogram version bits 0-14 (octal 14 = 0x000C = DELILAH-L "L") with bit 15 SET for
+		// the ND-120. SINTRAN's SYSEVAL distinguishes ND-120 from ND-110 by this bit ("IF T BIT 17
+		// THEN ..."); it is NEVER configurable - the CPU type always wins. 0x800C = octal 100014,
+		// which TPE prints as "100014B".
+		gT = 0x800C;
+	}
+	else
+	{
+		// Set A register with print version in upper 12 bits and preserve ALD in lower 4 bits
+		gA = (print_version << 4) | (gALD & 0x0F);
+
+		// Set T register with microcode version
+		gT = microcode_version;
+	}
 }
 
 
@@ -1016,8 +1045,17 @@ void ndfunc_iot(ushort operand)
 	if (!CheckPriv())
 		return;
 
-	/* for now handle it as illegal instruction */
-	illegal_instr(operand);
+	// IOT is the NORD-10 I/O-transfer instruction. Its low 11 bits are the same
+	// device/function field as IOX (opcode 0160000 vs 0164000; both mask 0x07ff),
+	// so route it through the identical device dispatch. NORD TSS's teletype
+	// scanner (LEV6, TSS1.SYMB:2673) issues "IOT ACT DIABD+2/+3" every 80 ms to
+	// poke the Diablo terminal (device 156); with no such device attached, io_op
+	// raises the IOX-error interrupt (level 14, IIC 7 = EIOX), which TSS's own
+	// LEV14 handler counts and ignores (TSS1.SYMB:4294). Treating IOT as an
+	// illegal instruction instead (the old stub) trapped IIC 4 -> ILLS -> TRAP
+	// and spun TSS in an infinite trap loop, blocking LOGON.
+	if (!UpdateMemoryIO())
+		gA = io_op(operand & 0x07ff, gA);
 }
 
 /* IOX (Privileged)
@@ -2460,6 +2498,20 @@ void DoIDENT(ushort priolevel)
 {
 
 	int id = IO_Ident(priolevel);
+
+	// IDENT is the ND-100 interrupt ACKNOWLEDGE for this level. Identifying the
+	// device (IO_Ident / Terminal_Ident) already cleared that device's own
+	// request; clear the CPU's pending bit (gPID) for the level too so the
+	// CPU-level latch tracks it. If ANOTHER device on the same level is still
+	// asserting, the next IO_Tick re-sets gPID via device_interrupt() and a later
+	// IDENT services it. Without this a device that raised then de-asserted (e.g.
+	// a terminal after its char is read) left gPID's level bit stuck set, so the
+	// level handler re-fired forever with IDENT returning 0 - which is exactly
+	// how NORD TSS's LEV12 ("IDENT PL12 ... WAIT; JMP LEV12") spun and starved
+	// LOGON of CPU time.
+	gPID &= ~(1 << priolevel);
+	gCHKIT = true; // recompute PK / do a level switch on the next step
+
 	if (id >= 0)
 	{
 		gA = id & 0xFFFF;
@@ -3409,6 +3461,9 @@ void Setup_Instructions()
 	case ND110CE:
 	case ND110CX:
 	case ND110PCX:
+	case ND120CX:    /* ND-120 is instruction-set-identical to the ND-110/CX (VERSN + the 140133 / */
+	                 /* 140500-140517 / 14070x ND-110 groups). Without VERSN here it traps illegal, */
+	                 /* and TPE cannot read the ND-120/CX identity. Reapplied from session-windows-work. */
 		Instruction_Add(0140133, &ndfunc_versn); /* VERSN - ND110+ */
 		break;
 	default:
@@ -3431,6 +3486,7 @@ void Setup_Instructions()
 	case ND110CE:
 	case ND110CX:
 	case ND110PCX:
+	case ND120CX:    /* ND-120 is instruction-set-identical to the ND-110/CX - same ND-110 opcode group. */
 		// ALL are priveleged!
 		Instruction_Add(0140500, &unimplemented_instr); /* WGLOB - ND110 Specific */
 		Instruction_Add(0140501, &unimplemented_instr); /* RGLOB - ND110 Specific */
@@ -3462,6 +3518,7 @@ void Setup_Instructions()
 	case ND110CE:
 	case ND110CX:
 	case ND110PCX:
+	case ND120CX:    /* ND-120 is instruction-set-identical to the ND-110/CX - same ND-110 opcode group. */
 		// ALL are priveleged!
 		Instruction_Add(0140700, &unimplemented_instr); /* LASB - ND110 Specific */
 		Instruction_Add(0140701, &unimplemented_instr); /* SASB - ND110 Specific */

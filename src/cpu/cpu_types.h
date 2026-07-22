@@ -256,11 +256,18 @@ extern InstrFunc instr_funcs[65536];
 /* Lets use the full 16MWord space now (32MB ram in host)*/
 //#define MEMPTSIZE 16384
 
-// Lets just use 4MW (8MB) for now.. seems like 'CONFIG' is having some strange issues with 16MW (32MB) - at least detection is saying  "Total memory size....: 65504.000 Mbytes"
-#define MEMPTSIZE 1024*2
+// Backing store is sized to the MAXIMUM supported memory (8 MWords = 16 MBytes,
+// the top of the byte-addressable space). The amount actually INSTALLED is the
+// runtime variable ND_Memsize (see below), configurable 1..16 MB via --memory /
+// memory=<MB>. MEMPTSIZE is in KWords: 8192 KW = 8 MW = 8388608 words = 16 MB.
+// (Old note: MEMPTSIZE 16384 = 16 MW = 32 MB tripped a 'CONFIG' detection bug
+// "Total memory size....: 65504.000 Mbytes"; capping the INSTALLED size via
+// ND_Memsize - not the backing array - is what keeps CONFIG's probe correct.)
+#define MEMPTSIZE 8192
 
 /* Volatile Memory
- * Fixed to MEMPTSIZE KWords for now.
+ * Backing store fixed at MEMPTSIZE KWords (the 16 MB maximum); the installed
+ * size that the CPU/probe honour is ND_Memsize.
  */
 typedef union ndram {
 	unsigned char	c_Array[MEMPTSIZE*1024*2];
@@ -269,9 +276,20 @@ typedef union ndram {
 } _NDRAM_ ;
 
 
-// Maximum memory size (8 MWords / 16 MBytes)
-// Note: Max memory could be 16MW/32MB with 24-bit addressing, but this configuration is not commonly used
-#define ND_Memsize	(sizeof(VolatileMemory)/sizeof(ushort))
+// Installed main-memory size, in 16-bit WORDS. Runtime-configurable 1..16 MB
+// (words = MB * 524288); DEFAULT 4 MB = 2097152 words. Set ONCE at start-up
+// (from --memory / the .ini memory= key) BEFORE any ND_Memsize-dependent
+// allocation (ECC latch, MMS), and never changed afterwards. Every physical
+// access guards on `addr >= ND_Memsize` so the extra backing above the installed
+// size reads as unmapped (MOR) - which is how the memory-size probe stops here.
+extern uint32_t ND_Memsize;
+
+// Absolute maximum installed size (words) = the whole backing array. Used to
+// bound-check a configured value at start-up.
+#define ND_MEMSIZE_MAX_WORDS	((uint32_t)(MEMPTSIZE*1024))
+
+// Words per megabyte: 1 MB = 1048576 bytes = 524288 words.
+#define ND_WORDS_PER_MB		524288u
 
 
 /*
