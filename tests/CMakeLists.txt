@@ -1,19 +1,23 @@
 # Printer module unit tests
+#
+# POSIX-only: the printer tests use mkdtemp, which MinGW does not provide, so
+# they are skipped on Windows (see the note in the root CMakeLists.txt).
+if(NOT PLATFORM_WINDOWS)
+    add_executable(test_printer
+        test_printer_main.c
+        test_pdfwriter.c
+        test_escp.c
+        test_printjob.c
+    )
 
-add_executable(test_printer
-    test_printer_main.c
-    test_pdfwriter.c
-    test_escp.c
-    test_printjob.c
-)
+    target_link_libraries(test_printer PRIVATE ndlib m)
 
-target_link_libraries(test_printer PRIVATE ndlib m)
+    target_include_directories(test_printer PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/ndlib
+    )
 
-target_include_directories(test_printer PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/ndlib
-)
-
-add_test(NAME printer_tests COMMAND test_printer)
+    add_test(NAME printer_tests COMMAND test_printer)
+endif()
 
 # HDLC module unit tests
 
@@ -142,3 +146,27 @@ target_link_libraries(test_cdc PRIVATE m)
 add_dependencies(test_cdc devices)
 
 add_test(NAME cdc_tests COMMAND test_cdc)
+# CPU packed-decimal (BCD) instruction tests
+#
+# bcd.c is linked in DIRECTLY (not via libcpu) together with fake
+# MemoryRead/MemoryWrite and a fake register file provided by test_bcd.c, so the
+# decimal engine is exercised through its real ndfunc_* entry points without
+# pulling in the machine, the devices or a disk image.
+add_executable(test_bcd
+    test_bcd.c
+    ${CMAKE_SOURCE_DIR}/src/cpu/bcd.c
+)
+
+target_include_directories(test_bcd PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/cpu
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+)
+
+target_link_libraries(test_bcd PRIVATE m)
+
+if(PLATFORM_WINDOWS)
+    # cpu_types.h pulls in windows.h and timeBeginPeriod() for sleep_ms().
+    target_link_libraries(test_bcd PRIVATE winmm)
+endif()
+
+add_test(NAME bcd_tests COMMAND test_bcd)

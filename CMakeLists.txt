@@ -249,9 +249,14 @@ else()
     add_subdirectory(src/frontend/nd100x)
 endif()
 
-# Add test subdirectory (only for native non-Windows builds — the printer
-# tests use POSIX mkdtemp which has no MinGW equivalent without further work).
-if(NOT (BUILD_WASM OR BUILD_RISCV OR PLATFORM_WINDOWS))
+# Add test subdirectory for every NATIVE build (Windows included).
+#
+# Windows used to be excluded wholesale because the printer tests use POSIX
+# mkdtemp, which has no MinGW equivalent without further work. That also hid
+# the CPU tests from the only platform most of this is developed on, so the
+# per-test guard now lives in tests/CMakeLists.txt instead: only test_printer
+# is skipped on Windows, everything else (test_hdlc, test_bcd) builds and runs.
+if(NOT (BUILD_WASM OR BUILD_RISCV))
     enable_testing()
     add_subdirectory(tests)
 endif()
