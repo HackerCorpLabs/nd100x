@@ -331,6 +331,73 @@ void dump_stats()
     }
 }
 
+// Map a --cputype=TYPE name (case-insensitive) to a CpuType enum value.
+// Returns true and writes *out on a match; false on an unknown name.
+// Kept in lock-step with the CpuType enum in src/cpu/cpu_types.h.
+static bool cpu_type_from_name(const char *name, CpuType *out)
+{
+    static const struct { const char *name; CpuType type; } table[] = {
+        {"ND1",      ND1},
+        {"ND4",      ND4},
+        {"ND10",     ND10},
+        {"ND100",    ND100},
+        {"ND100CE",  ND100CE},
+        {"ND100CX",  ND100CX},
+        {"ND110",    ND110},
+        {"ND110CE",  ND110CE},
+        {"ND110CX",  ND110CX},
+        {"ND110PCX", ND110PCX},
+        {"ND120CX",  ND120CX},
+    };
+    if (!name) return false;
+    for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
+        if (strcasecmp(name, table[i].name) == 0) {
+            if (out) *out = table[i].type;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Human-readable display name for a CpuType, in the same "ND-nnn/xx" form TPE and
+// CONFIGURATION print, so the boot-time [INFO] line matches what the guest reports.
+// Falls back to "ND?" for an unexpected value (should never happen).
+static const char *cpu_type_display_name(CpuType t)
+{
+    switch (t) {
+    case ND1:       return "ND-1";
+    case ND4:       return "ND-4";
+    case ND10:      return "ND-10";
+    case ND100:     return "ND-100";
+    case ND100CE:   return "ND-100/CE";
+    case ND100CX:   return "ND-100/CX";
+    case ND110:     return "ND-110";
+    case ND110CE:   return "ND-110/CE";
+    case ND110CX:   return "ND-110/CX";
+    case ND110PCX:  return "ND-110/PCX";
+    case ND120CX:   return "ND-120/CX";
+    default:        return "ND?";
+    }
+}
+
+// Apply a --cputype=TYPE override to CurrentCPUType. MUST run BEFORE machine_init
+// (-> cpu_init -> Setup_Instructions), which reads CurrentCPUType to decide which
+// opcodes to install (VERSN, the ND-110-only privileged instructions, RTNSIM on
+// ND110PCX). An unknown name is a hard, clearly-reported error (exit 1) rather than
+// a silent fall-back to the default model.
+static void apply_cputype_override(const char *name)
+{
+    if (!name) return;
+    CpuType t;
+    if (!cpu_type_from_name(name, &t)) {
+        fprintf(stderr,
+            "Invalid --cputype '%s'. Valid values: ND1, ND4, ND10, ND100, ND100CE, "
+            "ND100CX, ND110, ND110CE, ND110CX, ND110PCX, ND120CX\n", name);
+        exit(1);
+    }
+    CurrentCPUType = t;
+}
+
 /// @brief Initialize the emulator. Add devices and load program
 
 void initialize()
@@ -362,21 +429,56 @@ void initialize()
 	// MMS2 = 16 page tables). Default MMS2 keeps SINTRAN / every existing machine byte-identical.
 	mmsType = (config.mmsType == 1) ? MMS1 : MMS2;
 
-	// Register the TSS drum backing image (if any) BEFORE machine_init, which
-	// runs DeviceManager_AddAllDevices() -> CreateDrumDevice().
-	if (config.drumFile) {
-		DrumDevice_SetBackingFile(config.drumFile);
-	}
+	// Install main memory size BEFORE machine_init -> cpu_init (which lazily sizes the
+	// ECC latch calloc(ND_Memsize,...) and the MMS shadow), and before the boot banner
+	// below, so all of them see the configured size. words = MB * 524288; range 1..16 MB
+	// was already validated by --memory / the .ini memory= key. Bounded by the physical
+	// backing array as a belt-and-braces guard (the option parsers already enforce <=16).
+	ND_Memsize = (uint32_t)config.memoryMB * ND_WORDS_PER_MB;
+	if (ND_Memsize > ND_MEMSIZE_MAX_WORDS)
+		ND_Memsize = ND_MEMSIZE_MAX_WORDS;
+
+	// Resolve the CPU model BEFORE machine_init, so Setup_Instructions() inside cpu_init
+	// sees the selected model when it gates VERSN / ND-110 opcodes. With no --cputype the
+	// built-in default is ND-100/CX - the identity the (hardcoded) VERSN path reports and
+	// what TPE/CONFIGURATION prints. Without this, CurrentCPUType is a zero-initialised
+	// global (== ND1), which would mislabel the boot line as "ND-1" even though the machine
+	// presents itself as ND-100/CX. ND-100/CX and ND1 register the SAME instruction set
+	// (only the ND110* models gate extra opcodes), so this default is behaviour-neutral for
+	// execution - it only makes the reported label consistent.
+	if (config.cpuType == NULL)
+		CurrentCPUType = ND100CX;
+	apply_cputype_override(config.cpuType);
+
+	// Boot banner: LEAD the output with a clean, standalone CPU + memory line (NOT
+	// [INFO]-prefixed), printed BEFORE the first device is created (device creation
+	// happens inside machine_init below, and the noisy device-manager [INFO] lines are
+	// silenced). Reflects the resolved CpuType (--cputype / default) and the installed
+	// ND_Memsize just set above. ND_Memsize is in 16-bit WORDS; a word is 2 bytes, so the
+	// Mbyte figure is words*2/1MiB - the same "Total memory size" CONFIGURATION reports.
+	printf("CPU: %s   Memory: %.3f Mbytes (%u words)\n",
+	       cpu_type_display_name(CurrentCPUType),
+	       (double)ND_Memsize * 2.0 / (1024.0 * 1024.0),
+	       (unsigned)ND_Memsize);
 
 	machine_init(config.debuggerEnabled, config.debuggerPort);
 
-	// Add the NORD TSS CDC cartridge system disc @ IOX 500-507 ONLY when a --cdc
-	// image was given, so the 500 slot stays empty otherwise (it never pre-empts
-	// a future Winchester). The backing file MUST be set before CreateCdcDevice
+	// Add the NORD TSS CDC cartridge system disc @ IOX 500-507 ONLY when a --cdc image
+	// (or the .ini cdc= key) was given, so the 500 slot stays empty otherwise (it never
+	// pre-empts a future Winchester). The backing file MUST be set before CreateCdcDevice
 	// runs, hence the setter call immediately before AddDevice.
 	if (config.cdcFile) {
 		CdcDevice_SetBackingFile(config.cdcFile);
 		DeviceManager_AddDevice(DEVICE_TYPE_CDC, 0);
+	}
+
+	// Add the NORD TSS swapping drum @ IOX 540-547 ONLY when a --drum image (or the .ini
+	// drum= key) was given - gated exactly like the CDC above. Default boot installs no
+	// drum, so the empty 540 slot no longer trips the device probe's "No identcode found
+	// on level 11D ... Device number 000540B" error. Backing file set before AddDevice.
+	if (config.drumFile) {
+		DrumDevice_SetBackingFile(config.drumFile);
+		DeviceManager_AddDevice(DEVICE_TYPE_DRUM, 0);
 	}
 
 	if (g_useMachineConfig) {
@@ -437,6 +539,17 @@ void initialize()
 	if (config.startAddress != 0) {
 		STARTADDR = (ushort)config.startAddress;
 		gPC = STARTADDR;
+	}
+
+	// --opr: preset the operator's-panel switch register (what "TRA OPR" returns).
+	// Real ND-100 reads the 16 front-panel data switches here; nd100x has none, so
+	// we inject the value. MUST run AFTER program_load()/cpu_reset() (cpu_reset does
+	// memset(gReg,0,...), which would otherwise wipe it). NORD TSS reads this at its
+	// cold start: 131313 (octal) triggers SINIT -> create the SYSTEM user. Also live-
+	// editable at run time via the F12 menu (Control Panel Switches). See
+	// docs/TSS-CONTROL-PANEL-SWITCHES.md.
+	if (config.oprSet && gReg) {
+		gOPR = config.opr;
 	}
 
 	/* Direct input/output enabled */
@@ -773,6 +886,15 @@ int main(int argc, char *argv[])
             cpu_throttle_set_enabled(true);
             cpu_throttle_set_mhz(rt->throttle_mhz);
         }
+        // NORD TSS optional devices: install from the .ini drum=/cdc= keys unless the
+        // matching --drum/--cdc flag already supplied a path (CLI wins). Both feed the
+        // SAME config.drumFile/cdcFile the CLI sets, so the "install only when non-NULL"
+        // gate in initialize() turns them on. Default (neither) leaves both OFF.
+        if (!config.drumFile && rt->drum[0]) config.drumFile = strdup(rt->drum);
+        if (!config.cdcFile  && rt->cdc[0])  config.cdcFile  = strdup(rt->cdc);
+        // Installed memory: the .ini memory= key applies only when --memory was NOT given
+        // on the CLI (memorySet), so the CLI value wins.
+        if (!config.memorySet && rt->memory_mb) config.memoryMB = rt->memory_mb;
     }
 
     if (config.debuggerEnabled) {

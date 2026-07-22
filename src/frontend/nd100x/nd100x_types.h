@@ -95,6 +95,23 @@ typedef struct {
     int mmsType;         // --mms1/--mms2/--mms=N: 1=MMS1 (NORD-10/4 page tables), 2=MMS2 (16 PT, default)
     char *drumFile;      // --drum: NORD TSS swapping-drum image file (@ IOX 540)
     char *cdcFile;       // --cdc:  NORD TSS CDC cartridge system-disc image (@ IOX 500-507)
+    // --cputype=TYPE: selected CPU model name (e.g. "ND120CX"). NULL = keep the
+    // built-in default. Applied to CurrentCPUType in nd100x.c BEFORE machine_init
+    // (Setup_Instructions reads CurrentCPUType to gate VERSN / ND-110 opcodes).
+    char *cpuType;
+    // --memory=MB / .ini memory=MB: installed main memory in megabytes (1..16,
+    // default 4). Applied to ND_Memsize (= MB * 524288 words) BEFORE machine_init.
+    // memorySet records whether the CLI flag was given, so the .ini value only
+    // applies when the flag was not (CLI wins, mirroring drum/cdc/telnet).
+    int  memoryMB;
+    bool memorySet;
+    // Operator's-panel switch register preset (--opr). On real ND-100 this is the
+    // 16 front-panel data switches read by "TRA OPR"; nd100x has no physical panel,
+    // so this presets gReg->reg_OPR. NORD TSS reads it at cold start: 131313 (octal)
+    // creates the SYSTEM user (SINIT), 111111 = verbose disc-error diagnostics, and
+    // on NORD-10 the low 15 bits select a memory word shown in the LEV4 display.
+    bool oprSet;         // --opr given: preset the panel switch register
+    uint16_t opr;        // --opr=OCTAL value (see docs/TSS-CONTROL-PANEL-SWITCHES.md)
     PrinterType_t printerType;   // --printer= option (default: PRINTER_TEXT)
     PrintFormat_t printFormat;    // --printformat= option (default: PRINT_FORMAT_TXT)
     CharsetVariant charset;       // --charset= option: local-console national 7-bit charset (default: CHARSET_OFF)

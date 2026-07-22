@@ -83,6 +83,9 @@ static struct option long_options[] = {
     {"mms2",       no_argument,       0, 0x108}, // --mms2 : 16-page-table MMS (default)
     {"drum",       required_argument, 0, 0x104}, // --drum=FILE : NORD TSS swapping-drum image @ IOX 540
     {"cdc",        required_argument, 0, 0x105}, // --cdc=FILE  : NORD TSS CDC cartridge system-disc @ IOX 500
+    {"opr",        required_argument, 0, 0x109}, // --opr=OCTAL : preset operator's-panel switch register (TRA OPR)
+    {"cputype",    required_argument, 0, 0x150}, // --cputype=TYPE : select the emulated CPU model (see Config_PrintHelp)
+    {"memory",     required_argument, 0, 0x151}, // --memory=MB : installed main memory in megabytes (1..16, default 4)
     {0, 0, 0, 0}
 };
 
@@ -125,6 +128,11 @@ void Config_Init(Config_t *config) {
     config->mmsType = 2;       // --mms: default MMS2 (16 page tables); SINTRAN/existing machines unchanged
     config->drumFile = NULL;   // --drum: NORD TSS swapping-drum image (@ IOX 540); no drum image by default
     config->cdcFile = NULL;    // --cdc:  NORD TSS CDC cartridge system-disc image (@ IOX 500); none by default
+    config->cpuType = NULL;    // --cputype: NULL keeps the built-in default CPU model (no override)
+    config->memoryMB = 4;      // --memory: installed main memory in MB (default 4 MB = 2097152 words)
+    config->memorySet = false; // whether --memory was given on the CLI (CLI wins over the .ini memory= key)
+    config->oprSet = false;    // --opr: operator's-panel switch register preset (TRA OPR); unset -> power-on 0
+    config->opr = 0;
     config->telnetPort = 9000;
     config->watchCount = 0;
     config->printerType = PRINTER_TEXT;
@@ -618,6 +626,50 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 break;
             }
 
+            case 0x150: {   /* --cputype=TYPE : select the emulated CPU model (ND100, ND110CX, ND120CX, ...).
+                             * Stored verbatim; the string->CpuType mapping and validation happen in the
+                             * frontend (nd100x.c) BEFORE machine_init, because Setup_Instructions() reads
+                             * CurrentCPUType to decide which opcodes (VERSN, ND-110 specials) to install. */
+                config->cpuType = strdup(optarg);
+                if (!config->cpuType) {
+                    fprintf(stderr, "Failed to allocate memory for cputype\n");
+                    return false;
+                }
+                break;
+            }
+
+            case 0x151: {   /* --memory=MB : installed main memory in megabytes, integer 1..16 (default 4).
+                             * No silent clamp / no silent default on bad input - reject and fail, same as
+                             * --cputype / --opr. Applied to ND_Memsize (= MB * 524288 words) in nd100x.c
+                             * BEFORE machine_init, ahead of the ECC latch / MMS allocations. */
+                char *memEnd;
+                long mb = strtol(optarg, &memEnd, 10);
+                if (*memEnd != '\0' || mb < 1 || mb > 16) {
+                    fprintf(stderr, "Invalid --memory value '%s' (expect an integer 1..16, in megabytes; "
+                                    "e.g. --memory=4)\n", optarg);
+                    return false;
+                }
+                config->memoryMB = (int)mb;
+                config->memorySet = true;
+                break;
+            }
+
+            case 0x109: {   /* --opr=OCTAL : preset the operator's-panel switch register (TRA OPR).
+                             * ND panel switches are always read/quoted in OCTAL, so parse base 8
+                             * (NOT base 0). NORD TSS cold-start uses 131313 (create SYSTEM user),
+                             * 111111 (verbose disc-error diagnostics); range is a 16-bit word. */
+                char *oprEnd;
+                long v = strtol(optarg, &oprEnd, 8);
+                if (*oprEnd != '\0' || v < 0 || v > 0177777L) {
+                    fprintf(stderr, "Invalid --opr value '%s' (expect octal 0..177777, "
+                                    "e.g. --opr=131313)\n", optarg);
+                    return false;
+                }
+                config->opr = (uint16_t)v;
+                config->oprSet = true;
+                break;
+            }
+
             case 0x120: /* --config / --ini */
                 config->iniFile = strdup(optarg);
                 if (!config->iniFile) {
@@ -754,6 +806,20 @@ void Config_PrintHelp(const char *progName) {
     printf("           --scsi-debug   Enable SCSI disk controller debug log (stderr)\n");
     printf("           --drum=FILE    NORD TSS swapping-drum image @ IOX 540\n");
     printf("           --cdc=FILE     NORD TSS CDC cartridge system-disc image @ IOX 500\n");
+    printf("           --opr=OCTAL    Preset operator's-panel switches (TRA OPR); e.g. --opr=131313\n");
+    printf("                          (NORD TSS: 131313=create SYSTEM user, 111111=disc-error diag)\n");
+    printf("           --cputype=TYPE Select the emulated CPU model (case-insensitive). Valid values:\n");
+    printf("                            ND1, ND4, ND10,\n");
+    printf("                            ND100, ND100CE, ND100CX,\n");
+    printf("                            ND110, ND110CE, ND110CX, ND110PCX,\n");
+    printf("                            ND120CX\n");
+    printf("                          (default: built-in; with no flag the machine reports as\n");
+    printf("                          ND-100/CX). VERSN and the ND-110-only instructions are\n");
+    printf("                          enabled only for the ND110* models.\n");
+    printf("                          e.g. --cputype=ND120CX\n");
+    printf("           --memory=MB    Installed main memory in megabytes: integer 1..16\n");
+    printf("                          (default: 4). 1 MB = 524288 words (4 MB = 2097152).\n");
+    printf("                          Also settable via the .ini 'memory = MB' key.\n");
     printf("           --bsd-debug    Track BSD kernel-stack high-water (KSTKHW, stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");

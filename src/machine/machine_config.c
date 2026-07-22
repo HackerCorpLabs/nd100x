@@ -150,6 +150,9 @@ void MachineConfig_InitBaseline(MachineConfig *cfg)
     str_copy(cfg->runtime.charset, sizeof(cfg->runtime.charset), "off");
     cfg->runtime.debugger_port = 0;
     cfg->runtime.trace         = false;
+    cfg->runtime.drum[0]       = '\0';   /* no drum unless drum= (or --drum) given */
+    cfg->runtime.cdc[0]        = '\0';   /* no CDC  unless cdc=  (or --cdc)  given */
+    cfg->runtime.memory_mb     = 0;      /* unset -> default 4 MB (or whatever --memory set) */
 
     (void)_mc_unused_iox;
 }
@@ -603,6 +606,22 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
             } else if (str_ieq(keyl, "trace")) {
                 int b = parse_bool(val);
                 cfg->runtime.trace = (b == 1);
+            } else if (str_ieq(keyl, "drum")) {
+                /* NORD TSS swapping-drum image path; feeds config.drumFile (same as --drum). */
+                str_copy(cfg->runtime.drum, MC_PATH_LEN, val);
+            } else if (str_ieq(keyl, "cdc")) {
+                /* NORD TSS CDC system-disc image path; feeds config.cdcFile (same as --cdc). */
+                str_copy(cfg->runtime.cdc, MC_PATH_LEN, val);
+            } else if (str_ieq(keyl, "memory")) {
+                /* Installed main memory in MB, integer 1..16 (same range as --memory). Reject
+                 * non-integer / out-of-range - no silent clamp. */
+                char *ep; long mb = strtol(val, &ep, 10);
+                if (*ep != '\0' || mb < 1 || mb > 16) {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[runtime] memory = %s: must be an integer 1..16 (megabytes).", val);
+                }
+                cfg->runtime.memory_mb = (int)mb;
             } else {
                 fclose(f);
                 return mc_err(err, errlen, path, lineno,
@@ -847,6 +866,9 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
     if (cfg->runtime.tapedir[0])    fprintf(f, "tapedir = %s\n", cfg->runtime.tapedir);
     if (cfg->runtime.debugger_port) fprintf(f, "debugger = %d\n", cfg->runtime.debugger_port);
     if (cfg->runtime.trace)         fprintf(f, "trace = on\n");
+    if (cfg->runtime.drum[0])       fprintf(f, "drum = %s\n", cfg->runtime.drum);
+    if (cfg->runtime.cdc[0])        fprintf(f, "cdc = %s\n", cfg->runtime.cdc);
+    if (cfg->runtime.memory_mb)     fprintf(f, "memory = %d\n", cfg->runtime.memory_mb);
 
     fclose(f);
     return true;

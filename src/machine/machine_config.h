@@ -87,6 +87,11 @@ typedef struct {
     char   tapedir[MC_PATH_LEN];
     int    debugger_port;   /* 0 = off */
     bool   trace;
+    /* NORD TSS optional devices, OFF by default. A non-empty path installs the
+     * device (same gate as the --drum / --cdc CLI options, which override these). */
+    char   drum[MC_PATH_LEN];   /* swapping-drum image  (@ IOX 540); "" = no drum */
+    char   cdc[MC_PATH_LEN];    /* CDC system-disc image (@ IOX 500); "" = no CDC */
+    int    memory_mb;           /* installed main memory in MB (1..16); 0 = unset (use default/CLI) */
 } MC_Runtime;
 
 typedef struct {
