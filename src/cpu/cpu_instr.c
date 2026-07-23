@@ -4036,18 +4036,19 @@ void DoIDENT(ushort priolevel)
 
 	int id = IO_Ident(priolevel);
 
-	// IDENT is the ND-100 interrupt ACKNOWLEDGE for this level. Identifying the
-	// device (IO_Ident / Terminal_Ident) already cleared that device's own
-	// request; clear the CPU's pending bit (gPID) for the level too so the
-	// CPU-level latch tracks it. If ANOTHER device on the same level is still
-	// asserting, the next IO_Tick re-sets gPID via device_interrupt() and a later
-	// IDENT services it. Without this a device that raised then de-asserted (e.g.
-	// a terminal after its char is read) left gPID's level bit stuck set, so the
-	// level handler re-fired forever with IDENT returning 0 - which is exactly
-	// how NORD TSS's LEV12 ("IDENT PL12 ... WAIT; JMP LEV12") spun and starved
-	// LOGON of CPU time.
-	gPID &= ~(1 << priolevel);
-	gCHKIT = true; // recompute PK / do a level switch on the next step
+	// IDENT is the ND-100 interrupt ACKNOWLEDGE for this level. IO_Ident /
+	// Terminal_Ident already clears the identified device's own request, and the
+	// CPU's pending-interrupt latch (gPID) is recomputed from LIVE device requests
+	// by the IO_Tick / device_interrupt() path - so IDENT must NOT force-clear gPID
+	// or force a level switch here.
+	//
+	// HISTORY (do NOT re-add): a NORD-TSS-motivated change once did
+	//     gPID &= ~(1 << priolevel);  gCHKIT = true;
+	// on every IDENT to stop a TSS LEV12 ("IDENT PL12 ... WAIT; JMP LEV12") spin.
+	// That STALLED interrupt servicing for every other guest: TPE INSTRUCTION hung
+	// immediately after loading (never ran a test level) and SINTRAN III never
+	// reached RUNNING - both boot correctly without it. The TSS LEV12 problem must
+	// be solved without breaking IDENT for everyone else.
 
 	if (id >= 0)
 	{
