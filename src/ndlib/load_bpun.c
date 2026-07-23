@@ -31,6 +31,21 @@
 extern void disasm_addword(uint16_t addr, uint16_t myword);
 extern int DISASM;
 
+/* Most-recently parsed BPUN header, captured on every successful LoadBPUN().
+ * LoadBPUN()'s return value is only the (obsolete) bootstrap-loader "boot"
+ * address; callers that need the real program entry ("start") or the "action"
+ * autostart flag read them here. See GetLastBPUNHeader(). */
+static BPUN_Header s_last_bpun_header;
+static bool        s_last_bpun_valid = false;
+
+/* Copy the last successfully parsed BPUN header into *out.
+ * Returns false (and leaves *out untouched) if no BPUN has loaded yet. */
+bool GetLastBPUNHeader(BPUN_Header* out) {
+    if (!s_last_bpun_valid || !out) return false;
+    *out = s_last_bpun_header;
+    return true;
+}
+
 int LoadBPUN(const char* filename, bool verbose) {
     BPUN_Header bpun = {0};
     uint8_t hi = 0;
@@ -77,6 +92,11 @@ int LoadBPUN(const char* filename, bool verbose) {
     
         printf("FloMon: %d\n", bpun.isFloMon);
     }
+
+    /* Capture the full header so callers can read the real program entry
+     * (bpun.start) and the autostart flag (bpun.action). */
+    s_last_bpun_header = bpun;
+    s_last_bpun_valid  = true;
 
 	return bpun.boot;
 }

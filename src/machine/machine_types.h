@@ -35,9 +35,10 @@
 
 typedef enum {    
     BOOT_NONE = 0,
-    BOOT_BPUN, 
+    BOOT_BPUN,
     BOOT_AOUT,
     BOOT_BP,
+    BOOT_PROG,
     BOOT_FLOPPY,
     BOOT_SMD,
     BOOT_SCSI

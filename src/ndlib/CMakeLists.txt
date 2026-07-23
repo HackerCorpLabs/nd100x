@@ -32,6 +32,7 @@ add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND cat ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos_preamble.h > ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/load_bpun.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/load_prog.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/ndlib.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/log.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/download.c >> ${CMAKE_CURRENT_SOURCE_DIR}/ndlib_protos.h

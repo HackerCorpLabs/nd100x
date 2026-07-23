@@ -91,6 +91,25 @@ typedef struct
     bool isFloMon;               /* Is this FloMon format (floppy-boot sector) */
 } BPUN_Header;
 
+// ** PROG (SINTRAN :PROG loadable image) **
+// 512-byte header block: 6 big-endian 16-bit words, then padding.
+//   Bank 1 data starts at file offset 512.
+//   For 2-bank images a second header block starts at file offset 0x20000
+//   (131072) and Bank 2 data at 0x20200 (131584); Bank 2 is meant to be reached
+//   through the ALTERNATIVE page table (the program issues MON ALTON).
+//   A 1-bank image has firstBank2 == 0xFFFF and lastBank2 == 0x0000 (no data)
+//   and omits the second header/data section.
+typedef struct
+{
+    uint16_t startAddress;   /* entry point (P register) */
+    uint16_t restartAddress; /* restart entry */
+    uint16_t firstBank1;     /* first word address of Bank 1 image */
+    uint16_t lastBank1;      /* last  word address of Bank 1 image */
+    uint16_t firstBank2;     /* first word address of Bank 2 image (0xFFFF if none) */
+    uint16_t lastBank2;      /* last  word address of Bank 2 image (0x0000 if none) */
+    bool     twoBank;        /* true when a Bank 2 image is present */
+} PROG_Header;
+
 typedef enum {
     LoadState_Preamble,
     LoadState_Address,

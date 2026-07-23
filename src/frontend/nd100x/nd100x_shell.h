@@ -34,13 +34,22 @@
  * - Basic file operations
  */
 
+/* Return codes from nd100x_shell_run() */
+#define SHELL_RESULT_EXIT   0   /* user quit the shell (EXIT / EOF) - stop the emulator */
+#define SHELL_RESULT_ERROR (-1) /* script execution failed */
+#define SHELL_RESULT_RUN    2   /* a program was loaded and armed (gPC=STARTADDR,        */
+                                /* CPU_RUNNING); the caller should hand control to the   */
+                                /* normal machine run loop to execute it                 */
+
 /**
  * Run the interactive shell
  *
  * @param nd100Root Directory to search for BPUN/PROG files (NULL = use current dir)
  * @param scriptPath Path to script file to execute (NULL = no script)
  *
- * @return 0 on success, -1 on error
+ * @return SHELL_RESULT_EXIT on clean quit, SHELL_RESULT_ERROR on error, or
+ *         SHELL_RESULT_RUN when the user asked to run a loaded program (the
+ *         caller must then drive the machine run loop).
  */
 int nd100x_shell_run(const char *nd100Root, const char *scriptPath);
 

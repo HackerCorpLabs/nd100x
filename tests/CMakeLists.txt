@@ -172,14 +172,55 @@ endif()
 add_test(NAME bcd_tests COMMAND test_bcd)
 
 # Shell unit tests
+#
+# test_shell.c #includes the REAL src/frontend/nd100x/nd100x_shell.c so the
+# file-static command functions are tested exactly as shipped; program_load()
+# and the gReg register file are stubbed inside the test, so no machine/CPU
+# library is linked. HAVE_READLINE is intentionally left undefined so the shell
+# uses its plain-fgets input path.
 add_executable(test_shell
     test_shell.c
 )
 
 target_include_directories(test_shell PRIVATE
     ${CMAKE_SOURCE_DIR}/src/frontend/nd100x
+    ${CMAKE_SOURCE_DIR}/src/machine
     ${CMAKE_SOURCE_DIR}/src/cpu
     ${CMAKE_SOURCE_DIR}/src/ndlib
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}
 )
 
+target_link_libraries(test_shell PRIVATE m)
+
+if(PLATFORM_WINDOWS)
+    # cpu_types.h pulls in windows.h and timeBeginPeriod() for sleep_ms().
+    target_link_libraries(test_shell PRIVATE winmm)
+endif()
+
 add_test(NAME shell_tests COMMAND test_shell)
+
+# :PROG loader unit tests
+#
+# test_load_prog.c #includes the REAL src/ndlib/load_prog.c and stubs
+# WritePhysicalMemory + the disasm hook, so the header parse and bank load math
+# are tested without the machine or CPU.
+add_executable(test_load_prog
+    test_load_prog.c
+)
+
+target_include_directories(test_load_prog PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+    ${CMAKE_SOURCE_DIR}/src/cpu
+    ${CMAKE_SOURCE_DIR}/src/machine
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}
+)
+
+target_link_libraries(test_load_prog PRIVATE m)
+
+if(PLATFORM_WINDOWS)
+    target_link_libraries(test_load_prog PRIVATE winmm)
+endif()
+
+add_test(NAME load_prog_tests COMMAND test_load_prog)

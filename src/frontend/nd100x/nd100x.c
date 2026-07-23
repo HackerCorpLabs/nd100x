@@ -1103,12 +1103,33 @@ int main(int argc, char *argv[])
 
     // Run the interactive shell if enabled
     if (config.shellEnabled) {
+        // The machine setup put the tty in cbreak/raw mode (VMIN=0,VTIME=0) for
+        // the emulated terminal - in that mode read() returns instantly with no
+        // bytes, so the shell's fgets/readline would see immediate EOF and quit.
+        // The shell is a line-oriented REPL, so run it in cooked/canonical mode
+        // (echo + line editing), the same way the nd500x monitor does. Restore
+        // cbreak afterwards is unnecessary because we exit right after.
+        unsetcbreak();
+        setvbuf(stdout, NULL, _IOLBF, 0);
         printf("\n=== ND-100 Interactive Shell Mode ===\n");
         int shell_result = nd100x_shell_run(config.nd100Root, config.scriptPath);
-        if (shell_result < 0) {
-            fprintf(stderr, "Shell exited with error\n");
+        if (shell_result == SHELL_RESULT_RUN) {
+            // RUN-PROGRAM loaded an image and armed the CPU (gPC=STARTADDR,
+            // CPU_RUNNING). Restore cbreak/raw + unbuffered stdout for the
+            // emulated terminal, then fall through to the normal machine run
+            // loop below so the program executes with the full terminal I/O,
+            // menu and telnet plumbing. When it halts the emulator exits, the
+            // same as a normal --image boot.
+            setcbreak();
+            setvbuf(stdout, NULL, _IONBF, 0);
+            // (fall through - do NOT return)
+        } else {
+            if (shell_result < 0) {
+                fprintf(stderr, "Shell exited with error\n");
+            }
+            // EXIT / EOF: leave the terminal in cooked mode on the way out.
+            return EXIT_SUCCESS;
         }
-        return EXIT_SUCCESS;
     }
 
     // Run the machine until it stops

@@ -581,6 +581,22 @@ void autoMountDrives()
         STARTADDR = bootAddress;
 #endif
         break;
+    case BOOT_PROG:
+        /* SINTRAN :PROG loadable image. LoadPROG() writes the Bank 1 image to
+         * physical memory and returns the program start address. Unlike BPUN,
+         * the entry is the real start address (no separate boot/action fields). */
+        bootAddress = LoadPROG(imageFile, verbose);
+        if (bootAddress < 0)
+        {
+            printf("Error loading PROG file '%s'\n", imageFile);
+#ifdef __EMSCRIPTEN__
+            return -1;
+#else
+            exit(1);
+#endif
+        }
+        STARTADDR = bootAddress;
+        break;
      case BOOT_FLOPPY:
         // Record mount state for UI/menus; device still boots via BPUN for now
          mount_floppy(imageFile,0);

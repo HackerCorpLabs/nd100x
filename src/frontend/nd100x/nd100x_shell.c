@@ -23,6 +23,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <sys/stat.h>
 
 #include "nd100x_shell.h"
@@ -169,6 +170,84 @@ static int cmd_list_files(const char *nd100Root, int argc, char **argv) {
 }
 
 /**
+ * Join a directory and a name into out, collapsing a trailing '/' on dir so we
+ * never emit a doubled slash (e.g. "/mnt/d/ND/BPUN//mac.bpun").
+ */
+static void join_path(char *out, size_t out_sz, const char *dir, const char *name) {
+    size_t dlen = strlen(dir);
+    if (dlen > 0 && dir[dlen - 1] == '/') {
+        snprintf(out, out_sz, "%s%s", dir, name);
+    } else {
+        snprintf(out, out_sz, "%s/%s", dir, name);
+    }
+}
+
+/**
+ * Resolve a user-typed program name to an actual regular file in dir.
+ *
+ * Matching (case-insensitive, so "run mac" finds "MAC.BPUN"):
+ *   rank 0: the directory entry equals the typed name exactly
+ *   rank 1: entry base name equals the typed name and entry ends in .bpun
+ *   rank 2: entry base name equals the typed name and entry ends in .prog
+ * The lowest rank wins. If the typed name already resolves to a readable file
+ * (e.g. on a case-insensitive host FS), that is used directly.
+ *
+ * Returns true and fills out[] with the full path on success; false otherwise.
+ */
+static bool resolve_program_file(const char *dir, const char *name,
+                                 char *out, size_t out_sz) {
+    /* 1. Exact path as typed - covers absolute names and case-insensitive FS. */
+    char cand[512];
+    join_path(cand, sizeof(cand), dir, name);
+    struct stat st;
+    if (stat(cand, &st) == 0 && S_ISREG(st.st_mode)) {
+        snprintf(out, out_sz, "%s", cand);
+        return true;
+    }
+
+    /* 2. Scan the directory for a case-insensitive match, optionally supplying
+     *    a .bpun / .prog extension the user omitted. */
+    DIR *d = opendir(dir);
+    if (!d) return false;
+
+    char best[256] = "";
+    int best_rank = 99;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        /* Some filesystems report DT_UNKNOWN; accept those and let the final
+         * stat() below reject non-files. */
+        if (e->d_type != DT_REG && e->d_type != DT_UNKNOWN) continue;
+
+        int rank = 99;
+        if (strcasecmp(e->d_name, name) == 0) {
+            rank = 0;
+        } else {
+            const char *dot = strrchr(e->d_name, '.');
+            if (dot) {
+                size_t base_len = (size_t)(dot - e->d_name);
+                if (base_len == strlen(name) &&
+                    strncasecmp(e->d_name, name, base_len) == 0) {
+                    if (strcasecmp(dot, ".bpun") == 0) rank = 1;
+                    else if (strcasecmp(dot, ".prog") == 0) rank = 2;
+                }
+            }
+        }
+        if (rank < best_rank) {
+            best_rank = rank;
+            snprintf(best, sizeof(best), "%s", e->d_name);
+        }
+    }
+    closedir(d);
+
+    if (best_rank == 99) return false;
+
+    join_path(cand, sizeof(cand), dir, best);
+    if (stat(cand, &st) != 0 || !S_ISREG(st.st_mode)) return false;
+    snprintf(out, out_sz, "%s", cand);
+    return true;
+}
+
+/**
  * Load and run a BPUN program file
  */
 static int cmd_run_program(const char *nd100Root, int argc, char **argv) {
@@ -181,32 +260,92 @@ static int cmd_run_program(const char *nd100Root, int argc, char **argv) {
     const char *filename = argv[1];
     const char *search_dir = nd100Root ? nd100Root : ".";
 
-    /* Build full path */
+    /* Resolve the typed name to a real file. "run mac" -> "MAC.BPUN". */
     char filepath[512];
-    snprintf(filepath, sizeof(filepath), "%s/%s", search_dir, filename);
+    if (!resolve_program_file(search_dir, filename, filepath, sizeof(filepath))) {
+        fprintf(stderr, "No such program: '%s' in %s\n", filename, search_dir);
+        fprintf(stderr, "Use LIST-FILES to see available programs.\n");
+        return -1;   /* CPU is NOT armed - shell stays at the prompt */
+    }
+
+    /* Hard pre-check: program_load()/LoadBPUN() print an error but return 0 on
+     * a failed fopen (STARTADDR stays 0), so their return value cannot be
+     * trusted to gate execution. Verify the file is actually readable here so
+     * we never arm the CPU on a file we could not open. */
+    FILE *probe = fopen(filepath, "rb");
+    if (!probe) {
+        fprintf(stderr, "Cannot open '%s': %s\n", filepath, strerror(errno));
+        return -1;
+    }
+    fclose(probe);
 
     printf("Loading %s...\n", filepath);
 
-    /* Determine file type by extension */
-    const char *ext = strrchr(filename, '.');
-    int boot_type = BOOT_BPUN;
+    /* Determine file type by extension. */
+    const char *ext = strrchr(filepath, '.');
+    bool is_prog = (ext && strcasecmp(ext, ".prog") == 0);
 
-    if (ext && strcasecmp(ext, ".prog") == 0) {
-        printf("Note: PROG files require compilation (not yet implemented)\n");
-        boot_type = BOOT_BPUN;
+    if (is_prog) {
+        /* SINTRAN :PROG loadable image. program_load() writes the Bank 1 image
+         * and sets STARTADDR to the real entry; the entry also comes from the
+         * header via GetLastPROGHeader(). :PROG has no BPUN-style action field -
+         * it always autostarts at its start address. */
+        program_load(BOOT_PROG, 0, filepath, true, 0, false);
+
+        PROG_Header phdr;
+        if (!GetLastPROGHeader(&phdr)) {
+            fprintf(stderr, "Could not read :PROG header - not running.\n");
+            return -1;
+        }
+        if (phdr.twoBank) {
+            /* Bank 2 needs the alternative page table, not yet mapped. */
+            fprintf(stderr, "This is a 2-bank :PROG - only Bank 1 is loaded; "
+                            "Bank 2 (alt page table) is not yet supported.\n");
+        }
+
+        gPC = phdr.startAddress;
+        set_cpu_run_mode(CPU_RUNNING);
+        printf("Starting at 0o%o - handing control to the ND-100...\n\n",
+               phdr.startAddress);
+        return SHELL_RESULT_RUN;
     }
 
-    /* Load the file */
-    int boot_addr = program_load(boot_type, 0, filepath, true, 0, false);
-    if (boot_addr < 0) {
-        fprintf(stderr, "Failed to load program\n");
+    /* Otherwise treat as :BPUN. LoadBPUN() returns only the obsolete
+     * bootstrap-loader "boot" address, which is NOT the program entry
+     * (e.g. MAC.BPUN has boot=0 but its real entry is start=0164316). The
+     * fopen pre-check above guards the file-not-found case; a genuinely corrupt
+     * image makes LoadBPUN() return -1, which program_load() turns into exit(1). */
+    program_load(BOOT_BPUN, 0, filepath, true, 0, false);
+
+    /* Per the :BPUN format: the program entry is the "start" field; the
+     * "action" field controls autostart - if action == 0 execution begins at
+     * start, otherwise the CPU stays in OPCOM (halted) with P = start. Read the
+     * real header (program_load left STARTADDR = boot, which is wrong here). */
+    BPUN_Header hdr;
+    if (!GetLastBPUNHeader(&hdr)) {
+        fprintf(stderr, "Could not read BPUN header - not running.\n");
         return -1;
     }
 
-    printf("Program loaded at entry point: 0o%o\n", boot_addr);
-    printf("(CPU execution not yet integrated with shell)\n");
+    gPC = hdr.start;   /* the real program entry (P register) */
 
-    return 0;
+    if (hdr.action != 0) {
+        /* Non-autostart image: leave the CPU halted with P = start, like a
+         * real ND-100 would sit in OPCOM. Stay at the shell prompt. */
+        set_cpu_run_mode(CPU_STOPPED);
+        printf("Loaded. Action=0o%o (non-autostart): P set to 0o%o, CPU held.\n",
+               hdr.action, hdr.start);
+        printf("Use the debugger to run it, or load an autostart image.\n");
+        return 0;
+    }
+
+    /* Autostart (action == 0): enter at start and mark the CPU runnable, then
+     * hand control back to the caller (main), which drives the real machine
+     * run loop - reusing all terminal I/O, menu and telnet plumbing. */
+    set_cpu_run_mode(CPU_RUNNING);
+    printf("Starting at 0o%o - handing control to the ND-100...\n\n", hdr.start);
+
+    return SHELL_RESULT_RUN;
 }
 
 /**
@@ -339,6 +478,10 @@ static int execute_script(const char *nd100Root, const char *script_path) {
         printf("%s %s\n", SHELL_PROMPT, line);
         int result = execute_command(nd100Root, line);
         if (result == 1) break;  /* EXIT command */
+        if (result == SHELL_RESULT_RUN) {  /* RUN-PROGRAM armed the CPU */
+            fclose(f);
+            return SHELL_RESULT_RUN;
+        }
         if (result < 0) {
             fprintf(stderr, "Script error at line %d\n", line_num);
             fclose(f);
@@ -367,6 +510,9 @@ int nd100x_shell_run(const char *nd100Root, const char *scriptPath) {
     if (scriptPath) {
         printf("Loading script: %s\n\n", scriptPath);
         int result = execute_script(nd100Root, scriptPath);
+        if (result == SHELL_RESULT_RUN) {
+            return SHELL_RESULT_RUN;  /* script launched a program */
+        }
         if (result < 0) {
             fprintf(stderr, "Script execution failed\n");
             return -1;
@@ -387,7 +533,16 @@ int nd100x_shell_run(const char *nd100Root, const char *scriptPath) {
 
         int result = execute_command(nd100Root, line);
         if (result == 1) {
+#ifdef HAVE_READLINE
+            free(line);
+#endif
             break;  /* EXIT command */
+        }
+        if (result == SHELL_RESULT_RUN) {
+#ifdef HAVE_READLINE
+            free(line);
+#endif
+            return SHELL_RESULT_RUN;  /* hand control to the machine run loop */
         }
 
 #ifdef HAVE_READLINE
