@@ -16,3 +16,6 @@
 [submodule "template-glass/external/norskdata-ndfs"]
 	path = template-glass/external/norskdata-ndfs
 	url = https://github.com/HackerCorpLabs/norskdata-ndfs.git
+[submodule "external/ndmonlib"]
+	path = external/ndmonlib
+	url = https://github.com/HackerCorpLabs/ndmonlib.git
