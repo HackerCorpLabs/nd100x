@@ -153,6 +153,9 @@ void MachineConfig_InitBaseline(MachineConfig *cfg)
     cfg->runtime.drum[0]       = '\0';   /* no drum unless drum= (or --drum) given */
     cfg->runtime.cdc[0]        = '\0';   /* no CDC  unless cdc=  (or --cdc)  given */
     cfg->runtime.memory_mb     = 0;      /* unset -> default 4 MB (or whatever --memory set) */
+    cfg->runtime.shell_enabled = false;  /* interactive shell disabled by default */
+    cfg->runtime.nd100_root[0] = '\0';   /* empty -> use current dir */
+    cfg->runtime.script[0]     = '\0';   /* no script file unless script= given */
 
     (void)_mc_unused_iox;
 }
@@ -622,6 +625,16 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
                         "[runtime] memory = %s: must be an integer 1..16 (megabytes).", val);
                 }
                 cfg->runtime.memory_mb = (int)mb;
+            } else if (str_ieq(keyl, "shell")) {
+                /* Interactive shell mode (--monitor / --shell equivalent) */
+                int b = parse_bool(val);
+                cfg->runtime.shell_enabled = (b == 1);
+            } else if (str_ieq(keyl, "nd100_root")) {
+                /* Directory for BPUN/PROG files in shell mode */
+                str_copy(cfg->runtime.nd100_root, MC_PATH_LEN, val);
+            } else if (str_ieq(keyl, "script")) {
+                /* Script file to execute in shell mode */
+                str_copy(cfg->runtime.script, MC_PATH_LEN, val);
             } else {
                 fclose(f);
                 return mc_err(err, errlen, path, lineno,
@@ -869,6 +882,9 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
     if (cfg->runtime.drum[0])       fprintf(f, "drum = %s\n", cfg->runtime.drum);
     if (cfg->runtime.cdc[0])        fprintf(f, "cdc = %s\n", cfg->runtime.cdc);
     if (cfg->runtime.memory_mb)     fprintf(f, "memory = %d\n", cfg->runtime.memory_mb);
+    if (cfg->runtime.shell_enabled) fprintf(f, "shell = on\n");
+    if (cfg->runtime.nd100_root[0]) fprintf(f, "nd100_root = %s\n", cfg->runtime.nd100_root);
+    if (cfg->runtime.script[0])     fprintf(f, "script = %s\n", cfg->runtime.script);
 
     fclose(f);
     return true;

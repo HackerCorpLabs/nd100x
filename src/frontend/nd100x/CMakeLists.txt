@@ -2,6 +2,7 @@
 set(SOURCES
     config.c
     nd100x.c
+    nd100x_shell.c
     screenmenu.c
     vscreen.c
     charset.c

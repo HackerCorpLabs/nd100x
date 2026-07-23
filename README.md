@@ -27,6 +27,30 @@ make release
 build_release/bin/nd100x --boot=smd
 ```
 
+## Interactive Shell (NEW)
+
+Load and run BPUN files directly from the command line without the GUI:
+
+```bash
+# Quick start: load programs from a directory
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun/files
+
+# In the shell:
+@ LIST-FILES *.bpun          # Browse available programs
+@ RUN-PROGRAM kernel.bpun    # Load and run
+@ SHOW-REGISTERS             # Inspect CPU state
+@ EXIT                       # Leave shell
+```
+
+**Features:**
+- ✅ CLI-driven BPUN loading (no GUI required)
+- ✅ Batch automation via scripts (`--script`)
+- ✅ INI file configuration (`[runtime]` section)
+- ✅ Readline support (history, editing)
+- ✅ Works on headless systems and CI/CD
+
+**Documentation:** See **[SHELL_MODULE.md](docs/SHELL_MODULE.md)** for comprehensive guide, API reference, and examples. Quick-start examples at **[SHELL_EXAMPLES.md](SHELL_EXAMPLES.md)**.
+
 ## Origins
 
 This project (nd100x) is a fork of nd100em, started in 2025 by Ronny Hansen.

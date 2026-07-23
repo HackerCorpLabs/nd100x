@@ -124,6 +124,10 @@ typedef struct {
         char *address;       // IP/hostname for client mode (NULL for server)
         int port;            // TCP port
     } hdlc[MAX_HDLC_DEVICES];
+    // Interactive shell mode (--monitor / --shell)
+    bool shellEnabled;       // --monitor or --shell: enable interactive shell mode
+    char *nd100Root;         // --nd100-root: directory containing BPUN/PROG files (default: current dir)
+    char *scriptPath;        // --script: path to script file with shell commands
 } Config_t;
 
 #endif // CONFIG_H 

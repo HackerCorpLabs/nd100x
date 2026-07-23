@@ -92,6 +92,10 @@ typedef struct {
     char   drum[MC_PATH_LEN];   /* swapping-drum image  (@ IOX 540); "" = no drum */
     char   cdc[MC_PATH_LEN];    /* CDC system-disc image (@ IOX 500); "" = no CDC */
     int    memory_mb;           /* installed main memory in MB (1..16); 0 = unset (use default/CLI) */
+    /* Interactive shell options (CLI flag overrides INI value) */
+    bool   shell_enabled;       /* enable interactive shell mode */
+    char   nd100_root[MC_PATH_LEN];  /* directory for BPUN/PROG files; "" = current dir */
+    char   script[MC_PATH_LEN];      /* script file to load in shell; "" = none */
 } MC_Runtime;
 
 typedef struct {

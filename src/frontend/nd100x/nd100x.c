@@ -74,6 +74,7 @@ void stop_debugger_thread();
 #include "../../ndlib/printjob.h"
 
 #include "screenmenu.h"
+#include "nd100x_shell.h"
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 #include "../../ndlib/telnetserver.h"
@@ -895,6 +896,16 @@ int main(int argc, char *argv[])
         // Installed memory: the .ini memory= key applies only when --memory was NOT given
         // on the CLI (memorySet), so the CLI value wins.
         if (!config.memorySet && rt->memory_mb) config.memoryMB = rt->memory_mb;
+        // Interactive shell: CLI --monitor/--shell wins; INI shell= applies if CLI didn't set it
+        if (!config.shellEnabled && rt->shell_enabled) {
+            config.shellEnabled = true;
+        }
+        if (!config.nd100Root && rt->nd100_root[0]) {
+            config.nd100Root = strdup(rt->nd100_root);
+        }
+        if (!config.scriptPath && rt->script[0]) {
+            config.scriptPath = strdup(rt->script);
+        }
     }
 
     if (config.debuggerEnabled) {
@@ -1089,6 +1100,16 @@ int main(int argc, char *argv[])
 
     // Initialize the menu state machine
     menu_init(&menuState, screens, screenCount, &activeScreen);
+
+    // Run the interactive shell if enabled
+    if (config.shellEnabled) {
+        printf("\n=== ND-100 Interactive Shell Mode ===\n");
+        int shell_result = nd100x_shell_run(config.nd100Root, config.scriptPath);
+        if (shell_result < 0) {
+            fprintf(stderr, "Shell exited with error\n");
+        }
+        return EXIT_SUCCESS;
+    }
 
     // Run the machine until it stops
     CPURunMode runMode = get_cpu_run_mode();

@@ -86,6 +86,10 @@ static struct option long_options[] = {
     {"opr",        required_argument, 0, 0x109}, // --opr=OCTAL : preset operator's-panel switch register (TRA OPR)
     {"cputype",    required_argument, 0, 0x150}, // --cputype=TYPE : select the emulated CPU model (see Config_PrintHelp)
     {"memory",     required_argument, 0, 0x151}, // --memory=MB : installed main memory in megabytes (1..16, default 4)
+    {"monitor",    no_argument,       0, 0x160}, // --monitor : enable interactive shell mode
+    {"shell",      no_argument,       0, 0x160}, // --shell : alias for --monitor
+    {"nd100-root", required_argument, 0, 0x161}, // --nd100-root=PATH : directory for BPUN/PROG files (default: current dir)
+    {"script",     required_argument, 0, 0x162}, // --script=FILE : load shell commands from script file
     {0, 0, 0, 0}
 };
 
@@ -146,6 +150,10 @@ void Config_Init(Config_t *config) {
         config->hdlc[i].address = NULL;
         config->hdlc[i].port = HDLC_DEFAULT_PORT;
     }
+    // Interactive shell mode
+    config->shellEnabled = false;
+    config->nd100Root = NULL;
+    config->scriptPath = NULL;
 }
 
 /* Parse a --boot argument into bootType + bootUnit.
@@ -690,6 +698,26 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 }
                 break;
 
+            case 0x160: /* --monitor / --shell : enable interactive shell mode */
+                config->shellEnabled = true;
+                break;
+
+            case 0x161: /* --nd100-root=PATH : directory for BPUN/PROG files */
+                config->nd100Root = strdup(optarg);
+                if (!config->nd100Root) {
+                    fprintf(stderr, "Failed to allocate memory for nd100-root path\n");
+                    return false;
+                }
+                break;
+
+            case 0x162: /* --script=FILE : load shell commands from script file */
+                config->scriptPath = strdup(optarg);
+                if (!config->scriptPath) {
+                    fprintf(stderr, "Failed to allocate memory for script path\n");
+                    return false;
+                }
+                break;
+
             case '?':
                 return false;
 
@@ -700,7 +728,8 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     }
     
     // Check required arguments
-    if ((!config->showHelp && !config->showConfig && !config->writeConfig && !config->iniFile && !config->debuggerEnabled)) {
+    // Note: Shell mode doesn't require boot configuration since it loads programs explicitly
+    if ((!config->showHelp && !config->showConfig && !config->writeConfig && !config->iniFile && !config->debuggerEnabled && !config->shellEnabled)) {
         if (config->bootType == BOOT_NONE) {
             config->bootType = BOOT_SMD;
 
@@ -847,6 +876,9 @@ void Config_PrintHelp(const char *progName) {
     printf("                          (default: autoload <binaryname>.ini in the current dir)\n");
     printf("           --show-config  Resolve+validate the machine config, print it, and exit\n");
     printf("           --write-config=FILE  Write the resolved machine config to an INI file and exit\n");
+    printf("           --monitor, --shell   Enable interactive shell mode for loading BPUN/PROG files\n");
+    printf("           --nd100-root=PATH    Directory containing BPUN/PROG files (default: current dir)\n");
+    printf("           --script=FILE        Load shell commands from a script file\n");
     printf("  -h,      --help         Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);

@@ -170,3 +170,16 @@ if(PLATFORM_WINDOWS)
 endif()
 
 add_test(NAME bcd_tests COMMAND test_bcd)
+
+# Shell unit tests
+add_executable(test_shell
+    test_shell.c
+)
+
+target_include_directories(test_shell PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/frontend/nd100x
+    ${CMAKE_SOURCE_DIR}/src/cpu
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+)
+
+add_test(NAME shell_tests COMMAND test_shell)
