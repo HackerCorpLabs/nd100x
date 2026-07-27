@@ -148,11 +148,13 @@ int main(void)
     CHECK(dev->interruptLevel == CDC_INT_LEVEL && dev->interruptLevel == 11, "interrupt level 11");
     CdcData *d = (CdcData *)dev->deviceData;
 
-    /* Default surface must cover the max overlay PHYSICAL sector (72*0o255). */
-    CHECK(d->surfaceSectors == CDC_DEFAULT_SECTORS && d->surfaceSectors == 16384u,
-          "default surface is 16384 sectors");
-    CHECK(d->surfaceSectors > 12456u,
-          "default surface covers max overlay physical sector (72*0o255=12456)");
+    /* Default surface must cover the corrected DKADR overlay range (max
+     * physical sector 458 - see CDC_DEFAULT_SECTORS in deviceCDC.h). The
+     * surface grows on demand (Cdc_EnsureSurface) for anything beyond it. */
+    CHECK(d->surfaceSectors == CDC_DEFAULT_SECTORS && d->surfaceSectors == 512u,
+          "default surface is 512 sectors");
+    CHECK(d->surfaceSectors > 458u,
+          "default surface covers max corrected overlay physical sector (458)");
 
     /* --- 0b. register offsets / names (authoritative map, MANUAL-N10 p.13) --- */
     CHECK(CDC_REG_RCA == 0 && CDC_REG_LCA == 1 && CDC_REG_RSECT == 2 && CDC_REG_LBA == 3,
