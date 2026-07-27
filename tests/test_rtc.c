@@ -159,6 +159,30 @@ int main(void)
         rtc_check_range("wall: ~50 pulses in 1 s (slow call rate)", 30, 52, pulses);
     }
 
+    /* The guest's clock handler hits IOX clear-counter (and IDENT restarts
+     * the countdown) after EVERY pulse. In wall mode those must NOT move the
+     * free-running 20 ms phase - re-arming "now + 20 ms" from there makes the
+     * period 20 ms plus the guest's service latency (measured 9.5 Hz instead
+     * of 50 Hz on a debugger-loaded TSS boot). Simulate a handler that takes
+     * ~10 ms to issue clear-counter after each pulse: the rate must stay ~50/s,
+     * not drop to ~33/s (30 ms effective period). */
+    {
+        long pulses = 0;
+        uint64_t start = now_ns();
+        struct timespec lat = { 0, 10000000 }; /* 10 ms service latency */
+        while (now_ns() - start < 1000000000ULL) {
+            rtc->Tick(rtc);
+            if (data->statusRegister.bits.readyForTransfer) {
+                pulses++;
+                data->statusRegister.bits.readyForTransfer = false;
+                nanosleep(&lat, NULL);                  /* slow guest handler */
+                rtc->Write(rtc, rtc->startAddress + 1, 0); /* IOX clear counter */
+            }
+        }
+        rtc_check_range("wall: ~50/s despite 10 ms clear-counter latency",
+                        40, 52, pulses);
+    }
+
     /* Back to ticks mode: behavior must return to the deterministic count. */
     RTC_SetWallClockMode(false);
     rtc->Reset(rtc);

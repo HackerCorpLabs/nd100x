@@ -88,8 +88,15 @@ static void RTC_ClearClockTicks(Device *self) {
     if (!data) return;
 
     data->rtcCounter = data->divisionNumberN;
-    if (rtcWallClockMode)
-        data->nextPulseNs = rtc_now_ns() + RTC_WALL_PERIOD_NS;
+    /* Wall-clock mode: deliberately do NOT touch nextPulseNs here. This is
+     * called on IDENT and on the IOX clear-counter/restart writes the guest's
+     * clock handler issues every tick; re-arming "now + 20 ms" from here makes
+     * the period 20 ms PLUS the guest's service latency, which wrecks the rate
+     * whenever emulation runs slower than real time (measured: 9.5 Hz instead
+     * of 50 Hz on a debugger-loaded TSS boot). The wall-mode pulse train free-
+     * runs in RTC_Tick instead. This knowingly deviates from the documented
+     * IOX 011 "next pulse exactly 20 ms later" phase reset - wall mode trades
+     * that fidelity for a clock that keeps real time. */
 }
 
 static uint16_t RTC_Tick(Device *self) {
@@ -119,7 +126,17 @@ static uint16_t RTC_Tick(Device *self) {
             if (data->statusRegister.bits.interruptEnabled) {
                 Device_SetInterruptStatus(self, true, self->interruptLevel);
             }
-            RTC_ClearClockTicks(self); // re-arms nextPulseNs
+            RTC_ClearClockTicks(self); // reload the countdown register only
+
+            /* Free-running phase: advance by exactly one period so guest
+             * service latency never stretches the train. If we have fallen
+             * more than 10 periods (200 ms) behind - host stall, or a guest
+             * too slow to service 50 Hz - drop the backlog and resync; a
+             * short stall is caught up (back-to-back pulses as the guest
+             * services them), a chronic one cannot queue unbounded. */
+            data->nextPulseNs += RTC_WALL_PERIOD_NS;
+            if ((int64_t)(now - data->nextPulseNs) > (int64_t)(10 * RTC_WALL_PERIOD_NS))
+                data->nextPulseNs = now + RTC_WALL_PERIOD_NS;
         }
     } else if (data->rtcCounter <= 0) {
         data->statusRegister.bits.readyForTransfer = true;
