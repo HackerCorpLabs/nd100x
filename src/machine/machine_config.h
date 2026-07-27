@@ -101,6 +101,8 @@ typedef struct {
 typedef struct {
     int            cpu_type;        /* 100 | 110 | 120 */
     int            fpp_bits;        /* 32 | 48 - floating point unit width (default 48) */
+    bool           rtc_wall;        /* false = RTC counts instruction ticks (default);
+                                       true = RTC pulses every 20 ms of host wall-clock time */
 
     MC_Controller  controllers[MC_MAX_CONTROLLERS];
     int            controllerCount;

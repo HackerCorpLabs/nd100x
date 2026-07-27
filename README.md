@@ -332,6 +332,13 @@ Options:
                           leave the T register untouched (which is how software
                           detects the installed unit). Also settable via the .ini
                           '[machine] fpp = BITS' key; the CLI flag wins.
+           --rtc=MODE     RTC time base: ticks or wall (default: ticks).
+                          ticks = one clock pulse per 10550 executed instructions
+                          (deterministic; the emulated clock follows emulation
+                          speed). wall = one pulse per 20 ms of host time, giving
+                          a real-time 50 Hz clock regardless of emulation speed.
+                          Also settable via the .ini '[machine] rtc = MODE' key;
+                          the CLI flag wins.
            --pipe         Read the keyboard from stdin, unbuffered, for scripted
                           automation over pipes (see docs/pipe-automation.md).
                           Desktop builds only (not WASM / RISC-V).

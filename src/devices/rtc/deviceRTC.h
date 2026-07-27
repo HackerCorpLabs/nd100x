@@ -85,6 +85,8 @@ typedef struct {
     
     bool clockCountingStarted;
 
+    uint64_t nextPulseNs;   /* wall-clock mode only: host monotonic time (ns) of next 20 ms pulse; 0 = not armed yet */
+
     RTCControlRegister controlRegister;
     RTCStatusRegister statusRegister;
     RTCFrequency selectedFrequency;

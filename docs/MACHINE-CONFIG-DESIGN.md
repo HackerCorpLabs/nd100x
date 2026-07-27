@@ -142,6 +142,9 @@ and `[peripheral.*]` sections (paper-tape reader/punch, line printer).
 cpu = 100                 ; 100 | 110 | 120   (default 100)
 fpp = 48                  ; 32 | 48 - installed floating point unit (default 48;
                           ; 32 = optional single-precision FPP, T untouched by NLZ/DNZ)
+rtc = ticks               ; ticks | wall - RTC time base (default ticks;
+                          ; ticks = one pulse per 10550 executed instructions,
+                          ; wall = one pulse per 20 ms of host wall-clock time)
 
 [controller.smd.0]        ; SMD controller on thumbwheel 0
 disk0 = SMD0.IMG          ; unit 0 (boot unit)

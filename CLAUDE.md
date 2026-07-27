@@ -124,6 +124,7 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 - `-W, --watch=SPEC`: Stop on memory access at full native speed (repeatable, max 32). SPEC = `[phys:]ADDR[:r|w|rw]` (default rw, virtual). Uses the in-CPU watchpoint engine — no DAP/single-step tax. On a hit with no debugger attached, the CPU halts (message + ring dump).
 - `-T, --text-start=ADDR`: Text segment load address for a.out (default: 0)
 - `--fpp=BITS`: Installed floating point unit width: 32 or 48 (default 48). 32 selects the optional single-precision FPP (FAD/FSB/FMU/FDV on the A,D pair, 2-word operands, NLZ/DNZ leave T untouched). Also settable via the INI `[machine] fpp = 32|48` key; CLI wins
+- `--rtc=MODE`: RTC time base: `ticks` (default) or `wall`. ticks = one clock pulse per 10550 executed instructions (deterministic, follows emulation speed); wall = one pulse per 20 ms of host wall-clock time (real-time 50 Hz clock regardless of emulation speed). Also settable via the INI `[machine] rtc = ticks|wall` key; CLI wins
 - `-r, --printer=TYPE`: Printer emulation type: text (default), escp, laser (not yet implemented)
 - `-f, --printformat=FMT`: Printer output format: txt (default), pdf
 - `-N, --telnet[=PORT]`: Enable telnet server (default port: 9000)

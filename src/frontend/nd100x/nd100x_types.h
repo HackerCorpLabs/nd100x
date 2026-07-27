@@ -112,6 +112,13 @@ typedef struct {
     // (CLI wins, mirroring --memory).
     int  fppBits;
     bool fppSet;
+    // --rtc=ticks|wall / .ini [machine] rtc=: RTC time base. false = one clock
+    // pulse per 10550 executed instructions (default, deterministic); true = one
+    // pulse per 20 ms of host wall-clock time. Applied via RTC_SetWallClockMode
+    // in nd100x.c; rtcSet records whether the CLI flag was given, so the .ini
+    // value only applies when it was not (CLI wins, mirroring --fpp).
+    bool rtcWall;
+    bool rtcSet;
     // Operator's-panel switch register preset (--opr). On real ND-100 this is the
     // 16 front-panel data switches read by "TRA OPR"; nd100x has no physical panel,
     // so this presets gReg->reg_OPR. NORD TSS reads it at cold start: 131313 (octal)

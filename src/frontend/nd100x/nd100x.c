@@ -124,6 +124,12 @@ static void apply_machine_config(const MachineConfig *mc)
     if (!config.fppSet)
         CurrentFPPType = (mc->fpp_bits == 32) ? FPP32 : FPP48;
 
+    // RTC time base from the .ini [machine] rtc= key: ticks (default, one pulse
+    // per 10550 instructions) or wall (one pulse per 20 ms of host time).
+    // A --rtc CLI flag wins (same precedence rule as --fpp).
+    if (!config.rtcSet)
+        RTC_SetWallClockMode(mc->rtc_wall);
+
     for (int i = 0; i < mc->terminalCount; i++)
         DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, (uint8_t)mc->terminals[i]);
 
@@ -461,6 +467,10 @@ void initialize()
 	// The CLI flag wins over the .ini [machine] fpp= key (applied in
 	// apply_machine_config below only when --fpp was not given). Default: FPP48.
 	CurrentFPPType = (config.fppBits == 32) ? FPP32 : FPP48;
+
+	// RTC time base. The CLI flag wins over the .ini [machine] rtc= key (applied
+	// in apply_machine_config below only when --rtc was not given). Default: ticks.
+	RTC_SetWallClockMode(config.rtcWall);
 
 	// Boot banner: LEAD the output with a clean, standalone CPU + memory line (NOT
 	// [INFO]-prefixed), printed BEFORE the first device is created (device creation

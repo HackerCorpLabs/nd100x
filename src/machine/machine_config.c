@@ -131,6 +131,7 @@ void MachineConfig_InitBaseline(MachineConfig *cfg)
 
     cfg->cpu_type = 100;
     cfg->fpp_bits = 48;    /* standard 48-bit FPP; 32 selects the optional unit */
+    cfg->rtc_wall = false; /* RTC counts instruction ticks; rtc = wall selects real-time 20 ms */
 
     /* terminals 5-11 (console/0 is always present, not listed here) */
     int terms[] = { 5, 6, 7, 8, 9, 10, 11 };
@@ -488,6 +489,16 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
                         "[machine] fpp = %s: must be 32 or 48.", val);
                 }
                 cfg->fpp_bits = (int)b;
+            } else if (str_ieq(keyl, "rtc")) {
+                if (str_ieq(val, "ticks")) {
+                    cfg->rtc_wall = false;
+                } else if (str_ieq(val, "wall")) {
+                    cfg->rtc_wall = true;
+                } else {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[machine] rtc = %s: must be ticks or wall.", val);
+                }
             } else {
                 fclose(f);
                 return mc_err(err, errlen, path, lineno,
@@ -773,6 +784,7 @@ void MachineConfig_Print(const MachineConfig *cfg, FILE *out)
             cfg->loaded_from_file ? cfg->source_path : "built-in defaults");
     fprintf(out, "  CPU: ND-%d\n", cfg->cpu_type);
     fprintf(out, "  FPP: %d-bit\n", cfg->fpp_bits);
+    fprintf(out, "  RTC: %s\n", cfg->rtc_wall ? "wall-clock 20 ms" : "instruction ticks");
 
     fprintf(out, "  Controllers:\n");
     for (int i = 0; i < cfg->controllerCount; i++) {
@@ -835,7 +847,8 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
 
     fprintf(f, "[machine]\n");
     fprintf(f, "cpu = %d\n", cfg->cpu_type);
-    fprintf(f, "fpp = %d\n\n", cfg->fpp_bits);
+    fprintf(f, "fpp = %d\n", cfg->fpp_bits);
+    fprintf(f, "rtc = %s\n\n", cfg->rtc_wall ? "wall" : "ticks");
 
     for (int i = 0; i < cfg->controllerCount; i++) {
         const MC_Controller *c = &cfg->controllers[i];

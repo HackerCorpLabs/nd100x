@@ -26,6 +26,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
 #include "../devices_types.h"
 #include "../devices_protos.h"
 
@@ -34,6 +40,34 @@
 #define TICKS_20MS 10550 // Ticks for 20ms timer (use with --throttle=1.125 for real-time)
 //#define DEBUG_RTC
 //#define DEBUG_RTC_TICK
+
+// RTC time base. Default (false) counts instruction ticks: one clock pulse per
+// TICKS_20MS calls to RTC_Tick, so the clock runs in emulated instruction time
+// and its wall rate follows the effective instruction rate. When enabled via
+// [machine] rtc = wall, the pulse fires every 20 ms of host monotonic time
+// instead, giving a real-time 50 Hz clock regardless of emulation speed.
+#define RTC_WALL_PERIOD_NS 20000000ULL /* 20 ms */
+static bool rtcWallClockMode = false;
+
+void RTC_SetWallClockMode(bool enable)
+{
+    rtcWallClockMode = enable;
+}
+
+static uint64_t rtc_now_ns(void)
+{
+#if defined(_WIN32) || defined(_WIN64)
+    static LARGE_INTEGER freq = {0};
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return (uint64_t)(now.QuadPart * 1000000000ULL / freq.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+#endif
+}
 
 static void RTC_Reset(Device *self) {
     RTCData *data = (RTCData *)self->deviceData;
@@ -46,6 +80,7 @@ static void RTC_Reset(Device *self) {
 
     data->statusRegister.raw = 0;
     data->controlRegister.raw = 0;
+    data->nextPulseNs = 0;
 }
 
 static void RTC_ClearClockTicks(Device *self) {
@@ -53,6 +88,8 @@ static void RTC_ClearClockTicks(Device *self) {
     if (!data) return;
 
     data->rtcCounter = data->divisionNumberN;
+    if (rtcWallClockMode)
+        data->nextPulseNs = rtc_now_ns() + RTC_WALL_PERIOD_NS;
 }
 
 static uint16_t RTC_Tick(Device *self) {
@@ -67,7 +104,24 @@ static uint16_t RTC_Tick(Device *self) {
     // Count down the timer
     data->rtcCounter--;
 
-    if (data->rtcCounter <= 0) {
+    if (rtcWallClockMode) {
+        // Wall-clock mode: the counter keeps running for data-register readers,
+        // but the pulse fires on host time, not on the countdown.
+        if (data->rtcCounter <= 0)
+            data->rtcCounter = data->divisionNumberN;
+
+        uint64_t now = rtc_now_ns();
+        if (data->nextPulseNs == 0)
+            data->nextPulseNs = now + RTC_WALL_PERIOD_NS;
+
+        if (now >= data->nextPulseNs) {
+            data->statusRegister.bits.readyForTransfer = true;
+            if (data->statusRegister.bits.interruptEnabled) {
+                Device_SetInterruptStatus(self, true, self->interruptLevel);
+            }
+            RTC_ClearClockTicks(self); // re-arms nextPulseNs
+        }
+    } else if (data->rtcCounter <= 0) {
         data->statusRegister.bits.readyForTransfer = true;
         if (data->statusRegister.bits.interruptEnabled) {
             Device_SetInterruptStatus(self, true, self->interruptLevel);
@@ -147,8 +201,8 @@ static void RTC_Write(Device *self, uint32_t address, uint16_t value) {
             }
 
             // Restart clock if requested
-            if (data->controlRegister.bits.restartClock) {            
-                data->rtcCounter = data->divisionNumberN;
+            if (data->controlRegister.bits.restartClock) {
+                RTC_ClearClockTicks(self); // reset countdown (and re-arm wall-clock pulse)
                 data->clockCountingStarted = true;
             }
             break;
