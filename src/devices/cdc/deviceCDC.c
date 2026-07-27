@@ -350,11 +350,26 @@ static void Cdc_ExecuteGO(Device *self)
             Device_DMAWrite(core + i, d->surface[wordOff + i]);
         break;
 
-    case CDC_OP_WRITE: /* 01: core -> disc (persisted via the backing file) */
+    case CDC_OP_WRITE: /* 01: core -> disc */
         for (uint32_t i = 0; i < count; i++)
         {
             int32_t w = Device_DMARead(core + i);
             d->surface[wordOff + i] = (uint16_t)(w & 0xFFFF);
+        }
+        /* WRITE-THROUGH: persist the just-written sector(s) to the backing
+         * file immediately (big-endian / ND word order) and flush, so a
+         * non-clean stop (SIGINT, crash, kill) can NEVER lose disc writes.
+         * Previously the surface was written back only in Cdc_Destroy, which
+         * the SIGINT handler's exit(0) skips -> lost format/cold-start writes. */
+        if (d->backingFile)
+        {
+            fseek(d->backingFile, (long)wordOff * 2L, SEEK_SET);
+            for (uint32_t i = 0; i < count; i++)
+            {
+                putc((d->surface[wordOff + i] >> 8) & 0xFF, d->backingFile);
+                putc(d->surface[wordOff + i] & 0xFF, d->backingFile);
+            }
+            fflush(d->backingFile);
         }
         break;
 

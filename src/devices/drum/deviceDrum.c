@@ -202,6 +202,20 @@ static void Drum_ExecuteGO(Device *self)
         }
     }
 
+    /* WRITE-THROUGH: for a WRITE, persist the transferred range to the backing
+     * file immediately (big-endian) and flush, so no non-clean stop can lose
+     * drum writes (previously written back only in Drum_Destroy). */
+    if (func == DRUM_FUNC_WRITE && d->backingFile)
+    {
+        fseek(d->backingFile, (long)wordOffset * 2L, SEEK_SET);
+        for (uint32_t i = 0; i < count; i++)
+        {
+            putc((d->surface[wordOffset + i] >> 8) & 0xFF, d->backingFile);
+            putc(d->surface[wordOffset + i] & 0xFF, d->backingFile);
+        }
+        fflush(d->backingFile);
+    }
+
     /* Queue the delayed completion, exactly like SMD. The callback clears DVA
      * and (returning true) raises the level-11 interrupt. */
     Device_QueueIODelay(self, IODELAY_HDD_SMD,

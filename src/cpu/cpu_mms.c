@@ -881,6 +881,18 @@ static void nd_ecc_read_detect(int physicalAddress)
     uint16_t errorCode = 0;
     if (eccBits == 1)
     {
+        // Single-bit = CORRECTABLE. Real ECC hardware silently corrects it and raises the
+        // level-14 parity interrupt ONLY when ECCR bit 2 (EnableParityInterruptOnAllErrors)
+        // is set. Without this gate a residual single-bit latch - e.g. one left behind by
+        // TPE MEM's PARITY-ERROR-DETECTION subtest - fires an UNHANDLED parity interrupt on
+        // the next read during the WALK test, and the guest WAITs at PIL 14 (deadlock).
+        // Mirrors RetroCore CheckReadECCR's EnableParityInterruptOnAllErrrors gate
+        // (Emulated.HW/ND/CPU/ND100/CpuND100.MMS.cs).
+        if ((gECCR & (1 << 2)) == 0)
+        {
+            if (latched != 0) gEccLatch[physicalAddress] = 0; // consume/correct this word's latch
+            return;                                            // corrected -> no interrupt
+        }
         // Single bit, error table Figure 2.18, page 2-51 in ND-06.014.02
         if ((eff & (1 << 0)) != 0) errorCode = 3;
         if ((eff & (1 << 1)) != 0) errorCode = 0x1C;
