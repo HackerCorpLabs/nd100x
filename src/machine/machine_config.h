@@ -100,6 +100,7 @@ typedef struct {
 
 typedef struct {
     int            cpu_type;        /* 100 | 110 | 120 */
+    int            fpp_bits;        /* 32 | 48 - floating point unit width (default 48) */
 
     MC_Controller  controllers[MC_MAX_CONTROLLERS];
     int            controllerCount;

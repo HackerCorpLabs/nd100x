@@ -119,6 +119,11 @@ static void apply_machine_config(const MachineConfig *mc)
     if (MachineConfig_CpuTypeForNumber(mc->cpu_type, &ct))
         CurrentCPUType = (CpuType)ct;
 
+    // FPP width from the .ini [machine] fpp= key; a --fpp CLI flag wins
+    // (mirroring the --memory / memory= precedence rule).
+    if (!config.fppSet)
+        CurrentFPPType = (mc->fpp_bits == 32) ? FPP32 : FPP48;
+
     for (int i = 0; i < mc->terminalCount; i++)
         DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, (uint8_t)mc->terminals[i]);
 
@@ -450,6 +455,12 @@ void initialize()
 	if (config.cpuType == NULL)
 		CurrentCPUType = ND100CX;
 	apply_cputype_override(config.cpuType);
+
+	// Select the installed FPP width. The 32-bit single-precision FPP was a factory
+	// option independent of the CPU model, so this is a separate knob from --cputype.
+	// The CLI flag wins over the .ini [machine] fpp= key (applied in
+	// apply_machine_config below only when --fpp was not given). Default: FPP48.
+	CurrentFPPType = (config.fppBits == 32) ? FPP32 : FPP48;
 
 	// Boot banner: LEAD the output with a clean, standalone CPU + memory line (NOT
 	// [INFO]-prefixed), printed BEFORE the first device is created (device creation

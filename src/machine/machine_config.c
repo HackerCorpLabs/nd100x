@@ -130,6 +130,7 @@ void MachineConfig_InitBaseline(MachineConfig *cfg)
     memset(cfg, 0, sizeof(*cfg));
 
     cfg->cpu_type = 100;
+    cfg->fpp_bits = 48;    /* standard 48-bit FPP; 32 selects the optional unit */
 
     /* terminals 5-11 (console/0 is always present, not listed here) */
     int terms[] = { 5, 6, 7, 8, 9, 10, 11 };
@@ -479,6 +480,14 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
                         "[machine] cpu = %s: must be 100, 110 or 120.", val);
                 }
                 cfg->cpu_type = (int)c;
+            } else if (str_ieq(keyl, "fpp")) {
+                char *ep; long b = strtol(val, &ep, 10);
+                if (*ep != '\0' || (b != 32 && b != 48)) {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[machine] fpp = %s: must be 32 or 48.", val);
+                }
+                cfg->fpp_bits = (int)b;
             } else {
                 fclose(f);
                 return mc_err(err, errlen, path, lineno,
@@ -763,6 +772,7 @@ void MachineConfig_Print(const MachineConfig *cfg, FILE *out)
     fprintf(out, "Machine configuration (%s):\n",
             cfg->loaded_from_file ? cfg->source_path : "built-in defaults");
     fprintf(out, "  CPU: ND-%d\n", cfg->cpu_type);
+    fprintf(out, "  FPP: %d-bit\n", cfg->fpp_bits);
 
     fprintf(out, "  Controllers:\n");
     for (int i = 0; i < cfg->controllerCount; i++) {
@@ -824,7 +834,8 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
     fprintf(f, "# Toggle a device with 'enabled = yes|no'. Sections are [type.thumbwheel].\n\n");
 
     fprintf(f, "[machine]\n");
-    fprintf(f, "cpu = %d\n\n", cfg->cpu_type);
+    fprintf(f, "cpu = %d\n", cfg->cpu_type);
+    fprintf(f, "fpp = %d\n\n", cfg->fpp_bits);
 
     for (int i = 0; i < cfg->controllerCount; i++) {
         const MC_Controller *c = &cfg->controllers[i];

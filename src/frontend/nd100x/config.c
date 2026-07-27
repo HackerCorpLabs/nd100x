@@ -86,6 +86,7 @@ static struct option long_options[] = {
     {"opr",        required_argument, 0, 0x109}, // --opr=OCTAL : preset operator's-panel switch register (TRA OPR)
     {"cputype",    required_argument, 0, 0x150}, // --cputype=TYPE : select the emulated CPU model (see Config_PrintHelp)
     {"memory",     required_argument, 0, 0x151}, // --memory=MB : installed main memory in megabytes (1..16, default 4)
+    {"fpp",        required_argument, 0, 0x152}, // --fpp=32|48 : installed floating point unit width (default 48)
     {"monitor",    no_argument,       0, 0x160}, // --monitor : enable interactive shell mode
     {"shell",      no_argument,       0, 0x160}, // --shell : alias for --monitor
     {"nd100-root", required_argument, 0, 0x161}, // --nd100-root=PATH : directory for BPUN/PROG files (default: current dir)
@@ -135,6 +136,8 @@ void Config_Init(Config_t *config) {
     config->cpuType = NULL;    // --cputype: NULL keeps the built-in default CPU model (no override)
     config->memoryMB = 4;      // --memory: installed main memory in MB (default 4 MB = 2097152 words)
     config->memorySet = false; // whether --memory was given on the CLI (CLI wins over the .ini memory= key)
+    config->fppBits = 48;      // --fpp: installed FPP width; 48 = standard unit, 32 = optional single precision
+    config->fppSet = false;    // whether --fpp was given on the CLI (CLI wins over the .ini fpp= key)
     config->oprSet = false;    // --opr: operator's-panel switch register preset (TRA OPR); unset -> power-on 0
     config->opr = 0;
     config->telnetPort = 9000;
@@ -662,6 +665,22 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 break;
             }
 
+            case 0x152: {   /* --fpp=32|48 : installed floating point unit width. The 32-bit
+                             * single-precision FPP was a factory option independent of the CPU
+                             * model. Applied to CurrentFPPType in nd100x.c; no silent default
+                             * on bad input - reject and fail, same as --memory. */
+                char *fppEnd;
+                long fb = strtol(optarg, &fppEnd, 10);
+                if (*fppEnd != '\0' || (fb != 32 && fb != 48)) {
+                    fprintf(stderr, "Invalid --fpp value '%s' (expect 32 or 48, "
+                                    "e.g. --fpp=32)\n", optarg);
+                    return false;
+                }
+                config->fppBits = (int)fb;
+                config->fppSet = true;
+                break;
+            }
+
             case 0x109: {   /* --opr=OCTAL : preset the operator's-panel switch register (TRA OPR).
                              * ND panel switches are always read/quoted in OCTAL, so parse base 8
                              * (NOT base 0). NORD TSS cold-start uses 131313 (create SYSTEM user),
@@ -849,6 +868,11 @@ void Config_PrintHelp(const char *progName) {
     printf("           --memory=MB    Installed main memory in megabytes: integer 1..16\n");
     printf("                          (default: 4). 1 MB = 524288 words (4 MB = 2097152).\n");
     printf("                          Also settable via the .ini 'memory = MB' key.\n");
+    printf("           --fpp=BITS     Installed floating point unit width: 32 or 48\n");
+    printf("                          (default: 48, the standard FPP). 32 selects the optional\n");
+    printf("                          single-precision FPP (FAD/FSB/FMU/FDV on the A,D pair;\n");
+    printf("                          NLZ/DNZ leave T untouched).\n");
+    printf("                          Also settable via the .ini '[machine] fpp = BITS' key.\n");
     printf("           --bsd-debug    Track BSD kernel-stack high-water (KSTKHW, stderr)\n");
     printf("  -t,      --trace        Enable CPU execution trace to stderr\n");
     printf("  -n N,    --max-instr=N  Stop after N instructions\n");

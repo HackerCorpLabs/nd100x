@@ -68,6 +68,29 @@ if(NOT PLATFORM_WASM AND NOT PLATFORM_RISCV)
     endif()
 endif()
 
+# 32-bit FPP instruction-level test (handoff item 6.8)
+#
+# Generates a tiny BPUN on the fly, boots it in the REAL emulator with --trace
+# in both --fpp=32 and default (48-bit) mode, and proves from the trace that the
+# 32-bit operand fetch reads exactly TWO words (poison at EA+2) and that NLZ
+# leaves T untouched. Skips (exit 2) if the nd100x binary is missing.
+if(NOT PLATFORM_WASM AND NOT PLATFORM_RISCV)
+    find_program(PYTHON_EXECUTABLE NAMES python3 python)
+    if(PYTHON_EXECUTABLE)
+        add_test(
+            NAME fpp32_instr
+            COMMAND ${PYTHON_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/tests/test_fpp32_instr.py
+                    $<TARGET_FILE:nd100x>
+        )
+        set_tests_properties(fpp32_instr PROPERTIES
+            SKIP_RETURN_CODE 2
+            TIMEOUT 120
+            LABELS "integration;fpp"
+        )
+    endif()
+endif()
+
 # Floppy/disk catalog API tests
 #
 # floppydb.c is linked in DIRECTLY together with the bundled cJSON parser and a
@@ -170,6 +193,55 @@ if(PLATFORM_WINDOWS)
 endif()
 
 add_test(NAME bcd_tests COMMAND test_bcd)
+
+# CPU floating point tests
+#
+# float.c is linked in DIRECTLY (not via libcpu) together with a fake register
+# file and a fake setbit() provided by test_float.c, so the FP engine is
+# exercised without the machine, the devices or a disk image. Contains the
+# 48-bit regression lock (captured 2026-07-27) plus the 32-bit FPP tests.
+add_executable(test_float
+    test_float.c
+    ${CMAKE_SOURCE_DIR}/src/cpu/float.c
+)
+
+target_include_directories(test_float PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/cpu
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+)
+
+target_link_libraries(test_float PRIVATE m)
+
+if(PLATFORM_WINDOWS)
+    # cpu_types.h pulls in windows.h and timeBeginPeriod() for sleep_ms().
+    target_link_libraries(test_float PRIVATE winmm)
+endif()
+
+add_test(NAME float_tests COMMAND test_float)
+
+# Machine config (INI model) unit tests
+#
+# machine_config.c is linked in DIRECTLY; it is self-contained (headers only),
+# so the [machine] fpp key's defaults / round trip / validation are exercised
+# without the machine or any device. POSIX-only (mkdtemp), like test_printer.
+if(NOT PLATFORM_WINDOWS)
+    add_executable(test_machine_config
+        test_machine_config.c
+        ${CMAKE_SOURCE_DIR}/src/machine/machine_config.c
+    )
+
+    target_include_directories(test_machine_config PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/machine
+        ${CMAKE_SOURCE_DIR}/src/cpu
+        ${CMAKE_SOURCE_DIR}/src/ndlib
+        ${CMAKE_SOURCE_DIR}/src/devices
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(test_machine_config PRIVATE m)
+
+    add_test(NAME machine_config_tests COMMAND test_machine_config)
+endif()
 
 # Shell unit tests
 #

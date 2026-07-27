@@ -293,14 +293,20 @@ void ndfunc_shifts(ushort operand)
  */
 void ndfunc_nlz(ushort operand)
 {
-	DoNLZ(operand & 0xFF);
+	if (CurrentFPPType == FPP48)
+		DoNLZ(operand & 0xFF);
+	else
+		DoNLZ32(operand & 0xFF);   /* 32-bit FPP: gT is not touched */
 }
 
 /* DNZ
  */
 void ndfunc_dnz(ushort operand)
 {
-	DoDNZ(operand & 0xFF);
+	if (CurrentFPPType == FPP48)
+		DoDNZ(operand & 0xFF);
+	else
+		DoDNZ32(operand & 0xFF);   /* 32-bit FPP: gT is not touched */
 }
 
 /* SRB (Privileged)
@@ -885,81 +891,132 @@ void ndfunc_fad(ushort operand)
 {
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	ushort a[3], b[3], r[3];
+	if (CurrentFPPType == FPP48) {
+		ushort a[3], b[3], r[3];
 
-	a[0] = gT;
-	a[1] = gA;
-	a[2] = gD;
-	b[0] = MemoryRead(gEA + 0, gUseAPT);
-	b[1] = MemoryRead(gEA + 1, gUseAPT);
-	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	NDFloat_Add(a, b, r);
-	gT = r[0];
-	gA = r[1];
-	gD = r[2];
+		a[0] = gT;
+		a[1] = gA;
+		a[2] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		b[2] = MemoryRead(gEA + 2, gUseAPT);
+		NDFloat_Add(a, b, r);
+		gT = r[0];
+		gA = r[1];
+		gD = r[2];
+	} else {
+		ushort a[2], b[2], r[2];
+
+		a[0] = gA;
+		a[1] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);   /* only TWO words */
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		NDFloat_Add32(a, b, r);
+		gA = r[0];
+		gD = r[1];                             /* gT untouched */
+	}
 }
 
 /* FSB
  */
 void ndfunc_fsb(ushort operand)
 {
-	ushort a[3], b[3], r[3];
-
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	a[0] = gT;
-	a[1] = gA;
-	a[2] = gD;
-	b[0] = MemoryRead(gEA + 0, gUseAPT);
-	b[1] = MemoryRead(gEA + 1, gUseAPT);
-	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	NDFloat_Sub(a, b, r);
-	gT = r[0];
-	gA = r[1];
-	gD = r[2];
+	if (CurrentFPPType == FPP48) {
+		ushort a[3], b[3], r[3];
+
+		a[0] = gT;
+		a[1] = gA;
+		a[2] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		b[2] = MemoryRead(gEA + 2, gUseAPT);
+		NDFloat_Sub(a, b, r);
+		gT = r[0];
+		gA = r[1];
+		gD = r[2];
+	} else {
+		ushort a[2], b[2], r[2];
+
+		a[0] = gA;
+		a[1] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);   /* only TWO words */
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		NDFloat_Sub32(a, b, r);
+		gA = r[0];
+		gD = r[1];                             /* gT untouched */
+	}
 }
 
 /* FMU
  */
 void ndfunc_fmu(ushort operand)
 {
-	ushort a[3], b[3], r[3];
-
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	a[0] = gT;
-	a[1] = gA;
-	a[2] = gD;
-	b[0] = MemoryRead(gEA + 0, gUseAPT);
-	b[1] = MemoryRead(gEA + 1, gUseAPT);
-	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	NDFloat_Mul(a, b, r);
-	gT = r[0];
-	gA = r[1];
-	gD = r[2];
+	if (CurrentFPPType == FPP48) {
+		ushort a[3], b[3], r[3];
+
+		a[0] = gT;
+		a[1] = gA;
+		a[2] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		b[2] = MemoryRead(gEA + 2, gUseAPT);
+		NDFloat_Mul(a, b, r);
+		gT = r[0];
+		gA = r[1];
+		gD = r[2];
+	} else {
+		ushort a[2], b[2], r[2];
+
+		a[0] = gA;
+		a[1] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);   /* only TWO words */
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		NDFloat_Mul32(a, b, r);
+		gA = r[0];
+		gD = r[1];                             /* gT untouched */
+	}
 }
 
 /* FDV
  */
 void ndfunc_fdv(ushort operand)
 {
-	ushort a[3], b[3], r[3];
-
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
 
-	a[0] = gT;
-	a[1] = gA;
-	a[2] = gD;
-	b[0] = MemoryRead(gEA + 0, gUseAPT);
-	b[1] = MemoryRead(gEA + 1, gUseAPT);
-	b[2] = MemoryRead(gEA + 2, gUseAPT);
-	if (NDFloat_Div(a, b, r)) {
-		/* Division by zero - set error indicator Z */
-		setbit(_STS, _Z, 1);
+	if (CurrentFPPType == FPP48) {
+		ushort a[3], b[3], r[3];
+
+		a[0] = gT;
+		a[1] = gA;
+		a[2] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		b[2] = MemoryRead(gEA + 2, gUseAPT);
+		if (NDFloat_Div(a, b, r)) {
+			/* Division by zero - set error indicator Z */
+			setbit(_STS, _Z, 1);
+		}
+		gT = r[0];
+		gA = r[1];
+		gD = r[2];
+	} else {
+		ushort a[2], b[2], r[2];
+
+		a[0] = gA;
+		a[1] = gD;
+		b[0] = MemoryRead(gEA + 0, gUseAPT);   /* only TWO words */
+		b[1] = MemoryRead(gEA + 1, gUseAPT);
+		if (NDFloat_Div32(a, b, r)) {
+			/* Division by zero - set error indicator Z */
+			setbit(_STS, _Z, 1);
+		}
+		gA = r[0];
+		gD = r[1];                             /* gT untouched */
 	}
-	gT = r[0];
-	gA = r[1];
-	gD = r[2];
 }
 
 /* JMP

@@ -77,6 +77,44 @@ mkfp48(struct fp *fp, ushort w1, ushort w2, ushort w3)
 }
 
 /*
+ * add_core - Add two same-sign normalized mantissas.
+ *
+ * The arithmetic body shared by the 48-bit and 32-bit FPP paths: align on
+ * the larger exponent (folding shifted-out bits into a guard bit), add, and
+ * renormalize one step if the sum carried out of bit 31. Only the packing
+ * of (s, e, m3) back into words differs between the two formats.
+ */
+static void
+add_core(struct fp *f1, struct fp *f2, int *s, int *e, uint64_t *m3)
+{
+	struct fp *ft;
+	int scale, gbit;
+
+	/* Ensure f1 has the larger exponent */
+	if (f2->e > f1->e) {
+		ft = f1; f1 = f2; f2 = ft;
+	}
+
+	if ((scale = f1->e - f2->e) > 31) {
+		*m3 = f1->m;
+		*s = f1->s;
+		*e = f1->e;
+		return;
+	}
+
+	/* get shifted out guard bit */
+	gbit = scale ? (((1LL << scale) - 1) & f2->m) != 0 : 0;
+	f2->m >>= scale;
+	*m3 = (f1->m + f2->m) | gbit;
+	if (*m3 > 0xffffffffLL) {
+		*m3 >>= 1;
+		f1->e++;
+	}
+	*s = f1->s;
+	*e = f1->e;
+}
+
+/*
  * add48 - Add two 48-bit floating point numbers with same sign.
  *
  * Result is written to the output array r[3].
@@ -84,46 +122,36 @@ mkfp48(struct fp *fp, ushort w1, ushort w2, ushort w3)
 static void
 add48(struct fp *f1, struct fp *f2, ushort *r)
 {
-	struct fp *ft;
 	uint64_t m3;
-	int scale, gbit;
+	int s, e;
 
-	/* Ensure f1 has the larger exponent */
-	if (f2->e > f1->e) {
-		ft = f1; f1 = f2; f2 = ft;
-	}
+	add_core(f1, f2, &s, &e, &m3);
 
-	if ((scale = f1->e - f2->e) > 31) {
-		m3 = f1->m;
-		goto done;
-	}
-
-	/* get shifted out guard bit */
-	gbit = scale ? (((1LL << scale) - 1) & f2->m) != 0 : 0;
-	f2->m >>= scale;
-	m3 = (f1->m + f2->m) | gbit;
-	if (m3 > 0xffffffffLL) {
-		m3 >>= 1;
-		f1->e++;
-	}
-
-done:
-	r[0] = (f1->e + 16384) | (f1->s << 15);
+	r[0] = (e + 16384) | (s << 15);
 	r[1] = (ushort)(m3 >> 16);
 	r[2] = (ushort)m3;
 }
 
 /*
- * sub48 - Subtract two 48-bit floating point numbers with different signs.
+ * sub_core - Subtract two opposite-sign normalized mantissas.
  *
- * Result is written to the output array r[3].
+ * The arithmetic body shared by the 48-bit and 32-bit FPP paths: align on
+ * the larger exponent (folding shifted-out bits into a sticky bit), subtract
+ * the smaller magnitude, and left-renormalize, decrementing the exponent per
+ * shift. Only the packing of (s, e, m3) back into words differs between the
+ * two formats. (An earlier 32-bit-only "extra binade after renormalization"
+ * rule was an oracle artifact - a loop-counter bug in the ND110 microcode
+ * emulator's NLZ - and was disproven against the fixed oracle 2026-07-27:
+ * FSB(4-3) -> 040100, FSB(3-2) -> 040100, FSB(4-3.875) -> 037600. The FAD/FSB
+ * microcode has no format-specific exponent path.)
  */
 static void
-sub48(struct fp *f1, struct fp *f2, ushort *r)
+sub_core(struct fp *f1, struct fp *f2, int *s, int *e, uint64_t *m3, bool *isZero)
 {
 	struct fp *ft;
-	uint64_t m3;
 	int scale, gbit;
+
+	*isZero = false;
 
 	/* Ensure f1 has the larger exponent */
 	if (f2->e > f1->e) {
@@ -131,8 +159,10 @@ sub48(struct fp *f1, struct fp *f2, ushort *r)
 	}
 
 	if ((scale = f1->e - f2->e) > 31) {
-		m3 = f1->m;
-		goto done;
+		*m3 = f1->m;
+		*s = f1->s;
+		*e = f1->e;
+		return;
 	}
 
 	/* get shifted out sticky bit */
@@ -144,21 +174,43 @@ sub48(struct fp *f1, struct fp *f2, ushort *r)
 	if (f2->m > f1->m) {
 		ft = f1; f1 = f2; f2 = ft;
 	}
-	m3 = (f1->m - f2->m) | gbit;
+	*m3 = (f1->m - f2->m) | gbit;
 
-	if (m3 == 0) {
-		r[0] = r[1] = r[2] = 0;
+	if (*m3 == 0) {
+		*s = 0; *e = 0; *isZero = true;
 		return;
 	}
 
 	/* normalize */
-	while ((m3 & 0x80000000LL) == 0) {
-		m3 <<= 1;
+	while ((*m3 & 0x80000000LL) == 0) {
+		*m3 <<= 1;
 		f1->e--;
 	}
 
-done:
-	r[0] = (f1->e + 16384) | (f1->s << 15);
+	*s = f1->s;
+	*e = f1->e;
+}
+
+/*
+ * sub48 - Subtract two 48-bit floating point numbers with different signs.
+ *
+ * Result is written to the output array r[3].
+ */
+static void
+sub48(struct fp *f1, struct fp *f2, ushort *r)
+{
+	uint64_t m3;
+	int s, e;
+	bool isZero;
+
+	sub_core(f1, f2, &s, &e, &m3, &isZero);
+
+	if (isZero) {
+		r[0] = r[1] = r[2] = 0;
+		return;
+	}
+
+	r[0] = (e + 16384) | (s << 15);
 	r[1] = (ushort)(m3 >> 16);
 	r[2] = (ushort)m3;
 }
@@ -378,4 +430,300 @@ void DoDNZ(char scaling)
 	gT = 0;
 	gD = 0;
 	gA = (ushort)val;
+}
+
+/* ================================================================
+ * Optional 32-bit single-precision FPP (CurrentFPPType == FPP32).
+ *
+ * ND-100 32-bit float format (2 x 16-bit words, the A,D pair; the T
+ * register is NOT part of the accumulator and must never be written):
+ *   A word: bit 15    = sign
+ *           bits 14-6 = exponent, 9 bits, biased by 257
+ *           bits 5-0  = mantissa bits 21..16 (top stored fraction bits)
+ *   D word: mantissa bits 15..0
+ * The mantissa is hidden-bit: 23 significant bits = 1 implicit MSB +
+ * 22 stored bits, normalized so the value lies in [0.5, 1).
+ * Floating zero = all 32 bits zero.
+ *
+ * The bias of 257 (not the manual's 256) and the exponent adjustments
+ * marked "verified against the oracle" below were derived from and
+ * validated against a live 32-bit-FPP ND-110 running RASK microcode
+ * (RetroCore Nd100FloatMath.cs is the reference implementation).
+ * ================================================================ */
+
+#define FP32_BIAS 257
+
+int NDFloat_Add32(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Sub32(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Mul32(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+int NDFloat_Div32(unsigned short int *p_a, unsigned short int *p_b, unsigned short int *p_r);
+void DoNLZ32(char scaling);
+void DoDNZ32(char scaling);
+
+/*
+ * mkfp32 - Unpack the A,D word pair into the internal fp struct.
+ *
+ * The 23-bit hidden-bit mantissa is left-justified so its MSB lands at
+ * bit 31 - the same normalized shape the shared arithmetic core uses.
+ */
+static void
+mkfp32(struct fp *fp, ushort a, ushort d)
+{
+	uint32_t mant23;
+
+	if (a == 0 && d == 0) {           /* floating zero */
+		fp->s = 0; fp->e = 0; fp->m = 0;
+		return;
+	}
+	fp->s = (a >> 15) & 1;
+	fp->e = ((a >> 6) & 0x1FF) - FP32_BIAS;
+	mant23 = (1u << 22) | ((uint32_t)(a & 0x3F) << 16) | d;
+	fp->m = (uint64_t)mant23 << 9;
+}
+
+/*
+ * pack32 - Pack (sign, unbiased exponent, 32-bit mantissa MSB@31) into
+ * the A,D pair. TRUNCATES to 23 significant bits - the hardware keeps 23,
+ * and the low guard bits have already folded their sticky bit into the
+ * LSB during add/sub. Exponent underflow yields floating zero.
+ */
+static void
+pack32(int s, int e, uint64_t m, ushort *a, ushort *d)
+{
+	int eb, i;
+	uint32_t mant23;
+
+	if (m == 0) { *a = 0; *d = 0; return; }
+
+	/* Safety-net renormalization: bring the MSB to bit 31. The bounds of 40
+	 * are pure paranoia - a sane input needs at most ~32 iterations. */
+	for (i = 0; i < 40 && m > 0xFFFFFFFFULL; i++) { m >>= 1; e++; }
+	for (i = 0; i < 40 && (m & 0x80000000ULL) == 0; i++) { m <<= 1; e--; }
+
+	eb = e + FP32_BIAS;
+	if (eb <= 0)     { *a = 0; *d = 0; return; }  /* underflow -> floating zero */
+	if (eb > 0x1FF)  { eb = 0x1FF; }              /* overflow -> saturate; UNVERIFIED
+	                                               * against hardware, chosen as a
+	                                               * safe fallback (known gap)     */
+
+	mant23 = (uint32_t)(m >> 9);                  /* top 23 bits, hidden MSB @ bit22 */
+	*a = (ushort)((s << 15) | ((eb & 0x1FF) << 6) | ((mant23 >> 16) & 0x3F));
+	*d = (ushort)(mant23 & 0xFFFF);
+}
+
+/*
+ * NDFloat_Add32 - Add two 32-bit floating point numbers (reg + mem).
+ *
+ * Zero operands are exact special cases handled before the core (the
+ * core assumes non-zero normalized mantissas).
+ */
+int NDFloat_Add32(ushort *p_a, ushort *p_b, ushort *p_r)
+{
+	struct fp f1, f2;
+	int s, e;
+	uint64_t m3;
+	bool isZero;
+
+	mkfp32(&f1, p_a[0], p_a[1]);
+	mkfp32(&f2, p_b[0], p_b[1]);
+
+	if (f1.m == 0) { p_r[0] = p_b[0]; p_r[1] = p_b[1]; return 0; }  /* 0 + y = y */
+	if (f2.m == 0) { p_r[0] = p_a[0]; p_r[1] = p_a[1]; return 0; }  /* x + 0 = x */
+
+	if (f1.s ^ f2.s) {
+		sub_core(&f1, &f2, &s, &e, &m3, &isZero);
+		if (isZero) { p_r[0] = 0; p_r[1] = 0; return 0; }
+	} else {
+		add_core(&f1, &f2, &s, &e, &m3);
+	}
+	pack32(s, e, m3, &p_r[0], &p_r[1]);
+	return 0;
+}
+
+/*
+ * NDFloat_Sub32 - Subtract two 32-bit floating point numbers (reg - mem).
+ */
+int NDFloat_Sub32(ushort *p_a, ushort *p_b, ushort *p_r)
+{
+	struct fp f1, f2;
+	int s, e;
+	uint64_t m3;
+	bool isZero;
+
+	mkfp32(&f1, p_a[0], p_a[1]);
+	mkfp32(&f2, p_b[0], p_b[1]);
+
+	if (f2.m == 0) { p_r[0] = p_a[0]; p_r[1] = p_a[1]; return 0; }  /* x - 0 = x */
+	if (f1.m == 0) {                                                /* 0 - y = -y */
+		p_r[0] = (ushort)(p_b[0] ^ 0x8000);
+		p_r[1] = p_b[1];
+		return 0;
+	}
+
+	f2.s ^= 1;   /* subtract == add the negation */
+
+	if (f1.s ^ f2.s) {
+		sub_core(&f1, &f2, &s, &e, &m3, &isZero);
+		if (isZero) { p_r[0] = 0; p_r[1] = 0; return 0; }
+	} else {
+		add_core(&f1, &f2, &s, &e, &m3);
+	}
+	pack32(s, e, m3, &p_r[0], &p_r[1]);
+	return 0;
+}
+
+/*
+ * NDFloat_Mul32 - Multiply two 32-bit floating point numbers.
+ */
+int NDFloat_Mul32(ushort *p_a, ushort *p_b, ushort *p_r)
+{
+	struct fp f1, f2;
+	int s3, e3;
+	uint64_t m3, m32;
+
+	mkfp32(&f1, p_a[0], p_a[1]);
+	mkfp32(&f2, p_b[0], p_b[1]);
+
+	if (f1.m == 0 || f2.m == 0) { p_r[0] = 0; p_r[1] = 0; return 0; }
+
+	m3 = f1.m * f2.m;            /* 32 x 32 -> 64 */
+	e3 = f1.e + f2.e + 1;        /* the +1 differs from the 48-bit path: it
+	                              * compensates the hidden-bit packing (the
+	                              * internal e is one below the packed binade) */
+	s3 = f1.s ^ f2.s;
+
+	/* Normalize: if the product's MSB landed at bit 62 rather than 63, shift up. */
+	if ((m3 & (1ULL << 63)) == 0) { m3 <<= 1; e3--; }
+
+	m32 = m3 >> 32;              /* back to a 32-bit mantissa, MSB @ bit31 */
+	pack32(s3, e3, m32, &p_r[0], &p_r[1]);
+	return 0;
+}
+
+/*
+ * NDFloat_Div32 - Divide two 32-bit floating point numbers.
+ *
+ * Returns non-zero on divide-by-zero (caller sets the error indicator Z).
+ */
+int NDFloat_Div32(ushort *p_a, ushort *p_b, ushort *p_r)
+{
+	struct fp f1, f2;
+	int s3, e3;
+	uint64_t m3;
+
+	mkfp32(&f1, p_b[0], p_b[1]);   /* divisor  (memory)    */
+	mkfp32(&f2, p_a[0], p_a[1]);   /* dividend (registers) */
+
+	if (f1.m == 0) {
+		/* ND returns the largest magnitude carrying the dividend's sign */
+		p_r[0] = (ushort)((p_a[0] & 0x8000) | 0x7FFF);
+		p_r[1] = 0xFFFF;
+		return 1;
+	}
+	if (f2.m == 0) { p_r[0] = 0; p_r[1] = 0; return 0; }   /* 0 / x = 0 */
+
+	f2.m <<= 32;
+	s3 = f1.s ^ f2.s;
+	e3 = f2.e - f1.e - 1;          /* the -1 differs from the 48-bit path: it
+	                                * compensates the hidden-bit packing (the
+	                                * internal e is one below the packed binade;
+	                                * the offsets cancel in the subtraction and
+	                                * the -1 restores the packed convention).
+	                                * Oracle: FDV(6,2) -> 040240 = 3. */
+	m3 = f2.m / f1.m;
+	if (f2.m % f1.m) m3++;         /* guard bit */
+
+	/* Quotient of two normalized mantissas is in (0.5, 2). If it reached >= 1
+	 * (bit 32 set), shift back into [0.5,1) and bump the exponent. */
+	if (m3 >= (1ULL << 32)) { m3 >>= 1; e3++; }
+
+	pack32(s3, e3, m3, &p_r[0], &p_r[1]);
+	return 0;
+}
+
+/*
+ * DoNLZ32 - Normalize (integer to 32-bit floating point).
+ *
+ * Same shift-based normalization as DoNLZ, but the result is packed into
+ * the A,D pair and the T register is NEVER written. That is exactly what
+ * the manual's FPP detection sequence (SAT 0 / SAA 1 / NLZ 20) keys on:
+ * if T changed the machine has the 48-bit FPP, if T is untouched it has
+ * the 32-bit FPP.
+ */
+void DoNLZ32(char scaling)
+{
+	int sh, s, val, e;
+	uint64_t m;
+
+	gD = 0;
+	if (gA == 0) return;              /* integer zero -> floating zero (A,D already 0) */
+
+	s   = 0;
+	val = (int)(sshort)gA;
+	sh  = 16384 + (int)(signed char)scaling;
+	if (val < 0)     { val = -val; s = 1; }
+	if (val > 32767) { val >>= 1;  sh++;  }
+	while ((val & 0x8000) == 0) { val <<= 1; sh--; }
+
+	/* The intermediate keeps the 16384 bias so the normalization loop stays
+	 * identical to the 48-bit one; pack32 re-biases with 257. The extra -1
+	 * places the result in the manual's binade: NLZ(+16) of 1 -> 040100,
+	 * of 3 -> 040240, of -1 -> 140100, and NLZ(+17) of 1 -> 040200 - all
+	 * confirmed against the FIXED microcode oracle 2026-07-27 (the earlier
+	 * one-binade-high oracle readings came from a loop-counter bug in the
+	 * ND110 microcode emulator's NLZ, since root-caused and fixed). This
+	 * also makes the NLZ(+16) -> DNZ(-16) round trip the identity, which
+	 * DoDNZ32's shift formula is calibrated to. */
+	e = sh - 16384 - 1;
+	m = ((uint64_t)(uint32_t)val) << 16;   /* 16-bit mantissa MSB@15 -> MSB@31 */
+	pack32(s, e, m, &gA, &gD);
+	/* gT deliberately NOT touched - this is what the 32/48 detection test keys on. */
+}
+
+/*
+ * DoDNZ32 - Denormalize (32-bit floating point to integer).
+ *
+ * Converts the floating number in the A,D pair to a single precision
+ * fixed point number in the A register. Sets the error indicator Z on
+ * overflow, like DoDNZ. The T register is NEVER written.
+ */
+void DoDNZ32(char scaling)
+{
+	int s, e, shift;
+	uint32_t mant23;
+	int64_t val;
+
+	if (gA == 0 && gD == 0) { gD = 0; return; }   /* floating zero -> integer 0 */
+
+	s      = (gA >> 15) & 1;
+	e      = ((gA >> 6) & 0x1FF) - FP32_BIAS;
+	mant23 = (1u << 22) | ((uint32_t)(gA & 0x3F) << 16) | gD;
+
+	/* Extract the fixed-point integer by right-shifting the 23-bit mantissa.
+	 * The shift amount was derived empirically from the live 32-bit RASK
+	 * oracle via the NLZ(+16) -> DNZ(-16) round trip: for scaling = -16 the
+	 * shift is (22 - e), and each +1 of scaling halves the shift (doubles the
+	 * result). Hence shift = 6 - e - scaling.
+	 * UNVERIFIED (known gap): behaviour for scaling factors other than -16 -
+	 * the manual says other factors "will not cause a different result but
+	 * will affect the test for overflow", which this formula does not model
+	 * exactly. Do not extend without new oracle data. */
+	shift = 6 - e - (int)(signed char)scaling;
+
+	/* A C shift by >= the operand width is undefined behaviour; real ND
+	 * hardware just underflows to zero (cf. the guard in DoDNZ). */
+	if (shift >= 0) {
+		val = (shift >= 32) ? 0 : (int64_t)(mant23 >> shift);   /* deep underflow -> 0 */
+	} else {
+		int ls = -shift;
+		val = (ls >= 41) ? 0x7FFFFFFFLL : ((int64_t)mant23 << ls);  /* overflows anyway */
+	}
+
+	if (val > 32767)
+		setbit(_STS, _Z, 1);
+	if (s) val = -val;
+
+	gA = (ushort)val;
+	gD = 0;
+	/* gT deliberately NOT touched. */
 }

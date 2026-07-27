@@ -105,6 +105,13 @@ typedef struct {
     // applies when the flag was not (CLI wins, mirroring drum/cdc/telnet).
     int  memoryMB;
     bool memorySet;
+    // --fpp=32|48 / .ini [machine] fpp=: which floating point unit is installed
+    // (the 32-bit single-precision FPP was a factory option, independent of the
+    // CPU model). Applied to CurrentFPPType in nd100x.c; fppSet records whether
+    // the CLI flag was given, so the .ini value only applies when it was not
+    // (CLI wins, mirroring --memory).
+    int  fppBits;
+    bool fppSet;
     // Operator's-panel switch register preset (--opr). On real ND-100 this is the
     // 16 front-panel data switches read by "TRA OPR"; nd100x has no physical panel,
     // so this presets gReg->reg_OPR. NORD TSS reads it at cold start: 131313 (octal)

@@ -325,6 +325,13 @@ Options:
            --mms=N        MMU paging-system type: 1=MMS1 (NORD-10 / 4 page tables,
                           for NORD TSS), 2=MMS2 (16 page tables, default).
                           --mms1 / --mms2 are shorthands.
+           --fpp=BITS     Installed floating point unit width: 32 or 48
+                          (default: 48, the standard FPP). 32 selects the optional
+                          single-precision FPP: FAD/FSB/FMU/FDV operate on the A,D
+                          register pair with 2-word memory operands, and NLZ/DNZ
+                          leave the T register untouched (which is how software
+                          detects the installed unit). Also settable via the .ini
+                          '[machine] fpp = BITS' key; the CLI flag wins.
            --pipe         Read the keyboard from stdin, unbuffered, for scripted
                           automation over pipes (see docs/pipe-automation.md).
                           Desktop builds only (not WASM / RISC-V).

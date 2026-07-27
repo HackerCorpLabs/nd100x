@@ -147,6 +147,11 @@ _NDRAM_ VolatileMemory;
  */
 CpuType CurrentCPUType = ND110CX;
 
+/* Which FPP is installed. Default is the standard 48-bit unit so existing
+ * boots, images and tests keep today's behaviour; the 32-bit option is
+ * selected with [machine] fpp = 32 or the --fpp=32 command line flag. */
+FppType CurrentFPPType = FPP48;
+
 // Installed main-memory size in 16-bit WORDS. Default 4 MB (4 MW = 2097152 words);
 // overridden at start-up by --memory / the .ini memory= key (range 1..16 MB). The
 // backing VolatileMemory array is always the 16 MB maximum; this caps how much is

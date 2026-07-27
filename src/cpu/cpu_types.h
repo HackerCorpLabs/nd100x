@@ -438,6 +438,15 @@ typedef enum {
 
 typedef enum {ND1, ND4, ND10, ND100, ND100CE, ND100CX, ND110, ND110CE, ND110CX, ND110PCX, ND120CX} CpuType;
 
+/* Which floating point unit is installed. The 32-bit single-precision FPP was
+ * a factory option; an ND-100 or ND-110 could ship with either, independent of
+ * the CPU model. Software detects which one at runtime (SAT 0 / SAA 1 / NLZ 20:
+ * if T changed it is the 48-bit FPP). */
+typedef enum {
+	FPP32,   /* optional 32-bit single precision FPP (T register unused) */
+	FPP48    /* standard 48-bit FPP (T,A,D floating accumulator)         */
+} FppType;
+
 #define gPC	gReg->reg[gPIL][_P]
 #define gA	gReg->reg[gPIL][_A]
 #define gT	gReg->reg[gPIL][_T]
@@ -567,6 +576,7 @@ extern DisasmArray* p_DIS;
 extern struct CpuRegs *gReg;
 extern _NDRAM_ VolatileMemory;
 extern CpuType CurrentCPUType;
+extern FppType CurrentFPPType;
 
 extern uint64_t  instr_counter ;
 extern ushort STARTADDR;
