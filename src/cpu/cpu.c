@@ -37,7 +37,12 @@
 #include <time.h>
 #endif
 static bool cpu_throttle_enabled = false;
-static double cpu_throttle_mhz = 1.125;  // Empirically verified: SINTRAN dat matches wall clock at 1.125 MHz
+// Default matches the documented -Z/--throttle default (README/help): 0.5275 MHz,
+// which makes the ticks-mode RTC (one pulse per 10550 instructions) exactly 50 Hz
+// real-time. NOTE: an earlier comment claimed "SINTRAN dat matches wall clock at
+// 1.125 MHz"; that contradicts the 10550-instruction RTC period (1.125 MHz gives
+// 106.6 Hz) and was not re-verified - changed to 0.5275 by decision 27-JUL-2026.
+static double cpu_throttle_mhz = 0.5275;
 
 // High-resolution clock for throttle timing
 static uint64_t throttle_get_ns(void) {

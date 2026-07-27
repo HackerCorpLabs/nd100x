@@ -253,6 +253,13 @@ void  machine_run (int ticks)
                 {
                     set_debugger_control_granted(true);
                 }
+#ifndef __EMSCRIPTEN__
+                // A DAP command is in flight and owns the CPU: do not execute
+                // instructions while it works; park briefly and return so the
+                // main loop keeps servicing keyboard/timeouts until released.
+                sleep_ms(1);
+#endif
+                return;
             }
 
 #ifdef __EMSCRIPTEN__
@@ -262,14 +269,20 @@ void  machine_run (int ticks)
             {
                 return;
             }
-#else
-            sleep_ms(100); // Portable (POSIX nanosleep / Windows Sleep)
 #endif
             if ((get_cpu_run_mode() == CPU_PAUSED) || (get_cpu_run_mode() == CPU_BREAKPOINT))
             {
-                //if (get_debugger_control_granted()) return; // exit back to main loop to handle keyboard input
+#ifndef __EMSCRIPTEN__
+                sleep_ms(1); // idle politely while stopped in the debugger
+#endif
                 return; // exit back to main loop to handle keyboard input
             }
+
+            // Free-running with the debugger enabled: deliberately NO sleep.
+            // The old unconditional sleep_ms(100) after every 5000-instruction
+            // batch capped the whole --debugger session at 5000/0.1s = ~50k
+            // instructions/s (the "DAP tax"): a debugger-attached TSS read its
+            // 50 Hz KLOK at 4.9 Hz because 50000/10550 = 4.74.
         }
 
         if (ticks == 0) return; // No more ticks to run

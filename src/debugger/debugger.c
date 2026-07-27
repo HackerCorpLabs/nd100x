@@ -3776,7 +3776,13 @@ static int cmd_disconnect(DAPServer *server)
     }
     else
     {
-        set_cpu_run_mode(CPU_STOPPED);
+        // Detach: the DAP spec says a disconnect WITHOUT terminateDebuggee
+        // leaves the debuggee running. CPU_STOPPED is wrong here - the main
+        // loop escalates it to CPU_SHUTDOWN (cpu.c "WAS STOPPED, SHUTTING
+        // DOWN"), so every client disconnect killed the emulator even when
+        // the client asked terminateDebuggee=false. Resume instead; a new
+        // client can re-attach later.
+        set_cpu_run_mode(CPU_RUNNING);
     }
 
     return 0;

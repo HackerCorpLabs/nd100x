@@ -37,7 +37,7 @@
 
 #include "deviceRTC.h"
 
-#define TICKS_20MS 10550 // Ticks for 20ms timer (use with --throttle=1.125 for real-time)
+#define TICKS_20MS 10550 // Ticks for 20ms timer (real-time at 0.5275 MIPS, the --throttle default)
 //#define DEBUG_RTC
 //#define DEBUG_RTC_TICK
 
