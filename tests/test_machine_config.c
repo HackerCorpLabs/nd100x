@@ -3,8 +3,9 @@
  *
  * Copyright (c) 2026 Ronny Hansen
  *
- * Unit tests for the [machine] fpp INI key in src/machine/machine_config.c:
- * defaults, write/read round trip, and rejection of invalid values.
+ * Unit tests for the [machine] fpp and rtc INI keys in
+ * src/machine/machine_config.c: defaults, write/read round trip, and
+ * rejection of invalid values.
  *
  * machine_config.c is linked in DIRECTLY; it has no machine/CPU dependencies
  * beyond headers, so no devices or disk images are involved.
@@ -126,6 +127,54 @@ int main(void)
     mc_check_bool("LoadFile(fpp=99) rejected",
                   !MachineConfig_LoadFile(&cfg, path, err, sizeof(err)));
     mc_check_bool("fpp=99 error mentions 'fpp'", strstr(err, "fpp") != NULL);
+
+    /* Default RTC time base is instruction ticks. */
+    MachineConfig_SetDefaults(&cfg);
+    mc_check("default rtc_wall", 0, cfg.rtc_wall);
+
+    /* Write a config with rtc = wall and read it back. */
+    cfg.rtc_wall = true;
+    snprintf(path, sizeof(path), "%s/rtcwall.ini", dir);
+    mc_check_bool("WriteFile(rtc=wall)",
+                  MachineConfig_WriteFile(&cfg, path, err, sizeof(err)));
+
+    MachineConfig_InitBaseline(&cfg);
+    mc_check_bool("LoadFile(rtc=wall)",
+                  MachineConfig_LoadFile(&cfg, path, err, sizeof(err)));
+    mc_check("round-tripped rtc_wall", 1, cfg.rtc_wall);
+
+    /* rtc = ticks parses back to the default. */
+    snprintf(path, sizeof(path), "%s/rtcticks.ini", dir);
+    {
+        FILE *f = fopen(path, "w");
+        mc_check_bool("write rtcticks.ini", f != NULL);
+        if (f) { fprintf(f, "[machine]\nrtc = ticks\n"); fclose(f); }
+    }
+    MachineConfig_InitBaseline(&cfg);
+    cfg.rtc_wall = true; /* prove the key actively clears it */
+    mc_check_bool("LoadFile(rtc=ticks)",
+                  MachineConfig_LoadFile(&cfg, path, err, sizeof(err)));
+    mc_check("rtc=ticks clears rtc_wall", 0, cfg.rtc_wall);
+
+    /* A config without an rtc key keeps the ticks default. */
+    MachineConfig_InitBaseline(&cfg);
+    snprintf(path, sizeof(path), "%s/nofpp.ini", dir); /* reuse: has no rtc key */
+    mc_check_bool("LoadFile(no rtc key)",
+                  MachineConfig_LoadFile(&cfg, path, err, sizeof(err)));
+    mc_check("rtc_wall stays default", 0, cfg.rtc_wall);
+
+    /* rtc = sometimes must be rejected with a clear error. */
+    snprintf(path, sizeof(path), "%s/badrtc.ini", dir);
+    {
+        FILE *f = fopen(path, "w");
+        mc_check_bool("write badrtc.ini", f != NULL);
+        if (f) { fprintf(f, "[machine]\nrtc = sometimes\n"); fclose(f); }
+    }
+    MachineConfig_InitBaseline(&cfg);
+    err[0] = '\0';
+    mc_check_bool("LoadFile(rtc=sometimes) rejected",
+                  !MachineConfig_LoadFile(&cfg, path, err, sizeof(err)));
+    mc_check_bool("rtc error mentions 'rtc'", strstr(err, "rtc") != NULL);
 
     printf("machine_config tests: %d checks, %d failed\n", mc_total, mc_failed);
     return mc_failed ? 1 : 0;

@@ -243,6 +243,29 @@ if(NOT PLATFORM_WINDOWS)
     add_test(NAME machine_config_tests COMMAND test_machine_config)
 endif()
 
+# RTC time-base unit tests
+#
+# deviceRTC.c is linked in DIRECTLY with the four Device_* helpers stubbed in
+# the test, so no device manager or machine is involved. Verifies the ticks
+# mode pulse period (10550 calls) and the wall mode ~50 Hz host-time rate.
+# POSIX-only (clock_gettime/nanosleep usage in the test), like test_printer.
+if(NOT PLATFORM_WINDOWS)
+    add_executable(test_rtc
+        test_rtc.c
+        ${CMAKE_SOURCE_DIR}/src/devices/rtc/deviceRTC.c
+    )
+
+    target_include_directories(test_rtc PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/devices
+        ${CMAKE_SOURCE_DIR}/src/ndlib
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(test_rtc PRIVATE m)
+
+    add_test(NAME rtc_tests COMMAND test_rtc)
+endif()
+
 # Shell unit tests
 #
 # test_shell.c #includes the REAL src/frontend/nd100x/nd100x_shell.c so the
