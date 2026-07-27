@@ -139,7 +139,7 @@ and `[peripheral.*]` sections (paper-tape reader/punch, line printer).
 # Lines starting with # or ; are comments. Keys are case-insensitive.
 
 [machine]
-cpu = 100                 ; 100 | 110 | 120   (future; default 100)
+cpu = 100                 ; 100 | 110 | 120   (default 100)
 fpp = 48                  ; 32 | 48 - installed floating point unit (default 48;
                           ; 32 = optional single-precision FPP, T untouched by NLZ/DNZ)
 
