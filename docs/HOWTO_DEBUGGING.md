@@ -195,6 +195,24 @@ Understanding the cost model tells you which tool to reach for on a long hunt.
   because each step is a client round-trip. Do not single-step toward a target
   that is hundreds of millions of instructions away — set a `-W` watchpoint or a
   breakpoint and `continue` instead.
+- **Each DAP request briefly pauses the CPU** (the pause/release handshake
+  quiesces the machine while the command runs). This is invisible for normal
+  debugging, but it skews measurements of guest-visible clocks: if you sample a
+  counter over the socket, keep the reads sparse. For a guest clock that keeps
+  real time regardless of emulation speed, run with `--rtc=wall`.
+- **Historical note (fixed 27-JUL-2026):** `machine_run()` used to sleep 100 ms
+  after every 5000-instruction batch whenever `--debugger` was enabled, capping
+  any debugger session at ~50k instructions/s (a TSS guest read its 50 Hz clock
+  at 4.9 Hz: 50000/10550 = 4.74). If a debugger-attached run measures far below
+  native speed, you are on a build older than that fix.
+
+### Detach semantics
+
+A DAP `disconnect` with `terminateDebuggee=false` (the default for attach-mode
+clients) **detaches and leaves the emulator running**; you can re-attach later.
+Only `terminateDebuggee=true` (or the `terminate` request) shuts the emulator
+down. Before 27-JUL-2026 every disconnect killed the emulator regardless of the
+flag.
 
 ### Rule of thumb
 
