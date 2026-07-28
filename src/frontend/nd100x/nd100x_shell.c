@@ -118,6 +118,19 @@ static int parse_tokens(char *line, char **tokens, int max_tokens) {
 }
 
 /**
+ * Join a directory and a name into out, collapsing a trailing '/' on dir so we
+ * never emit a doubled slash (e.g. "/mnt/d/ND/BPUN//mac.bpun").
+ */
+static void join_path(char *out, size_t out_sz, const char *dir, const char *name) {
+    size_t dlen = strlen(dir);
+    if (dlen > 0 && dir[dlen - 1] == '/') {
+        snprintf(out, out_sz, "%s%s", dir, name);
+    } else {
+        snprintf(out, out_sz, "%s/%s", dir, name);
+    }
+}
+
+/**
  * List BPUN/PROG files in the nd100Root directory
  * Supports pattern filtering: *.bpun, *.prog, etc.
  */
@@ -137,28 +150,33 @@ static int cmd_list_files(const char *nd100Root, int argc, char **argv) {
     struct dirent *entry;
     int count = 0;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) {
-            /* Match pattern */
-            bool match = false;
-            if (strcmp(pattern, "*") == 0) {
-                match = true;
-            } else if (strstr(pattern, "*")) {
-                /* Simple glob: check extensions */
-                const char *ext = strrchr(pattern, '.');
-                if (ext) {
-                    const char *file_ext = strrchr(entry->d_name, '.');
-                    if (file_ext) {
-                        match = (strcasecmp(file_ext, ext) == 0);
-                    }
+        /* Match pattern */
+        bool match = false;
+        if (strcmp(pattern, "*") == 0) {
+            match = true;
+        } else if (strstr(pattern, "*")) {
+            /* Simple glob: check extensions */
+            const char *ext = strrchr(pattern, '.');
+            if (ext) {
+                const char *file_ext = strrchr(entry->d_name, '.');
+                if (file_ext) {
+                    match = (strcasecmp(file_ext, ext) == 0);
                 }
-            } else {
-                match = (strcasecmp(entry->d_name, pattern) == 0);
             }
+        } else {
+            match = (strcasecmp(entry->d_name, pattern) == 0);
+        }
 
-            if (match) {
-                printf("  %s\n", entry->d_name);
-                count++;
-            }
+        if (match) {
+            /* dirent d_type is not portable (MinGW lacks it) - stat instead
+             * to keep only regular files. */
+            char full[512];
+            struct stat st;
+            join_path(full, sizeof(full), search_dir, entry->d_name);
+            if (stat(full, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+
+            printf("  %s\n", entry->d_name);
+            count++;
         }
     }
     closedir(dir);
@@ -167,19 +185,6 @@ static int cmd_list_files(const char *nd100Root, int argc, char **argv) {
         printf("  (no files found)\n");
     }
     return 0;
-}
-
-/**
- * Join a directory and a name into out, collapsing a trailing '/' on dir so we
- * never emit a doubled slash (e.g. "/mnt/d/ND/BPUN//mac.bpun").
- */
-static void join_path(char *out, size_t out_sz, const char *dir, const char *name) {
-    size_t dlen = strlen(dir);
-    if (dlen > 0 && dir[dlen - 1] == '/') {
-        snprintf(out, out_sz, "%s%s", dir, name);
-    } else {
-        snprintf(out, out_sz, "%s/%s", dir, name);
-    }
 }
 
 /**
@@ -214,10 +219,8 @@ static bool resolve_program_file(const char *dir, const char *name,
     int best_rank = 99;
     struct dirent *e;
     while ((e = readdir(d)) != NULL) {
-        /* Some filesystems report DT_UNKNOWN; accept those and let the final
-         * stat() below reject non-files. */
-        if (e->d_type != DT_REG && e->d_type != DT_UNKNOWN) continue;
-
+        /* No d_type filter here - it is not portable (MinGW lacks it); the
+         * final stat() below rejects non-files. */
         int rank = 99;
         if (strcasecmp(e->d_name, name) == 0) {
             rank = 0;
