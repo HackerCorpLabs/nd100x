@@ -192,6 +192,10 @@ if(PLATFORM_WINDOWS)
     target_link_libraries(test_bcd PRIVATE winmm)
 endif()
 
+# bcd.c #includes the generated cpu_protos.h; force the cpu target (which
+# runs mkptypes to emit it) to build first.
+add_dependencies(test_bcd cpu)
+
 add_test(NAME bcd_tests COMMAND test_bcd)
 
 # CPU floating point tests
@@ -216,6 +220,10 @@ if(PLATFORM_WINDOWS)
     # cpu_types.h pulls in windows.h and timeBeginPeriod() for sleep_ms().
     target_link_libraries(test_float PRIVATE winmm)
 endif()
+
+# float.c #includes the generated cpu_protos.h; force the cpu target (which
+# runs mkptypes to emit it) to build first.
+add_dependencies(test_float cpu)
 
 add_test(NAME float_tests COMMAND test_float)
 
@@ -293,6 +301,10 @@ if(PLATFORM_WINDOWS)
     target_link_libraries(test_shell PRIVATE winmm)
 endif()
 
+# nd100x_shell.c #includes the generated ndlib_protos.h, machine_protos.h and
+# cpu_protos.h; force the targets that run mkptypes to build first.
+add_dependencies(test_shell cpu machine_protos_gen ndlib)
+
 add_test(NAME shell_tests COMMAND test_shell)
 
 # :PROG loader unit tests
@@ -317,5 +329,9 @@ target_link_libraries(test_load_prog PRIVATE m)
 if(PLATFORM_WINDOWS)
     target_link_libraries(test_load_prog PRIVATE winmm)
 endif()
+
+# load_prog.c #includes the generated ndlib_protos.h; force the ndlib target
+# (which runs mkptypes to emit it) to build first.
+add_dependencies(test_load_prog ndlib)
 
 add_test(NAME load_prog_tests COMMAND test_load_prog)
