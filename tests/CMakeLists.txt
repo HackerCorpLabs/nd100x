@@ -248,6 +248,10 @@ if(NOT PLATFORM_WINDOWS)
 
     target_link_libraries(test_machine_config PRIVATE m)
 
+    # machine_config.h -> machine_types.h #includes the generated cpu_protos.h;
+    # force the cpu target (which runs mkptypes to emit it) to build first.
+    add_dependencies(test_machine_config cpu)
+
     add_test(NAME machine_config_tests COMMAND test_machine_config)
 endif()
 
@@ -270,6 +274,10 @@ if(NOT PLATFORM_WINDOWS)
     )
 
     target_link_libraries(test_rtc PRIVATE m)
+
+    # deviceRTC.c #includes the generated devices_protos.h; force the devices
+    # target (which runs mkptypes to emit it) to build first.
+    add_dependencies(test_rtc devices)
 
     add_test(NAME rtc_tests COMMAND test_rtc)
 endif()
