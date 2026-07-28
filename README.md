@@ -330,7 +330,12 @@ Options:
                           single-precision FPP: FAD/FSB/FMU/FDV operate on the A,D
                           register pair with 2-word memory operands, and NLZ/DNZ
                           leave the T register untouched (which is how software
-                          detects the installed unit). Also settable via the .ini
+                          detects the installed unit). NOTE: LDF/STF always move
+                          3 words (T,A,D) in both modes, matching the real
+                          microcode (ND-110 RASK / ND-120 DELILAH have no mode
+                          branch) - store/load 32-bit floats with STD/LDD, whose
+                          2-word A,D layout matches the FAD..FDV memory operand.
+                          Also settable via the .ini
                           '[machine] fpp = BITS' key; the CLI flag wins.
            --rtc=MODE     RTC time base: ticks or wall (default: ticks).
                           ticks = one clock pulse per 10550 executed instructions

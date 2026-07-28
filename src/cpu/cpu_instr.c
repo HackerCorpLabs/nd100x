@@ -634,6 +634,16 @@ void ndfunc_std(ushort operand)
 
 /* STF
  */
+/* STF - store float, ALWAYS 3 words (T->ea, A->ea+1, D->ea+2), in BOTH FPP
+ * modes. Deliberately NOT gated on CurrentFPPType: LDF/STF are CPU data
+ * movers, not FPP arithmetic, and the real microcode has no mode branch -
+ * verified in ND-110 RASK (STF: 11607 -> STF1: 405 -> STD1: 400) and ND-120
+ * DELILAH-L/K (13593/475/462); every addressing-mode slot enters via the T
+ * word. Consequence for --fpp=32: the 32-bit float lives in A,D, so store/
+ * load it with STD/LDD (2 words, layout matching the FAD..FDV memory
+ * operand at ea/ea+1). STF on a 32-bit float writes stale T at ea and lands
+ * the value one word off - misaligned exactly as on the real CPU.
+ */
 void ndfunc_stf(ushort operand)
 {
 	gEA = New_GetEffectiveAddr(operand, &gUseAPT);
@@ -677,6 +687,15 @@ void ndfunc_ldd(ushort operand)
 }
 
 /* LDF
+ */
+/* LDF - load float, ALWAYS 3 words (ea->T, ea+1->A, ea+2->D), in BOTH FPP
+ * modes - the exact mirror of STF above, and like STF deliberately NOT
+ * gated on CurrentFPPType. Real-microcode evidence: ND-110 RASK LDF1: 407
+ * -> LDD1: 402 -> fall-through into D; all 32 LDF addressing-mode slots
+ * (11647-11690) funnel into LDF1, none starts at LDD1 (which a 2-word A,D
+ * load would need). ND-120 DELILAH-L identical (481/468). Consequence for
+ * --fpp=32: LDF overwrites T (which the 32-bit FPP never touches) and reads
+ * the A,D value one word off - use LDD instead for 32-bit floats.
  */
 void ndfunc_ldf(ushort operand)
 {
@@ -886,6 +905,12 @@ void ndfunc_ora(ushort operand)
 }
 
 /* FAD
+ *
+ * FPP32 memory-operand layout (also FSB/FMU/FDV below): the 2-word operand
+ * lives at ea/ea+1 and the accumulator is the A,D pair. IMPORTANT: LDF/STF
+ * are NOT the store/load path for these floats - they are unconditional
+ * 3-word T/A/D movers in the real microcode (see ndfunc_stf/ndfunc_ldf) and
+ * would place the value one word off. Store/load 32-bit floats with STD/LDD.
  */
 void ndfunc_fad(ushort operand)
 {
