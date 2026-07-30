@@ -163,10 +163,19 @@ void Config_Init(Config_t *config) {
 }
 
 /* Parse a --boot argument into bootType + bootUnit.
- * Accepts the bare names (bp, bpun, aout, floppy, smd, scsi) plus an optional
- * unit digit on the disk controllers: smd0-smd3 and scsi0-scsi6. A bare
- * "smd"/"scsi" means unit 0. Prints its own error message and returns false
- * on an unknown name or an out-of-range unit. */
+ * Accepts the bare names (bp, bpun, tape, aout, prog, floppy, cdc, smd, scsi)
+ * plus an optional unit digit on the disk controllers: smd0-smd3 and
+ * scsi0-scsi6. A bare "smd"/"scsi" means unit 0. Prints its own error message
+ * and returns false on an unknown name or an out-of-range unit.
+ *
+ * bpun vs tape - two REAL, different loaders, not aliases:
+ *   bpun = the ND-100 ROM loader. ASCII preamble is metadata only; the
+ *          payload is the framed binary block after '!'. Tape consumed.
+ *   tape = the front-panel octal tape load (NORD-1 style). ASCII words are
+ *          deposited, start at '!', and the remainder stays mounted on the
+ *          paper-tape reader for the started program to read (raw, unframed).
+ * The byte stream after '!' cannot be told apart mechanically, so guessing
+ * is unsafe - the operator says which loader to model, as on the hardware. */
 static bool parseBootSpec(Config_t *config, const char *bootStr) {
     if (!bootStr || !config) return false;
 
@@ -177,6 +186,7 @@ static bool parseBootSpec(Config_t *config, const char *bootStr) {
     if (strcmp("aout", bootStr) == 0)   { config->bootType = BOOT_AOUT;   return true; }
     if (strcmp("floppy", bootStr) == 0) { config->bootType = BOOT_FLOPPY; return true; }
     if (strcmp("cdc", bootStr) == 0)    { config->bootType = BOOT_CDC;    return true; }
+    if (strcmp("tape", bootStr) == 0)   { config->bootType = BOOT_TAPE;   return true; }
 
     if (strncmp("smd", bootStr, 3) == 0) {
         const char *u = bootStr + 3;
@@ -846,10 +856,24 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 void Config_PrintHelp(const char *progName) {
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
-    printf("  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd[0-3], scsi[0-6])\n");
+    printf("  -b,      --boot=TYPE    Boot type (bp, bpun, tape, aout, prog, floppy,\n");
+    printf("                          smd[0-3], scsi[0-6], cdc)\n");
     printf("                          smd/scsi take an optional boot unit digit,\n");
     printf("                          e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)\n");
-    printf("  -i,      --image=FILE   Image file to load (aout, bpun, floppy only)\n");
+    printf("                          bpun = ND-100 ROM loader: the octal-ASCII preamble is\n");
+    printf("                          metadata; a FRAMED binary block after '!' is loaded\n");
+    printf("                          ([addr][count][words][checksum][action]).\n");
+    printf("                          tape = front-panel octal tape load: the ASCII words\n");
+    printf("                          ARE deposited into memory, execution starts at the\n");
+    printf("                          '!' address, and the tape REMAINS in the paper-tape\n");
+    printf("                          reader (0400) so the started program reads the raw\n");
+    printf("                          binary remainder itself - what a NORD TSS CDBIN\n");
+    printf("                          distribution tape needs. The two formats are NOT\n");
+    printf("                          interchangeable after the '!'.\n");
+    printf("                          cdc = LOAD button on the TSS cartridge disc: sector 0\n");
+    printf("                          into core 0, start at 0 (needs --cdc=FILE).\n");
+    printf("  -i,      --image=FILE   Image file to load (bpun, tape, aout, prog, floppy;\n");
+    printf("                          --boot=cdc also demands one but never reads it)\n");
     printf("           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)\n");
     printf("           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)\n");
     printf("           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)\n");

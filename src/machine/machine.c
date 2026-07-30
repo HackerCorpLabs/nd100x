@@ -34,6 +34,7 @@
 
 #include "../devices/devices_types.h"
 #include "../devices/devices_protos.h"
+#include "../devices/papertape/devicePapertape.h"  /* --boot=tape mounts the remainder */
 
 #include "../ndlib/ndlib_types.h"
 #include "../ndlib/ndlib_protos.h"
@@ -63,7 +64,8 @@ const char* boot_type_str[] = {
     "floppy",
     "smd",
     "scsi",
-    "cdc"
+    "cdc",
+    "tape"
 };
 
 
@@ -547,6 +549,116 @@ void autoMountDrives()
 
 }
 
+/* --boot=tape: boot an octal-ASCII leader tape from the paper-tape reader.
+ *
+ * This is the front-panel tape load: the leader part of the tape is octal
+ * ASCII of the form "<addr>/" then one "<word> CR LF" per word (each word
+ * DEPOSITED at the running location counter) and finally "<addr>!" - jump
+ * to that address. Everything AFTER the '!' is left MOUNTED on the
+ * paper-tape reader at address 0400, exactly like the physical tape that
+ * stays in the reader: the just-started program reads the binary part of
+ * the tape from the device itself.
+ *
+ * This is what a NORD TSS "CDBIN" distribution tape needs: its )8DUMP
+ * header (TSS source TSS3.SYMB:191-235 / TDUMP.SYMB) is HLOAD in ASCII,
+ * then TBOOT/HDKOP as raw binary that HLOAD reads from the reader, then
+ * disc-tagged load blocks that TBOOT writes to the system disc. The
+ * BOOT_BPUN path cannot load such a tape: it parses the ASCII part as
+ * metadata only and expects a framed binary block after the '!'.
+ *
+ * Bytes are masked to 7 bits (punched parity); NUL leader/trailer bytes
+ * and LF are ignored. Returns the '!' start address, or -1 on error.     */
+static int tape_leader_load(const char *path, bool verbose)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f)
+    {
+        printf("Failed to open tape file '%s': %s\n", path, strerror(errno));
+        return -1;
+    }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    rewind(f);
+    if (len <= 0)
+    {
+        fclose(f);
+        printf("Tape file '%s' is empty\n", path);
+        return -1;
+    }
+    uint8_t *data = (uint8_t *)malloc((size_t)len);
+    if (!data || fread(data, 1, (size_t)len, f) != (size_t)len)
+    {
+        fclose(f);
+        free(data);
+        printf("Cannot read tape file '%s'\n", path);
+        return -1;
+    }
+    fclose(f);
+
+    uint16_t acc = 0, loc = 0, lo = 0xFFFF, hi = 0;
+    int have = 0, start = -1, words = 0;
+    long i;
+    for (i = 0; i < len; i++)
+    {
+        int c = data[i] & 0x7F;
+        if (c >= '0' && c <= '7')
+        {
+            acc = (uint16_t)((acc << 3) | (uint16_t)(c - '0'));
+            have = 1;
+        }
+        else if (c == '/')
+        {
+            if (have) { loc = acc; }
+            acc = 0; have = 0;
+        }
+        else if (c == 015)              /* CR: deposit the pending word */
+        {
+            if (have)
+            {
+                WritePhysicalMemory((int)loc, acc, false);
+                if (loc < lo) { lo = loc; }
+                if (loc > hi) { hi = loc; }
+                loc++; words++;
+            }
+            acc = 0; have = 0;
+        }
+        else if (c == '!')
+        {
+            start = have ? (int)acc : (int)loc;
+            i++;                        /* the tape rests just after '!' */
+            break;
+        }
+        /* NUL leader, LF and anything else: the leader ignores it */
+    }
+    if (start < 0)
+    {
+        free(data);
+        printf("Tape '%s' has no '!' start marker in its ASCII leader\n", path);
+        return -1;
+    }
+
+    /* leave the rest of the tape in the reader for the started program */
+    Device *reader = DeviceManager_GetDeviceByAddress(0400);
+    if (reader != NULL && i < len)
+    {
+        PaperTape_LoadTape(reader, data + i, (size_t)(len - i));
+    }
+    else if (reader == NULL)
+    {
+        printf("Warning: no paper-tape reader at 0400 - tape remainder "
+               "not mounted\n");
+    }
+
+    if (verbose)
+    {
+        printf("Tape leader: %d words deposited at %06o-%06o, start %06o, "
+               "%ld bytes left in the reader\n",
+               words, lo, hi, (unsigned)start, len - i);
+    }
+    free(data);
+    return start;
+}
+
  int program_load(BOOT_TYPE bootType, int bootUnit, const char *imageFile, bool verbose, uint16_t text_start, bool overlay_deposit)
  {
      int bootAddress;
@@ -681,6 +793,20 @@ void autoMountDrives()
          }
          STARTADDR = bootAddress;
          break;
+     case BOOT_TAPE:
+         bootAddress = tape_leader_load(imageFile, verbose);
+         if (bootAddress < 0)
+         {
+             printf("Error booting tape '%s'\n", imageFile);
+#ifdef __EMSCRIPTEN__
+             return -1;
+#else
+             exit(10);
+#endif
+         }
+         STARTADDR = bootAddress;
+         break;
+
      case BOOT_CDC:
 
         /* The NORD TSS cartridge disc. On real hardware the LOAD button and

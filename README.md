@@ -273,10 +273,13 @@ The emulator supports the following command line options:
 Usage: build/bin/nd100x [options]
 
 Options:
-  -b,      --boot=TYPE    Boot type (bp, bpun, aout, floppy, smd[0-3], scsi[0-6])
+  -b,      --boot=TYPE    Boot type (bp, bpun, tape, aout, prog, floppy,
+                          smd[0-3], scsi[0-6], cdc)
                           smd/scsi take an optional boot unit digit,
                           e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)
-  -i,      --image=FILE   Image file to load (aout, bpun, floppy only)
+                          See "Boot types" below for bpun vs tape vs cdc.
+  -i,      --image=FILE   Image file to load (bpun, tape, aout, prog, floppy;
+                          --boot=cdc also demands one but never reads it)
            --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)
            --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)
            --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)
@@ -364,13 +367,59 @@ Examples:
   build/bin/nd100x --boot=smd --charset=norwegian  # Norwegian 7-bit local console
 ```
 
-Boot Types:
+### Boot types
+
 * `smd`: SMD disk boot (default). An optional unit digit selects the boot unit: `smd0`-`smd3`.
 * `scsi`: SCSI disk boot. An optional unit digit selects the boot SCSI ID: `scsi0`-`scsi6`. The boot ID must be configured as an `hdd` target with `--scsiN`.
-* `bp`: Boot program
-* `bpun`: Boot program unprotected
-* `aout`: BSD 2.11 a.out format
-* `floppy`: Floppy disk boot
+* `bpun`: BPUN paper tape, loaded the way the **ND-100 ROM loader** did.
+* `tape`: paper tape loaded the way the **front-panel octal tape load** did (NORD-1 style).
+* `cdc`: NORD TSS cartridge-disc boot — the front-panel LOAD button. Reads
+  physical sector 0 of the `--cdc=FILE` image into core 0 and starts at
+  address 0. (Quirk: argument validation currently still demands an
+  `--image=` for this type; pass any file, it is not read.)
+* `prog`: SINTRAN `:PROG` loadable image.
+* `aout`: BSD 2.11 a.out format.
+* `floppy`: Floppy disk boot.
+* `bp`: reserved (loader not implemented).
+
+#### `--boot=bpun` vs `--boot=tape` — two different historical loaders, not aliases
+
+Both accept a paper tape that begins with an octal-ASCII leader
+(`<addr>/`, one octal word per line, `<addr>!`), but they model **different
+hardware load paths** and expect **incompatible content after the `!`**:
+
+| | `--boot=bpun` (ND-100 ROM loader) | `--boot=tape` (front-panel octal load) |
+|---|---|---|
+| ASCII leader | parsed as **metadata only** — its words are *not* placed in memory | every word is **deposited into memory** at the running location counter |
+| after the `!` | a **framed binary block**: `[load address][word count][data words][checksum][action]`, copied into memory by the emulator | **raw, unframed bytes** — the emulator does not touch them |
+| start address | computed from the header cells (see the boot-entry contract in the NORD TSS docs) | the octal number immediately before the `!` |
+| the tape afterwards | fully consumed | **stays mounted in the paper-tape reader (0400)**, positioned right after the `!`, so the just-started program can read the remainder itself |
+
+Use `--boot=bpun` for every framed BPUN artifact: `mac -b` tapes, MINIT,
+TSS system tapes, TPE-MON, test programs.
+
+Use `--boot=tape` for self-loading tapes whose deposited ASCII part IS the
+loader — the NORD TSS **CDBIN distribution tape** is the canonical case:
+its ASCII part is `HLOAD`, which reads the binary `TBOOT` loader from the
+reader, and `TBOOT` then reads load blocks and *writes the disc-tagged ones
+to the system disc itself*. That only works if the tape remains in the
+reader at the exact byte after the `!`, which is what this boot type
+guarantees (exactly like the physical tape staying in the reader).
+
+The two cannot be merged: after the `!` the byte streams are mechanically
+indistinguishable, and a wrong guess would silently corrupt memory. As on
+the real machines, the operator chooses the loader.
+
+```bash
+# framed BPUN artifact (mac -b output, MINIT, system tapes):
+nd100x --boot=bpun --image=test.bpun
+
+# self-loading CDBIN install tape against the TSS system disc:
+nd100x --boot=tape --image=cdbin-boot.bpun --cdc=cdc.img
+
+# then cold boot TSS from the disc alone (the LOAD button):
+nd100x --boot=cdc --image=cdc.img --cdc=cdc.img --drum=drum.img
+```
 
 ### Block devices (Floppy, SMD and SCSI)
 
@@ -417,6 +466,11 @@ Now you have access to test programs like CONFIG, PAGING, INSTRUCTION and more.
 
 ### Paper Tape Reader (I/O 0400-0403)
 Reads BPUN tape images loaded via the `--tape` CLI option or the Glass UI file upload. Used by TPE and SINTRAN as logical device 2.
+
+`--boot=tape` also mounts here: after the octal-ASCII leader is deposited
+and started, the **remainder of the boot tape stays in this reader**,
+positioned right after the `!`, so the loaded program can read the rest of
+its own tape — see "Boot types" above.
 
 ### Paper Tape Punch (I/O 0410-0413)
 Accumulates punched output in memory. In native mode, output is saved to files in the tape directory (default: `./tapes/`). In the Glass UI, a hex/ASCII display shows punched bytes with a download button.
