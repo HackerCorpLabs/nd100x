@@ -51,14 +51,19 @@ MountedDriveInfo_t* smd_drives = NULL;
 MountedDriveInfo_t* scsi_drives = NULL;
 
 
+/* Must stay index-aligned with BOOT_TYPE in machine_types.h.
+ * "prog" was missing, which shifted every entry from BOOT_FLOPPY on:
+ * boot_type_str[BOOT_FLOPPY] printed "smd". */
 const char* boot_type_str[] = {
     "none",
     "bpun",
     "aout",
     "bp",
+    "prog",
     "floppy",
     "smd",
-    "scsi"
+    "scsi",
+    "cdc"
 };
 
 
@@ -668,6 +673,25 @@ void autoMountDrives()
          if (bootAddress < 0)
          {
              printf("Error booting from SCSI unit %d\n", bootUnit);
+#ifdef __EMSCRIPTEN__
+             return -1;
+#else
+             exit(10);
+#endif
+         }
+         STARTADDR = bootAddress;
+         break;
+     case BOOT_CDC:
+
+        /* The NORD TSS cartridge disc. On real hardware the LOAD button and
+         * microcode read sector 0 into core and start at 0; TSS's own
+         * LOAD-SYSTEM command (LOADV) does exactly the same thing at runtime.
+         * The CDC controller keeps its surface in memory, so there is no
+         * mount step here - the image is attached with --cdc=FILE. */
+         bootAddress = DeviceManager_BootFrom(DEVICE_TYPE_CDC, bootUnit);
+         if (bootAddress < 0)
+         {
+             printf("Error booting from CDC disc\n");
 #ifdef __EMSCRIPTEN__
              return -1;
 #else

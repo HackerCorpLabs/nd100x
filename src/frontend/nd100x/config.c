@@ -176,6 +176,7 @@ static bool parseBootSpec(Config_t *config, const char *bootStr) {
     if (strcmp("bpun", bootStr) == 0)   { config->bootType = BOOT_BPUN;   return true; }
     if (strcmp("aout", bootStr) == 0)   { config->bootType = BOOT_AOUT;   return true; }
     if (strcmp("floppy", bootStr) == 0) { config->bootType = BOOT_FLOPPY; return true; }
+    if (strcmp("cdc", bootStr) == 0)    { config->bootType = BOOT_CDC;    return true; }
 
     if (strncmp("smd", bootStr, 3) == 0) {
         const char *u = bootStr + 3;

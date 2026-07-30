@@ -523,6 +523,48 @@ static void Cdc_Destroy(Device *self)
 }
 
 /* ----- factory ---------------------------------------------------------- */
+
+/* ----- boot: read sector 0 into core and start there ------------------------
+ * On a real NORD-10 the LOAD button plus microcode reads the first sector of
+ * the selected device into core and starts at address 0. TSS relies on exactly
+ * that layout: its own LOAD-SYSTEM command (LOADV, src/TSS5.SYMB:604) does
+ * SDISK(core 0, disc 0, read) followed by RCLR DP, i.e. P := 0. The sector
+ * therefore has to be self-starting at word 0, which TSS's DKRST is.
+ *
+ * One 256-word sector is transferred, matching the CDC transfer unit. */
+static int Cdc_Boot(Device *self, int unit)
+{
+    (void)unit;                       /* single-unit controller */
+    CdcData *d = (CdcData *)self->deviceData;
+
+    if (!d || !d->surface || d->surfaceWords < CDC_WORDS_PER_SECTOR)
+    {
+        printf("Error: CDC boot - no disc surface attached (use --cdc=FILE)\n");
+        return -1;
+    }
+
+    /* A blank or unformatted disc has no bootstrap; starting at 0 would run
+     * whatever happens to be in core. Refuse, as the SMD boot does. */
+    int allZero = 1;
+    for (uint32_t i = 0; i < CDC_WORDS_PER_SECTOR; i++)
+    {
+        if (d->surface[i] != 0) { allZero = 0; break; }
+    }
+    if (allZero)
+    {
+        printf("Error: CDC boot sector (sector 0) is all zeros - the disc "
+               "carries no bootstrap\n");
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < CDC_WORDS_PER_SECTOR; i++)
+    {
+        Device_DMAWrite(i, d->surface[i]);
+    }
+
+    return 0;                         /* start address: core 0 */
+}
+
 Device *CreateCdcDevice(uint8_t thumbwheel)
 {
     Device *dev = (Device *)malloc(sizeof(Device));
@@ -543,6 +585,7 @@ Device *CreateCdcDevice(uint8_t thumbwheel)
     Device_Init(dev, thumbwheel, DEVICE_CLASS_STANDARD, 0);
     dev->deviceData = d;
     dev->type = DEVICE_TYPE_CDC;
+    dev->Boot = Cdc_Boot;
 
     /* Allocate and zero the default surface; a larger backing file grows it. */
     d->surfaceSectors = CDC_DEFAULT_SECTORS;

@@ -41,7 +41,8 @@ typedef enum {
     BOOT_PROG,
     BOOT_FLOPPY,
     BOOT_SMD,
-    BOOT_SCSI
+    BOOT_SCSI,
+    BOOT_CDC        /* NORD TSS CDC/NCR cartridge disc @ 500 */
 } BOOT_TYPE;
 
 extern const char* boot_type_str[];
