@@ -613,14 +613,23 @@ static bool Cdc_IotOp(Device *self, uint8_t devno, uint8_t func,
 
     if (devno == CDC_N1_DISC)               /* 144 - start transfer / ready test */
     {
+        /* PIN is "prepare interrupt: turn on the interrupt system of the
+         * specified device" (NORD-1 Reference Manual sec 3.7). Only PIN
+         * enables interrupts. RDKOP never sets it - it polls with SKA - so
+         * enabling them on ACT, as this first did, raised a completion
+         * interrupt the bootstrap never asked for and was not ready to take:
+         * LOADV has just done MCL PIE / INTDS and the vectors are not set up
+         * again until INIT runs. */
+        if (func & FN_PIN)
+            d->interruptEnabled = true;
+
         if (func & FN_SKA)                  /* "skip if start acceptable" */
             *skip = (d->status.bits.active == 0);
-        if (func & FN_ACT)                  /* activate: same path as the
-                                             * control-word activate bit */
-        {
-            d->interruptEnabled = true;
+
+        if (func & FN_ACT)                  /* activate: the same transfer the
+                                             * control-word activate bit starts */
             Cdc_ExecuteGO(self);
-        }
+
         return true;
     }
 
