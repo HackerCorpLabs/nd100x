@@ -484,6 +484,21 @@ Device *DeviceManager_GetDeviceByIndex(int index)
 // Note: each controller's Boot function performs a MEMORY boot (first blocks
 // of the unit loaded to address 0). BPUN and bootstrap boot modes are handled
 // elsewhere (program_load) or not implemented.
+bool DeviceManager_IotOp(uint8_t devno, uint8_t func, uint16_t *regA, bool *skip)
+{
+    for (int i = 0; i < deviceManager.deviceCount; i++)
+    {
+        Device *dev = deviceManager.devices[i].device;
+        if (!dev || !dev->IotOp || dev->nord1Device == 0)
+            continue;
+        uint16_t first = dev->nord1Device;
+        uint16_t count = dev->nord1DeviceCount ? dev->nord1DeviceCount : 1;
+        if (devno >= first && devno < first + count)
+            return dev->IotOp(dev, devno, func, regA, skip);
+    }
+    return false;
+}
+
 int DeviceManager_BootFrom(DeviceType type, int unit)
 {
     for (int i = 0; i < deviceManager.deviceCount; i++)

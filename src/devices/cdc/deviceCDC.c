@@ -565,6 +565,82 @@ static int Cdc_Boot(Device *self, int unit)
     return 0;                         /* start address: core 0 */
 }
 
+
+/* ----- NORD-1 compatible access (the IOT instruction) -----------------------
+ * The same controller, reached over the NORD-1 I/O channel instead of the
+ * NORD-10 flat register file. TSS defines both mappings itself, side by side,
+ * in src/TSS1.SYMB:3356-3379:
+ *
+ *   "CDC NN10                        "CDC N10
+ *   DISC = DCHN+44  start transfer   (no equivalent: activate is a control bit)
+ *   DCT  = DCHN+45  control port     RCA=+0 LCA=+1 RSECT=+2 LBA=+3
+ *   LCA  = DCT+SNI                   RST=+4 LMR=+5 SEEK=+6  LWC=+7
+ *   LBA  = DCT+ACT
+ *   LMR  = DCT+SKA
+ *   RST  = DCT+PIN        "READ STATUS REGISTER, SKIP IF OK"
+ *   RCA  = DCT+PIN+ACT
+ *   RSECT= DCT+PIN+SKA
+ *   RDC  = DCT+PIN+SKA+ACT  "RESET DISK CONTROLLER"
+ *   SEEK = DCT+SKA+ACT
+ *
+ * The eight function-bit combinations on DCT are a bijection onto the eight
+ * NORD-10 registers, which is what shows these are one controller with two
+ * address decodes rather than two controllers. DCHN ("DISK CHANNEL NUMBER",
+ * TSS1.SYMB:43) is 100 on NORD-1 and 500 on NORD-10, so the NORD-1 numbers
+ * are 144 (start) and 145 (control port).
+ *
+ * [INFERRED, from TSS's own comment and its use in RDKOP] RST skips when the
+ * status is good; DISC+SKA skips when the controller is not busy. Everything
+ * else routes to the identical register the NORD-10 path uses. */
+static bool Cdc_IotOp(Device *self, uint8_t devno, uint8_t func,
+                      uint16_t *regA, bool *skip)
+{
+    CdcData *d = (CdcData *)self->deviceData;
+    enum { FN_ACT = 1, FN_SKA = 2, FN_PIN = 4 };   /* IOT bits 8,9,10 */
+
+    if (devno == CDC_N1_DISC)               /* 144 - start transfer / ready test */
+    {
+        if (func & FN_SKA)                  /* "skip if start acceptable" */
+            *skip = (d->status.bits.active == 0);
+        if (func & FN_ACT)                  /* activate: same path as the
+                                             * control-word activate bit */
+        {
+            d->interruptEnabled = true;
+            Cdc_ExecuteGO(self);
+        }
+        return true;
+    }
+
+    if (devno != CDC_N1_DCT)                /* 145 - the control port */
+        return false;
+
+    switch (func)
+    {
+    case 0:                                  /* SNI          -> LCA  (501) */
+        Cdc_Write(self, self->startAddress + CDC_REG_LCA, *regA);   break;
+    case FN_ACT:                             /* ACT          -> LBA  (503) */
+        Cdc_Write(self, self->startAddress + CDC_REG_LBA, *regA);   break;
+    case FN_SKA:                             /* SKA          -> LMR  (505) */
+        Cdc_Write(self, self->startAddress + CDC_REG_LCW, *regA);   break;
+    case (uint8_t)(FN_SKA | FN_ACT):         /* SEEK         -> 506        */
+        *regA = Cdc_Read(self, self->startAddress + CDC_REG_SEEK);  break;
+    case FN_PIN:                             /* RST, skip if OK -> 504     */
+        *regA = Cdc_Read(self, self->startAddress + CDC_REG_RST);
+        *skip = (d->status.bits.errorOr == 0);
+        break;
+    case (uint8_t)(FN_PIN | FN_ACT):         /* RCA          -> 500        */
+        *regA = Cdc_Read(self, self->startAddress + CDC_REG_RCA);   break;
+    case (uint8_t)(FN_PIN | FN_SKA):         /* RSECT        -> 502        */
+        *regA = Cdc_Read(self, self->startAddress + CDC_REG_RSECT); break;
+    case (uint8_t)(FN_PIN | FN_SKA | FN_ACT):/* RDC: reset the controller  */
+        Cdc_Reset(self);
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
 Device *CreateCdcDevice(uint8_t thumbwheel)
 {
     Device *dev = (Device *)malloc(sizeof(Device));
@@ -586,6 +662,9 @@ Device *CreateCdcDevice(uint8_t thumbwheel)
     dev->deviceData = d;
     dev->type = DEVICE_TYPE_CDC;
     dev->Boot = Cdc_Boot;
+    dev->IotOp = Cdc_IotOp;                 /* NORD-1 IOT access */
+    dev->nord1Device = CDC_N1_DISC;         /* 144 and 145       */
+    dev->nord1DeviceCount = 2;
 
     /* Allocate and zero the default surface; a larger backing file grows it. */
     d->surfaceSectors = CDC_DEFAULT_SECTORS;

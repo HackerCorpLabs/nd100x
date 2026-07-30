@@ -156,6 +156,31 @@ typedef struct Device {
     void (*Write)(struct Device *self, uint32_t address, uint16_t value);
     uint16_t (*Ident)(struct Device *self, uint16_t level);
 
+    /* NORD-1 compatible I/O (the IOT instruction, opcode 0160000).
+     *
+     * A NORD-10 keeps IOT as a separate instruction from IOX -- see
+     * ND-06.008.01 sec 5, "IOT: NORD-1 compatible Input/Output", and the
+     * NORD-10-S microprogram, where "IOX, IOT and IDENT are decoded
+     * separately". They are NOT the same instruction:
+     *
+     *   IOX  bits 0-10 = a flat device-register address   (e.g. 500..507)
+     *   IOT  bits 0-7  = a DEVICE NUMBER,
+     *        bits 8-10 = function ACT / SKA / PIN, all zero = SNI
+     *                    (NORD-1 Reference Manual sec 3.7)
+     *
+     * SKA means "skip if start acceptable": when the device is ready the CPU
+     * skips the next instruction, which is what the classic wait loop
+     * "IOT SKA DVN / JMP *-1" relies on.
+     *
+     * Devices reachable through a NORD-1 device number set nord1Device (and
+     * nord1DeviceCount for a contiguous run) and implement IotOp. Returning
+     * false means "not mine", and the caller falls back to the legacy
+     * IOX-style handling. Set *skip to request the SKA/RST skip. */
+    uint16_t nord1Device;       /* first NORD-1 device number, 0 = none */
+    uint8_t  nord1DeviceCount;  /* how many consecutive numbers it answers */
+    bool (*IotOp)(struct Device *self, uint8_t devno, uint8_t func,
+                  uint16_t *regA, bool *skip);
+
     void (*Destroy)(struct Device *self);
     
     // Device classification

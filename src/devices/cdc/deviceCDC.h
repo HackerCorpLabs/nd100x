@@ -72,6 +72,13 @@ typedef enum {
     CDC_REG_LWC   = 7  /* IOX 507  Load Word Count Register        (odd  -> Write) */
 } CdcRegister;
 
+/* NORD-1 device numbers for the same controller, reached with IOT instead of
+ * IOX. DCHN=100 on NORD-1 (TSS1.SYMB:43), so DISC=DCHN+44 and DCT=DCHN+45. */
+enum {
+    CDC_N1_DISC = 0144,  /* start transfer / ready test  */
+    CDC_N1_DCT  = 0145   /* control port, function bits select the register */
+};
+
 /* --- Control Word (LCW = IOX 505) bit model --------------------------------
  * [VERIFIED - MANUAL-N10 p.14-15 "Load Control Word (CW)"]. Modelled as a
  * bit-field union exactly like deviceSMD.h's SMDControlRegister. ALL fields are

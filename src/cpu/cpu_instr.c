@@ -1631,6 +1631,10 @@ bool UpdateMemoryIO()
  * (0160000 - 0163777)
  * 
  */
+/* NORD-1 IOT dispatch, implemented in the device manager. Declared locally so
+ * the CPU does not have to pull in the whole device-model header. */
+bool DeviceManager_IotOp(uint8_t devno, uint8_t func, uint16_t *regA, bool *skip);
+
 void ndfunc_iot(ushort operand)
 {
 	// ND110 Microcode:
@@ -1648,8 +1652,34 @@ void ndfunc_iot(ushort operand)
 	// LEV14 handler counts and ignores (TSS1.SYMB:4294). Treating IOT as an
 	// illegal instruction instead (the old stub) trapped IIC 4 -> ILLS -> TRAP
 	// and spun TSS in an infinite trap loop, blocking LOGON.
-	if (!UpdateMemoryIO())
-		gA = io_op(operand & 0x07ff, gA);
+	if (UpdateMemoryIO())
+		return;
+
+	/* NORD-1 decoding: bits 0-7 device number, bits 8-10 ACT/SKA/PIN
+	 * (all zero = SNI). See NORD-1 Reference Manual sec 3.7 and the Device
+	 * struct comment. If a device claims this NORD-1 device number we use
+	 * that; SKA / "skip if OK" then skips the next instruction, which is what
+	 * the classic "IOT SKA DVN / JMP *-1" wait loop needs. */
+	{
+		uint8_t  devno = (uint8_t)(operand & 0x00ff);
+		uint8_t  func  = (uint8_t)((operand >> 8) & 0x07);
+		uint16_t a     = gA;
+		bool     skip  = false;
+
+		if (DeviceManager_IotOp(devno, func, &a, &skip))
+		{
+			gA = a;
+			if (skip)
+				gPC++;
+			return;
+		}
+	}
+
+	/* Nothing claims it: keep the long-standing behaviour of treating IOT
+	 * like IOX. TSS's teletype scanner poking a device that is not present
+	 * relies on getting the IOX-error interrupt here rather than an illegal
+	 * instruction trap (which used to spin it in a trap loop). */
+	gA = io_op(operand & 0x07ff, gA);
 }
 
 /* IOX (Privileged)
