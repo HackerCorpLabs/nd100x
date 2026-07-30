@@ -620,8 +620,25 @@ static bool Cdc_IotOp(Device *self, uint8_t devno, uint8_t func,
         Cdc_Write(self, self->startAddress + CDC_REG_LCA, *regA);   break;
     case FN_ACT:                             /* ACT          -> LBA  (503) */
         Cdc_Write(self, self->startAddress + CDC_REG_LBA, *regA);   break;
-    case FN_SKA:                             /* SKA          -> LMR  (505) */
-        Cdc_Write(self, self->startAddress + CDC_REG_LCW, *regA);   break;
+    case FN_SKA:                             /* SKA -> LMR, "load modus register"
+                                              *
+                                              * [INFERRED - and this is the one
+                                              * place the two decodes are NOT a
+                                              * straight 1:1 map.] The NORD-1
+                                              * side has no separate word-count
+                                              * register; the NORD-10 side has
+                                              * both LMR (505, control) and LWC
+                                              * (507, word count). RDKOP loads
+                                              * 0400 = 256 here, exactly one
+                                              * sector, and then starts the
+                                              * transfer with ACT on device 144
+                                              * - so this value is the transfer
+                                              * length, not a control word.
+                                              * Mapping it to LCW instead left
+                                              * wordCount at 0, every transfer
+                                              * moved nothing, and the reloaded
+                                              * system span in its disc driver. */
+        Cdc_Write(self, self->startAddress + CDC_REG_LWC, *regA);   break;
     case (uint8_t)(FN_SKA | FN_ACT):         /* SEEK         -> 506        */
         *regA = Cdc_Read(self, self->startAddress + CDC_REG_SEEK);  break;
     case FN_PIN:                             /* RST, skip if OK -> 504     */

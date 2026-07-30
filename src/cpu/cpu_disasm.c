@@ -605,8 +605,30 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		//		((int)offset <0) ? (void)snprintf(numstr,BUFSTRSIZE,"SHR %o",-(int)offset) : (void)snprintf(numstr,BUFSTRSIZE,"%o",offset);
 		(void)snprintf(opstr, BUFSTRSIZE, "SAD %s%s", shtype_str[((operand & 0x0600) >> 9)], numstr);
 		break;
-	case 0160000: /* IOT */
-		(void)snprintf(opstr, BUFSTRSIZE, "IOT %o", (operand & 0x07ff));
+	case 0160000: /* IOT - NORD-1 compatible I/O */
+		/* IOT is NOT an alias of IOX. Bits 0-7 are a device number and bits
+		 * 8-10 are the function ACT / SKA / PIN, all zero meaning SNI
+		 * (NORD-1 Reference Manual sec 3.7; ND-06.008.01 lists IOT and IOX as
+		 * separate instructions). Printing the low 11 bits as one address, as
+		 * this used to, renders "IOT SKA 144" as "IOT 1144" and hides the
+		 * function entirely. */
+		{
+			unsigned devno = operand & 0x00ff;
+			unsigned func  = (operand >> 8) & 0x07;
+			if (func == 0)
+			{
+				/* all three function bits clear is SNI, skip if not interrupt */
+				(void)snprintf(opstr, BUFSTRSIZE, "IOT SNI %o", devno);
+			}
+			else
+			{
+				(void)snprintf(opstr, BUFSTRSIZE, "IOT %s%s%s%o",
+				               (func & 4) ? "PIN " : "",
+				               (func & 2) ? "SKA " : "",
+				               (func & 1) ? "ACT " : "",
+				               devno);
+			}
+		}
 		break;
 	case 0164000: /* IOX */
 		(void)snprintf(opstr, BUFSTRSIZE, "IOX %o", (operand & 0x07ff));
