@@ -54,6 +54,8 @@ char *bopstsbit_str[] = {"SSPTM","SSTG","SSK","SSZ","SSQ","SSO","SSC","SSM","","
 char *bop_str[] = {"BSET ZRO","BSET ONE","BSET BCM","BSET BAC","BSKP ZRO","BSKP ONE",
            "BSKP BCM","BSKP BAC","BSTC","BSTA","BLDC","BLDA","BANC","BAND","BORC","BORA"};
 
+char *tx_str[] = {"LDATX","LDXTX","LDDTX","LDBTX","STATX","STZTX","STDTX"};
+
 /* OpToStr
  * IN: pointer to string ,raw operand
  * OUT: Sets the string with the dissassembled operand and values
@@ -369,25 +371,17 @@ void  OpToStr(char *return_string, uint16_t max_len, uint16_t operand)
 		(void)snprintf(opstr, BUFSTRSIZE, "MIX3");
 		break;
 	case 0143300: /* LDATX */
-		(void)snprintf(opstr, BUFSTRSIZE, "LDATX");
-		break;
 	case 0143301: /* LDXTX */
-		(void)snprintf(opstr, BUFSTRSIZE, "LDXTX");
-		break;
 	case 0143302: /* LDDTX */
-		(void)snprintf(opstr, BUFSTRSIZE, "LDDTX");
-		break;
 	case 0143303: /* LDBTX */
-		(void)snprintf(opstr, BUFSTRSIZE, "LDBTX");
-		break;
 	case 0143304: /* STATX */
-		(void)snprintf(opstr, BUFSTRSIZE, "STATX");
-		break;
 	case 0143305: /* STZTX */
-		(void)snprintf(opstr, BUFSTRSIZE, "STZTX");
-		break;
 	case 0143306: /* STDTX */
-		(void)snprintf(opstr, BUFSTRSIZE, "STDTX");
+		/* bits 3-5 are a displacement added to X: EL = (T & 0xFF)<<16 | (X + disp) */
+		if ((operand >> 3) & 07)
+			(void)snprintf(opstr, BUFSTRSIZE, "%s %o", tx_str[instr & 07], (operand >> 3) & 07);
+		else
+			(void)snprintf(opstr, BUFSTRSIZE, "%s", tx_str[instr & 07]);
 		break;
 	case 0143500: /* LWCS */
 		(void)snprintf(opstr, BUFSTRSIZE, "LWCS");
