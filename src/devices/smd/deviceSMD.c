@@ -234,7 +234,7 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
             /*
             value |= (data->regs.seekCompleteBits & 0xF); // Bits 0-3
 
-            value |= (data->regs.selectedUnit & 0x03) << 8; // Bits 8-10
+            value |= (data->regs.selectedUnit & 0x07) << 8; // Bits 8-10 (3-bit unit field)
             if (data->regs.seekError)
                 value |= (1 << 11); // Bit 11
 
@@ -292,10 +292,14 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
         }
         else
         {
-            // hardwareError =  inclusive or of errror conditions (bits 5,6,7,8 and 13)
+            // hardwareError (b4) = inclusive OR of the error conditions. Must
+            // include hardwareError2 (b7): DISC-TEMA's not-specified-unit check
+            // raises b7, and it has to propagate into the OR. Matches nd_smd's
+            // smd_inclusive_or (which includes hw_error2). See DISC-TEMA item 7.
             data->statusRegister.bits.hardwareError =
                 data->statusRegister.bits.illegalLoad |
                 data->statusRegister.bits.timeOut |
+                data->statusRegister.bits.hardwareError2 |
                 data->statusRegister.bits.comparerError |
                 data->statusRegister.bits.addressMismatch |
                 data->seekCondition.bits.seekError;
@@ -505,7 +509,11 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
         {
             if (!data->regs.selectedDisk)
             {
+                // GO on a not-specified unit (4-7, no drive). DISC-TEMA expects
+                // hardware-error (status b7) here - "Read (from NOT specified unit),
+                // Status Bit 7b is 0 !". Matches nd_smd (hw_error2) / RetroCore.
                 data->statusRegister.bits.diskUnitNotReady = 1;
+                data->statusRegister.bits.hardwareError2 = 1;
                 HandleError(self, DISK_ERR_DRIVE_NOT_SELECTED);
                 return;
             }
@@ -782,6 +790,11 @@ static void ExecuteGO(Device *self)
         return;
     ControllerRegs *regs = &data->regs;
 
+    // illegal-load (b5) is PER-OPERATION: clear it at the start of each GO so a
+    // prior operation's illegal load does not stay latched and contaminate this
+    // one's status (DISC-TEMA item 5; nd100x used to latch it until device-clear).
+    data->statusRegister.bits.illegalLoad = 0;
+
     // Get information on file size and readonly
     if (self->blockCallbacks.diskInfoFunc)
     {
@@ -858,6 +871,10 @@ static void ExecuteGO(Device *self)
          sector >= data->regs.selectedDisk->sectorsPrTrack) &&
         !data->controlRegister.bits.testMode)
     {
+        // DISC-TEMA item 6: an illegal (out-of-range) block address is also a
+        // seek-error condition (seek-condition b11); cleared only by M7 RTZ.
+        // Matches nd_smd / RetroCore.
+        data->seekCondition.bits.seekError = 1;
         HandleError(self, DISK_ERR_ADDRESS_MISMATCH); // ADDRESS_MISMATCH
         return;
     }
@@ -1188,8 +1205,17 @@ static void SetSelectedUnit(ControllerRegs *regs, uint8_t unit)
 {
     if (!regs)
         return;
-    regs->selectedUnit = unit & 0x03; // Only allow units 0-3
-    regs->selectedDisk = &regs->disks[regs->selectedUnit];
+    // Control-word bits 7-9 = a 3-bit unit field (0-7), but every ND SMD/ECC
+    // controller (ND 558/559/632) handles only up to 4 drives - unit-select line
+    // "8" is "not used" (ECC manual), "up to four drives per controller" (ND-11.020
+    // sec.1), and FILSYS-INV reports max unit 3. So keep the full 3-bit value but
+    // select NO disk for units 4-7 (DISC-TEMA REJECTS a not-specified unit, it does
+    // NOT wrap unit&3 -> the hardware-error/not-ready checks must be observable).
+    regs->selectedUnit = unit & 0x07;
+    if (regs->selectedUnit < regs->maxUnits)
+        regs->selectedDisk = &regs->disks[regs->selectedUnit];
+    else
+        regs->selectedDisk = NULL;
 }
 
 static void HandleError(Device *self, DiskError error)
