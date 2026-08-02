@@ -1319,7 +1319,14 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     }
     memset(data->regs.disks, 0, sizeof(DiskInfo) * data->regs.maxUnits);
 
-
+    // Initialize each DiskInfo's unit index. Without this, disks[i].unit stayed 0
+    // (memset), and the M0/M1/M2/M3 data transfers pass selectedDisk->unit to the
+    // block callback (deviceSMD.c ExecuteGO), so EVERY read/write hit unit 0's file
+    // regardless of the selected unit - i.e. "only one disc works". Attach/size and
+    // SMD_Boot already used the correct regs.selectedUnit; only the data transfers
+    // used this field. Setting it here makes selectedDisk->unit valid everywhere.
+    for (int i = 0; i < data->regs.maxUnits; i++)
+        data->regs.disks[i].unit = (uint8_t)i;
 
     // blockSizeBytes will be set when a disk is selected (SMD_Boot or ExecuteGO)
 
