@@ -1085,6 +1085,17 @@ static void ExecuteGO(Device *self)
             fprintf(stderr, "SMD: GO Op=%s Unit=%d C/H/S=%d/%d/%d pos=%ld\n",
                     SMD_OpName(DEVICE_OP_INITIATE_SEEK), data->regs.selectedUnit,
                     cylinder, head, sector, position);
+        // SEEK TIMING MODEL (M4/M6/M7): we deliberately do NOT model physical drive
+        // timing (CDC 976x / Fujitsu Eagle: 3600 RPM = 16.67 ms/rev, ~30 ms avg
+        // seek, 500 ms seek-timeout). A fast emulated seek (the IODELAY_HDD_SMD
+        // delay below) is fine. What matters for DISC-TEMA is the on-cylinder (b14)
+        // STATE TRANSITION, not duration: b14 must be 0 WHILE seeking and return to
+        // 1 when positioned (failures: "b14 remained 1" / "became 1 immediately").
+        // TODO(DISC-TEMA item 2): today onCylinder is set 1 on select/GO and here,
+        // so b14 never drops - non-conformant. Fix = clear onCylinder at M4/M7
+        // start, set it in the completion callback; WHICH event DISC-TEMA polls for
+        // (M6 seek-complete-search / a poll count / the seek-complete interrupt) is
+        // being pinned from a captured DISC-TEMA trace first.
         // Seek operation initiated
         data->seekCondition.bits.seekError = 0;
 
