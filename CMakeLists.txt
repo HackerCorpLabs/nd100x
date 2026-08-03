@@ -198,9 +198,22 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Build mkptypes tool first before we need it.
+#
+# A Windows configure copies mkptypes.exe onto the extension-less name
+# `mkptypes` (see the WIN32 block below). That PE file is then newer than
+# mkptypes.c, so a later build on Linux in the same working tree sees the tool
+# as up to date, leaves the Windows binary in place, and every prototype
+# generation step dies with "Exec format error". Force the rebuild on
+# non-Windows so `mkptypes` is always a native binary here; it is one small C
+# file, so the cost is a fraction of a second.
 message(STATUS "Building mkptypes tool...")
+if(WIN32)
+    set(MKPTYPES_MAKE_ARGS)
+else()
+    set(MKPTYPES_MAKE_ARGS -B)
+endif()
 execute_process(
-    COMMAND make -C ${CMAKE_SOURCE_DIR}/tools/mkptypes
+    COMMAND make ${MKPTYPES_MAKE_ARGS} -C ${CMAKE_SOURCE_DIR}/tools/mkptypes
     RESULT_VARIABLE MKTYPES_RESULT
 )
 if(NOT MKTYPES_RESULT EQUAL 0)
