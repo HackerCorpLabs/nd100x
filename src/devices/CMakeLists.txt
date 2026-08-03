@@ -12,6 +12,7 @@ file(GLOB TERMINAL_SOURCES "terminal/*.c")
 file(GLOB PAPERTAPE_SOURCES "papertape/*.c")
 file(GLOB FLOPPY_SOURCES "floppy/*.c")
 file(GLOB SMD_SOURCES "smd/*.c")
+file(GLOB WINCHESTER_SOURCES "winchester/*.c")
 file(GLOB SCSI_SOURCES "scsi/*.c")
 file(GLOB DRUM_SOURCES "drum/*.c")
 file(GLOB CDC_SOURCES "cdc/*.c")
@@ -27,6 +28,7 @@ list(APPEND SOURCES
     ${PAPERTAPE_SOURCES} 
     ${FLOPPY_SOURCES}
     ${SMD_SOURCES}
+    ${WINCHESTER_SOURCES}
     ${SCSI_SOURCES}
     ${DRUM_SOURCES}
     ${CDC_SOURCES}
@@ -56,6 +58,9 @@ add_custom_command(
     # Add SMD device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/deviceSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/smd/diskSMD.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    # Add Winchester device sources
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/winchester/deviceWinchester.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/winchester/diskWinchester.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     # Add SCSI device sources
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/scsiBus.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h
     COMMAND ${CMAKE_SOURCE_DIR}/tools/mkptypes/mkptypes ${CMAKE_CURRENT_SOURCE_DIR}/scsi/ncr5386.c >> ${CMAKE_CURRENT_SOURCE_DIR}/devices_protos.h

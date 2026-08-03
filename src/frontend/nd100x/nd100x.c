@@ -537,6 +537,19 @@ void initialize()
 			}
 		}
 
+		// Winchester (ST506 / 8 inch, cards 3041/3038). Opt-in via --wd0/--wd1:
+		// the card answers IOX 500-507, the same address block as the CDC
+		// system disc, so adding it unconditionally would change the IOX map
+		// of every existing machine configuration.
+		if (config.wdEnabled) {
+			DeviceManager_AddDevice(DEVICE_TYPE_DISC_WINCHESTER, 0);
+			for (int i = 0; i < 2; i++) {
+				if (config.wdFile[i]) {
+					mount_winchester(config.wdFile[i], i);
+				}
+			}
+		}
+
 		// Add the ND-3201/3204 SCSI controller only if a --scsiN target was given.
 		// It is opt-in: adding the card unconditionally would change the IOX map and
 		// the SINTRAN device scan of every existing machine configuration.

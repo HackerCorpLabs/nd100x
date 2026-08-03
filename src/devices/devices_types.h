@@ -124,6 +124,10 @@ typedef enum {
     DEVICE_TYPE_DISC_SCSI,   /* ND-3201/3204 SCSI disk controller (NCR-5386) */
     DEVICE_TYPE_DRUM,          // NORD TSS swapping drum @ IOX 540
     DEVICE_TYPE_CDC,           // NORD TSS CDC/NCR cartridge system disc @ IOX 500
+    /* 5 1/4 inch (ST506) / 8 inch Winchester disc controller, cards 3041/3038,
+     * @ IOX 500-507 (system 1) or 510-517 (system 2). NOTE: system 1 shares its
+     * address block with DEVICE_TYPE_CDC - a machine has one card or the other. */
+    DEVICE_TYPE_DISC_WINCHESTER,
     DEVICE_TYPE_MAX
 } DeviceType;
 
@@ -238,6 +242,9 @@ typedef struct {
 #include "./papertape/devicePapertape.h"
 #include "./rtc/deviceRTC.h"
 #include "./smd/deviceSMD.h"
+/* Winchester: geometry first (defines WDDiskInfo), then the controller. */
+#include "./winchester/diskWinchester.h"
+#include "./winchester/deviceWinchester.h"
 /* SCSI: bus first (defines SCSIDevice/SCSIBus), then the chip, then the card. */
 #include "./scsi/scsiBus.h"
 #include "./scsi/ncr5386.h"

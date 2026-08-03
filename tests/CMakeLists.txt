@@ -343,3 +343,29 @@ endif()
 add_dependencies(test_load_prog ndlib)
 
 add_test(NAME load_prog_tests COMMAND test_load_prog)
+
+
+# Winchester disc controller unit tests
+#
+# deviceWinchester.c + diskWinchester.c are linked in DIRECTLY together with the
+# fake Device_* infrastructure in test_winchester.c, so the controller's real
+# register handlers and transfer engine run without the machine or the CPU
+# memory subsystem. Same pattern as the CDC and drum tests above.
+add_executable(test_winchester
+    test_winchester.c
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester/deviceWinchester.c
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester/diskWinchester.c
+)
+
+target_include_directories(test_winchester PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester
+    ${CMAKE_SOURCE_DIR}/src/devices
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+    ${CMAKE_SOURCE_DIR}/src/cpu
+)
+
+target_link_libraries(test_winchester PRIVATE m)
+
+add_dependencies(test_winchester devices)
+
+add_test(NAME winchester_tests COMMAND test_winchester)

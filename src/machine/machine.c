@@ -49,6 +49,9 @@
 // Global arrays for mounted drive information
 MountedDriveInfo_t* floppy_drives = NULL;
 MountedDriveInfo_t* smd_drives = NULL;
+// Winchester (ST506/8 inch, cards 3041/3038). TWO units per disk system:
+// ND-11.015.01 sec 3.1 and the single unit bit (control word b9).
+MountedDriveInfo_t* wd_drives = NULL;
 MountedDriveInfo_t* scsi_drives = NULL;
 
 
@@ -65,7 +68,8 @@ const char* boot_type_str[] = {
     "smd",
     "scsi",
     "cdc",
-    "tape"
+    "tape",
+    "wd"
 };
 
 
@@ -79,6 +83,9 @@ void init_drive_arrays() {
     }
     if (!scsi_drives) {
         scsi_drives = calloc(SCSI_MAX_UNITS, sizeof(MountedDriveInfo_t));
+    }
+    if (!wd_drives) {
+        wd_drives = calloc(2, sizeof(MountedDriveInfo_t));
     }
 }
 
@@ -95,6 +102,10 @@ static void cleanup_drive_arrays() {
     if (scsi_drives) {
         free(scsi_drives);
         scsi_drives = NULL;
+    }
+    if (wd_drives) {
+        free(wd_drives);
+        wd_drives = NULL;
     }
 }
 
@@ -119,6 +130,10 @@ static MountedDriveInfo_t *drives_for_type(DRIVE_TYPE drive_type, int *max_units
     case DRIVE_SCSI:
         drives = scsi_drives;
         units = SCSI_MAX_UNITS; // SCSI targets are IDs 0-6 (7 is the controller)
+        break;
+    case DRIVE_WINCHESTER:
+        drives = wd_drives;
+        units = 2;              // Winchester has units 0-1 (one unit-select bit)
         break;
     default:
         break;
@@ -154,6 +169,9 @@ static bool drive_type_for_device(const Device *device, DRIVE_TYPE *drive_type)
         return true;
     case DEVICE_TYPE_DISC_SCSI:
         *drive_type = DRIVE_SCSI;
+        return true;
+    case DEVICE_TYPE_DISC_WINCHESTER:
+        *drive_type = DRIVE_WINCHESTER;
         return true;
     case DEVICE_TYPE_FLOPPY_PIO:
     case DEVICE_TYPE_FLOPPY_DMA:
@@ -225,6 +243,15 @@ cleanup_machine (void)
 		}
 	}
 	
+	// Unmount all Winchester drives
+	if (wd_drives) {
+		for (int i = 0; i < 2; i++) {
+			if (wd_drives[i].name[0] != '\0') {
+				unmount_drive(DRIVE_WINCHESTER, i);
+			}
+		}
+	}
+
 	// Unmount all SCSI drives
 	if (scsi_drives) {
 		for (int i = 0; i < SCSI_MAX_UNITS; i++) {
@@ -491,6 +518,33 @@ void mount_smd(const char *imageFile, int unit)
         {
             mount_drive(DRIVE_SMD, unit, "md5-unknown", "DATA SMD", "DATA SMD image", smd_img);
         }
+    }
+}
+
+
+/* Mount a Winchester image on the given unit (0 or 1).
+ *
+ * ND-11.015.01 sec 3.1: a disk system has TWO units, and the control word
+ * carries the unit in a single bit (b9), so the unit range is a hardware
+ * property rather than a configuration choice.
+ */
+void mount_winchester(const char *imageFile, int unit)
+{
+    char path[256];
+    sprintf(path, "WD%d.IMG", unit);
+
+    const char *wd_img = imageFile ? imageFile : path;
+
+    /* if the file exists, mount it */
+    FILE *ftmp = fopen(wd_img, "rb");
+    if (ftmp) {
+        fclose(ftmp);
+        if (unit == 0)
+            mount_drive(DRIVE_WINCHESTER, unit, "md5-unknown", "Boot Winchester",
+                        "Boot Winchester image", wd_img);
+        else
+            mount_drive(DRIVE_WINCHESTER, unit, "md5-unknown", "DATA Winchester",
+                        "DATA Winchester image", wd_img);
     }
 }
 
@@ -766,6 +820,25 @@ static int tape_leader_load(const char *path, bool verbose)
          if (bootAddress < 0)
          {
              printf("Error booting from SMD unit %d\n", bootUnit);
+#ifdef __EMSCRIPTEN__
+             return -1;
+#else
+             exit(10);
+#endif
+         }
+         STARTADDR = bootAddress;
+         break;
+     case BOOT_WINCHESTER:
+
+        // Only mount from MEMFS file if not already mounted
+        if (!isMounted(DRIVE_WINCHESTER, bootUnit)) {
+            mount_winchester(imageFile, bootUnit);
+        }
+
+         bootAddress = DeviceManager_BootFrom(DEVICE_TYPE_DISC_WINCHESTER, bootUnit);
+         if (bootAddress < 0)
+         {
+             printf("Error booting from Winchester unit %d\n", bootUnit);
 #ifdef __EMSCRIPTEN__
              return -1;
 #else

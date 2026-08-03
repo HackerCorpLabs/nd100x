@@ -73,6 +73,10 @@ typedef struct {
     char *tapeDir;       // Output directory for punched tape (default: ./tapes/)
     char *tapeFile;      // Input file for paper tape reader
     char *smdFile[4];    // SMD disk image files (--smd0 through --smd3)
+    char *wdFile[2];     // Winchester disk image files (--wd0, --wd1). Two units:
+                         // ND-11.015.01 sec 3.1, unit is one control-word bit.
+    bool wdEnabled;      // add the Winchester card at all (opt-in: it shares
+                         // IOX 500-507 with the CDC system disc)
     // SCSI targets (--scsi0 through --scsi6), indexed by SCSI ID.
     // ID 7 is the ND-3201/3204 controller itself and is never a target.
     bool scsiEnabled;            // true if any --scsiN was given

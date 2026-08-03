@@ -239,6 +239,14 @@ static Device *CreateDevice(DeviceType type, uint8_t thumbwheel)
             return NULL;
         }
         break;
+    case DEVICE_TYPE_DISC_WINCHESTER:
+        dev = CreateWinchesterDevice(thumbwheel);
+        if (!dev)
+        {
+            Log(LOG_ERROR, "Failed to create Winchester device\n");
+            return NULL;
+        }
+        break;
     case DEVICE_TYPE_DISC_SCSI:
         dev = CreateSCSIDevice(thumbwheel);
         if (!dev)
@@ -336,6 +344,31 @@ bool DeviceManager_AddDevice(DeviceType type, uint8_t thumbwheel)
     Device *dev = CreateDevice(type, thumbwheel);
     if (dev)
     {
+        /* Refuse an IOX address block that overlaps a device already present.
+         * Without this the later device silently shadows the earlier one and
+         * the machine answers one card while the operator believes both are
+         * fitted. The Winchester controller makes this reachable: it answers
+         * 500-507, the same block as the CDC system disc, exactly as the real
+         * cards would - a backplane holds one or the other. */
+        for (int i = 0; i < deviceManager.deviceCount; i++)
+        {
+            Device *other = deviceManager.devices[i].device;
+            if (!other)
+                continue;
+            if (dev->startAddress <= other->endAddress &&
+                other->startAddress <= dev->endAddress)
+            {
+                Log(LOG_ERROR,
+                    "Refusing to add '%s' (IOX %o-%o): that address block is already "
+                    "answered by '%s' (IOX %o-%o). These cards cannot both be fitted.\n",
+                    dev->memoryName, dev->startAddress, dev->endAddress,
+                    other->memoryName, other->startAddress, other->endAddress);
+                Device_Destroy(dev);
+                free(dev);
+                return false;
+            }
+        }
+
         deviceManager.devices[deviceManager.deviceCount].device = dev;
         // If this is a block device, hook up machine-level block IO callbacks
         if (dev->deviceClass == DEVICE_CLASS_BLOCK) {            

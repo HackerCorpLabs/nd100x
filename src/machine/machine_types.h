@@ -43,7 +43,8 @@ typedef enum {
     BOOT_SMD,
     BOOT_SCSI,
     BOOT_CDC,       /* NORD TSS CDC/NCR cartridge disc @ 500 */
-    BOOT_TAPE       /* octal-ASCII leader tape; remainder stays on reader @ 400 */
+    BOOT_TAPE,      /* octal-ASCII leader tape; remainder stays on reader @ 400 */
+    BOOT_WINCHESTER /* ST506/8 inch Winchester @ 500, cards 3041/3038 */
 } BOOT_TYPE;
 
 extern const char* boot_type_str[];
@@ -52,8 +53,8 @@ extern const char* boot_type_str[];
 // Drive types. The numeric values are part of the gateway wire protocol
 // (driveType byte) and the JS DRIVE_TYPE table - keep them stable:
 //   0=SMD, 1=FLOPPY, 2=SCSI, 3=WINCHESTER.
-// WINCHESTER is a reserved stub: it has no mounted-drive array and no mount or
-// boot path yet (drives_for_type returns NULL/0 for it).
+// WINCHESTER (ST506/8 inch, cards 3041/3038) has 2 units - ND-11.015.01 sec 3.1,
+// and the control word carries the unit in a single bit (b9).
 typedef enum {
     DRIVE_SMD,
     DRIVE_FLOPPY,

@@ -61,6 +61,8 @@ static struct option long_options[] = {
     {"overlay-deposit", no_argument, 0, 'O'},
     {"watch-skip", required_argument, 0, 0x130},
     {"watch-min-value", required_argument, 0, 0x131},
+    {"wd0",        required_argument, 0, 0x170}, // --wd0=FILE : Winchester unit 0 image (IOX 500-507)
+    {"wd1",        required_argument, 0, 0x171}, // --wd1=FILE : Winchester unit 1 image
     {"smd0",       required_argument, 0, 0x100},
     {"smd1",       required_argument, 0, 0x101},
     {"smd2",       required_argument, 0, 0x102},
@@ -123,6 +125,8 @@ void Config_Init(Config_t *config) {
     config->tapeDir = NULL;
     config->tapeFile = NULL;
     for (int i = 0; i < 4; i++) config->smdFile[i] = NULL;
+    for (int i = 0; i < 2; i++) config->wdFile[i] = NULL;
+    config->wdEnabled = false;
     config->scsiEnabled = false;
     config->scsiDebug = false;
     for (int i = 0; i < SCSI_MAX_UNITS; i++) {
@@ -163,9 +167,9 @@ void Config_Init(Config_t *config) {
 }
 
 /* Parse a --boot argument into bootType + bootUnit.
- * Accepts the bare names (bp, bpun, tape, aout, prog, floppy, cdc, smd, scsi)
- * plus an optional unit digit on the disk controllers: smd0-smd3 and
- * scsi0-scsi6. A bare "smd"/"scsi" means unit 0. Prints its own error message
+ * Accepts the bare names (bp, bpun, tape, aout, prog, floppy, cdc, smd, wd,
+ * scsi) plus an optional unit digit on the disk controllers: smd0-smd3,
+ * wd0-wd1 and scsi0-scsi6. A bare "smd"/"wd"/"scsi" means unit 0. Prints its own error message
  * and returns false on an unknown name or an out-of-range unit.
  *
  * bpun vs tape - two REAL, different loaders, not aliases:
@@ -197,6 +201,22 @@ static bool parseBootSpec(Config_t *config, const char *bootStr) {
             return true;
         }
         fprintf(stderr, "Invalid SMD boot unit in '%s' (use smd or smd0-smd3)\n", bootStr);
+        return false;
+    }
+
+    /* Winchester (ST506 / 8 inch). Two units only - the control word carries
+     * the unit in a single bit (ND-11.015.01 sec 3.1 / 3.4). Booting also
+     * implies the card is fitted. */
+    if (strncmp("wd", bootStr, 2) == 0) {
+        const char *u = bootStr + 2;
+        if (*u == '\0') { config->bootType = BOOT_WINCHESTER; config->wdEnabled = true; return true; }
+        if ((u[0] == '0' || u[0] == '1') && u[1] == '\0') {
+            config->bootType = BOOT_WINCHESTER;
+            config->bootUnit = u[0] - '0';
+            config->wdEnabled = true;
+            return true;
+        }
+        fprintf(stderr, "Invalid Winchester boot unit in '%s' (use wd, wd0 or wd1)\n", bootStr);
         return false;
     }
 
@@ -552,6 +572,19 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
                 config->overlayDeposit = true;
                 break;
 
+            /* Winchester (ST506/8 inch) images. Adding the card is opt-in: it
+             * answers IOX 500-507, the same block as the CDC system disc, so a
+             * machine has one card or the other. */
+            case 0x170: case 0x171: {
+                int unit = c - 0x170;
+                config->wdFile[unit] = strdup(optarg);
+                if (!config->wdFile[unit]) {
+                    fprintf(stderr, "Out of memory parsing --wd%d\n", unit);
+                    return false;
+                }
+                config->wdEnabled = true;
+                break;
+            }
             case 0x100: case 0x101: case 0x102: case 0x103: {
                 int unit = c - 0x100;
                 config->smdFile[unit] = strdup(optarg);
@@ -812,8 +845,10 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             if (config->bootType == BOOT_FLOPPY) {
                 config->imageFile = strdup("FLOPPY.IMG");
             } else
-            // SMD and SCSI take their images from --smdN / --scsiN, not --image.
-            if (config->bootType != BOOT_SMD && config->bootType != BOOT_SCSI) {
+            // SMD, Winchester and SCSI take their images from --smdN / --wdN /
+            // --scsiN, not --image.
+            if (config->bootType != BOOT_SMD && config->bootType != BOOT_SCSI &&
+                config->bootType != BOOT_WINCHESTER) {
                 fprintf(stderr, "Image file must be specified\n");
                 return false;
             }
@@ -857,8 +892,8 @@ void Config_PrintHelp(const char *progName) {
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
     printf("  -b,      --boot=TYPE    Boot type (bp, bpun, tape, aout, prog, floppy,\n");
-    printf("                          smd[0-3], scsi[0-6], cdc)\n");
-    printf("                          smd/scsi take an optional boot unit digit,\n");
+    printf("                          smd[0-3], wd[0-1], scsi[0-6], cdc)\n");
+    printf("                          smd/wd/scsi take an optional boot unit digit,\n");
     printf("                          e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)\n");
     printf("                          bpun = ND-100 ROM loader: the octal-ASCII preamble is\n");
     printf("                          metadata; a FRAMED binary block after '!' is loaded\n");
@@ -870,10 +905,16 @@ void Config_PrintHelp(const char *progName) {
     printf("                          binary remainder itself - what a NORD TSS CDBIN\n");
     printf("                          distribution tape needs. The two formats are NOT\n");
     printf("                          interchangeable after the '!'.\n");
+    printf("                          wd = Winchester MASS STORAGE LOAD: 1K words from\n");
+    printf("                          mass storage address 0 into core 0 (needs --wd0/--wd1).\n");
     printf("                          cdc = LOAD button on the TSS cartridge disc: sector 0\n");
     printf("                          into core 0, start at 0 (needs --cdc=FILE).\n");
     printf("  -i,      --image=FILE   Image file to load (bpun, tape, aout, prog, floppy;\n");
     printf("                          --boot=cdc also demands one but never reads it)\n");
+    printf("           --wd0=FILE     Winchester unit 0 disk image (default: WD0.IMG)\n");
+    printf("           --wd1=FILE     Winchester unit 1 disk image (default: WD1.IMG)\n");
+    printf("                          Winchester answers IOX 500-507 - same block as the\n");
+    printf("                          CDC system disc, so only one of the two can be used\n");
     printf("           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)\n");
     printf("           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)\n");
     printf("           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)\n");
