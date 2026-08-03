@@ -407,6 +407,82 @@ int main(void)
         g_diskAttached = 1;
     }
 
+    /* --- 16. interrupt + IDENT PL11, the TPE CONFIGURATION probe ---------
+     *
+     * Sec 4.1: "If the controller is ready for an operation (status bit 3 = 1),
+     * and interrupt is enabled (status bit 0 has been set by control bit 0 =
+     * 1), the interrupt signal BINT11 will be active ... The IDENT code may
+     * now be read by an IDENT PL11 instruction."
+     *
+     * This is how TPE CONFIGURATION detects the card. It went untested at
+     * first and the controller failed the probe with "No identcode found on
+     * level 11D, expected identcode: 1B", because the interrupt was only ever
+     * raised at the END of a device operation, never on an idle card. */
+    {
+        const uint16_t L11 = (uint16_t)(1u << 11);
+
+        /* Start from a known quiet state. */
+        wr(dev, R_LOAD_CW, CW_DEVICE_CLEAR);
+        (void)status(dev);
+        CHECK((dev->interruptBits & L11) == 0, "device clear leaves level 11 quiet");
+
+        /* Enable the interrupt on an IDLE controller - no activate bit. */
+        wr(dev, R_LOAD_CW, CW_INT_NOT_ACTIVE);
+        uint16_t st = status(dev);
+        CHECK((st & ST_FINISHED) != 0, "idle controller reports ready (status bit 3)");
+        CHECK((st & 1u) != 0, "interrupt-enable reaches status bit 0");
+        CHECK((dev->interruptBits & L11) != 0,
+              "ready + interrupt enabled asserts BINT11 on an idle controller");
+
+        /* IDENT PL11 answers with code 1, and identing clears the interrupt. */
+        CHECK(dev->Ident(dev, 11) == 001, "IDENT PL11 returns ident code 1");
+        CHECK((dev->interruptBits & L11) == 0, "IDENT cleared the pending interrupt");
+        CHECK(dev->Ident(dev, 11) == 0, "a second IDENT with nothing pending stays silent");
+
+        /* An IDENT for a different level must never be answered - level 11 is
+         * shared with the floppy (ident 21) and the SMD card (ident 17). */
+        wr(dev, R_LOAD_CW, CW_INT_NOT_ACTIVE);
+        CHECK((dev->interruptBits & L11) != 0, "interrupt re-armed");
+        CHECK(dev->Ident(dev, 10) == 0, "IDENT on the wrong level is not answered");
+        CHECK(dev->Ident(dev, 13) == 0, "IDENT on level 13 is not answered");
+        CHECK((dev->interruptBits & L11) != 0, "a wrong-level IDENT left level 11 pending");
+
+        /* Device clear and interrupt enable in ONE control word: the clear
+         * must not swallow the interrupt update. This is the usual probe
+         * opening, and an early return on device clear breaks it. */
+        (void)dev->Ident(dev, 11);
+        wr(dev, R_LOAD_CW, CW_DEVICE_CLEAR | CW_INT_NOT_ACTIVE);
+        CHECK((dev->interruptBits & L11) != 0,
+              "device clear + interrupt enable in one word still interrupts");
+
+        /* Dropping the enable takes the interrupt away again. */
+        wr(dev, R_LOAD_CW, 0);
+        CHECK((dev->interruptBits & L11) == 0, "clearing the enable drops BINT11");
+
+        /* An ACTIVATED operation must not leave the card ready mid-flight;
+         * the interrupt belongs at completion, not at activation. */
+        g_diskAttached = 1;
+        data->regs.disks[0].unitAttachChecked = false;
+        wr(dev, R_LOAD_CW, CW_INT_NOT_ACTIVE);
+        (void)status(dev);
+        wr(dev, R_LOAD_MA, 0x0000);
+        wr(dev, R_LOAD_MA, 0x4000);
+        wr(dev, R_LOAD_BA, 0);
+        wr(dev, R_LOAD_WC, 512);
+        wr(dev, R_LOAD_CW, CW_INT_NOT_ACTIVE | CW_ACTIVATE |
+                           (WD_OP_READ_TRANSFER << CW_OP_SHIFT));
+        CHECK((dev->interruptBits & L11) == 0,
+              "activation itself does not interrupt - completion does");
+
+        /* The operation completes on the queued delay, not instantly. */
+        Device_TickIODelay(dev);
+        st = status(dev);
+        CHECK((st & ST_ACTIVE) == 0 && (st & ST_FINISHED) != 0,
+              "the transfer completed and the card is ready again");
+        CHECK((dev->interruptBits & L11) != 0, "completion raised the interrupt");
+        CHECK(dev->Ident(dev, 11) == 001, "IDENT after a transfer returns code 1");
+    }
+
     dev->Destroy(dev);
 
     printf("=== %d passed, %d failed ===\n", g_pass, g_fail);

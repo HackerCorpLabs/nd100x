@@ -302,17 +302,16 @@ static void Wd_Write(Device *self, uint32_t address, uint16_t value)
         else
             data->regs.selectedDisk = NULL;
 
-        if (!data->controlRegister.bits.enableInterruptNotActive)
-            Device_SetInterruptStatus(self, false, self->interruptLevel);
-
         /* Device clear (bit 4). Sec 3.4: "To clear the disk drive, it may be
          * necessary to execute two consecutive device clear before reading a
-         * correct status." */
+         * correct status."
+         *
+         * Processed INLINE - it must not skip the ready/interrupt update
+         * below, because a single control word may carry device clear AND the
+         * interrupt enable together. Same structure as the paper-tape reader
+         * (devicePapertape.c: "processed inline, does NOT break"). */
         if (data->controlRegister.bits.deviceClear)
-        {
             Wd_DeviceClear(self);
-            break;
-        }
 
         /* Activation (bit 2). Sec 3.4: every device operation code is
          * activated by loading the code together with the activate bit,
@@ -328,8 +327,40 @@ static void Wd_Write(Device *self, uint32_t address, uint16_t value)
             data->statusRegister.bits.active = 1;
             data->statusRegister.bits.readyForTransfer = 0;
             Wd_ClearErrors(data);
+
+            /* Sec 4.1 states BINT11 as a condition on the CURRENT status -
+             * ready (bit 3) AND interrupt enabled (bit 0) - not as a pulse.
+             * Activation drops bit 3, so the interrupt line drops with it and
+             * comes back at completion. Without this an interrupt armed
+             * before the operation stays asserted for the whole transfer.
+             * Same shape as the paper-tape reader, which drops
+             * readyForTransfer for the duration of the read and updates the
+             * interrupt on both sides of it (devicePapertape.c:130-149). */
+            Device_SetInterruptStatus(self, false, self->interruptLevel);
+
             Wd_ExecuteGO(self);
+            break;
         }
+
+        /* Control word WITHOUT the activate bit: the controller stays idle and
+         * is by definition ready for an operation, so status bit 3 goes to 1.
+         *
+         * Sec 4.1: "If the controller is ready for an operation (status bit
+         * 3 = 1), and interrupt is enabled (status bit 0 has been set by
+         * control bit 0 = 1), the interrupt signal BINT11 will be active,
+         * giving an interrupt to level 11 ... The IDENT code may now be read
+         * by an IDENT PL11 instruction."
+         *
+         * That is exactly how the TPE CONFIGURATION program probes for the
+         * card: it enables the interrupt on an idle controller and then does
+         * IDENT PL11. Without this the probe reports
+         * "No identcode found on level 11D, expected identcode: 1B".
+         * The SMD card does the same thing (deviceSMD.c LOAD_CONTROL_WORD). */
+        data->statusRegister.bits.readyForTransfer = 1;
+        Device_SetInterruptStatus(self,
+                                  data->statusRegister.bits.interruptEnabled &&
+                                  data->statusRegister.bits.readyForTransfer,
+                                  self->interruptLevel);
         break;
 
     default:
@@ -587,7 +618,12 @@ static uint16_t Wd_Ident(Device *self, uint16_t level)
     if (!data)
         return 0;
 
-    if (level != self->interruptLevel)
+    /* Answer only when this card actually has an interrupt pending on that
+     * level - a card with no pending interrupt must stay silent so the IDENT
+     * goes to whoever else is waiting. Testing interruptBits, not just the
+     * level number, is what the paper-tape reader does
+     * (devicePapertape.c PaperTape_Ident). */
+    if ((self->interruptBits & (1u << level)) == 0)
         return 0;
 
     /* Identing clears the interrupt and the enable, as on the other ND disc
