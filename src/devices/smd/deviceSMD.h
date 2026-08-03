@@ -95,7 +95,7 @@ typedef union
         uint16_t notUsed9 : 1;              // Bit 9 (Data error - reserved)
         uint16_t comparerError : 1;         // Bit 10 (Compare error)
         uint16_t notUsed11 : 1;             // Bit 11 (DMA Channel error - reserved)
-        uint16_t notUsed12 : 1;             // Bit 12 (Abnormal completions - reserved)
+        uint16_t abnormalCompletion : 1;    // Bit 12 (Abnormal completion)
         uint16_t diskUnitNotReady : 1;      // Bit 13 (Disk unit not ready)
         uint16_t onCylinder : 1;            // Bit 14 (OnCylinder)
         uint16_t registerMultiplexBit : 1;                // Bit 15 (Register Multiplex bit from CWR bit 15)
@@ -216,6 +216,27 @@ typedef struct {
 
     // FlipFlops
     bool hasFlipFlops; //SMD 10Mhz and 15Mhz has flip-flops
+    // The WORD COUNTER's load/read protocol, kept separate from hasFlipFlops.
+    // RetroCore models four independent flip-flop flags (core memory, memory
+    // address, word counter, ECC control) rather than one card-wide strap, and
+    // the ND-120 mass-load microroutine needs that distinction: it writes the
+    // MEMORY ADDRESS with two +1 accesses (flip-flop protocol) but the WORD
+    // COUNT with a single +7 write of 002000, which only loads 1024 words if
+    // the word counter is single-access. Ground truth for that asymmetry:
+    // nd-120 repo, Verilog/ND-BUS-DEVICES/SMD/sim/traces/mass-load-21540.trace
+    // Defaults to hasFlipFlops; override with ND100X_SMD_WC_FF=0|1.
+    bool hasWordCountFlipFlop;
+
+    // Which half the FIRST of the two accesses loads. ND-11.020.01 sec 2.2
+    // states HI first for the MEMORY ADDRESS ("The first loads the 8 upper
+    // bits ... and the second one loads the lower 16 bits") but documents
+    // READS as LO then HI, and never states the WRITE order for the word
+    // counter at all. If the real flip-flop simply toggles from a known reset
+    // state, writes and reads would share one order (LO first) - and then the
+    // mass-load microroutine's single +7 write of 002000 loads 1024 directly,
+    // with no per-register strap needed. Switchable so the two orders can be
+    // compared against DISC-TEMA: ND100X_SMD_LOAD_ORDER=hi (default) | lo
+    bool loadLowFirst;
 
     bool wcwFlipFlop;
     bool wcrFlipFlop;

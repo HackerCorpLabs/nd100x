@@ -44,6 +44,8 @@ static long ConvertCHStoLBA(ControllerRegs *regs, int cylinder, int head, int se
 static uint32_t IncrementCoreAddress(ControllerRegs *regs);
 static uint32_t DecrementWordCounter(ControllerRegs *regs);
 static bool SMDReadEnd(Device *self, int drive);
+static void FinishOperation(Device *self);
+static bool UnitAttached(Device *self, DiskInfo *disk);
 
 static const char *SMD_OpName(DeviceOperation op) {
     switch (op) {
@@ -119,8 +121,17 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
 {
 
     SMDData *data = (SMDData *)self->deviceData;
-    if (!data || !data->regs.selectedDisk)
+    if (!data)
         return 0;
+    // NOTE: do NOT bail out when no disk is selected. The status register, ECC
+    // pattern, seek condition, memory address and word counter are CONTROLLER
+    // registers (cards 3043/3044) - they exist whether or not a drive is
+    // selected, and only the drive-sourced bits (on-cylinder b14, unit-not-ready
+    // b13, seek-complete) depend on a unit. Returning 0 here made the status
+    // register unreadable after a GO on a not-specified unit, so the very error
+    // that GO raises could not be seen: DISC-TEMA reports "Read (from NOT
+    // specified unit), Status Bit 7b is 0 !". The no-disk case is handled per
+    // register below (see the status register's else-branch: b14=0, b13=1).
     uint32_t reg = Device_RegisterAddress(self, address);
     uint16_t value = 0;
 
@@ -141,7 +152,7 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
             // After a transfer, the upper/lower memory address(or word count) control bit(flip—flop) is reset.
             // A Read Status instruction(DEV.NO. + 4) or a Device Clear will also reset this bit
 
-            if ((!data->regs.wcrFlipFlop) || (!data->regs.hasFlipFlops))
+            if ((!data->regs.wcrFlipFlop) || (!data->regs.hasWordCountFlipFlop))
             {
                 data->regs.wcrFlipFlop = true;
                 value = data->regs.wordCounter;
@@ -306,8 +317,13 @@ static uint16_t SMD_Read(Device *self, uint32_t address)
 
             if (data->regs.selectedDisk)
             {
-                data->statusRegister.bits.onCylinder = data->regs.selectedDisk->onCylinder;
-                data->statusRegister.bits.diskUnitNotReady = data->regs.selectedDisk->diskUnitNotReady;
+                bool attached = UnitAttached(self, data->regs.selectedDisk);
+                // A unit with no pack mounted is not on cylinder and not ready,
+                // whatever its per-disk flags say.
+                data->statusRegister.bits.onCylinder =
+                    attached ? data->regs.selectedDisk->onCylinder : 0;
+                data->statusRegister.bits.diskUnitNotReady =
+                    attached ? data->regs.selectedDisk->diskUnitNotReady : 1;
             }
             else
             {
@@ -375,7 +391,12 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
         else
         {
             // Load Memory Address
-            if (data->controlRegister.bits.active)
+            // ND-11.020.01 sec 2.5, bit 5: "Load of any register while STATUS
+            // BIT 2 is true". Test the status bit, not the control word's
+            // activate bit - the two part company as soon as an operation
+            // completes (SMDReadEnd clears status bit 2 while the control word
+            // still holds bit 2 from the last GO).
+            if (data->statusRegister.bits.active)
             {
                 HandleError(self, DISK_ERR_ILLEGAL_WHILE_ACTIVE); // ILLEGAL_WHILE_DRIVE_IS_ACTIVE
                 return;
@@ -385,24 +406,29 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
             // and the second one loads the lower 16 bits(A—reg. 0 - 15 into Address bits 0 - 15).
             // After a transfer, the upper/ lower memory address control bit(flip—flop) is reset.A Read Status instruction(DEV.NO. +4) or a Device Clear will also reset this bit.
 
-            if ((data->regs.mawFlipFlop) || (!data->regs.hasFlipFlops))
+            if (!data->regs.hasFlipFlops)
             {
                 data->regs.coreAddress = value;
                 data->regs.mawFlipFlop = false;
             }
             else
             {
-                // The first loads the upper 8 bits
-                // regs.eccControlHI = (ushort)(value & 0xFF);
-
-                data->regs.coreAddressHiBits = value & 0xFF;
-                data->regs.mawFlipFlop = true;
+                // mawFlipFlop == false means "this is the FIRST of the two
+                // accesses". Which half that first access loads is the
+                // loadLowFirst question - see deviceSMD.h.
+                bool firstAccess = !data->regs.mawFlipFlop;
+                if (firstAccess == data->regs.loadLowFirst)
+                    data->regs.coreAddress = value;                  // low 16
+                else
+                    data->regs.coreAddressHiBits = value & 0xFF;     // high 8
+                data->regs.mawFlipFlop = !data->regs.mawFlipFlop;
             }
         }
         break;
 
     case SMD_LOAD_BLOCK_ADDRESS:
-        if (data->controlRegister.bits.active)
+        // Illegal load = status bit 2 true (ND-11.020.01 sec 2.5, bit 5).
+        if (data->statusRegister.bits.active)
         {
             HandleError(self, DISK_ERR_ILLEGAL_WHILE_ACTIVE);
             return;
@@ -420,7 +446,25 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
 
     case SMD_LOAD_CONTROL_WORD:
         if (data->statusRegister.bits.active)
-            return; // Error ?
+        {
+            // The Control Word is a register like any other, so loading it
+            // while status bit 2 is true is an illegal load and must raise
+            // bit 5 (ND-11.020.01 sec 2.5) - this used to return silently, and
+            // DISC-TEMA caught it: "Error after Illegal Load (Control Word),
+            // Bit 5b was 0 !".
+            //
+            // Device clear (control-word bit 4) is the one exception: it is the
+            // programmed master clear (ND-11.013.01A: "Programmed master clear,
+            // i.e., control word bit 4 (device clear)") and must always reach
+            // the controller, otherwise an active controller could never be
+            // recovered. Fall through to the normal handling below, which
+            // clears the active flip-flop and the error bits.
+            if (!((value >> 4) & 1))
+            {
+                HandleError(self, DISK_ERR_ILLEGAL_WHILE_ACTIVE);
+                return;
+            }
+        }
 
         /*
             Bit:
@@ -515,8 +559,24 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
                 data->statusRegister.bits.diskUnitNotReady = 1;
                 data->statusRegister.bits.hardwareError2 = 1;
                 HandleError(self, DISK_ERR_DRIVE_NOT_SELECTED);
+                // The operation was activated, so it must also END here - see
+                // FinishOperation. Without this the controller stays active
+                // forever after DISC-TEMA's not-specified-unit test.
+                FinishOperation(self);
                 return;
             }
+            // A GO against a unit with no pack mounted is the "read from a
+            // NOT specified unit" case (DISC-TEMA item 9): hardware error b7
+            // plus not-ready b13, and the operation must still terminate.
+            if (!UnitAttached(self, data->regs.selectedDisk))
+            {
+                data->statusRegister.bits.diskUnitNotReady = 1;
+                data->statusRegister.bits.hardwareError2 = 1;
+                HandleError(self, DISK_ERR_DRIVE_NOT_SELECTED);
+                FinishOperation(self);
+                return;
+            }
+
             data->regs.selectedDisk->onCylinder = 1;
             data->regs.selectedDisk->diskUnitNotReady = 0;
 
@@ -539,6 +599,15 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
         break;
 
     case SMD_LOAD_WORD_COUNTER:
+
+        // Illegal load = status bit 2 true (ND-11.020.01 sec 2.5, bit 5). This
+        // check was missing entirely; DISC-TEMA caught it as "Error after
+        // Illegal Load (Word Count), Bit 5b was 0 !".
+        if (data->statusRegister.bits.active)
+        {
+            HandleError(self, DISK_ERR_ILLEGAL_WHILE_ACTIVE);
+            return;
+        }
 
         // Load ECC Control
         /*
@@ -625,15 +694,19 @@ static void SMD_Write(Device *self, uint32_t address, uint16_t value)
 
             // printf("SMD::SMD_LoadWordCounter called [%o] = %o\n", address, value);
 
-            if ((data->regs.wcwFlipFlop) || (!data->regs.hasFlipFlops))
+            if (!data->regs.hasWordCountFlipFlop)
             {
                 data->regs.wordCounter = value;
                 data->regs.wcwFlipFlop = false;
             }
             else
             {
-                data->regs.wordCounterHI = value & 0xFF;
-                data->regs.wcwFlipFlop = true;
+                bool firstAccess = !data->regs.wcwFlipFlop;
+                if (firstAccess == data->regs.loadLowFirst)
+                    data->regs.wordCounter = value;                  // low 16
+                else
+                    data->regs.wordCounterHI = value & 0xFF;         // high 8
+                data->regs.wcwFlipFlop = !data->regs.wcwFlipFlop;
             }
         }
         break;
@@ -794,6 +867,8 @@ static void ExecuteGO(Device *self)
     // prior operation's illegal load does not stay latched and contaminate this
     // one's status (DISC-TEMA item 5; nd100x used to latch it until device-clear).
     data->statusRegister.bits.illegalLoad = 0;
+    // Abnormal completion (b12) is per-operation for the same reason.
+    data->statusRegister.bits.abnormalCompletion = 0;
 
     // Get information on file size and readonly
     if (self->blockCallbacks.diskInfoFunc)
@@ -876,6 +951,7 @@ static void ExecuteGO(Device *self)
         // Matches nd_smd / RetroCore.
         data->seekCondition.bits.seekError = 1;
         HandleError(self, DISK_ERR_ADDRESS_MISMATCH); // ADDRESS_MISMATCH
+        FinishOperation(self);
         return;
     }
 
@@ -886,6 +962,7 @@ static void ExecuteGO(Device *self)
     {
         data->regs.selectedDisk->diskUnitNotReady = true;
         HandleError(self, DISK_ERR_WRITE_PROTECT_ERROR); // WRITE_PROTECT_ERROR
+        FinishOperation(self);
         return;
     }
 
@@ -1140,6 +1217,9 @@ static void ExecuteGO(Device *self)
                     SMD_OpName(DEVICE_OP_RUN_ECC));
         // Run ECC operation
         // TODO: Implement ECC operation
+        // Unimplemented, but it WAS activated (control-word bit 2), so it still
+        // has to finish - otherwise the controller stays active forever.
+        FinishOperation(self);
         break;
 
     case DEVICE_OP_SELECT_RELEASE:
@@ -1148,6 +1228,7 @@ static void ExecuteGO(Device *self)
                     SMD_OpName(DEVICE_OP_SELECT_RELEASE), data->regs.selectedUnit);
         // Release disk selection
         regs->selectedDisk = NULL;
+        FinishOperation(self);
         break;
     }
 }
@@ -1175,6 +1256,66 @@ static bool SMDReadEnd(Device *self, int drive)
     if (data->statusRegister.bits.interruptEnabled)
         return true; // returning true triggers GenerateInterrupt()
     return false;
+}
+
+// Is a disk pack mounted on this unit? A unit with no attached image is a
+// powered-off drive: it must report DISK UNIT NOT READY (status b13), and a GO
+// against it is a hardware error (b7). DISC-TEMA requires every unit not under
+// test to be powered off (ND-11.020.01 sec 5 item 16) and checks b13 "by the
+// selection of specified units and by reading from non-specified units"
+// (item 14). Without this, units 1-3 answered READY on a unit-0 run and
+// DISC-TEMA reported "Status bit 15b became 0 (Unit ready) after selection"
+// (15b octal = b13) for each of them.
+//
+// The size callback stats the image file, so the answer is cached per unit -
+// the status register is read tens of thousands of times in one test run.
+static bool UnitAttached(Device *self, DiskInfo *disk)
+{
+    if (!self || !disk)
+        return false;
+    if (!disk->unitAttachChecked)
+    {
+        size_t imageSize = 0;
+        bool isWriteProtected = false;
+        if (self->blockCallbacks.diskInfoFunc)
+            self->blockCallbacks.diskInfoFunc(self, &imageSize, &isWriteProtected, disk->unit);
+        disk->unitAttached = (imageSize > 0);
+        disk->unitAttachChecked = true;
+    }
+    return disk->unitAttached;
+}
+
+// Terminate the current device operation on a path that does NOT reach the
+// queued I/O-delay completion (SMDReadEnd).
+//
+// Status bit 2 is set from control-word bit 2 when the operation is activated,
+// and SMDReadEnd is the only thing that clears it. An error exit that simply
+// returns therefore leaves the controller "active" for the rest of the session,
+// after which every register load is correctly flagged illegal-load (bit 5) and
+// nothing works again. DISC-TEMA reports this as "Status Bit 2b (active)
+// remained 1 !!" followed by a cascade of unrelated-looking failures.
+//
+// ND-11.020.01 sec 2.5: bit 2 = "Controller active", bit 3 = "Controller
+// finished with a device operation". An operation that ended in error has still
+// finished, so bit 3 is set as bit 2 is cleared; the error bits set by
+// HandleError stay, and bit 4 (inclusive OR) is recomputed on the status read.
+static void FinishOperation(Device *self)
+{
+    if (!self)
+        return;
+    SMDData *data = (SMDData *)self->deviceData;
+    if (!data)
+        return;
+
+    data->statusRegister.bits.active = 0;
+    data->statusRegister.bits.readyForTransfer = 1;
+
+    ClearFlipFlops(&data->regs);
+
+    // Control-word bit 0 is "enable interrupt on device not active", and the
+    // controller has just gone not-active.
+    if (data->statusRegister.bits.interruptEnabled)
+        Device_SetInterruptStatus(self, true, self->interruptLevel);
 }
 
 static void ClearFlipFlops(ControllerRegs *regs)
@@ -1210,6 +1351,7 @@ static void ClearErrors(Device *self)
     data->statusRegister.bits.timeOut = 0;
     data->statusRegister.bits.comparerError = 0;
     data->statusRegister.bits.addressMismatch = 0;
+    data->statusRegister.bits.abnormalCompletion = 0;
     data->seekCondition.bits.seekError = 0;
 }
 static void SetSelectedUnit(ControllerRegs *regs, uint8_t unit)
@@ -1237,6 +1379,13 @@ static void HandleError(Device *self, DiskError error)
 
     if (smd_debug_enabled)
         fprintf(stderr, "SMD: ERROR %s (%d)\n", SMD_ErrorName(error), error);
+
+    // Every error termination is an ABNORMAL COMPLETION (status b12,
+    // ND-11.020.01 sec 2.5). DISC-TEMA checks it in combination rather than on
+    // its own - "Status bit 14b is 0 when Bit 7b is 1 !" and "... when bit 15b
+    // is 1 !" (14b octal = b12, 7b = hardware error, 15b = disk unit not
+    // ready). Cleared per operation at the next GO, like illegal-load.
+    data->statusRegister.bits.abnormalCompletion = 1;
     switch (error)
     {
     case DISK_ERR_NO_DISK_ATTACHED: // NO_DISK_ATTACHED
@@ -1320,7 +1469,28 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
 
     dev->deviceData = data;
 
+    // Controller type. The 10/15 MHz SMD cards load and read back the 24-bit
+    // memory-address and word-count registers with TWO accesses (HI then LO);
+    // the BIG-DISC and ECC cards do it in ONE. This is a real hardware
+    // difference and the ND-120 recreation can be strapped either way, so make
+    // it selectable here instead of hardwiring it - otherwise the emulator and
+    // the FPGA cannot be compared in the same configuration.
+    //   ND100X_SMD_TYPE=smd15 (default) | smd10 | ecc | bigdisc
     data->controllerType = CONTR_SMD_15MHZ; // 10 and 15Mhz has flip-flops
+    {
+        const char *t = getenv("ND100X_SMD_TYPE");
+        if (t != NULL)
+        {
+            if (strcmp(t, "ecc") == 0)
+                data->controllerType = CONTR_ECC_DISC;
+            else if (strcmp(t, "bigdisc") == 0)
+                data->controllerType = CONTR_BIG_DISC;
+            else if (strcmp(t, "smd10") == 0)
+                data->controllerType = CONTR_SMD_10MHZ;
+            else if (strcmp(t, "smd15") != 0)
+                fprintf(stderr, "SMD: unknown ND100X_SMD_TYPE '%s', using smd15\n", t);
+        }
+    }
     if (data->controllerType == CONTR_SMD_10MHZ || data->controllerType == CONTR_SMD_15MHZ)
     {
         data->regs.hasFlipFlops = true;
@@ -1328,6 +1498,26 @@ Device *CreateSMDDevice(uint8_t thumbwheel)
     else
     {
         data->regs.hasFlipFlops = false;
+    }
+
+    // Word-counter protocol: follows the card by default, separately override-
+    // able so the single-+7-write mass-load path can be tested against a card
+    // that is otherwise the two-access 15 MHz type. See deviceSMD.h.
+    data->regs.hasWordCountFlipFlop = data->regs.hasFlipFlops;
+    {
+        const char *w = getenv("ND100X_SMD_WC_FF");
+        if (w != NULL)
+            data->regs.hasWordCountFlipFlop = (w[0] != '0');
+    }
+
+    // Two-access load order: HI first (as the memory-address text states) or
+    // LO first (which would match the documented READ order and make a single
+    // +7 write load a full count). See deviceSMD.h.
+    data->regs.loadLowFirst = false;
+    {
+        const char *o = getenv("ND100X_SMD_LOAD_ORDER");
+        if (o != NULL && strcmp(o, "lo") == 0)
+            data->regs.loadLowFirst = true;
     }
 
     // Initialize device properties
