@@ -215,7 +215,11 @@ static uint16_t Wd_Read(Device *self, uint32_t address)
         break;
 
     case WD_READ_SECTOR_COUNTER:
-        value = data->regs.sectorCounter;
+        /* Sec 3.1 IOX table: "IOX 502  Not used". There is no programmer-
+         * visible sector counter on this card - the "sector counters" named
+         * in the hardware description are internal. Reads return 0, the same
+         * as the write-only registers. */
+        value = 0;
         break;
 
     case WD_READ_STATUS:
@@ -223,13 +227,11 @@ static uint16_t Wd_Read(Device *self, uint32_t address)
         break;
 
     case WD_READ_BLOCK_ADDRESS:
-        /* Sec 3.1: "This instruction is implemented for maintenance purposes
-         * only" - it returns the previously loaded block address, and only
-         * when test mode (control word bit 3) was set first. */
-        if (data->regs.testMode)
-            value = data->regs.blockAddress;
-        else
-            value = 0;
+        /* Sec 3.1 IOX table: "IOX 506  Read Block (disk) address register",
+         * with NO test-mode qualifier. This used to be gated on test mode,
+         * which was an invention - the cross-check against the portable core
+         * (tests/wd_trace.c) caught the divergence and the manual settled it. */
+        value = data->regs.blockAddress;
         break;
 
     default:
@@ -313,14 +315,21 @@ static void Wd_Write(Device *self, uint32_t address, uint16_t value)
         if (data->controlRegister.bits.deviceClear)
             Wd_DeviceClear(self);
 
-        /* Activation (bit 2). Sec 3.4: every device operation code is
-         * activated by loading the code together with the activate bit,
-         * EXCEPT M6, which must not be activated. */
-        if (data->controlRegister.bits.active)
+        /* Activation (bit 2). Sec 3.4 line: "All device operation codes will
+         * be activated when the code and bit 3 (activate device) is loaded,
+         * except for M6 where no activation should be made."
+         *
+         * That is guidance to the PROGRAMMER; the manual never says what the
+         * hardware does if you activate M6 anyway. M6 only sets additional
+         * control bits (3038 only) - it is a control-bit load, not an
+         * operation - so a control word carrying it takes the NON-activating
+         * path below, leaving the card ready. An early return here instead
+         * would leave status bit 3 clear and the card unable to interrupt.
+         * The portable Pi Pico core (nd_winchester.c) does the same; the
+         * cross-check trace exists to keep the two from drifting apart. */
+        if (data->controlRegister.bits.active &&
+            data->regs.deviceOperation != WD_OP_LOAD_CTRL_BITS)
         {
-            if (data->regs.deviceOperation == WD_OP_LOAD_CTRL_BITS)
-                break; /* M6 is never activated */
-
             /* Activation is a flip-flop reset condition (sec 3.2). */
             Wd_ClearFlipFlops(&data->regs);
 

@@ -369,3 +369,30 @@ target_link_libraries(test_winchester PRIVATE m)
 add_dependencies(test_winchester devices)
 
 add_test(NAME winchester_tests COMMAND test_winchester)
+
+# Winchester conformance-trace driver.
+#
+# Walks the shared sequence in wd_conformance_seq.h against this repository's
+# synchronous Winchester model and prints a canonical trace. Its counterpart
+# is the portable Pi Pico core's test/wd_trace.c, which walks a byte-identical
+# copy of that header against an asynchronous phase machine. DIFFING the two
+# traces is what proves the port is bit-identical rather than merely similar.
+#
+# Deliberately NOT an add_test(): it has no verdict of its own - the diff is
+# the verdict, and the other half of it lives in a different repository.
+add_executable(wd_trace
+    wd_trace.c
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester/deviceWinchester.c
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester/diskWinchester.c
+)
+
+target_include_directories(wd_trace PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/devices/winchester
+    ${CMAKE_SOURCE_DIR}/src/devices
+    ${CMAKE_SOURCE_DIR}/src/ndlib
+    ${CMAKE_SOURCE_DIR}/src/cpu
+)
+
+target_link_libraries(wd_trace PRIVATE m)
+
+add_dependencies(wd_trace devices)
