@@ -163,6 +163,18 @@ KeyEvent read_key_event(void)
             return evt;
         }
 
+        // Ctrl+Space — NUL (0x00), the XMSG connect-to exit character.
+        // ReadConsoleInputW delivers this as uChar 0x20 with the CTRL
+        // modifier set, so without this check a plain space would be sent.
+        // (POSIX terminals send the 0x00 byte directly; no special case there.)
+        if (ctl && !alt && vk == VK_SPACE) {
+            evt.type   = KEY_CHAR;
+            evt.ch     = 0x00;
+            evt.seq[0] = 0x00;
+            evt.seqLen = 1;
+            return evt;
+        }
+
         // Ordinary typed character. ReadConsoleInputW has already applied
         // keyboard-layout translation and dead-key composition, so uChar
         // contains the exact character the user typed.
