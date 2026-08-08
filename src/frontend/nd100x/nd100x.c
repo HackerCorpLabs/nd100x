@@ -102,9 +102,10 @@ static bool g_useMachineConfig = false;
 static BOOT_TYPE boot_type_for_ctrl(CtrlType t)
 {
     switch (t) {
-    case CTRL_SMD:    return BOOT_SMD;
-    case CTRL_FLOPPY: return BOOT_FLOPPY;
-    case CTRL_SCSI:   return BOOT_SCSI;
+    case CTRL_SMD:        return BOOT_SMD;
+    case CTRL_FLOPPY:     return BOOT_FLOPPY;
+    case CTRL_WINCHESTER: return BOOT_WINCHESTER;
+    case CTRL_SCSI:       return BOOT_SCSI;
     default:          return BOOT_NONE;
     }
 }
@@ -143,6 +144,12 @@ static void apply_machine_config(const MachineConfig *mc)
         } else if (c->type == CTRL_FLOPPY) {
             for (int s = 0; s < 3 && s < MC_MAX_DISK_SLOTS; s++)
                 if (c->disks[s].present) mount_floppy(c->disks[s].image, s);
+        } else if (c->type == CTRL_WINCHESTER) {
+            /* Opt-in card at IOX 500-507 (same block as the CDC system disc);
+             * not added by DeviceManager_AddAllDevices, so add it here. */
+            DeviceManager_AddDevice(DEVICE_TYPE_DISC_WINCHESTER, (uint8_t)c->wheel);
+            for (int s = 0; s < 2 && s < MC_MAX_DISK_SLOTS; s++)
+                if (c->disks[s].present) mount_winchester(c->disks[s].image, s);
         } else if (c->type == CTRL_SCSI) {
             SCSIUnitType types[SCSI_MAX_UNITS];
             for (int s = 0; s < SCSI_MAX_UNITS; s++) types[s] = SCSI_UNIT_NONE;

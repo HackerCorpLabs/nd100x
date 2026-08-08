@@ -639,6 +639,9 @@ static uint16_t Wd_Ident(Device *self, uint16_t level)
      * controllers. */
     data->statusRegister.bits.interruptEnabled = 0;
     Device_SetInterruptStatus(self, false, self->interruptLevel);
+    if (wd_debug_enabled)
+        fprintf(stderr, "WD: IDENT answered level=%u code=%o\n",
+                level, self->identCode);
     return self->identCode;
 }
 

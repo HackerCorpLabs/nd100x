@@ -169,7 +169,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test submodules
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test submodules boot-smd boot-wd boot-floppy
 
 debug: check-deps mkptypes $(CURL_PREREQ)
 	@echo "Building debug version..."
@@ -349,6 +349,26 @@ run: debug
 	$(BUILD_DIR)/bin/nd100x --boot=$(BOOT_TYPE) $$IMAGE_ARG --start=$(START_ADDR) $$VERBOSE_ARG $$DEBUGGER_ARG $$DISASM_ARG
 
 
+# Boot shortcuts: build debug, then boot from a specific device. The image is
+# passed explicitly and checked before launch, so a missing file fails with a
+# clear message instead of booting an unmounted drive.
+# Override per run, e.g.:  make boot-wd WD0_IMAGE=WD0-M.IMG
+SMD0_IMAGE   ?= SMD0.IMG
+WD0_IMAGE    ?= WD0.IMG
+FLOPPY_IMAGE ?= FLOPPY.IMG
+
+boot-smd: debug
+	@test -f "$(SMD0_IMAGE)" || { echo "boot-smd: image '$(SMD0_IMAGE)' not found. Use: make boot-smd SMD0_IMAGE=<file>"; exit 1; }
+	$(BUILD_DIR)/bin/nd100x --boot=smd --smd0=$(SMD0_IMAGE)
+
+boot-wd: debug
+	@test -f "$(WD0_IMAGE)" || { echo "boot-wd: image '$(WD0_IMAGE)' not found. Use: make boot-wd WD0_IMAGE=<file>"; exit 1; }
+	$(BUILD_DIR)/bin/nd100x --boot=wd --wd0=$(WD0_IMAGE)
+
+boot-floppy: debug
+	@test -f "$(FLOPPY_IMAGE)" || { echo "boot-floppy: image '$(FLOPPY_IMAGE)' not found. Use: make boot-floppy FLOPPY_IMAGE=<file>"; exit 1; }
+	$(BUILD_DIR)/bin/nd100x --boot=floppy --image=$(FLOPPY_IMAGE)
+
 test: debug
 	@echo "Running tests..."
 	cd $(BUILD_DIR) && ctest --output-on-failure
@@ -405,6 +425,10 @@ help:
 	@echo "  clean         - Remove build directories"
 	@echo "  install       - Install the build"
 	@echo "  run           - Build and run nd100x (uses defaults below)"
+	@echo "  boot-smd      - Build and boot from SMD unit 0 (SMD0_IMAGE, default SMD0.IMG)"
+	@echo "  boot-wd       - Build and boot from Winchester unit 0 (WD0_IMAGE, default WD0.IMG)"
+	@echo "  boot-floppy   - Build and boot from floppy (FLOPPY_IMAGE, default FLOPPY.IMG)"
+	@echo "                  e.g. make boot-wd WD0_IMAGE=WD0-M.IMG"
 	@echo "  runv          - Build and run with valgrind"
 	@echo "  help          - Show this help"
 	@echo ""

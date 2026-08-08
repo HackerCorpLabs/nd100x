@@ -5,7 +5,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/HackerCorpLabs/nd100x?include_prereleases&sort=semver)](https://github.com/HackerCorpLabs/nd100x/releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20RISC--V%20%7C%20WebAssembly-blue)
 
-ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD, SCSI and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
+ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD, Winchester, SCSI and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
 
 For more information about the ND-100 series of minicomputers: <https://www.ndwiki.org/wiki/ND-100>
 
@@ -87,6 +87,7 @@ This project continues from nd100em version 0.2.4 and includes significant enhan
   * Console and additional terminals (up to 11 terminals, with telnet server for remote access)
   * Floppy (PIO and DMA) for 8" and 5.25" formats
   * SMD Hard Disk (75MB, 4 units)
+  * Winchester Hard Disk (ST506/8" controller, cards 3041/3038, IOX 500-507, 2 units)
   * SCSI Hard Disk (ND-3201/3204 controller with NCR-5386 chip, Micropolis 1375-ND disks, SCSI IDs 0-6)
   * Paper Tape Reader (buffer-based, BPUN file loading via CLI or Glass UI upload)
   * Paper Tape Punch (output to file and Glass UI hex/ASCII display with download)
@@ -274,8 +275,8 @@ Usage: build/bin/nd100x [options]
 
 Options:
   -b,      --boot=TYPE    Boot type (bp, bpun, tape, aout, prog, floppy,
-                          smd[0-3], scsi[0-6], cdc)
-                          smd/scsi take an optional boot unit digit,
+                          smd[0-3], wd[0-1], scsi[0-6], cdc)
+                          smd/wd/scsi take an optional boot unit digit,
                           e.g. --boot=smd1 or --boot=scsi2 (default: unit 0)
                           See "Boot types" below for bpun vs tape vs cdc.
   -i,      --image=FILE   Image file to load (bpun, tape, aout, prog, floppy;
@@ -284,6 +285,14 @@ Options:
            --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)
            --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)
            --smd3=FILE    SMD unit 3 disk image (default: SMD3.IMG)
+           --wd0=FILE     Winchester unit 0 disk image (default: WD0.IMG)
+           --wd1=FILE     Winchester unit 1 disk image (default: WD1.IMG)
+                          Giving --wd0/--wd1 adds the ST506/8" Winchester
+                          controller (cards 3041/3038). It answers IOX 500-507 -
+                          the same block as the CDC system disc, so only one of
+                          the two can be used. Also settable via the .ini
+                          [controller.wd.0] section (disk0/disk1 keys; boot
+                          with [boot] device = wd.0.0).
            --scsi0=[TYPE:]FILE  SCSI ID 0 target image (adds the ND-3201 controller)
            --scsi1=[TYPE:]FILE  SCSI ID 1 target image
            --scsi2=[TYPE:]FILE  SCSI ID 2 target image
@@ -361,6 +370,8 @@ Examples:
   build/bin/nd100x --boot=smd --smd0=myboot.img --smd1=data.img
   build/bin/nd100x --boot=smd1                     # Boot from SMD unit 1
   build/bin/nd100x --boot=scsi0 --scsi0=hdd:SCSI-K.image  # Boot from SCSI ID 0
+  build/bin/nd100x --boot=floppy --wd0=WD0.IMG     # Floppy boot with Winchester attached
+  build/bin/nd100x --boot=wd --wd0=WD0.IMG         # Boot from Winchester unit 0
   build/bin/nd100x --hdlc=1:5000 --hdlc=2:5001    # Two HDLC devices
   build/bin/nd100x --boot=smd --telnet=9000        # SINTRAN with telnet server
   build/bin/nd100x --boot=smd --throttle           # Real-time CPU speed
@@ -370,6 +381,9 @@ Examples:
 ### Boot types
 
 * `smd`: SMD disk boot (default). An optional unit digit selects the boot unit: `smd0`-`smd3`.
+* `wd`: Winchester MASS STORAGE LOAD — 1K words from mass storage address 0
+  into core 0 (needs `--wd0`/`--wd1`). An optional unit digit selects the boot
+  unit: `wd0`-`wd1`.
 * `scsi`: SCSI disk boot. An optional unit digit selects the boot SCSI ID: `scsi0`-`scsi6`. The boot ID must be configured as an `hdd` target with `--scsiN`.
 * `bpun`: BPUN paper tape, loaded the way the **ND-100 ROM loader** did.
 * `tape`: paper tape loaded the way the **front-panel octal tape load** did (NORD-1 style).

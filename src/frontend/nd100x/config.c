@@ -30,6 +30,7 @@
 #include "../../machine/machine_types.h"
 #include "../../devices/hdlc/hdlc_constants.h"
 #include "../../cpu/cpu_protos.h"
+#include "nd100x_version.h"   /* generated into the build dir by cmake/git_stamp.cmake */
 
 // Long options
 static struct option long_options[] = {
@@ -39,6 +40,7 @@ static struct option long_options[] = {
     {"disasm",     no_argument,       0, 'a'},
     {"verbose",    no_argument,       0, 'v'},
     {"help",       no_argument,       0, 'h'},
+    {"version",    no_argument,       0, 'V'},
     {"debugger",   no_argument,       0, 'd'},
     {"port",       required_argument, 0, 'p'},
     {"smd-debug",  no_argument,       0, 'S'},
@@ -371,7 +373,7 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
     int c;
     char *endptr;
     
-    while ((c = getopt_long(argc, argv, "b:i:s:avhdp:StGn:B:W:T:P:D:e:N::r:f:L:H:Z::R::O",
+    while ((c = getopt_long(argc, argv, "b:i:s:avVhdp:StGn:B:W:T:P:D:e:N::r:f:L:H:Z::R::O",
                            long_options, &option_index)) != -1) {
         switch (c) {
             case 'b':
@@ -479,6 +481,11 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
             case 'h':
                 config->showHelp = true;
                 return true;
+
+            case 'V':
+                printf("nd100x %s (git %s, built %s)\n",
+                       ND100X_VERSION, ND100X_GIT_HASH, ND100X_BUILD_TIME);
+                exit(0);
 
             case 'H':
                 if (!parseHDLCConfig(config, optarg)) {
@@ -889,6 +896,8 @@ bool Config_ParseCommandLine(Config_t *config, int argc, char *argv[]) {
 }
 
 void Config_PrintHelp(const char *progName) {
+    printf("nd100x %s (git %s, built %s)\n",
+           ND100X_VERSION, ND100X_GIT_HASH, ND100X_BUILD_TIME);
     printf("Usage: %s [options]\n\n", progName);
     printf("Options:\n");
     printf("  -b,      --boot=TYPE    Boot type (bp, bpun, tape, aout, prog, floppy,\n");
@@ -914,7 +923,9 @@ void Config_PrintHelp(const char *progName) {
     printf("           --wd0=FILE     Winchester unit 0 disk image (default: WD0.IMG)\n");
     printf("           --wd1=FILE     Winchester unit 1 disk image (default: WD1.IMG)\n");
     printf("                          Winchester answers IOX 500-507 - same block as the\n");
-    printf("                          CDC system disc, so only one of the two can be used\n");
+    printf("                          CDC system disc, so only one of the two can be used.\n");
+    printf("                          Also settable via the .ini [controller.wd.0] section\n");
+    printf("                          (disk0/disk1 keys; boot with [boot] device = wd.0.0)\n");
     printf("           --smd0=FILE    SMD unit 0 disk image (default: SMD0.IMG)\n");
     printf("           --smd1=FILE    SMD unit 1 disk image (default: SMD1.IMG)\n");
     printf("           --smd2=FILE    SMD unit 2 disk image (default: SMD2.IMG)\n");
@@ -995,7 +1006,8 @@ void Config_PrintHelp(const char *progName) {
     printf("           --monitor, --shell   Enable interactive shell mode for loading BPUN/PROG files\n");
     printf("           --nd100-root=PATH    Directory containing BPUN/PROG files (default: current dir)\n");
     printf("           --script=FILE        Load shell commands from a script file\n");
-    printf("  -h,      --help         Show this help message\n\n");
+    printf("  -h,      --help         Show this help message\n");
+    printf("  -V,      --version      Show version, git hash and build time, then exit\n\n");
     printf("Examples:\n");
     printf("  %s --boot=bpun --image=test.bpun\n", progName);
     printf("  %s --boot=floppy --image=disk.img --start=0x1000 --disasm\n", progName);

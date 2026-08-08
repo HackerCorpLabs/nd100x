@@ -26,6 +26,7 @@
 /* IOX base per thumbwheel. Index is the thumbwheel number. Wheels outside a
  * controller's [min_wheel,max_wheel] are 0 and never referenced. */
 static const uint16_t iox_smd[]    = { 001540 };                               /* wheel 0 */
+static const uint16_t iox_wd[]     = { 000500 };                               /* wheel 0 */
 static const uint16_t iox_floppy[] = { 001560 };                               /* wheel 0 */
 static const uint16_t iox_scsi[]   = { 0, 0, 0, 0 };                           /* filled below */
 static const uint16_t iox_scsi_v[] = { 0144300, 0144400, 0144500, 0144600 };   /* wheel 0-3 */
@@ -36,6 +37,13 @@ static const ControllerDescriptor g_descriptors[] = {
     /* type        name      minW maxW  iox_base     span  slots is_disc bootable */
     { CTRL_FLOPPY, "floppy",  0,  0,  iox_floppy,     8,     3,  true,   true  },
     { CTRL_SMD,    "smd",     0,  0,  iox_smd,        8,     4,  true,   true  },
+    /* ST506/8 inch Winchester (cards 3041/3038), ND-11.015.01 sec 3.1: disk
+     * system 1 at IOX 500-507, 2 units (control word carries the unit in one
+     * bit). Disk system 2 (510-517) exists in hardware but the machine layer's
+     * mount table (wd_drives) has one global 2-slot pool, so only wheel 0 is
+     * configurable. NOTE: IOX 500 is also the CDC cartridge disc - a machine
+     * has one card or the other; validated below against runtime.cdc. */
+    { CTRL_WINCHESTER, "wd",  0,  0,  iox_wd,         8,     2,  true,   true  },
     { CTRL_SCSI,   "scsi",    0,  3,  iox_scsi_v,   0100,    7,  true,   true  },
     { CTRL_HDLC,   "hdlc",    1,  4,  iox_hdlc,     020,     0,  false,  false },
 };
@@ -285,7 +293,7 @@ static bool mc_parse_controller_header(const char *rest, CtrlType *type,
     const ControllerDescriptor *d = MC_DescriptorForName(typeName);
     if (!d) {
         return mc_err(err, errlen, path, line,
-            "unknown controller type '%s'. Known types: floppy, smd, scsi, hdlc.",
+            "unknown controller type '%s'. Known types: floppy, smd, wd, scsi, hdlc.",
             typeName);
     }
 
@@ -717,6 +725,14 @@ bool MachineConfig_Validate(const MachineConfig *cfg, char *err, size_t errlen)
             return mc_err(err, errlen, path, 0,
                 "%s controller on thumbwheel %d out of range (%d-%d).",
                 d->name, c->wheel, d->min_wheel, d->max_wheel);
+
+        /* The Winchester card and the CDC cartridge disc both answer IOX
+         * 500-507 (ND-11.015.01 sec 3.1) - a machine has one or the other. */
+        if (c->type == CTRL_WINCHESTER && cfg->runtime.cdc[0])
+            return mc_err(err, errlen, path, 0,
+                "IOX address clash: [controller.wd.0] and [runtime] cdc both "
+                "answer IOX 0500-0507. A machine has one card or the other - "
+                "remove one of them.");
 
         uint16_t base = d->iox_base[c->wheel];
         for (int j = 0; j < usedCount; j++) {

@@ -73,6 +73,13 @@ each device's `Ident` implementation, not invented:
   (`/home/ronny/repos/nd100x/src/devices/devicemanager.c:122`).
 - **floppy** — wheel 0, IOX base `01560` (DMA), disc, 3 slots, bootable.
   (`devicemanager.c:120`).
+- **wd** — wheel 0, IOX base `0500`, disc, 2 slots (ST506/8" Winchester,
+  cards 3041/3038; the control word carries the unit in one bit, so two units
+  is the hardware maximum). Opt-in: NOT added by `DeviceManager_AddAllDevices()`
+  because IOX 500-507 is also the CDC cartridge disc - a machine has one card
+  or the other (`src/devices/winchester/deviceWinchester.h`). The device layer
+  also supports wheel 1 (IOX 510-517, disk system 2), but the machine layer's
+  mount table has a single 2-slot pool, so config exposes wheel 0 only.
 - **scsi** — wheel 0-3, IOX bases `{0144300,0144400,0144500,0144600}`
   (`devicemanager.c:147`), disc, 7 slots (IDs 0-6; ID 7 = controller),
   media hdd/cdrom/tape/floppy (only hdd implemented), bootable.

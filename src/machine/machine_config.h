@@ -42,6 +42,7 @@ typedef enum {
     CTRL_NONE = 0,
     CTRL_FLOPPY,
     CTRL_SMD,
+    CTRL_WINCHESTER,
     CTRL_SCSI,
     CTRL_HDLC
 } CtrlType;
