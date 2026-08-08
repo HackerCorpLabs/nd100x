@@ -21,6 +21,21 @@ endif()
 # Create the executable
 add_executable(nd100x ${SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/nd100x_protos.h)
 
+# Build-stamp header: version + git hash(+dirty) + build time, regenerated on
+# EVERY build so `nd100x --version` always tells the truth about which source
+# state the binary was built from (multiple build dirs diverge in practice).
+# Costs one small recompile + relink per build; that is the point.
+set(ND100X_VERSION_HEADER ${CMAKE_CURRENT_BINARY_DIR}/nd100x_version.h)
+add_custom_target(nd100x_version_stamp
+    COMMAND ${CMAKE_COMMAND}
+        -DOUT=${ND100X_VERSION_HEADER}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}
+        -DVERSION=${nd100x_VERSION}
+        -P ${CMAKE_SOURCE_DIR}/cmake/git_stamp.cmake
+    BYPRODUCTS ${ND100X_VERSION_HEADER}
+    COMMENT "Stamping nd100x_version.h (git hash + build time)")
+add_dependencies(nd100x nd100x_version_stamp)
+
 # Stage the vendored libcurl runtime next to the freshly built exe, for ANY build
 # method (plain `cmake --build`, not just `make`). nd100x.exe hard-depends on
 # libcurl-x64.dll at load time, so without this the exe fails to start with
@@ -38,6 +53,7 @@ endif()
 # Include directories
 target_include_directories(nd100x PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/src/cpu
     ${CMAKE_SOURCE_DIR}/src/ndlib
     ${CMAKE_SOURCE_DIR}/src/devices

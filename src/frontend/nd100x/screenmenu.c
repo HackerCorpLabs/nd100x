@@ -15,6 +15,7 @@
 #include <stdatomic.h>
 
 #include "keyboard.h"
+#include "nd100x_version.h"   /* generated into the build dir by cmake/git_stamp.cmake */
 #include "vscreen.h"
 #include "screenmenu.h"
 #include "charset.h"
@@ -173,8 +174,8 @@ static void draw_about(void)
     printf("\033[2J\033[H");
     printf("=== About ND100X ===\n\n");
     printf("  ND100X - ND-100/CX Minicomputer Emulator\n");
-    printf("  Version 1.0.12\n");
-    printf("  Compiled: %s %s\n\n", __DATE__, __TIME__);
+    printf("  Version %s (git %s)\n", ND100X_VERSION, ND100X_GIT_HASH);
+    printf("  Built: %s\n\n", ND100X_BUILD_TIME);
     printf("  A fork of nd100em, started in 2025 by Ronny Hansen.\n");
     printf("  Licensed under the GNU General Public License (GPL v2 or later).\n\n");
     printf("  Based on the nd100em project (version 0.2.4) by:\n");

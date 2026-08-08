@@ -482,11 +482,13 @@ int mapVirtualToPhysical(uint virtualAddress, AccessMode am, bool UseAPT)
 #ifdef _DEGRADE_
     if ((am & FETCH) && (pageTableRing < ring) && (ring == 3))
     {
+#ifdef DEBUG_MMS
         static int degrade_count = 0;
         if (degrade_count < 10)
             fprintf(stderr, "DEGRADE: PIL=%d PC=%06o PT=%d VPN=%d ptRing=%d ring=%d->%d PTe=0x%08X\n",
                    CurrLEVEL, gPC, pageTable, VPN, pageTableRing, ring, pageTableRing, pageTableEntry);
         degrade_count++;
+#endif
         ring = pageTableRing;
         gReg->reg_PCR[CurrLEVEL] = (gReg->reg_PCR[CurrLEVEL] & 0xFFFC) | ring;
     }

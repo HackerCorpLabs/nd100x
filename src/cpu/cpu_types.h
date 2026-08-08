@@ -98,7 +98,10 @@ typedef int64_t   s64;
 
 // Memory Management System configuration
 #define ENABLE_BREAKPOINTS    // Enable breakpoint support for debugging
-#define _DEGRADE_             // Enable ring-down trap
+#define _DEGRADE_             // Enable ring degradation on instruction fetch (ring 3 fetching
+                              // from a lower-ring page lowers the PCR ring instead of raising MPV).
+                              // BEHAVIORAL flag, not a debug flag - the DEGRADE: diagnostic print
+                              // in cpu_mms.c is separately gated behind DEBUG_MMS.
 
 
 /********************* MMU *********************/
