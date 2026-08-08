@@ -108,8 +108,10 @@ BOOT_TYPE=floppy IMAGE_FILE=disk.img VERBOSE=1 DEBUGGER=1 make run
 ```
 
 ### Command Line Options
-- `-b, --boot=TYPE`: Boot type (bp, bpun, aout, floppy, smd)
+- `-b, --boot=TYPE`: Boot type (bp, bpun, tape, aout, prog, floppy, smd[0-3], wd[0-1], scsi[0-6], cdc). smd/wd/scsi take an optional boot unit digit, e.g. `--boot=smd1`
 - `-i, --image=FILE`: Image file to load
+- `--wd0=FILE`, `--wd1=FILE`: Winchester unit 0/1 disk images (ST506/8" controller, cards 3041/3038). Adds the opt-in Winchester card at IOX 500-507 - same block as the CDC cartridge disc, so only one of the two can be configured. Also settable via the INI `[controller.wd.0]` section (disk0/disk1 keys; boot with `[boot] device = wd.0.0`)
+- `--smd0..3=FILE`, `--scsi0..6=[TYPE:]FILE`: SMD / SCSI unit images (SCSI adds the ND-3201 controller)
 - `-e, --tape=FILE`: Paper tape file to load into reader
 - `-P, --printdir=DIR`: Directory for line printer output files (default: ./prints)
 - `-D, --tapedir=DIR`: Directory for paper tape punch output files (default: ./tapes)
