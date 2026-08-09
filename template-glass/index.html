@@ -349,14 +349,14 @@
        ABOUT WINDOW (hidden by default)
        ========================================= -->
   <!-- Machine Setup window: edit the machine INI (controllers, CPU, boot). -->
-  <div id="machine-setup-window" class="glass-window" style="display: none;width:560px;">
+  <div id="machine-setup-window" class="glass-window" style="display: none;width:560px;height:560px;flex-direction:column;">
     <div class="glass-window-header" id="machine-setup-header">
       <span class="glass-window-title">Machine Setup</span>
       <button class="glass-window-close" id="machine-setup-close">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
       </button>
     </div>
-    <div class="glass-window-body" style="padding:12px;">
+    <div class="glass-window-body" style="padding:12px;flex:1;overflow-y:auto;">
       <div class="smd-section-title">Machine</div>
       <div class="smd-copy-actions" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <select id="machine-setup-profile" style="flex:1 1 160px;min-width:140px;font-size:12px;padding:3px;"></select>
@@ -367,7 +367,7 @@
       <div class="smd-image-meta" style="margin-bottom:6px;opacity:0.75;">
         Edit controllers, CPU type, terminals and boot device. Validate uses the same parser as the native binary. Download a .ini to run the same machine with nd100x. The selected machine is the one the emulator starts.
       </div>
-      <div id="machine-setup-form" style="max-height:340px;overflow-y:auto;"></div>
+      <div id="machine-setup-form"></div>
       <div style="margin-top:8px;">
         <button class="smd-action-btn" id="machine-setup-advanced-toggle">Advanced (INI)</button>
       </div>
@@ -382,6 +382,9 @@
         <button class="smd-action-btn" id="machine-setup-reset">Reset to default</button>
         <button class="smd-action-btn smd-copy-confirm-btn" id="machine-setup-download">Download .ini</button>
       </div>
+    </div>
+    <div class="glass-resize-handle" id="machine-setup-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/></svg>
     </div>
   </div>
 
@@ -931,11 +934,12 @@
       </svg>
     </div>
     <div class="glass-window-body" style="padding:12px;overflow-y:auto;">
-      <!-- Disk-type tabs: SMD (4 units), SCSI (IDs 0-6), Winchester (reserved). -->
+      <!-- Disk-type tabs: SMD (4 units), SCSI (IDs 0-6), Winchester (2 units). -->
       <div class="hdd-tabs" id="hdd-tabs" style="display:flex;gap:6px;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px;">
         <button class="hdd-tab hdd-tab-active" data-hdd-tab="smd" onclick="hddSelectTab('smd')">SMD</button>
         <button class="hdd-tab" data-hdd-tab="scsi" onclick="hddSelectTab('scsi')">SCSI</button>
-        <button class="hdd-tab" data-hdd-tab="winchester" disabled title="Winchester is not yet supported">Winchester</button>
+        <button class="hdd-tab" data-hdd-tab="winchester" onclick="hddSelectTab('winchester')"
+                title="ST506/8 inch Winchester (cards 3041/3038), IOX 500-507">Winchester</button>
       </div>
       <div id="smd-manager-body">
         <div class="smd-section-title">Drive Configuration</div>
@@ -1043,6 +1047,29 @@
         <div class="smd-section-title" style="margin-top:12px">Local Disk Library (SCSI)</div>
         <div id="hdd-scsi-installed-list" class="smd-installed-list">
           <div class="smd-empty-msg">Only images tagged as SCSI (hdd) can be assigned to SCSI IDs.</div>
+        </div>
+      </div>
+      <div id="hdd-winchester-body" style="display:none">
+        <!-- Two units, per the wd descriptor (src/machine/machine_config.c):
+             disk system 1 carries the unit in one bit of the control word.
+             The card answers IOX 500-507, the same block as the CDC cartridge
+             system disc, so a machine has one or the other. -->
+        <div class="smd-section-title">Winchester Units (0-1)</div>
+        <div class="smd-unit-list" id="hdd-winchester-unit-list">
+          <div class="smd-unit-row">
+            <span class="smd-unit-label">Unit 0 (boot)</span>
+            <span class="smd-unit-name" id="wd-unit-0-name">Not assigned</span>
+            <button class="smd-eject-btn" id="wd-unit-0-eject" style="display:none" onclick="hddWinchesterEjectUnit(0)">Eject</button>
+          </div>
+          <div class="smd-unit-row">
+            <span class="smd-unit-label">Unit 1</span>
+            <span class="smd-unit-name" id="wd-unit-1-name">Not assigned</span>
+            <button class="smd-eject-btn" id="wd-unit-1-eject" style="display:none" onclick="hddWinchesterEjectUnit(1)">Eject</button>
+          </div>
+        </div>
+        <div class="smd-section-title" style="margin-top:12px">Local Disk Library (Winchester)</div>
+        <div id="hdd-winchester-installed-list" class="smd-installed-list">
+          <div class="smd-empty-msg">Only images tagged as Winchester can be assigned to a Winchester unit.</div>
         </div>
       </div>
     </div>

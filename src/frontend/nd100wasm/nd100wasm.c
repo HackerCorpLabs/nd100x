@@ -1035,6 +1035,222 @@ EMSCRIPTEN_EXPORT int UnmountSCSI(int unit)
 }
 
 // =========================================================
+// Winchester drive mounting (ST506/8 inch, cards 3041/3038)
+// =========================================================
+// The last controller type with no way into the browser at all. The machine
+// layer has had it all along - wd_drives, DRIVE_WINCHESTER, mount_winchester -
+// and the native binary mounts it from --wd0/--wd1 or a [controller.wd.0]
+// section. Only the WASM side was missing, so a config could name a Winchester
+// image and nothing could ever hand one over. disk-types.js said as much:
+// "Winchester is a reserved stub ... no mount or boot path yet".
+//
+// Mirrors the SCSI exports exactly, including the lazy controller: the card
+// answers IOX 500-507, the SAME block as the CDC cartridge system disc, so
+// adding it unconditionally would change the IOX map of every existing machine.
+// It appears the first time a Winchester disk is actually mounted.
+//
+// Two units, per the registry (g_descriptors: wd, 2 slots) and the hardware -
+// disk system 1 carries the unit in one bit of the control word.
+
+#define WD_MAX_UNITS 2
+#define WD_TW0_IOX_BASE 000500
+
+// Add the Winchester controller at thumbwheel 0 if it is not already there.
+static Device *ensure_winchester_controller(void)
+{
+    Device *dev = DeviceManager_GetDeviceByAddress(WD_TW0_IOX_BASE);
+    if (!dev) {
+        DeviceManager_AddDevice(DEVICE_TYPE_DISC_WINCHESTER, 0);
+        dev = DeviceManager_GetDeviceByAddress(WD_TW0_IOX_BASE);
+    }
+    return dev;
+}
+
+// Mount a Winchester drive from OPFS (Worker mode, block I/O keyed on driveType)
+EMSCRIPTEN_EXPORT int MountWinchesterFromOPFS(int unit, int imageSize)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return -1;
+    if (!ensure_winchester_controller()) return -1;
+    if (isMounted(DRIVE_WINCHESTER, unit)) unmount_drive(DRIVE_WINCHESTER, unit);
+
+    const char *name = (unit == 0) ? "Boot Winchester (OPFS)" : "Data Winchester (OPFS)";
+    const char *desc = (unit == 0) ? "Boot Winchester from persistent storage"
+                                   : "Data Winchester from persistent storage";
+    mount_drive_opfs(DRIVE_WINCHESTER, unit, name, desc, (size_t)imageSize);
+    return isMounted(DRIVE_WINCHESTER, unit) ? 0 : -1;
+}
+
+// Mount a Winchester drive from the gateway (Worker mode, block I/O via WebSocket)
+EMSCRIPTEN_EXPORT int MountWinchesterFromGateway(int unit, int imageSize)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return -1;
+    if (!ensure_winchester_controller()) return -1;
+    if (isMounted(DRIVE_WINCHESTER, unit)) unmount_drive(DRIVE_WINCHESTER, unit);
+
+    const char *name = (unit == 0) ? "Boot Winchester (Gateway)" : "Data Winchester (Gateway)";
+    const char *desc = (unit == 0) ? "Boot Winchester from gateway server"
+                                   : "Data Winchester from gateway server";
+    mount_drive_gateway(DRIVE_WINCHESTER, unit, name, desc, (size_t)imageSize);
+    return isMounted(DRIVE_WINCHESTER, unit) ? 0 : -1;
+}
+
+// Mount a Winchester drive from a JS buffer (Direct mode, in-memory writable)
+EMSCRIPTEN_EXPORT int MountWinchesterFromBuffer(int unit, const uint8_t *data, int size)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS || !data || size <= 0) return -1;
+    if (!ensure_winchester_controller()) return -1;
+    if (isMounted(DRIVE_WINCHESTER, unit)) unmount_drive(DRIVE_WINCHESTER, unit);
+
+    char *buf = malloc((size_t)size);
+    if (!buf) return -1;
+    memcpy(buf, data, (size_t)size);
+
+    init_drive_arrays();
+    MountedDriveInfo_t *drives = list_mount(DRIVE_WINCHESTER);
+    if (!drives) { free(buf); return -1; }
+
+    MountedDriveInfo_t *entry = &drives[unit];
+    entry->is_mounted = true;
+    entry->is_remote = true;
+    entry->is_opfs = false;
+    entry->is_writeprotected = false;
+    entry->data.remote_data = buf;
+    entry->data_size = (size_t)size;
+    entry->block_size = 1024;
+
+    const char *name = (unit == 0) ? "Boot Winchester (Buffer)" : "Data Winchester (Buffer)";
+    strncpy(entry->name, name, sizeof(entry->name) - 1);
+    entry->name[sizeof(entry->name) - 1] = '\0';
+    strncpy(entry->description, "Winchester from persistent storage buffer",
+            sizeof(entry->description) - 1);
+    entry->description[sizeof(entry->description) - 1] = '\0';
+    strncpy(entry->md5, "buffer", sizeof(entry->md5) - 1);
+    entry->image_path[0] = '\0';
+    return 0;
+}
+
+// In-memory buffer pointer / size, for the Direct-mode save-back path.
+EMSCRIPTEN_EXPORT int GetWinchesterBuffer(int unit)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_WINCHESTER);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted || !entry->is_remote || !entry->data.remote_data) return 0;
+    return (int)(uintptr_t)entry->data.remote_data;
+}
+
+EMSCRIPTEN_EXPORT int GetWinchesterBufferSize(int unit)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_WINCHESTER);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted) return 0;
+    return (int)entry->data_size;
+}
+
+// Remount a Winchester drive from MEMFS ("/WDN.IMG")
+EMSCRIPTEN_EXPORT int RemountWinchester(int unit)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return -1;
+    if (!ensure_winchester_controller()) return -1;
+
+    char filename[32];
+    sprintf(filename, "/WD%d.IMG", unit);
+    if (isMounted(DRIVE_WINCHESTER, unit)) unmount_drive(DRIVE_WINCHESTER, unit);
+    mount_drive(DRIVE_WINCHESTER, unit, "md5-unknown", "Winchester",
+                "Mounted Winchester image", filename);
+    return isMounted(DRIVE_WINCHESTER, unit) ? 0 : -1;
+}
+
+EMSCRIPTEN_EXPORT int UnmountWinchester(int unit)
+{
+    if (unit < 0 || unit >= WD_MAX_UNITS) return -1;
+    if (isMounted(DRIVE_WINCHESTER, unit)) unmount_drive(DRIVE_WINCHESTER, unit);
+    return 0;
+}
+
+// =========================================================
+// Floppy: the two ways in it was missing
+// =========================================================
+// Floppy could only be mounted from the gateway. SMD, SCSI and now Winchester
+// can each come from OPFS (Worker mode) or from a JS buffer (Direct mode), and
+// there was no reason floppy could not - the machine layer is type-generic and
+// the only thing missing was these functions. Without them a floppy image
+// stored in the browser could not be inserted at all unless a gateway was
+// running, which is the one configuration that needs no browser storage.
+//
+// Three units, matching MountFloppyFromGateway and DRIVE_UNIT_COUNT.floppy.
+// Block size 512, not 1024: a floppy sector is half a disc sector (see the
+// block_size math in src/machine/machine.c and DRIVE_BLOCK_SIZE in
+// template-glass/js/disk-types.js).
+
+#define FLOPPY_MAX_UNITS 3
+
+EMSCRIPTEN_EXPORT int MountFloppyFromOPFS(int unit, int imageSize)
+{
+    if (unit < 0 || unit >= FLOPPY_MAX_UNITS) return -1;
+    if (isMounted(DRIVE_FLOPPY, unit)) unmount_drive(DRIVE_FLOPPY, unit);
+
+    mount_drive_opfs(DRIVE_FLOPPY, unit, "Floppy (OPFS)",
+                     "Floppy from persistent storage", (size_t)imageSize);
+    return isMounted(DRIVE_FLOPPY, unit) ? 0 : -1;
+}
+
+EMSCRIPTEN_EXPORT int MountFloppyFromBuffer(int unit, const uint8_t *data, int size)
+{
+    if (unit < 0 || unit >= FLOPPY_MAX_UNITS || !data || size <= 0) return -1;
+    if (isMounted(DRIVE_FLOPPY, unit)) unmount_drive(DRIVE_FLOPPY, unit);
+
+    char *buf = malloc((size_t)size);
+    if (!buf) return -1;
+    memcpy(buf, data, (size_t)size);
+
+    init_drive_arrays();
+    MountedDriveInfo_t *drives = list_mount(DRIVE_FLOPPY);
+    if (!drives) { free(buf); return -1; }
+
+    MountedDriveInfo_t *entry = &drives[unit];
+    entry->is_mounted = true;
+    entry->is_remote = true;
+    entry->is_opfs = false;
+    entry->is_writeprotected = false;
+    entry->data.remote_data = buf;
+    entry->data_size = (size_t)size;
+    entry->block_size = 512;
+
+    strncpy(entry->name, "Floppy (Buffer)", sizeof(entry->name) - 1);
+    entry->name[sizeof(entry->name) - 1] = '\0';
+    strncpy(entry->description, "Floppy from persistent storage buffer",
+            sizeof(entry->description) - 1);
+    entry->description[sizeof(entry->description) - 1] = '\0';
+    strncpy(entry->md5, "buffer", sizeof(entry->md5) - 1);
+    entry->image_path[0] = '\0';
+    return 0;
+}
+
+EMSCRIPTEN_EXPORT int GetFloppyBuffer(int unit)
+{
+    if (unit < 0 || unit >= FLOPPY_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_FLOPPY);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted || !entry->is_remote || !entry->data.remote_data) return 0;
+    return (int)(uintptr_t)entry->data.remote_data;
+}
+
+EMSCRIPTEN_EXPORT int GetFloppyBufferSize(int unit)
+{
+    if (unit < 0 || unit >= FLOPPY_MAX_UNITS) return 0;
+    MountedDriveInfo_t *drives = list_mount(DRIVE_FLOPPY);
+    if (!drives) return 0;
+    MountedDriveInfo_t *entry = &drives[unit];
+    if (!entry->is_mounted) return 0;
+    return (int)entry->data_size;
+}
+
+// =========================================================
 // Machine configuration (INI) validation for the Machine Setup window
 // =========================================================
 // Reuses the native MachineConfig INI parser + validator (machine_config.c) so
@@ -1930,6 +2146,7 @@ EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
     MountedDriveInfo_t *smd = list_mount(DRIVE_SMD);
     MountedDriveInfo_t *floppy = list_mount(DRIVE_FLOPPY);
     MountedDriveInfo_t *scsi = list_mount(DRIVE_SCSI);
+    MountedDriveInfo_t *wd = list_mount(DRIVE_WINCHESTER);
 
     pos += snprintf(buf + pos, sizeof(buf) - pos, "[");
 
@@ -1964,6 +2181,22 @@ EMSCRIPTEN_EXPORT const char* GetDriveInfo(void)
         MountedDriveInfo_t *d = scsi ? &scsi[i] : NULL;
         pos += snprintf(buf + pos, sizeof(buf) - pos,
             "{\"type\":\"scsi\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
+            i,
+            (d && d->is_mounted) ? "true" : "false",
+            (d && d->is_mounted) ? d->name : "",
+            (d && d->is_opfs) ? "true" : "false",
+            (d && d->is_gateway) ? "true" : "false",
+            (d && d->is_mounted) ? (int)d->data_size : 0);
+    }
+
+    // Winchester, 2 units. Without these rows the UI cannot tell a mounted
+    // Winchester from an absent one, so a disk could be mounted and still look
+    // empty on screen.
+    for (int i = 0; i < 2 && pos < (int)sizeof(buf) - 256; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, ",");
+        MountedDriveInfo_t *d = wd ? &wd[i] : NULL;
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "{\"type\":\"winchester\",\"unit\":%d,\"mounted\":%s,\"name\":\"%s\",\"opfs\":%s,\"gateway\":%s,\"size\":%d}",
             i,
             (d && d->is_mounted) ? "true" : "false",
             (d && d->is_mounted) ? d->name : "",

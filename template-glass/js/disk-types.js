@@ -9,8 +9,11 @@
  * name<->number mapping imports it from here instead of hard-coding a literal
  * like ['smd','floppy']. Adding a new type is a one-line change in this file.
  *
- * Winchester is a reserved stub: it appears in the tables and gets a disabled
- * UI tab, but has no mount or boot path yet (units: 0).
+ * Winchester used to be a reserved stub here - in the tables, with a disabled
+ * tab and units: 0 - because the WASM build had no way to mount one. It has one
+ * now (MountWinchesterFromOPFS and friends), so it is a real type with 2 units,
+ * matching the wd descriptor's disk_slots in src/machine/machine_config.c and
+ * the hardware (disk system 1 carries the unit in one bit of the control word).
  */
 (function (global) {
     'use strict';
@@ -32,7 +35,7 @@
         smd: 4,
         floppy: 3,
         scsi: 7,
-        winchester: 0
+        winchester: 2
     };
 
     // Default block/sector size in bytes per type (floppy is 512, discs 1024).
@@ -52,9 +55,12 @@
         winchester: 'Winchester'
     };
 
-    // Types that have a working mount/boot path today. Winchester is excluded
-    // (disabled tab); floppy has its own separate manager.
-    var DRIVE_TYPES_IMPLEMENTED = ['smd', 'scsi'];
+    // Types with a working mount path. All four now have the same five ways in
+    // - OPFS, buffer, gateway, remount, unmount - so this is every type the
+    // controller registry knows. Floppy still has its own separate manager
+    // window; being listed here is about the mount path existing, not about
+    // which window drives it.
+    var DRIVE_TYPES_IMPLEMENTED = ['smd', 'scsi', 'winchester', 'floppy'];
 
     function driveTypeNumber(name) {
         return DRIVE_TYPE[name];

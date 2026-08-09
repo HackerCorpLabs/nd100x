@@ -13,5 +13,34 @@
         "url": null,
         "generate": true,
         "diskType": "smd"
+    },
+    {
+        "name": "Winchester system disk",
+        "description": "ST506/8 inch Winchester image (cards 3041/3038). Answers IOX 500-507 - the same block as the CDC cartridge disc, so a machine has one or the other.",
+        "size": 78643200,
+        "url": "WD0.IMG",
+        "diskType": "winchester"
+    },
+    {
+        "name": "Clean Winchester disk",
+        "description": "Empty 75 MB Winchester image",
+        "size": 78643200,
+        "url": null,
+        "generate": true,
+        "diskType": "winchester"
+    },
+    {
+        "name": "SINTRAN floppy",
+        "description": "8 inch floppy image as shipped with the emulator",
+        "size": 1261568,
+        "url": "FLOPPY.IMG",
+        "diskType": "floppy"
+    },
+    {
+        "name": "NDIX root disk",
+        "description": "NDIX-C root filesystem for the ND-500. Needs the ND-500 core in the module (plan milestone M2c) - it can be staged now, but nothing can mount it yet.",
+        "size": 71147520,
+        "url": "rootfs_full.img",
+        "diskType": "nd500"
     }
 ]

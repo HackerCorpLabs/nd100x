@@ -40,6 +40,22 @@
     // Validate a machine INI string via the native validator. Returns "" if OK,
     // or a "file:line message" string. Promise-wrapped for a uniform API with
     // Worker mode.
+    // --- Winchester (ST506) and the floppy mounts that were missing ---
+    // Winchester had NO mount path in the browser at all until now, and floppy
+    // could only come from the gateway. Both now match SMD and SCSI.
+    mountWinchesterFromOPFS:    function(u, sz) { return Module._MountWinchesterFromOPFS(u, sz); },
+    mountWinchesterFromGateway: function(u, sz) { return Module._MountWinchesterFromGateway(u, sz); },
+    mountWinchesterFromBuffer:  function(u, p, sz) { return Module._MountWinchesterFromBuffer(u, p, sz); },
+    getWinchesterBuffer:        function(u) { return Module._GetWinchesterBuffer(u); },
+    getWinchesterBufferSize:    function(u) { return Module._GetWinchesterBufferSize(u); },
+    remountWinchester:          function(u) { return Module._RemountWinchester(u); },
+    unmountWinchester:          function(u) { return Module._UnmountWinchester(u); },
+
+    mountFloppyFromOPFS:        function(u, sz) { return Module._MountFloppyFromOPFS(u, sz); },
+    mountFloppyFromBuffer:      function(u, p, sz) { return Module._MountFloppyFromBuffer(u, p, sz); },
+    getFloppyBuffer:            function(u) { return Module._GetFloppyBuffer(u); },
+    getFloppyBufferSize:        function(u) { return Module._GetFloppyBufferSize(u); },
+
     validateMachineINI: function(ini) {
       try { return Promise.resolve(Module.ccall('ValidateMachineINI', 'string', ['string'], [ini])); }
       catch (e) { return Promise.resolve('validation unavailable: ' + e.message); }

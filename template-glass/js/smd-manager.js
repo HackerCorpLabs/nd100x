@@ -1248,24 +1248,82 @@ window.smdManagerHide = smdManagerHide;
 // SMD keeps its existing UI (#smd-manager-body); SCSI uses #hdd-scsi-body.
 // =========================================================
 function hddSelectTab(tab) {
-  var smdBody = document.getElementById('smd-manager-body');
-  var scsiBody = document.getElementById('hdd-scsi-body');
-  if (smdBody) smdBody.style.display = (tab === 'smd') ? '' : 'none';
-  if (scsiBody) scsiBody.style.display = (tab === 'scsi') ? '' : 'none';
+  // One body per tab, shown by name. Listed rather than derived so a body with
+  // no matching tab (or the reverse) shows up as a missing element here instead
+  // of as a blank panel.
+  var bodies = {
+    smd:        'smd-manager-body',
+    scsi:       'hdd-scsi-body',
+    winchester: 'hdd-winchester-body'
+  };
+  for (var name in bodies) {
+    if (!Object.prototype.hasOwnProperty.call(bodies, name)) continue;
+    var b = document.getElementById(bodies[name]);
+    if (b) b.style.display = (tab === name) ? '' : 'none';
+  }
   var btns = document.querySelectorAll('#hdd-tabs .hdd-tab');
   for (var i = 0; i < btns.length; i++) {
     var active = btns[i].getAttribute('data-hdd-tab') === tab;
     btns[i].classList.toggle('hdd-tab-active', active);
   }
-  if (tab === 'scsi') hddScsiRefresh();
+  if (tab === 'scsi') hddTypeRefresh('scsi');
+  if (tab === 'winchester') hddTypeRefresh('winchester');
 }
 
-// Refresh the SCSI target rows (IDs 0-6) from the drive registry.
-function hddScsiRefresh() {
-  for (var u = 0; u <= 6; u++) {
-    var nameEl = document.getElementById('scsi-unit-' + u + '-name');
-    var ejectEl = document.getElementById('scsi-unit-' + u + '-eject');
-    var entry = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', u) : null;
+// ---------------------------------------------------------------------------
+// Disc-manager tabs, for any disk type
+// ---------------------------------------------------------------------------
+// These four functions were written for SCSI, with 'scsi' and the range 0..6
+// hardcoded throughout. Winchester needs exactly the same behaviour over 0..1,
+// and a tab list driven by the machine configuration needs it for whatever that
+// machine turns out to have. Copying the block per type is how the SMD and SCSI
+// paths drifted apart in the first place.
+//
+// Unit counts come from diskTypes (disk-types.js), which calls itself the single
+// source of truth for them and is already kept in step with the C DRIVE_TYPE
+// enum. Nothing here repeats a range.
+
+// Per-type wiring: the element id prefix used in index.html, the label a unit
+// goes by on screen, and the emu entry points. A type is one row.
+var HDD_TYPES = {
+  scsi: {
+    idPrefix: 'scsi',
+    bodyId: 'hdd-scsi-body',
+    listId: 'hdd-scsi-installed-list',
+    unitWord: 'ID',
+    mountBuffer: 'mountSCSIFromBuffer',
+    unmount: 'unmountSCSI',
+    opfsMount: 'opfsMountSCSI',
+    opfsUnmount: 'opfsUnmountSCSI'
+  },
+  winchester: {
+    idPrefix: 'wd',
+    bodyId: 'hdd-winchester-body',
+    listId: 'hdd-winchester-installed-list',
+    unitWord: 'Unit',
+    mountBuffer: 'mountWinchesterFromBuffer',
+    unmount: 'unmountWinchester',
+    // No Worker-mode OPFS channel for Winchester yet: the Worker's OPFS command
+    // set is per-type and only SMD and SCSI have one. Left undefined rather than
+    // pointed at SCSI's, which would mount the image on the wrong controller.
+    opfsMount: null,
+    opfsUnmount: null
+  }
+};
+
+function hddUnitCount(type) {
+  return (typeof diskTypes !== 'undefined' && diskTypes.DRIVE_UNIT_COUNT[type]) || 0;
+}
+
+// Refresh the unit rows of <type> from the drive registry.
+function hddTypeRefresh(type) {
+  var cfg = HDD_TYPES[type];
+  if (!cfg) return;
+  var n = hddUnitCount(type);
+  for (var u = 0; u < n; u++) {
+    var nameEl = document.getElementById(cfg.idPrefix + '-unit-' + u + '-name');
+    var ejectEl = document.getElementById(cfg.idPrefix + '-unit-' + u + '-eject');
+    var entry = (typeof driveRegistry !== 'undefined') ? driveRegistry.get(type, u) : null;
     if (entry && entry.name) {
       if (nameEl) nameEl.textContent = entry.name;
       if (ejectEl) ejectEl.style.display = '';
@@ -1274,118 +1332,154 @@ function hddScsiRefresh() {
       if (ejectEl) ejectEl.style.display = 'none';
     }
   }
-  hddScsiRefreshLibrary();
+  hddTypeRefreshLibrary(type);
 }
 
-// Render the SCSI local library: only images tagged diskType 'scsi' (hard
-// constraint), each with an "Assign to ID 0-6" dropdown.
-function hddScsiRefreshLibrary() {
-  var container = document.getElementById('hdd-scsi-installed-list');
+// The local library for <type>: only images tagged with that type. A hard
+// constraint, not a filter for tidiness - assigning an SMD image to a SCSI ID
+// gives the guest a disk with the wrong geometry.
+function hddTypeRefreshLibrary(type) {
+  var cfg = HDD_TYPES[type];
+  if (!cfg) return;
+  var container = document.getElementById(cfg.listId);
   if (!container) return;
   if (typeof smdStorage === 'undefined') return;
 
-  var images = smdStorage.listImages().filter(function(i) { return (i.diskType || 'smd') === 'scsi'; });
+  var label = (typeof diskTypes !== 'undefined' && diskTypes.DRIVE_TYPE_LABEL[type]) || type;
+  var n = hddUnitCount(type);
+  var images = smdStorage.listImages().filter(function (i) {
+    return (i.diskType || 'smd') === type;
+  });
   if (images.length === 0) {
-    container.innerHTML = '<div class="smd-empty-msg">No SCSI disk images stored. Import an image and tag it as SCSI to assign it to a SCSI ID.</div>';
+    container.innerHTML = '<div class="smd-empty-msg">No ' + label +
+      ' disk images stored. Import an image and tag it as ' + label +
+      ' to assign it to a ' + label + ' ' + cfg.unitWord.toLowerCase() + '.</div>';
     return;
   }
 
-  // Which UUID is on which SCSI ID (from the registry).
-  var idOf = {};
-  for (var id = 0; id <= 6; id++) {
-    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', id) : null;
-    if (e && e.fileName) idOf[e.fileName] = id;
+  // Which UUID is on which unit (from the registry).
+  var unitOf = {};
+  for (var id = 0; id < n; id++) {
+    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get(type, id) : null;
+    if (e && e.fileName) unitOf[e.fileName] = id;
   }
 
   var html = '';
-  images.forEach(function(img) {
+  images.forEach(function (img) {
     var uuid = img.uuid;
-    var assigned = (idOf[uuid] !== undefined) ? idOf[uuid] : -1;
+    var assigned = (unitOf[uuid] !== undefined) ? unitOf[uuid] : -1;
     html += '<div class="smd-image-card" data-uuid="' + escapeHtml(uuid) + '">';
     html += '<div class="smd-image-info">';
     html += '<span class="smd-image-name">' + escapeHtml(img.name) + '</span>';
     html += '<span class="smd-image-meta">' + smdStorage.formatSize(img.size) + ' &middot; ' + (img.date || '');
-    if (assigned >= 0) html += ' &middot; ID ' + assigned;
+    if (assigned >= 0) html += ' &middot; ' + cfg.unitWord + ' ' + assigned;
     html += '</span>';
     if (img.description) html += '<span class="smd-image-meta">' + escapeHtml(img.description) + '</span>';
     html += '</div>';
     html += '<div class="smd-image-actions">';
-    html += '<select class="hdd-scsi-assign-select" data-uuid="' + escapeHtml(uuid) + '" title="Assign to SCSI ID">';
-    html += '<option value="">' + (assigned >= 0 ? 'ID ' + assigned + ' (move...)' : 'Assign to...') + '</option>';
-    for (var i = 0; i <= 6; i++) {
+    html += '<select class="hdd-assign-select" data-type="' + type + '" data-uuid="' + escapeHtml(uuid) +
+            '" title="Assign to ' + label + ' ' + cfg.unitWord.toLowerCase() + '">';
+    html += '<option value="">' + (assigned >= 0 ? cfg.unitWord + ' ' + assigned + ' (move...)' : 'Assign to...') + '</option>';
+    for (var i = 0; i < n; i++) {
       if (i === assigned) continue;
-      html += '<option value="' + i + '">ID ' + i + '</option>';
+      html += '<option value="' + i + '">' + cfg.unitWord + ' ' + i + '</option>';
     }
     html += '</select>';
     html += '</div></div>';
   });
   container.innerHTML = html;
 
-  container.querySelectorAll('.hdd-scsi-assign-select').forEach(function(sel) {
-    sel.addEventListener('change', function() {
+  container.querySelectorAll('.hdd-assign-select').forEach(function (sel) {
+    sel.addEventListener('change', function () {
       if (this.value !== '') {
-        hddScsiAssign(this.getAttribute('data-uuid'), parseInt(this.value));
+        hddTypeAssign(this.getAttribute('data-type'), this.getAttribute('data-uuid'), parseInt(this.value));
         this.value = '';
       }
     });
   });
 }
 
-// Assign a SCSI-tagged image to a SCSI ID (0-6) and mount it live.
-function hddScsiAssign(uuid, id) {
-  if (id < 0 || id > 6) return;
+// Assign an image of <type> to a unit and mount it live.
+function hddTypeAssign(type, uuid, id) {
+  var cfg = HDD_TYPES[type];
+  if (!cfg) return;
+  var n = hddUnitCount(type);
+  if (id < 0 || id >= n) return;
+
+  var label = (typeof diskTypes !== 'undefined' && diskTypes.DRIVE_TYPE_LABEL[type]) || type;
   var meta = smdStorage.getMetadata(uuid);
-  if (!meta || (meta.diskType || 'smd') !== 'scsi') {
-    alert('Only images tagged as SCSI can be assigned to a SCSI ID.');
+  if (!meta || (meta.diskType || 'smd') !== type) {
+    alert('Only images tagged as ' + label + ' can be assigned to a ' + label + ' ' + cfg.unitWord.toLowerCase() + '.');
     return;
   }
   var displayName = meta.name || uuid;
 
-  // Eject the same image from any other ID, and the current occupant of this ID.
-  for (var i = 0; i <= 6; i++) {
-    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', i) : null;
-    if (e && e.fileName === uuid && i !== id) hddScsiEjectUnit(i);
+  // Eject the same image from any other unit, and the current occupant here.
+  for (var i = 0; i < n; i++) {
+    var e = (typeof driveRegistry !== 'undefined') ? driveRegistry.get(type, i) : null;
+    if (e && e.fileName === uuid && i !== id) hddTypeEjectUnit(type, i);
   }
-  var cur = (typeof driveRegistry !== 'undefined') ? driveRegistry.get('scsi', id) : null;
-  if (cur && cur.fileName && cur.fileName !== uuid) hddScsiEjectUnit(id);
+  var cur = (typeof driveRegistry !== 'undefined') ? driveRegistry.get(type, id) : null;
+  if (cur && cur.fileName && cur.fileName !== uuid) hddTypeEjectUnit(type, id);
 
   if (typeof driveRegistry !== 'undefined') {
-    driveRegistry.mount('scsi', id, 'opfs', displayName, uuid, meta.size || 0);
+    driveRegistry.mount(type, id, 'opfs', displayName, uuid, meta.size || 0);
   }
 
   if (emu && isSmdPersistenceEnabled()) {
     if (emu.isWorkerMode()) {
-      if (emu.opfsMountSCSI) emu.opfsMountSCSI(id, uuid).then(function(r) {
-        if (r && r.ok && typeof driveRegistry !== 'undefined') {
-          driveRegistry.mount('scsi', id, 'opfs', displayName, uuid, r.size || 0);
-        }
-      });
+      if (cfg.opfsMount && emu[cfg.opfsMount]) {
+        emu[cfg.opfsMount](id, uuid).then(function (r) {
+          if (r && r.ok && typeof driveRegistry !== 'undefined') {
+            driveRegistry.mount(type, id, 'opfs', displayName, uuid, r.size || 0);
+          }
+        });
+      } else {
+        // Say so rather than silently registering a mount the emulator never
+        // made: the row would show a disk the guest cannot read.
+        alert(label + ' images cannot be mounted in Worker mode yet. Switch to direct mode, or use the gateway.');
+        if (typeof driveRegistry !== 'undefined') driveRegistry.eject(type, id);
+      }
     } else {
-      smdStorage.retrieveImage(uuid).then(function(data) {
-        if (data && emu.mountSCSIFromBuffer) {
-          var rc = emu.mountSCSIFromBuffer(id, data);
+      smdStorage.retrieveImage(uuid).then(function (data) {
+        if (data && emu[cfg.mountBuffer]) {
+          var rc = emu[cfg.mountBuffer](id, data);
           if (rc !== 0) {
-            alert('Failed to mount "' + displayName + '" on SCSI ID ' + id + '.');
-            if (typeof driveRegistry !== 'undefined') driveRegistry.eject('scsi', id);
+            alert('Failed to mount "' + displayName + '" on ' + label + ' ' + cfg.unitWord + ' ' + id + '.');
+            if (typeof driveRegistry !== 'undefined') driveRegistry.eject(type, id);
           }
         }
       });
     }
   }
-  hddScsiRefresh();
+  hddTypeRefresh(type);
 }
 
-// Eject a SCSI target (ID 0-6).
-function hddScsiEjectUnit(unit) {
-  if (unit < 0 || unit > 6) return;
+// Eject a unit of <type>.
+function hddTypeEjectUnit(type, unit) {
+  var cfg = HDD_TYPES[type];
+  if (!cfg) return;
+  if (unit < 0 || unit >= hddUnitCount(type)) return;
   if (emu) {
     if (emu.isWorkerMode()) {
-      if (emu.opfsUnmountSCSI) emu.opfsUnmountSCSI(unit);
-      else if (emu.unmountSCSI) emu.unmountSCSI(unit);
-    } else if (emu.unmountSCSI) {
-      emu.unmountSCSI(unit);
+      if (cfg.opfsUnmount && emu[cfg.opfsUnmount]) emu[cfg.opfsUnmount](unit);
+      else if (emu[cfg.unmount]) emu[cfg.unmount](unit);
+    } else if (emu[cfg.unmount]) {
+      emu[cfg.unmount](unit);
     }
   }
-  if (typeof driveRegistry !== 'undefined') driveRegistry.eject('scsi', unit);
-  hddScsiRefresh();
+  if (typeof driveRegistry !== 'undefined') driveRegistry.eject(type, unit);
+  hddTypeRefresh(type);
 }
+
+// ---- the names index.html and older callers already use --------------------
+// Kept as wrappers rather than renamed: the onclick= attributes in the markup
+// call these by name, and churning the markup for a rename would risk more than
+// it tidies.
+function hddScsiRefresh()                { hddTypeRefresh('scsi'); }
+function hddScsiRefreshLibrary()         { hddTypeRefreshLibrary('scsi'); }
+function hddScsiAssign(uuid, id)         { hddTypeAssign('scsi', uuid, id); }
+function hddScsiEjectUnit(unit)          { hddTypeEjectUnit('scsi', unit); }
+
+function hddWinchesterRefresh()          { hddTypeRefresh('winchester'); }
+function hddWinchesterEjectUnit(unit)    { hddTypeEjectUnit('winchester', unit); }
