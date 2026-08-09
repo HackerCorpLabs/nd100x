@@ -64,6 +64,7 @@
 #include "cpu/nd500_host.h"
 #include "cpu/nd500_fecall.h"
 #include "cpu/cpu_protos.h"
+#include "cpu/nd500_mmu.h"   /* nd500_mmu_peek - trap-free translate */
 
 /* ------------------------------------------------------------------ state */
 
@@ -438,6 +439,22 @@ EMSCRIPTEN_EXPORT uint32_t Nd500_MemorySize(void) {
     return g_created ? g_m.memory_size : 0u;
 }
 
+/* Where a GUEST VIRTUAL address currently lives, or 0xFFFFFFFF if it is not
+ * mapped. Trap-free and state-free - nd500_mmu_peek exists for diagnostics
+ * exactly so that asking does not change the answer.
+ *
+ * Needed because guessing is not good enough. The segment-6 window NDIX shares
+ * with the ND-100 is DEMAND-mapped a page at a time, so its two 2 KB halves -
+ * the command ring at 0x30000000 and the response ring at 0x30000800 - are
+ * separate pages that need not be next to each other in physical memory, and
+ * are not. Reading them at a physical address inferred from a boot-log line
+ * produces plausible-looking rubbish, which is precisely the failure mode the
+ * XMSG work has to avoid. Ask the MMU instead. */
+EMSCRIPTEN_EXPORT uint32_t Nd500_TranslateVirt(uint32_t vaddr) {
+    if (!g_created) return 0xFFFFFFFFu;
+    return nd500_mmu_peek(&g_cpu, vaddr);
+}
+
 /* Drain one console byte: (unit << 8) | byte, or -1 when empty.
  * Unit 0xFF is this file's own boot log, not guest output. */
 EMSCRIPTEN_EXPORT int Nd500_PollConsole(void) {
@@ -489,6 +506,7 @@ EMSCRIPTEN_EXPORT int Nd500_WritePhys(uint32_t a, const uint8_t* s, int n) {
     (void)a; (void)s; (void)n; return 0;
 }
 EMSCRIPTEN_EXPORT uint32_t Nd500_MemorySize(void) { return 0u; }
+EMSCRIPTEN_EXPORT uint32_t Nd500_TranslateVirt(uint32_t v) { (void)v; return 0xFFFFFFFFu; }
 EMSCRIPTEN_EXPORT int  Nd500_PollConsole(void) { return -1; }
 EMSCRIPTEN_EXPORT void Nd500_SendInput(int u, const char* t, int n) {
     (void)u; (void)t; (void)n;
