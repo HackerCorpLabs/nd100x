@@ -189,6 +189,29 @@ bool MachineConfig_ToJson(const MachineConfig *cfg, char *out, size_t outlen)
     kv_str(&s, "file", cfg->boot.file, 0);
     put(&s, "}");
 
+    /* The ND-500. Always present as an object, so the form can ask "is there
+     * one?" without a special case; `enabled` is what says whether this machine
+     * actually has one. Disc slots appear only when they hold something - an
+     * array of 16 mostly-empty strings is noise. */
+    put(&s, ",\"nd500\":{");
+    put(&s, "\"enabled\":%s,", cfg->nd500.enabled ? "true" : "false");
+    put(&s, "\"memoryMb\":%d,", cfg->nd500.memory_mb);
+    kv_str(&s, "kernel", cfg->nd500.kernel, 1);
+    kv_str(&s, "pseg", cfg->nd500.pseg, 1);
+    kv_str(&s, "dseg", cfg->nd500.dseg, 1);
+    put(&s, "\"disks\":[");
+    {
+        int first = 1;
+        for (int i = 0; i < MC_ND500_MAX_DISKS; i++) {
+            if (!cfg->nd500.disks[i][0]) continue;
+            put(&s, "%s{\"slot\":%d,", first ? "" : ",", i);
+            kv_str(&s, "image", cfg->nd500.disks[i], 1);
+            put(&s, "\"writable\":%s}", cfg->nd500.disk_writable[i] ? "true" : "false");
+            first = 0;
+        }
+    }
+    put(&s, "]}");
+
     put(&s, "}");
 
     if (s.overflow) {

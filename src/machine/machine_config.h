@@ -99,6 +99,33 @@ typedef struct {
     char   script[MC_PATH_LEN];      /* script file to load in shell; "" = none */
 } MC_Runtime;
 
+/* The ND-500 at the other end of the bus interface.
+ *
+ * NOT a controller row. The ND-500 is not an IOX card on the ND-100 bus - it
+ * sits behind the 3022 bus interface, and that interface is what becomes a
+ * registry row when it exists. This describes the MACHINE at the other end:
+ * how much memory it has, what kernel it runs, what discs it can see.
+ *
+ * Every path here is resolved by whoever builds the machine, not by the parser.
+ * In the browser they are catalog names rather than filesystem paths, and the
+ * parser has no business knowing the difference.
+ */
+#define MC_ND500_MAX_DISKS 16      /* NDIX's own MAXDISK (kernel machine/fevar.h) */
+
+typedef struct {
+    bool  enabled;                 /* no [nd500] section at all = false */
+    int   memory_mb;               /* 0 = the emulator's default (16 MB) */
+    char  kernel[MC_PATH_LEN];     /* NDIX a.out; "" = taken from the root disc */
+    /* Segment files beside the kernel. BOTH or NEITHER: with an incomplete
+     * pair the sizes are derived from the a.out header instead, which is the
+     * path a kernel extracted from a disc image has to take. */
+    char  pseg[MC_PATH_LEN];
+    char  dseg[MC_PATH_LEN];
+    /* disk0 is the root. A slot is unused when its image is empty. */
+    char  disks[MC_ND500_MAX_DISKS][MC_PATH_LEN];
+    bool  disk_writable[MC_ND500_MAX_DISKS];
+} MC_Nd500;
+
 typedef struct {
     /* The CPU family number, kept because that is what existing .ini files
      * say and what MachineConfig_WriteFile still writes for the three plain
@@ -125,6 +152,7 @@ typedef struct {
 
     MC_BootSpec    boot;
     MC_Runtime     runtime;
+    MC_Nd500       nd500;
 
     bool           loaded_from_file;
     char           source_path[MC_PATH_LEN];

@@ -234,6 +234,7 @@ typedef enum {
     SEC_PERIPHERAL,
     SEC_BOOT,
     SEC_RUNTIME,
+    SEC_ND500,
     SEC_UNKNOWN
 } SectionKind;
 
@@ -429,6 +430,12 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
                 kind = SEC_BOOT;
             } else if (str_ieq(sec, "runtime")) {
                 kind = SEC_RUNTIME;
+            } else if (str_ieq(sec, "nd500")) {
+                /* Naming the section is what enables the ND-500. A machine that
+                 * mentions one wants one; "enabled = no" is still available for
+                 * keeping a configuration around without building it. */
+                kind = SEC_ND500;
+                cfg->nd500.enabled = true;
             } else if (strncmp(sec, "controller.", 11) == 0) {
                 kind = SEC_CONTROLLER;
                 if (!mc_parse_controller_header(sec + 11, &curType, &curWheel,
@@ -648,6 +655,55 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
                 fclose(f);
                 return mc_err(err, errlen, path, lineno,
                     "[boot]: unknown key '%s' (expected 'device').", key);
+            }
+            break;
+
+        case SEC_ND500:
+            if (str_ieq(keyl, "enabled")) {
+                int b = parse_bool(val);
+                if (b < 0) {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[nd500] enabled = %s: use yes or no.", val);
+                }
+                cfg->nd500.enabled = (b == 1);
+            } else if (str_ieq(keyl, "memory")) {
+                char *ep; long m = strtol(val, &ep, 10);
+                if (*ep != '\0' || m < 1 || m > 64) {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[nd500] memory = %s: megabytes, 1 to 64.", val);
+                }
+                cfg->nd500.memory_mb = (int)m;
+            } else if (str_ieq(keyl, "kernel")) {
+                str_copy(cfg->nd500.kernel, MC_PATH_LEN, val);
+            } else if (str_ieq(keyl, "pseg")) {
+                str_copy(cfg->nd500.pseg, MC_PATH_LEN, val);
+            } else if (str_ieq(keyl, "dseg")) {
+                str_copy(cfg->nd500.dseg, MC_PATH_LEN, val);
+            } else if (strncmp(keyl, "disk", 4) == 0 && keyl[4]) {
+                /* disk<N> = [ro:|rw:]<image>. Read-only is the DEFAULT, unlike
+                 * the ND-100 disc slots: an NDIX root image is the one thing in
+                 * this project that a mistake actually damages, and 4.3BSD
+                 * writes to it the moment it boots. Say rw: to mean it. */
+                char *ep; long n = strtol(keyl + 4, &ep, 10);
+                if (*ep != '\0' || n < 0 || n >= MC_ND500_MAX_DISKS) {
+                    fclose(f);
+                    return mc_err(err, errlen, path, lineno,
+                        "[nd500] unknown key '%s'. Disc slots are disk0 to disk%d.",
+                        key, MC_ND500_MAX_DISKS - 1);
+                }
+                const char *img = val;
+                bool writable = false;
+                if (strncmp(val, "rw:", 3) == 0)      { img = val + 3; writable = true;  }
+                else if (strncmp(val, "ro:", 3) == 0) { img = val + 3; writable = false; }
+                str_copy(cfg->nd500.disks[n], MC_PATH_LEN, img);
+                cfg->nd500.disk_writable[n] = writable;
+            } else {
+                fclose(f);
+                return mc_err(err, errlen, path, lineno,
+                    "[nd500]: unknown key '%s'. Known keys: enabled, memory, "
+                    "kernel, pseg, dseg, disk0-disk%d.", key, MC_ND500_MAX_DISKS - 1);
             }
             break;
 
@@ -875,6 +931,18 @@ void MachineConfig_Print(const MachineConfig *cfg, FILE *out)
     else
         fprintf(out, "  Boot: %s:%s\n",
                 cfg->boot.file_boot_type == BOOT_BPUN ? "bpun" : "aout", cfg->boot.file);
+    if (cfg->nd500.enabled) {
+        fprintf(out, "  ND-500     : %d MB", cfg->nd500.memory_mb ? cfg->nd500.memory_mb : 16);
+        if (cfg->nd500.kernel[0]) fprintf(out, ", kernel %s", cfg->nd500.kernel);
+        else                      fprintf(out, ", kernel from the root disc");
+        fprintf(out, "\n");
+        for (int i = 0; i < MC_ND500_MAX_DISKS; i++) {
+            if (!cfg->nd500.disks[i][0]) continue;
+            fprintf(out, "               disk%d %s (%s)\n", i, cfg->nd500.disks[i],
+                    cfg->nd500.disk_writable[i] ? "read-write" : "read-only");
+        }
+    }
+
 }
 
 /* ------------------------------------------------------------------ */
@@ -965,6 +1033,28 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
     if (cfg->runtime.shell_enabled) fprintf(f, "shell = on\n");
     if (cfg->runtime.nd100_root[0]) fprintf(f, "nd100_root = %s\n", cfg->runtime.nd100_root);
     if (cfg->runtime.script[0])     fprintf(f, "script = %s\n", cfg->runtime.script);
+
+    /* The ND-500, when there is one. Written LAST because it describes a whole
+     * second machine and reads better after the ND-100 is fully described.
+     *
+     * Only written when enabled: a machine with no ND-500 should produce a file
+     * that does not mention one, or every .ini in the project grows a section
+     * about hardware it does not have. */
+    if (cfg->nd500.enabled) {
+        fprintf(f, "\n[nd500]\n");
+        if (cfg->nd500.memory_mb) fprintf(f, "memory = %d\n", cfg->nd500.memory_mb);
+        if (cfg->nd500.kernel[0])  fprintf(f, "kernel = %s\n", cfg->nd500.kernel);
+        if (cfg->nd500.pseg[0])    fprintf(f, "pseg = %s\n", cfg->nd500.pseg);
+        if (cfg->nd500.dseg[0])    fprintf(f, "dseg = %s\n", cfg->nd500.dseg);
+        for (int i = 0; i < MC_ND500_MAX_DISKS; i++) {
+            if (!cfg->nd500.disks[i][0]) continue;
+            /* The prefix is always written, never left implicit. Read-only is
+             * the default here and rw: is the unusual, damaging one - a reader
+             * should not have to remember which way round it is. */
+            fprintf(f, "disk%d = %s:%s\n", i,
+                    cfg->nd500.disk_writable[i] ? "rw" : "ro", cfg->nd500.disks[i]);
+        }
+    }
 
     fclose(f);
     return true;
