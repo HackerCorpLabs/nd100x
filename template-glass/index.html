@@ -349,7 +349,7 @@
        ABOUT WINDOW (hidden by default)
        ========================================= -->
   <!-- Machine Setup window: edit the machine INI (controllers, CPU, boot). -->
-  <div id="machine-setup-window" class="glass-window" style="display: none;width:520px;">
+  <div id="machine-setup-window" class="glass-window" style="display: none;width:560px;">
     <div class="glass-window-header" id="machine-setup-header">
       <span class="glass-window-title">Machine Setup</span>
       <button class="glass-window-close" id="machine-setup-close">
@@ -367,8 +367,14 @@
       <div class="smd-image-meta" style="margin-bottom:6px;opacity:0.75;">
         Edit controllers, CPU type, terminals and boot device. Validate uses the same parser as the native binary. Download a .ini to run the same machine with nd100x. The selected machine is the one the emulator starts.
       </div>
-      <textarea id="machine-setup-ini" spellcheck="false"
-        style="width:100%;height:260px;font-family:monospace;font-size:12px;box-sizing:border-box;white-space:pre;overflow:auto;"></textarea>
+      <div id="machine-setup-form" style="max-height:340px;overflow-y:auto;"></div>
+      <div style="margin-top:8px;">
+        <button class="smd-action-btn" id="machine-setup-advanced-toggle">Advanced (INI)</button>
+      </div>
+      <div id="machine-setup-advanced" style="display:none;margin-top:6px;">
+        <textarea id="machine-setup-ini" spellcheck="false"
+          style="width:100%;height:220px;font-family:monospace;font-size:12px;box-sizing:border-box;white-space:pre;overflow:auto;"></textarea>
+      </div>
       <div id="machine-setup-result" class="smd-image-meta" style="margin-top:6px;min-height:16px;"></div>
       <div class="smd-copy-actions" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
         <button class="smd-action-btn" id="machine-setup-validate">Validate</button>
@@ -1579,6 +1585,7 @@
   <script src="js/pagetables.js"></script>
   <script src="js/smd-manager.js"></script>
   <script src="js/machine-profiles.js"></script>
+  <script src="js/machine-form.js"></script>
   <script src="js/machine-setup.js"></script>
   <script src="js/printer.js"></script>
   <script src="js/paper-tape.js"></script>

@@ -44,6 +44,13 @@
       try { return Promise.resolve(Module.ccall('ValidateMachineINI', 'string', ['string'], [ini])); }
       catch (e) { return Promise.resolve('validation unavailable: ' + e.message); }
     },
+    // Describe an INI as JSON, for the Machine Setup form. Reading a config
+    // goes through the C parser so the form and the emulator can never disagree
+    // about what a file means. Always resolves to something parseable.
+    describeMachineINI: function(ini) {
+      try { return Promise.resolve(Module.ccall('DescribeMachineINI', 'string', ['string'], [ini])); }
+      catch (e) { return Promise.resolve('{"error":"description unavailable: ' + e.message + '"}'); }
+    },
     step:          function(n) { Module._Step(n); },
     stop:          function()  { Module._Stop(); },
     isInitialized: function()  { return Module._IsInitialized ? Module._IsInitialized() : 0; },

@@ -40,6 +40,7 @@
     machineProfiles.setActive(sel.value);
     var ta = el('machine-setup-ini');
     if (ta) ta.value = machineProfiles.ini();
+    if (window.machineForm) machineForm.load(machineProfiles.ini());
     setResult('Showing "' + sel.value + '". Unsaved edits to the previous machine were discarded.', '');
   }
 
@@ -53,6 +54,7 @@
     if (err) { setResult(err, 'err'); return; }
     refreshProfiles();
     if (ta) ta.value = machineProfiles.ini();
+    if (window.machineForm) machineForm.load(machineProfiles.ini());
     setResult('Created "' + name + '".', 'ok');
   }
 
@@ -104,6 +106,7 @@
   function validate() {
     var ta = el('machine-setup-ini');
     if (!ta) return Promise.resolve(false);
+    syncFormToTextarea();
     if (typeof emu === 'undefined' || !emu.validateMachineINI) {
       setResult('Validation unavailable (emulator not ready).', 'err');
       return Promise.resolve(false);
@@ -119,9 +122,45 @@
     });
   }
 
+  // Which view the user is looking at decides what gets saved. Taking the
+  // form's answer while the INI is on screen (or the reverse) would throw away
+  // whichever one they had just been editing.
+  function syncFormToTextarea() {
+    var ta = el('machine-setup-ini');
+    if (!ta || !window.machineForm || !machineForm.ready() || iniVisible()) return;
+    var out = machineForm.toINI(ta.value);
+    if (out !== null) ta.value = out;
+  }
+
+  function iniVisible() {
+    var adv = el('machine-setup-advanced');
+    return !!(adv && adv.style.display !== 'none');
+  }
+
+  function toggleAdvanced() {
+    var adv = el('machine-setup-advanced');
+    var btn = el('machine-setup-advanced-toggle');
+    if (!adv) return;
+    var showing = adv.style.display !== 'none';
+    if (!showing) {
+      // Going to the INI view: show what the form currently says, so the two
+      // views never disagree about the machine in front of you.
+      syncFormToTextarea();
+      adv.style.display = '';
+      if (btn) btn.textContent = 'Hide INI';
+    } else {
+      adv.style.display = 'none';
+      if (btn) btn.textContent = 'Advanced (INI)';
+      // Coming back from the INI view: the text is the truth now.
+      var ta = el('machine-setup-ini');
+      if (ta && window.machineForm) machineForm.load(ta.value);
+    }
+  }
+
   function save() {
     var ta = el('machine-setup-ini');
     if (!ta) return;
+    syncFormToTextarea();
     // Only persist a valid config so a broken INI can't wedge the machine.
     validate().then(function (ok) {
       if (!ok) { setResult(el('machine-setup-result').textContent + '  (not saved)', 'err'); return; }
@@ -134,12 +173,14 @@
   function reset() {
     var ta = el('machine-setup-ini');
     if (ta) ta.value = machineProfiles.DEFAULT_INI;
+    if (window.machineForm) machineForm.load(machineProfiles.DEFAULT_INI);
     setResult('Reset to default (not yet saved).', '');
   }
 
   function download() {
     var ta = el('machine-setup-ini');
     if (!ta) return;
+    syncFormToTextarea();
     var blob = new Blob([ta.value], { type: 'text/plain' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -165,6 +206,7 @@
     var n = el('machine-setup-new');     if (n) n.addEventListener('click', newProfile);
     var rn = el('machine-setup-rename'); if (rn) rn.addEventListener('click', renameProfile);
     var dl = el('machine-setup-delete'); if (dl) dl.addEventListener('click', deleteProfile);
+    var adv = el('machine-setup-advanced-toggle'); if (adv) adv.addEventListener('click', toggleAdvanced);
     if (typeof makeDraggable === 'function') {
       var hdr = el('machine-setup-header');
       if (hdr) makeDraggable(el('machine-setup-window'), hdr, 'machine-setup-pos');

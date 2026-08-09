@@ -412,6 +412,11 @@ find_program(NODE_EXECUTABLE NAMES node nodejs)
 if(NODE_EXECUTABLE)
     add_test(NAME machine_profiles_tests
              COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_machine_profiles.js)
+    # machine-form.js carries over every INI section the form does not edit.
+    # Get that wrong and Save deletes [runtime] - telnet port, throttle,
+    # charset, drum and CDC images, memory size - with nothing to say so.
+    add_test(NAME machine_form_tests
+             COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_machine_form.js)
 else()
     message(STATUS "tests: node not found - skipping machine_profiles_tests")
 endif()

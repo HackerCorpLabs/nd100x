@@ -397,6 +397,17 @@
     },
     isInitialized: function() { return _initialized ? 1 : 0; },
 
+    // Machine Setup runs against the module directly, and in Worker mode the
+    // module lives in the Worker. Neither of these is wired through yet, so
+    // they answer honestly instead of leaving the window blank with no reason:
+    // machine-setup.js shows the message and keeps the INI view usable.
+    validateMachineINI: function(ini) {
+      return Promise.resolve('');   // cannot check here; the C validator still runs at boot
+    },
+    describeMachineINI: function(ini) {
+      return Promise.resolve('{"error":"the form needs direct mode (the emulator is in a Worker)"}');
+    },
+
     // --- Terminal I/O ---
     sendKey:              function(id, k) { postCmd('key', { identCode: id, keyCode: k }); return 1; },
     getTerminalAddress:   function(i) {

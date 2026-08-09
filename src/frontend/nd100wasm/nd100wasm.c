@@ -47,6 +47,7 @@
 #include "../machine/machine_protos.h"
 #include "../machine/machine_config.h"
 #include "../machine/machine_config_apply.h"
+#include "../machine/machine_config_json.h"
 #include "../devices/terminal/deviceTerminal.h"
 #include "../devices/papertape/devicePapertape.h"
 #include "../devices/papertapewriter/devicePaperTapeWriter.h"
@@ -1058,6 +1059,40 @@ static int parse_machine_ini(const char* iniText, MachineConfig* mc, char* err, 
     if (!MachineConfig_LoadFile(mc, tmp, err, errlen)) return 0;
     if (!MachineConfig_Validate(mc, err, errlen)) return 0;
     return 1;
+}
+
+// Describe a machine INI as JSON: what CPU, which controllers, which images.
+//
+// The Machine Setup FORM needs to show what a configuration currently says, and
+// the one way it must not find that out is by parsing the INI in JavaScript. A
+// second parser drifts from the first, and then the form shows one machine
+// while the emulator builds another. This is the same MachineConfig_LoadFile
+// the native binary uses, handed back as JSON.
+//
+// Returns a JSON object, or {"error":"..."} - always something parseable, so
+// the caller never has to guess whether it got a config or a message.
+EMSCRIPTEN_EXPORT const char* DescribeMachineINI(const char* iniText)
+{
+    static char result[8192];
+    MachineConfig mc;
+    char err[MC_ERR_LEN];
+
+    if (!parse_machine_ini(iniText, &mc, err, sizeof(err))) {
+        // Hand the parser's own words back, escaped, rather than a generic
+        // "could not read": the form shows this to the user.
+        char esc[MC_ERR_LEN * 2];
+        size_t i, j = 0;
+        for (i = 0; err[i] && j + 2 < sizeof(esc); i++) {
+            if (err[i] == '"' || err[i] == '\\') esc[j++] = '\\';
+            esc[j++] = err[i];
+        }
+        esc[j] = '\0';
+        snprintf(result, sizeof(result), "{\"error\":\"%s\"}", esc);
+        return result;
+    }
+
+    MachineConfig_ToJson(&mc, result, sizeof(result));
+    return result;
 }
 
 EMSCRIPTEN_EXPORT const char* ValidateMachineINI(const char* iniText)
