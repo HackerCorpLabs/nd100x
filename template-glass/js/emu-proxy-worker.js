@@ -376,6 +376,11 @@
   // =========================================================
   // Proxy API (same surface as emu-proxy.js)
   // =========================================================
+  function _nd500NotHere() {
+    console.warn('The ND-500 needs direct mode - Worker mode does not forward it yet.');
+    return -1;
+  }
+
   window.emu = {
 
     // --- Lifecycle ---
@@ -689,6 +694,26 @@
     },
 
     // --- Mode flag ---
+    // The ND-500 is NOT reachable in Worker mode yet. The module and its
+    // exports are there, but nothing forwards these calls across the message
+    // port, and a guest booted inside the Worker would have no way to report
+    // its console back. Saying so beats returning a plausible 0 that means
+    // nothing happened.
+    nd500: {
+      available: function() { return false; },
+      setEnv: _nd500NotHere,
+  create: _nd500NotHere, isCreated: function() { return false; },
+      isBooted: function() { return false; },
+      loadKernel: _nd500NotHere, loadSegments: _nd500NotHere,
+      mountDisk: _nd500NotHere, unmountDisk: _nd500NotHere,
+      diskSize: function() { return 0; }, diskBytes: function() { return null; },
+      boot: _nd500NotHere, step: _nd500NotHere,
+      pc: function() { return 0; },
+      stopReason: function() { return 'the ND-500 is not available in Worker mode'; },
+      pollConsole: function() { return []; },
+      sendInput: function() {}
+    },
+
     isWorkerMode: function() { return true; },
 
     // --- Worker-specific methods ---

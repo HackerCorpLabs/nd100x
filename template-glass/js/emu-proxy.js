@@ -19,6 +19,20 @@
   // =========================================================
   // Direct-mode proxy: every call passes through to Module._*
   // =========================================================
+  // Copy a Uint8Array into the wasm heap. The caller frees it, except for a
+  // mounted disk, which the emulator keeps.
+  function _copyIn(bytes) {
+    var p = Module._malloc(bytes.length);
+    if (!p) throw new Error('malloc(' + bytes.length + ') failed');
+    Module.HEAPU8.set(bytes, p);
+    return p;
+  }
+  function _utf8(s) {
+    var out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xFF;
+    return out;
+  }
+
   window.emu = {
 
     // --- Lifecycle ---
@@ -440,6 +454,98 @@
     // --- Drive info (unified registry query) ---
     getDriveInfo: function() {
       return JSON.parse(Module.UTF8ToString(Module._GetDriveInfo()));
+    },
+
+    // --- The ND-500 -------------------------------------------------------
+    // Present only when the module was built with an nd500x checkout. Ask
+    // available() first: every function below exists either way, and without
+    // an ND-500 they all refuse, because emscripten cannot link a module whose
+    // exported name is missing - so "no ND-500" is an answer, not an absence.
+    //
+    // The ND-500 lives in THIS module rather than a second one because an
+    // ND-100 + ND-500 machine has shared memory (MPM5), and a Module owns its
+    // memory. See src/frontend/nd100wasm/nd500_wasm.c.
+    nd500: {
+      available:  function() { return Module._Nd500_Available ? !!Module._Nd500_Available() : false; },
+      // One of nd500x's ~40 ND500X_* diagnostic switches. They are read from the
+      // environment once, on first use, and a browser has no environment - so
+      // without this every one of them is permanently off. MUST come before
+      // create(); afterwards it does nothing.
+      setEnv: function(name, value) {
+        return Module.ccall('Nd500_SetEnv', 'number', ['string','string'], [name, value == null ? '1' : String(value)]);
+      },
+      create:     function(memBytes) { return Module._Nd500_Create(memBytes || 0); },
+      isCreated:  function() { return !!Module._Nd500_IsCreated(); },
+      isBooted:   function() { return !!Module._Nd500_IsBooted(); },
+
+      // Each of these takes a Uint8Array and copies it into the wasm heap.
+      // The kernel and its segment files are staged in the module's in-memory
+      // filesystem, because the boot library takes file paths - that keeps the
+      // browser on the same boot path that is exercised natively.
+      loadKernel: function(bytes) {
+        var p = _copyIn(bytes);
+        try { return Module._Nd500_LoadKernel(p, bytes.length); }
+        finally { Module._free(p); }
+      },
+      // BOTH files or neither: the library derives both sizes from the a.out
+      // header when the pair is not complete, which is the path a kernel taken
+      // out of a disk image has to use.
+      loadSegments: function(pseg, dseg) {
+        var a = _copyIn(pseg), b = _copyIn(dseg);
+        try { return Module._Nd500_LoadSegments(a, pseg.length, b, dseg.length); }
+        finally { Module._free(a); Module._free(b); }
+      },
+
+      // The disk buffer is NOT freed here and NOT copied again: the emulator
+      // reads and writes it in place, and getDiskBuffer() is how the page gets
+      // written blocks back out. Freeing it would pull the disc out from under
+      // a running guest.
+      mountDisk: function(unit, bytes, writable) {
+        var p = _copyIn(bytes);
+        var rc = Module._Nd500_MountDisk(unit, p, bytes.length, writable ? 1 : 0);
+        if (rc !== 0) Module._free(p);
+        return rc;
+      },
+      unmountDisk: function(unit) { return Module._Nd500_UnmountDisk(unit); },
+      diskSize:    function(unit) { return Module._Nd500_GetDiskSize(unit); },
+      // A VIEW on the heap, not a copy - and it goes stale the moment the heap
+      // grows. Read what you need out of it straight away.
+      diskBytes:   function(unit) {
+        var p = Module._Nd500_GetDiskBuffer(unit), n = Module._Nd500_GetDiskSize(unit);
+        if (!p || !n) return null;
+        return Module.HEAPU8.subarray(p, p + n);
+      },
+
+      boot: function() { return Module._Nd500_Boot(); },
+      // Instructions, not time. Stepping rather than running because the page
+      // has one thread and the library's run() does not come back until the
+      // guest stops.
+      step: function(count) { return Module._Nd500_Step(count || 1); },
+      pc:   function() { return Module._Nd500_GetPC() >>> 0; },
+      stopReason: function() { return Module.UTF8ToString(Module._Nd500_GetStopReasonText()); },
+
+      // Drain the console queue. Returns {unit, text} chunks in the order the
+      // guest produced them; unit 255 is the emulator's own boot log, not
+      // guest output.
+      pollConsole: function(max) {
+        var out = [], cur = -1, buf = '';
+        var limit = max || 65536;
+        for (var i = 0; i < limit; i++) {
+          var v = Module._Nd500_PollConsole();
+          if (v < 0) break;
+          var u = (v >> 8) & 0xFF;
+          if (u !== cur) { if (buf) out.push({ unit: cur, text: buf }); cur = u; buf = ''; }
+          buf += String.fromCharCode(v & 0xFF);
+        }
+        if (buf) out.push({ unit: cur, text: buf });
+        return out;
+      },
+      sendInput: function(unit, text) {
+        var b = _utf8(text);
+        var p = _copyIn(b);
+        try { Module._Nd500_SendInput(unit, p, b.length); }
+        finally { Module._free(p); }
+      }
     },
 
     // --- Mode flag ---
