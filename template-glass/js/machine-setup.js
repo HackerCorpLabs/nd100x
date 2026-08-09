@@ -211,6 +211,13 @@
       var hdr = el('machine-setup-header');
       if (hdr) makeDraggable(el('machine-setup-window'), hdr, 'machine-setup-pos');
     }
+    // Resizable, and the size is remembered - this window holds a machine's
+    // whole hardware list, which is more than any fixed height suits. Same
+    // shared helper the NDFS viewer, printer and paper tape use.
+    if (typeof makeResizable === 'function') {
+      var rz = el('machine-setup-resize');
+      if (rz) makeResizable(el('machine-setup-window'), rz, 'machine-setup-size', 420, 320);
+    }
   }
 
   if (document.readyState === 'loading') {

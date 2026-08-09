@@ -28,6 +28,18 @@
 
   function el(id) { return document.getElementById(id); }
 
+  // The INI spells the Winchester "wd"; nobody calls it that out loud. These
+  // are for the screen only - every value written to the file is the INI name.
+  var PRETTY = {
+    floppy: 'Floppy',
+    smd:    'SMD disc',
+    wd:     'Winchester (ST506)',
+    scsi:   'SCSI',
+    hdlc:   'HDLC'
+  };
+
+  function pretty(type) { return PRETTY[type] || type; }
+
   // ---- INI section surgery ------------------------------------------------
   // Deliberately NOT a parser: it splits on section headers and nothing else.
   // Understanding keys is the C code's job (rule 1); all this needs to know is
@@ -100,7 +112,7 @@
       var id = 'mf-c' + i;
       h += '<div style="border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:6px;margin-bottom:6px;">';
       h += '<div style="margin-bottom:4px;">' +
-           checkbox(id + '-en', '<b>' + c.type + '</b> (thumbwheel ' + c.wheel + ')', c.enabled) +
+           checkbox(id + '-en', '<b>' + pretty(c.type) + '</b> (thumbwheel ' + c.wheel + ')', c.enabled) +
            '</div>';
       if (c.type === 'hdlc') {
         h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
@@ -129,7 +141,103 @@
       }
       h += '</div>';
     }
+
+    // Everything the machine COULD have and does not. Without this the form
+    // can only edit controllers the file already named, so a config that never
+    // mentioned Winchester could never grow one - which is most of them, since
+    // the default machine is floppy + SMD + SCSI.
+    var missing = [];
+    for (var t = 0; t < (d.controllerTypes || []).length; t++) {
+      var td = d.controllerTypes[t];
+      for (var w = td.minWheel; w <= td.maxWheel; w++) {
+        var have = false;
+        for (var k = 0; k < d.controllers.length; k++)
+          if (d.controllers[k].type === td.type && d.controllers[k].wheel === w) have = true;
+        if (!have) missing.push({ type: td.type, wheel: w });
+      }
+    }
+    if (missing.length) {
+      h += '<div style="display:flex;gap:6px;align-items:center;margin-top:4px;">';
+      h += '<select id="mf-add" style="font-size:12px;padding:2px;">';
+      for (var m = 0; m < missing.length; m++) {
+        var lbl = pretty(missing[m].type);
+        // Only say "thumbwheel N" where there is a choice of N to make.
+        var multi = false;
+        for (var q = 0; q < missing.length; q++)
+          if (missing[q].type === missing[m].type && missing[q].wheel !== missing[m].wheel) multi = true;
+        if (multi) lbl += ' (thumbwheel ' + missing[m].wheel + ')';
+        h += opt(missing[m].type + '.' + missing[m].wheel, lbl, false);
+      }
+      h += '</select>';
+      h += '<button class="smd-action-btn" id="mf-add-btn">Add controller</button>';
+      h += '</div>';
+    }
     return h;
+  }
+
+  // Add the selected controller to the machine being edited, then re-render so
+  // it gets its image fields. It goes in ENABLED with empty slots: adding a
+  // controller you then have to tick on as well is a step with no meaning, and
+  // an empty slot is simply a drive with no disk in it.
+  //
+  // Nothing is written anywhere yet - Save still generates the INI and the C
+  // validator still checks it. That matters for the Winchester in particular:
+  // it answers IOX 500-507, the same block as the CDC system disc, so a machine
+  // can have one or the other. If this config has a CDC image the validator
+  // will say so, in its own words, at Save.
+  function addController() {
+    if (!current) return;
+    var sel = el('mf-add');
+    if (!sel || !sel.value) return;
+    var parts = sel.value.split('.');
+    var type = parts[0], wheel = parseInt(parts[1], 10);
+
+    var td = null;
+    for (var i = 0; i < (current.controllerTypes || []).length; i++)
+      if (current.controllerTypes[i].type === type) td = current.controllerTypes[i];
+    if (!td) return;
+
+    var disks = [];
+    for (var j = 0; j < 8; j++) disks.push({ slot: j, present: false, media: 'hdd', image: '' });
+
+    current.controllers.push({
+      type: type, wheel: wheel, enabled: true,
+      isDisc: td.isDisc, bootable: td.bootable, diskSlots: td.diskSlots,
+      disks: disks,
+      hdlcMode: 'server', hdlcHost: '', hdlcPort: 5000 + wheel
+    });
+
+    // Keep the form's current answers: re-rendering from `current` alone would
+    // throw away anything typed since it was loaded.
+    var host = el('machine-setup-form');
+    var keep = readForm();
+    render(current);
+    applyForm(keep);
+    if (host) host.scrollTop = host.scrollHeight;
+  }
+
+  // The form's current values, by element id. Used to survive a re-render.
+  function readForm() {
+    var host = el('machine-setup-form');
+    var out = {};
+    if (!host) return out;
+    var nodes = host.querySelectorAll('input, select');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!n.id) continue;
+      out[n.id] = (n.type === 'checkbox') ? n.checked : n.value;
+    }
+    return out;
+  }
+
+  function applyForm(values) {
+    for (var id in values) {
+      if (!Object.prototype.hasOwnProperty.call(values, id)) continue;
+      var n = el(id);
+      if (!n) continue;                       // gone after the re-render
+      if (n.type === 'checkbox') n.checked = values[id];
+      else n.value = values[id];
+    }
   }
 
   function renderRest(d) {
@@ -183,6 +291,10 @@
     }
     current = d;
     host.innerHTML = renderMachine(d) + renderControllers(d) + renderRest(d);
+    // innerHTML replaces the nodes, so the handler is attached here rather than
+    // once at startup - there is no button to attach to until now.
+    var add = el('mf-add-btn');
+    if (add) add.addEventListener('click', addController);
   }
 
   // ---- form -> INI --------------------------------------------------------

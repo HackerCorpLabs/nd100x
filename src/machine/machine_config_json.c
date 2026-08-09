@@ -108,6 +108,34 @@ bool MachineConfig_ToJson(const MachineConfig *cfg, char *out, size_t outlen)
         put(&s, "%s\"%s\"", i ? "," : "", CpuModel_NameByIndex(i));
     put(&s, "],");
 
+    /* ---- what a machine COULD have: the registry itself ----
+     *
+     * Without this the form can only ever show controllers the file already
+     * names, so a config that never mentioned Winchester could not grow one.
+     * Emitted from the same g_descriptors table the parser and validator use,
+     * via MC_DescriptorForType, so a type added there appears here for free. */
+    put(&s, "\"controllerTypes\":[");
+    {
+        static const CtrlType kinds[] = {
+            CTRL_FLOPPY, CTRL_SMD, CTRL_WINCHESTER, CTRL_SCSI, CTRL_HDLC
+        };
+        int k, first = 1;
+        for (k = 0; k < (int)(sizeof(kinds) / sizeof(kinds[0])); k++) {
+            const ControllerDescriptor *d = MC_DescriptorForType(kinds[k]);
+            if (!d) continue;
+            put(&s, "%s{", first ? "" : ",");
+            first = 0;
+            kv_str(&s, "type", d->name, 1);
+            put(&s, "\"minWheel\":%d,", d->min_wheel);
+            put(&s, "\"maxWheel\":%d,", d->max_wheel);
+            put(&s, "\"diskSlots\":%d,", d->disk_slots);
+            put(&s, "\"isDisc\":%s,", d->is_disc ? "true" : "false");
+            put(&s, "\"bootable\":%s", d->bootable ? "true" : "false");
+            put(&s, "}");
+        }
+    }
+    put(&s, "],");
+
     /* ---- controllers ---- */
     put(&s, "\"controllers\":[");
     for (i = 0; i < cfg->controllerCount; i++) {
