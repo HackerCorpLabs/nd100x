@@ -521,6 +521,9 @@
       // has one thread and the library's run() does not come back until the
       // guest stops.
       step: function(count) { return Module._Nd500_Step(count || 1); },
+      // Ask this, not "is stopReason still none": NDIX takes page faults by
+      // design and leaves a reason set while running perfectly happily.
+      isRunning: function() { return !!Module._Nd500_IsRunning(); },
       pc:   function() { return Module._Nd500_GetPC() >>> 0; },
       stopReason: function() { return Module.UTF8ToString(Module._Nd500_GetStopReasonText()); },
 

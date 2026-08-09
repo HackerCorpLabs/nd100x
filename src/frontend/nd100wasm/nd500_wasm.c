@@ -380,6 +380,17 @@ EMSCRIPTEN_EXPORT int Nd500_GetStopReason(void) {
     return g_created ? (int)g_m.stop_reason : 0;
 }
 
+/* Is the machine still running?
+ *
+ * Ask THIS, not "is the stop reason still none". stop_reason is left set by
+ * things that are entirely normal in a paging OS - nd500_dbg_step itself only
+ * treats a stop as real when run_flag has gone too (nd500x debug_api.c:439) -
+ * and NDIX takes page faults constantly by design, because that is what demand
+ * paging is. A caller driving the CPU in slices needs the flag. */
+EMSCRIPTEN_EXPORT int Nd500_IsRunning(void) {
+    return (g_created && g_booted) ? nd500_dbg_is_running(&g_m) : 0;
+}
+
 /* Why it stopped, in words. nd500x already has the table; there is no reason
  * for JS to carry a second copy of the enum. */
 EMSCRIPTEN_EXPORT const char* Nd500_GetStopReasonText(void) {
@@ -432,6 +443,7 @@ EMSCRIPTEN_EXPORT int  Nd500_GetDiskSize(int u) { (void)u; return 0; }
 EMSCRIPTEN_EXPORT int  Nd500_Boot(void) { return -1; }
 EMSCRIPTEN_EXPORT int  Nd500_Step(int count) { (void)count; return -1; }
 EMSCRIPTEN_EXPORT int  Nd500_GetStopReason(void) { return 0; }
+EMSCRIPTEN_EXPORT int  Nd500_IsRunning(void) { return 0; }
 EMSCRIPTEN_EXPORT const char* Nd500_GetStopReasonText(void) { return "no ND-500 in this build"; }
 EMSCRIPTEN_EXPORT uint32_t Nd500_GetPC(void) { return 0u; }
 EMSCRIPTEN_EXPORT int  Nd500_PollConsole(void) { return -1; }

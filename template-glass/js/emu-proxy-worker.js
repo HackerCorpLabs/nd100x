@@ -708,7 +708,8 @@
       mountDisk: _nd500NotHere, unmountDisk: _nd500NotHere,
       diskSize: function() { return 0; }, diskBytes: function() { return null; },
       boot: _nd500NotHere, step: _nd500NotHere,
-      pc: function() { return 0; },
+      isRunning: function() { return false; },
+  pc: function() { return 0; },
       stopReason: function() { return 'the ND-500 is not available in Worker mode'; },
       pollConsole: function() { return []; },
       sendInput: function() {}

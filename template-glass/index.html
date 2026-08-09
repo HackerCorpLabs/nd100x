@@ -161,6 +161,7 @@
           <button class="toolbar-menu-item" id="menu-floppy-library">Floppy Library</button>
           <button class="toolbar-menu-item" id="menu-smd-manager">HDD Disk Manager</button>
           <button class="toolbar-menu-item" id="menu-machine-setup">Machine Setup</button>
+          <button class="toolbar-menu-item" id="menu-nd500">ND-500 Console</button>
           <button class="toolbar-menu-item" id="menu-printer">Printer</button>
           <button class="toolbar-menu-item" id="menu-paper-tape">Paper Tape</button>
           <div class="toolbar-menu-separator"></div>
@@ -832,6 +833,63 @@
   <!-- =========================================
        PRINTER WINDOW (hidden by default)
        ========================================= -->
+  <!-- The ND-500, running NDIX. It is NOT connected to the ND-100 in this
+       page: no shared memory, no 3022 bus interface - the ND-500 answers its
+       own front-end calls the way nd500x does natively. Saying so on screen
+       matters, because a window sitting next to the ND-100 terminal invites
+       exactly the wrong assumption. -->
+  <div id="nd500-window" class="glass-window" style="display:none;width:720px;height:520px;flex-direction:column;top:60px;left:120px;">
+    <div class="glass-window-header" id="nd500-header">
+      <span class="glass-window-title">ND-500 Console (NDIX)</span>
+      <button class="glass-window-close" id="nd500-close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>
+      </button>
+    </div>
+    <div class="glass-resize-handle" id="nd500-resize">
+      <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+      </svg>
+    </div>
+
+    <div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);font-size:12px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+        <label>Kernel <input type="file" id="nd500-kernel-file" style="font-size:11px;width:180px;"></label>
+        <label title="Optional. Both or neither - with an incomplete pair the sizes are derived from the a.out header.">.pseg <input type="file" id="nd500-pseg-file" style="font-size:11px;width:130px;"></label>
+        <label>.dseg <input type="file" id="nd500-dseg-file" style="font-size:11px;width:130px;"></label>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+        <label>Root disc <select id="nd500-disk-select" style="font-size:12px;padding:2px;min-width:200px;"></select></label>
+        <label>or file <input type="file" id="nd500-disk-file" style="font-size:11px;width:150px;"></label>
+        <!-- Read-only by default, and it is not a formality: NDIX writes to its
+             root the moment it boots, and these images are not reproducible. -->
+        <label style="display:inline-flex;align-items:center;gap:4px;" title="NDIX writes to its root as soon as it boots. Leave this off unless you mean it.">
+          <input type="checkbox" id="nd500-writable"> writable
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label>Memory <select id="nd500-memory" style="font-size:12px;padding:2px;">
+          <option value="8">8 MB</option>
+          <option value="16" selected>16 MB</option>
+          <option value="32">32 MB</option>
+        </select></label>
+        <label title="Instructions executed per 40 ms tick. Higher is faster and less responsive.">Slice
+          <input type="text" id="nd500-slice" value="300000" style="width:70px;font-size:12px;padding:2px;">
+        </label>
+        <button class="smd-action-btn" id="nd500-boot">Boot</button>
+        <button class="smd-action-btn" id="nd500-stop" disabled>Pause</button>
+        <span id="nd500-status" class="smd-image-meta" style="margin-left:auto;"></span>
+      </div>
+    </div>
+
+    <!-- Lines prefixed "| " are the emulator's own boot log, not NDIX talking. -->
+    <pre id="nd500-console" tabindex="0" style="flex:1 1 auto;overflow:auto;margin:0;padding:8px;font-family:'Courier Prime','Fira Mono',monospace;font-size:12px;white-space:pre-wrap;word-wrap:break-word;color:var(--text-color,#e0e0e0);outline:none;"></pre>
+
+    <div class="smd-image-meta" style="padding:4px 8px;border-top:1px solid rgba(255,255,255,0.12);opacity:.7;">
+      This ND-500 runs on its own - it is not wired to the ND-100 in this page.
+      Click the console to type at the guest.
+    </div>
+  </div>
+
   <div id="printer-window" class="glass-window" style="display: none; width: 650px; height: 450px;">
     <div class="glass-window-header" id="printer-header">
       <span class="glass-window-title">Printer</span>
@@ -1614,6 +1672,7 @@
   <script src="js/machine-profiles.js"></script>
   <script src="js/machine-form.js"></script>
   <script src="js/machine-setup.js"></script>
+  <script src="js/nd500-window.js"></script>
   <script src="js/printer.js"></script>
   <script src="js/paper-tape.js"></script>
   <!-- Window taskbar -->
