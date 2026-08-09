@@ -402,6 +402,42 @@ EMSCRIPTEN_EXPORT uint32_t Nd500_GetPC(void) {
     return g_created ? g_cpu.PC : 0u;
 }
 
+/* Physical memory, bypassing the MMU.
+ *
+ * PHYSICAL on purpose. The questions these answer - where does the emulator's
+ * private window end, did the guest allocator eat the shared-segment pages -
+ * are all about physical addresses, and translating them would answer a
+ * different question. nd500_bus_read8/write8 are the bus itself.
+ *
+ * Returns the number of bytes moved, which is 0 for an address past the end of
+ * memory rather than an error: a host reading a window is entitled to ask about
+ * an address that turns out not to exist. */
+EMSCRIPTEN_EXPORT int Nd500_ReadPhys(uint32_t addr, uint8_t* dst, int len) {
+    if (!g_created || !dst || len <= 0) return 0;
+    int n = 0;
+    for (; n < len; n++) {
+        if (addr + (uint32_t)n >= g_m.memory_size) break;
+        dst[n] = nd500_bus_read8(&g_m, addr + (uint32_t)n);
+    }
+    return n;
+}
+
+EMSCRIPTEN_EXPORT int Nd500_WritePhys(uint32_t addr, const uint8_t* src, int len) {
+    if (!g_created || !src || len <= 0) return 0;
+    int n = 0;
+    for (; n < len; n++) {
+        if (addr + (uint32_t)n >= g_m.memory_size) break;
+        nd500_bus_write8(&g_m, addr + (uint32_t)n, src[n]);
+    }
+    return n;
+}
+
+/* How much physical memory the machine has, so a caller can size a window
+ * instead of guessing. */
+EMSCRIPTEN_EXPORT uint32_t Nd500_MemorySize(void) {
+    return g_created ? g_m.memory_size : 0u;
+}
+
 /* Drain one console byte: (unit << 8) | byte, or -1 when empty.
  * Unit 0xFF is this file's own boot log, not guest output. */
 EMSCRIPTEN_EXPORT int Nd500_PollConsole(void) {
@@ -446,6 +482,13 @@ EMSCRIPTEN_EXPORT int  Nd500_GetStopReason(void) { return 0; }
 EMSCRIPTEN_EXPORT int  Nd500_IsRunning(void) { return 0; }
 EMSCRIPTEN_EXPORT const char* Nd500_GetStopReasonText(void) { return "no ND-500 in this build"; }
 EMSCRIPTEN_EXPORT uint32_t Nd500_GetPC(void) { return 0u; }
+EMSCRIPTEN_EXPORT int Nd500_ReadPhys(uint32_t a, uint8_t* d, int n) {
+    (void)a; (void)d; (void)n; return 0;
+}
+EMSCRIPTEN_EXPORT int Nd500_WritePhys(uint32_t a, const uint8_t* s, int n) {
+    (void)a; (void)s; (void)n; return 0;
+}
+EMSCRIPTEN_EXPORT uint32_t Nd500_MemorySize(void) { return 0u; }
 EMSCRIPTEN_EXPORT int  Nd500_PollConsole(void) { return -1; }
 EMSCRIPTEN_EXPORT void Nd500_SendInput(int u, const char* t, int n) {
     (void)u; (void)t; (void)n;
