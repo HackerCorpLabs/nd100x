@@ -3,47 +3,86 @@
 // Edits the machine configuration as an INI (the same format the native binary
 // reads as nd100x.ini). Validation calls the native MachineConfig parser via
 // the ValidateMachineINI WASM export, so the browser gets identical, friendly
-// error messages. The INI is persisted in localStorage and can be downloaded to
-// run the same machine with the native binary.
+// error messages. Configurations are kept BY NAME (machine-profiles.js) and can
+// be downloaded to run the same machine with the native binary. The selected
+// profile is the one toolbar.js hands to emu.init() when the emulator starts.
 
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'nd100x-machine-ini';
-
-  // Default machine INI - mirrors the shipped nd100x.ini defaults.
-  var DEFAULT_INI =
-    '# nd100x machine configuration\n' +
-    '# Toggle a device with "enabled = yes|no". Sections are [type.thumbwheel].\n\n' +
-    '[machine]\n' +
-    'cpu = 100                 ; 100 | 110 | 120\n\n' +
-    '[controller.floppy.0]\n' +
-    'enabled = yes\n' +
-    'disk0 = FLOPPY.IMG\n\n' +
-    '[controller.smd.0]\n' +
-    'enabled = yes\n' +
-    'disk0 = SMD0.IMG\n\n' +
-    '[controller.scsi.0]\n' +
-    'enabled = yes\n' +
-    'disk0 = hdd:SCSI0.IMG     ; SCSI ID 0 (media hdd)\n\n' +
-    '[terminals]\n' +
-    'enabled = 5, 6, 7, 8, 9, 10, 11\n\n' +
-    '[boot]\n' +
-    'device = smd.0.0          ; <type>.<wheel>.<unit>\n';
-
   function el(id) { return document.getElementById(id); }
 
-  function currentINI() {
-    var stored = null;
-    try { stored = localStorage.getItem(STORAGE_KEY); } catch (e) {}
-    return (stored && stored.length) ? stored : DEFAULT_INI;
+  // ---- the profile dropdown ----------------------------------------------
+  // Rebuilt from the store on every show and after every change, rather than
+  // patched in place: the store is the truth and a list that drifts from it is
+  // how you end up saving into the wrong machine.
+  function refreshProfiles() {
+    var sel = el('machine-setup-profile');
+    if (!sel) return;
+    var names = machineProfiles.list();
+    var active = machineProfiles.activeName();
+    sel.innerHTML = '';
+    for (var i = 0; i < names.length; i++) {
+      var o = document.createElement('option');
+      o.value = names[i];
+      o.textContent = names[i];
+      if (names[i] === active) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  // Switching machines DISCARDS whatever is in the textarea. Say so, rather
+  // than quietly saving it into the machine being left - which is exactly the
+  // kind of silent write that loses work.
+  function selectProfile() {
+    var sel = el('machine-setup-profile');
+    if (!sel) return;
+    machineProfiles.setActive(sel.value);
+    var ta = el('machine-setup-ini');
+    if (ta) ta.value = machineProfiles.ini();
+    setResult('Showing "' + sel.value + '". Unsaved edits to the previous machine were discarded.', '');
+  }
+
+  function newProfile() {
+    var name = prompt('Name for the new machine:', '');
+    if (name === null) return;
+    // Start from what is on screen: "New" almost always means "like this one,
+    // but ...", and starting from the default would throw that away.
+    var ta = el('machine-setup-ini');
+    var err = machineProfiles.create(name, ta ? ta.value : null);
+    if (err) { setResult(err, 'err'); return; }
+    refreshProfiles();
+    if (ta) ta.value = machineProfiles.ini();
+    setResult('Created "' + name + '".', 'ok');
+  }
+
+  function renameProfile() {
+    var cur = machineProfiles.activeName();
+    var name = prompt('Rename "' + cur + '" to:', cur);
+    if (name === null) return;
+    var err = machineProfiles.rename(cur, name);
+    if (err) { setResult(err, 'err'); return; }
+    refreshProfiles();
+    setResult('Renamed to "' + name + '".', 'ok');
+  }
+
+  function deleteProfile() {
+    var cur = machineProfiles.activeName();
+    if (!confirm('Delete the machine "' + cur + '"? This cannot be undone.')) return;
+    var err = machineProfiles.remove(cur);
+    if (err) { setResult(err, 'err'); return; }
+    refreshProfiles();
+    var ta = el('machine-setup-ini');
+    if (ta) ta.value = machineProfiles.ini();
+    setResult('Deleted "' + cur + '".', 'ok');
   }
 
   function machineSetupShow() {
     var win = el('machine-setup-window');
     if (!win) return;
     var ta = el('machine-setup-ini');
-    if (ta) ta.value = currentINI();
+    refreshProfiles();
+    if (ta) ta.value = machineProfiles.ini();
     setResult('', '');
     win.style.display = 'flex';
     if (typeof windowManager !== 'undefined') windowManager.focus('machine-setup-window');
@@ -86,14 +125,15 @@
     // Only persist a valid config so a broken INI can't wedge the machine.
     validate().then(function (ok) {
       if (!ok) { setResult(el('machine-setup-result').textContent + '  (not saved)', 'err'); return; }
-      try { localStorage.setItem(STORAGE_KEY, ta.value); setResult('Saved.', 'ok'); }
-      catch (e) { setResult('Save failed: ' + e.message, 'err'); }
+      var name = machineProfiles.activeName();
+      if (machineProfiles.write(ta.value, name)) setResult('Saved to "' + name + '".', 'ok');
+      else setResult('Save failed (browser storage refused).', 'err');
     });
   }
 
   function reset() {
     var ta = el('machine-setup-ini');
-    if (ta) ta.value = DEFAULT_INI;
+    if (ta) ta.value = machineProfiles.DEFAULT_INI;
     setResult('Reset to default (not yet saved).', '');
   }
 
@@ -104,7 +144,8 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'nd100x.ini';
+    // Named after the machine, so a folder of downloads is still readable.
+    a.download = machineProfiles.activeName().replace(/[^\w.-]+/g, '_') + '.ini';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -120,6 +161,10 @@
     var s = el('machine-setup-save');     if (s) s.addEventListener('click', save);
     var r = el('machine-setup-reset');    if (r) r.addEventListener('click', reset);
     var d = el('machine-setup-download'); if (d) d.addEventListener('click', download);
+    var p = el('machine-setup-profile'); if (p) p.addEventListener('change', selectProfile);
+    var n = el('machine-setup-new');     if (n) n.addEventListener('click', newProfile);
+    var rn = el('machine-setup-rename'); if (rn) rn.addEventListener('click', renameProfile);
+    var dl = el('machine-setup-delete'); if (dl) dl.addEventListener('click', deleteProfile);
     if (typeof makeDraggable === 'function') {
       var hdr = el('machine-setup-header');
       if (hdr) makeDraggable(el('machine-setup-window'), hdr, 'machine-setup-pos');

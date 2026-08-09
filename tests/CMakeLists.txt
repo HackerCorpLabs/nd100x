@@ -400,3 +400,18 @@ target_include_directories(wd_trace PRIVATE
 target_link_libraries(wd_trace PRIVATE m)
 
 add_dependencies(wd_trace devices)
+
+# ---------------------------------------------------------------------------
+# machine-profiles.js - the named machine configuration store for the Glass UI.
+# A node test, not a headless-browser one like test_glass_windows: the module
+# touches nothing but window and localStorage, both stubbed in the test, so a
+# browser would only add a dependency CI may not have. Skipped, not failed,
+# where node is absent - a missing tool is not a broken store.
+# ---------------------------------------------------------------------------
+find_program(NODE_EXECUTABLE NAMES node nodejs)
+if(NODE_EXECUTABLE)
+    add_test(NAME machine_profiles_tests
+             COMMAND ${NODE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_machine_profiles.js)
+else()
+    message(STATUS "tests: node not found - skipping machine_profiles_tests")
+endif()

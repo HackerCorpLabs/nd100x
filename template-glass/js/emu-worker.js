@@ -777,7 +777,17 @@ onmessage = function(e) {
 
     // --- Lifecycle ---
     case 'init': {
-      var result = Module._Init();
+      // Build from the config when one came with the command and the module is
+      // new enough to have the export; otherwise the built-in device set.
+      var cfgErr = '';
+      var result;
+      if (msg.ini && Module._InitWithConfig) {
+        cfgErr = Module.ccall('InitWithConfig', 'string', ['string'], [msg.ini]);
+        result = 0;
+      } else {
+        result = Module._Init();
+      }
+      if (cfgErr) console.error('[worker] machine config rejected: ' + cfgErr);
       initialized = true;
       // Gather terminal info
       var terminalInfo = [];
@@ -792,7 +802,7 @@ onmessage = function(e) {
           });
         }
       }
-      postMessage({ type: 'initialized', result: result, terminals: terminalInfo });
+      postMessage({ type: 'initialized', result: result, terminals: terminalInfo, configError: cfgErr });
 
       // After Init creates terminal devices, if WS is already connected
       // (auto-connect may have fired before Init), re-discover and register

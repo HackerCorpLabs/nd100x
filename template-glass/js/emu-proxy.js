@@ -22,7 +22,20 @@
   window.emu = {
 
     // --- Lifecycle ---
-    init:          function()  { return Module._Init(); },
+    // init(ini): with an INI the machine is BUILT FROM IT - terminals,
+    // controllers, CPU model, the lot (InitWithConfig, src/frontend/nd100wasm).
+    // Without one, or against a module built before that export existed, this
+    // is the old Init() and the built-in device set. Returns "" on success or
+    // the parser's error message, so a bad profile reports itself instead of
+    // booting something the user did not ask for.
+    init: function(ini) {
+      if (ini && Module._InitWithConfig) {
+        try { return Module.ccall('InitWithConfig', 'string', ['string'], [ini]); }
+        catch (e) { return 'init failed: ' + e.message; }
+      }
+      Module._Init();
+      return '';
+    },
     boot:          function(t) { return Module._Boot(t); },
     // Validate a machine INI string via the native validator. Returns "" if OK,
     // or a "file:line message" string. Promise-wrapped for a uniform API with

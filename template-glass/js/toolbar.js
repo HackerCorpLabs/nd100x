@@ -961,10 +961,10 @@ document.getElementById('toolbar-power').addEventListener('click', function() {
       emu.onInitialized = function(msg) {
         completePowerOn(btn);
       };
-      emu.init();
+      emu.init(window.machineProfiles ? machineProfiles.ini() : null);
     } else {
       // Direct mode: synchronous
-      emu.init();
+      emu.init(window.machineProfiles ? machineProfiles.ini() : null);
       completePowerOn(btn);
     }
   } else {
@@ -1136,9 +1136,9 @@ function scheduleAutoUrlImageBoot() {
       completePowerOn(btn);
       performBoot(1);
     };
-    emu.init();
+    emu.init(window.machineProfiles ? machineProfiles.ini() : null);
   } else {
-    emu.init();
+    emu.init(window.machineProfiles ? machineProfiles.ini() : null);
     completePowerOn(btn);
     performBoot(1);
   }

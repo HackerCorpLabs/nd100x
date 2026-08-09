@@ -379,8 +379,10 @@
   window.emu = {
 
     // --- Lifecycle ---
-    init: function() {
-      postCmd('init');
+    init: function(ini) {
+      // Same contract as direct mode, minus the return value: the Worker
+      // answers with 'initialized' and any config error arrives there.
+      postCmd('init', { ini: ini || '' });
       return 0;  // Return immediately; result arrives via callback
     },
     boot: function(t) {
