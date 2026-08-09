@@ -105,6 +105,21 @@ assertEqual(mf._foreignSections(upper).length, 1, 'and case does not change owne
 const upperOwned = '[MACHINE]\ncpu = 100\n';
 assertEqual(mf._foreignSections(upperOwned).length, 0, 'including for the sections we own');
 
+// ---- [nd500] must survive a Save -----------------------------------------
+// The form does not own the section, so it is carried over untouched. That is
+// true by construction today; it is asserted here because a later change to
+// OWNED would break it silently, and the cost is a Save that deletes a
+// machine's whole ND-500 with nothing on screen to say so.
+const withNd500 =
+  '[machine]\ncpu = 110\n\n' +
+  '[nd500]\nmemory = 32\nkernel = vmunix\ndisk0 = rootfs_full.img\n\n' +
+  '[runtime]\ncharset = off\n';
+const keptNd = mf._foreignSections(withNd500);
+assertEqual(keptNd.length, 2, '[nd500] and [runtime] are both carried over');
+assert(keptNd.join('\n').indexOf('[nd500]') >= 0, 'the ND-500 section is one of them');
+assert(keptNd.join('\n').indexOf('disk0 = rootfs_full.img') >= 0,
+       'and it keeps its disc, not just its header');
+
 console.log('\n===============================');
 console.log('Results: ' + passCount + ' passed, ' + failCount + ' failed');
 if (failCount === 0) { console.log('All tests passed.'); process.exit(0); }

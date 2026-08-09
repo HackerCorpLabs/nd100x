@@ -284,6 +284,9 @@
       if (typeof openWindow === 'function') openWindow('nd500-window');
       refreshLibrary();
       report();
+      // After refreshLibrary, so the <select> already holds the options that
+      // applyConfig is about to pick from.
+      if (!booted) applyConfig();
     });
 
     if (bootBtn) bootBtn.addEventListener('click', boot);
@@ -297,6 +300,72 @@
       consoleEl.addEventListener('keydown', onKey);
       consoleEl.addEventListener('click', function () { consoleEl.focus(); });
     }
+  }
+
+  // ---- what the selected machine says -------------------------------------
+
+  // Pre-fill from the active profile's [nd500] section, so the window and the
+  // machine configuration cannot quietly disagree about the same machine.
+  //
+  // Paths are the awkward part and are handled honestly: a browser cannot open
+  // one, so an image named in the config is matched against the local library
+  // BY NAME. No match means the window SAYS which image the machine asked for
+  // rather than booting without it and letting the guest fail later.
+  function applyConfig() {
+    if (typeof machineProfiles === 'undefined' || !window.emu || !emu.describeMachineINI)
+      return Promise.resolve();
+    return Promise.resolve(emu.describeMachineINI(machineProfiles.ini()))
+      .then(function (json) {
+        var d;
+        try { d = JSON.parse(json); } catch (e) { return; }
+        var n = d && d.nd500;
+        if (!n || !n.enabled) {
+          write('| the selected machine "' + machineProfiles.activeName() +
+                '" has no [nd500] section - nothing pre-filled\n');
+          return;
+        }
+        write('| from the machine configuration "' + machineProfiles.activeName() + '":\n');
+        if (n.memoryMb && memSel) {
+          // Only offered sizes. A config asking for something not in the list
+          // is worth saying out loud rather than silently rounding.
+          var found = false;
+          for (var i = 0; i < memSel.options.length; i++)
+            if (parseInt(memSel.options[i].value, 10) === n.memoryMb) { found = true; break; }
+          if (found) { memSel.value = String(n.memoryMb); write('|   memory ' + n.memoryMb + ' MB\n'); }
+          else write('|   memory ' + n.memoryMb + ' MB is not one of the sizes here - left alone\n');
+        }
+        if (n.kernel)
+          write('|   kernel "' + n.kernel + '" - choose the file yourself; ' +
+                'the page cannot open a path\n');
+
+        var root = (n.disks && n.disks.length) ? n.disks[0] : null;
+        if (root) {
+          if (writableBox) writableBox.checked = !!root.writable;
+          var matched = selectLibraryByName(root.image);
+          write('|   root disc "' + root.image + '" (' +
+                (root.writable ? 'writable' : 'read-only') + ')' +
+                (matched ? ' - found in the library\n'
+                         : ' - NOT in the local library; download it or pick a file\n'));
+        }
+      })
+      .catch(function () { /* a broken profile is the config window's problem */ });
+  }
+
+  // Match a configured image name against the library. Exact name first, then
+  // a case-insensitive compare, because a catalog entry and an .ini written by
+  // hand disagree about capitals more often than they disagree about the file.
+  function selectLibraryByName(name) {
+    if (!name || !diskSel || typeof smdStorage === 'undefined' || !smdStorage.isAvailable())
+      return false;
+    var imgs = smdStorage.listImages();
+    var want = String(name).toLowerCase();
+    for (var i = 0; i < imgs.length; i++) {
+      if ((imgs[i].diskType || '') !== 'nd500') continue;
+      if (String(imgs[i].name).toLowerCase() !== want) continue;
+      diskSel.value = imgs[i].uuid;
+      return diskSel.value === imgs[i].uuid;
+    }
+    return false;
   }
 
   // Say up front whether this build even has an ND-500, rather than letting
@@ -321,5 +390,6 @@
   else
     init();
 
-  window.nd500Window = { refreshLibrary: refreshLibrary, report: report };
+  window.nd500Window = { refreshLibrary: refreshLibrary, report: report,
+                       applyConfig: applyConfig };
 })();
