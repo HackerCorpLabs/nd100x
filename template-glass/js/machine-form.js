@@ -78,6 +78,11 @@
            label + '</label>';
   }
 
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   function textInput(id, value, width) {
     return '<input type="text" id="' + id + '" value="' + (value || '').replace(/"/g, '&quot;') +
            '" style="width:' + (width || '150px') + ';font-size:12px;padding:2px;">';
@@ -115,12 +120,22 @@
            checkbox(id + '-en', '<b>' + pretty(c.type) + '</b> (thumbwheel ' + c.wheel + ')', c.enabled) +
            '</div>';
       if (c.type === 'hdlc') {
-        h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
-        h += '<label>Mode <select id="' + id + '-mode" style="font-size:12px;padding:2px;">' +
-             opt('server', 'server (listen)', c.hdlcMode === 'server') +
-             opt('client', 'client', c.hdlcMode === 'client') + '</select></label>';
-        h += '<label>Host ' + textInput(id + '-host', c.hdlcHost, '130px') + '</label>';
-        h += '<label>Port ' + textInput(id + '-port', String(c.hdlcPort || ''), '70px') + '</label>';
+        // NO mode/host/port here, on purpose. A browser cannot open a TCP
+        // socket, and the emulator does not pretend otherwise: modem.c builds
+        // with MODEM_HAS_NETWORKING undefined under __EMSCRIPTEN__, and
+        // wasm_bind_hdlc() in nd100wasm.c puts every HDLC channel on the
+        // WebSocket gateway bridge whatever the config asked for. Offering a
+        // "server (listen)" mode would be offering something that cannot
+        // happen. Enable it or don't - the traffic goes over the gateway.
+        // The values themselves are still carried into the written INI, since
+        // the native binary reads the same file and there they are real.
+        h += '<div class="smd-image-meta" style="opacity:.75;">' +
+             'All traffic goes over the <b>gateway</b> (WebSocket). ' +
+             'The browser cannot listen on or dial a TCP port itself.';
+        if (c.hdlcMode === 'client' && c.hdlcHost)
+          h += '<br>Kept for a native run: client ' + esc(c.hdlcHost) + ':' + (c.hdlcPort || 0) + '.';
+        else if (c.hdlcPort)
+          h += '<br>Kept for a native run: ' + esc(c.hdlcMode || 'server') + ' port ' + c.hdlcPort + '.';
         h += '</div>';
       } else if (c.diskSlots > 0) {
         for (var j = 0; j < c.diskSlots && j < c.disks.length; j++) {
@@ -320,11 +335,13 @@
       out.push('[controller.' + c.type + '.' + c.wheel + ']');
       out.push('enabled = ' + (chk(id + '-en') ? 'yes' : 'no'));
       if (c.type === 'hdlc') {
-        out.push('mode = ' + val(id + '-mode', 'server'));
-        var host = val(id + '-host', '');
-        if (host) out.push('host = ' + host);
-        var port = val(id + '-port', '');
-        if (port) out.push('port = ' + port);
+        // Straight off the parsed config, not off the screen - the form does
+        // not show these (see renderControllers) because they are meaningless
+        // in a browser. They are written anyway so the same .ini still works
+        // when run natively, where the modem really does open a socket.
+        out.push('mode = ' + (c.hdlcMode === 'client' ? 'client' : 'server'));
+        if (c.hdlcMode === 'client' && c.hdlcHost) out.push('host = ' + c.hdlcHost);
+        if (c.hdlcPort) out.push('port = ' + c.hdlcPort);
       } else {
         for (var j = 0; j < c.diskSlots && j < c.disks.length; j++) {
           var img = val(id + '-d' + j, '');

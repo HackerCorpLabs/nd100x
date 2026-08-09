@@ -85,6 +85,10 @@
     var ta = el('machine-setup-ini');
     refreshProfiles();
     if (ta) ta.value = machineProfiles.ini();
+    // Render the form too. Without this the window opened EMPTY and only filled
+    // in once you toggled Advanced (INI) and back, because "Hide INI" was the
+    // only path that ever called machineForm.load().
+    if (window.machineForm) machineForm.load(machineProfiles.ini());
     setResult('', '');
     win.style.display = 'flex';
     if (typeof windowManager !== 'undefined') windowManager.focus('machine-setup-window');
