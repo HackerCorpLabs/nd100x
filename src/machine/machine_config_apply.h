@@ -28,13 +28,36 @@ typedef struct MachineConfigApplyOpts {
     int rtc_already_set;   /* non-zero: leave the RTC time base alone */
 } MachineConfigApplyOpts;
 
-/* Build the config-driven parts of the machine: CPU type, FPP width, RTC time
- * base, terminals, disc controllers with their mounted images, and HDLC.
+/* TWO halves, and the order is not a style choice - they straddle machine_init().
  *
- * Call AFTER machine_init(): the core devices (RTC, console, floppy DMA, SMD,
- * tape, printer) are added by DeviceManager_AddAllDevices inside it, and this
- * adds the configured parts on top. <opts> may be NULL, which means "nothing
- * was decided elsewhere". */
-void MachineConfig_Apply(const MachineConfig *mc, const MachineConfigApplyOpts *opts);
+ *     MachineConfig_ApplyCpu(&mc, &opts);
+ *     machine_init(...);
+ *     MachineConfig_ApplyDevices(&mc);
+ *
+ * There is deliberately no single MachineConfig_Apply() that does both. It
+ * would have to be called from one place, and no such place exists.
+ *
+ * <opts> may be NULL, which means "nothing was decided elsewhere". */
+
+/* CPU model, FPP width and RTC time base.
+ *
+ * MUST run BEFORE machine_init(). cpu_init() calls Setup_Instructions(), which
+ * READS CurrentCPUType to decide which opcode groups to register - VERSN, the
+ * 14050x/14051x S3SEG group, the 14070x bank group. Setting the model after
+ * that point changes a variable nothing looks at again: the dispatch table was
+ * already built for whatever model was current, so the guest probes for VERSN,
+ * traps, and concludes it is on an ND-100 no matter what the config said.
+ *
+ * That is exactly what used to happen to every `cpu = 110` in an .ini. The CLI
+ * escaped it only because apply_cputype_override() is called before
+ * machine_init, with a comment saying it must be. */
+void MachineConfig_ApplyCpu(const MachineConfig *mc, const MachineConfigApplyOpts *opts);
+
+/* Terminals, disc controllers with their mounted images, and HDLC.
+ *
+ * MUST run AFTER machine_init(): the core devices (RTC, console, floppy DMA,
+ * SMD, tape, printer) are added by DeviceManager_AddAllDevices inside it, and
+ * this adds the configured parts on top of them. */
+void MachineConfig_ApplyDevices(const MachineConfig *mc);
 
 #endif /* MACHINE_CONFIG_APPLY_H */

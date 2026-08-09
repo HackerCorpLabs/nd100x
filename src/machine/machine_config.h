@@ -100,7 +100,15 @@ typedef struct {
 } MC_Runtime;
 
 typedef struct {
-    int            cpu_type;        /* 100 | 110 | 120 */
+    /* The CPU family number, kept because that is what existing .ini files
+     * say and what MachineConfig_WriteFile still writes for the three plain
+     * cases: 100 | 110 | 120. */
+    int            cpu_type;
+    /* The RESOLVED model, and what MachineConfig_Apply actually installs. A
+     * config may now name any model the emulator implements (ND110CX,
+     * ND100CE, ...) instead of only the family; cpu_model is where that lands.
+     * A bare number still works and maps as it always did. See cpu_model.h. */
+    int            cpu_model;       /* a CpuType */
     int            fpp_bits;        /* 32 | 48 - floating point unit width (default 48) */
     bool           rtc_wall;        /* false = RTC counts instruction ticks (default);
                                        true = RTC pulses every 20 ms of host wall-clock time */

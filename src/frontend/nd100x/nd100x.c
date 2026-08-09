@@ -58,6 +58,7 @@
 #include "../machine/machine_config.h"
 #include "../machine/machine_config_apply.h"
 #include "../../cpu/cpu_types.h"   // MMSType enum + extern mmsType (for --mms1/--mms2)
+#include "../../cpu/cpu_model.h"   // CpuModel_FromName / _DisplayName (was two static tables here)
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
 
@@ -323,27 +324,6 @@ static bool cpu_type_from_name(const char *name, CpuType *out)
     return false;
 }
 
-// Human-readable display name for a CpuType, in the same "ND-nnn/xx" form TPE and
-// CONFIGURATION print, so the boot-time [INFO] line matches what the guest reports.
-// Falls back to "ND?" for an unexpected value (should never happen).
-static const char *cpu_type_display_name(CpuType t)
-{
-    switch (t) {
-    case ND1:       return "ND-1";
-    case ND4:       return "ND-4";
-    case ND10:      return "ND-10";
-    case ND100:     return "ND-100";
-    case ND100CE:   return "ND-100/CE";
-    case ND100CX:   return "ND-100/CX";
-    case ND110:     return "ND-110";
-    case ND110CE:   return "ND-110/CE";
-    case ND110CX:   return "ND-110/CX";
-    case ND110PCX:  return "ND-110/PCX";
-    case ND120CX:   return "ND-120/CX";
-    default:        return "ND?";
-    }
-}
-
 // Apply a --cputype=TYPE override to CurrentCPUType. MUST run BEFORE machine_init
 // (-> cpu_init -> Setup_Instructions), which reads CurrentCPUType to decide which
 // opcodes to install (VERSN, the ND-110-only privileged instructions, RTNSIM on
@@ -353,7 +333,7 @@ static void apply_cputype_override(const char *name)
 {
     if (!name) return;
     CpuType t;
-    if (!cpu_type_from_name(name, &t)) {
+    if (!CpuModel_FromName(name, &t)) {
         fprintf(stderr,
             "Invalid --cputype '%s'. Valid values: ND1, ND4, ND10, ND100, ND100CE, "
             "ND100CX, ND110, ND110CE, ND110CX, ND110PCX, ND120CX\n", name);
@@ -430,8 +410,20 @@ void initialize()
 	// silenced). Reflects the resolved CpuType (--cputype / default) and the installed
 	// ND_Memsize just set above. ND_Memsize is in 16-bit WORDS; a word is 2 bytes, so the
 	// Mbyte figure is words*2/1MiB - the same "Total memory size" CONFIGURATION reports.
+	// The config's CPU model, FPP width and RTC base, BEFORE machine_init()
+	// below - Setup_Instructions() reads CurrentCPUType to decide which opcode
+	// groups exist, so a model chosen after it would never reach the guest.
+	// It also means the banner on the next line reports the CPU the machine is
+	// actually about to be, instead of the default it used to print.
+	if (g_useMachineConfig) {
+		MachineConfigApplyOpts mcOpts;
+		mcOpts.fpp_already_set = config.fppSet ? 1 : 0;
+		mcOpts.rtc_already_set = config.rtcSet ? 1 : 0;
+		MachineConfig_ApplyCpu(&g_machineConfig, &mcOpts);
+	}
+
 	printf("CPU: %s   Memory: %.3f Mbytes (%u words)\n",
-	       cpu_type_display_name(CurrentCPUType),
+	       CpuModel_DisplayName(CurrentCPUType),
 	       (double)ND_Memsize * 2.0 / (1024.0 * 1024.0),
 	       (unsigned)ND_Memsize);
 
@@ -458,12 +450,9 @@ void initialize()
 	if (g_useMachineConfig) {
 		// INI-driven machine setup (from --config). Adds terminals, disc
 		// controllers, HDLC and CPU type from the resolved MachineConfig.
-		// The CLI flags that already chose are passed in, so the .ini cannot
-		// overwrite them - the same precedence rule as --memory over memory=.
-		MachineConfigApplyOpts mcOpts;
-		mcOpts.fpp_already_set = config.fppSet ? 1 : 0;
-		mcOpts.rtc_already_set = config.rtcSet ? 1 : 0;
-		MachineConfig_Apply(&g_machineConfig, &mcOpts);
+		// Devices only. The CPU/FPP/RTC half ran before machine_init() - see
+		// the call above the boot banner and the note in machine_config_apply.h.
+		MachineConfig_ApplyDevices(&g_machineConfig);
 	} else {
 		//     {0340, 044, 044, "TERMINAL 5/ TET12"},
 		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);

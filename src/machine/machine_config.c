@@ -19,6 +19,7 @@
 
 #include "machine_config.h"
 #include "../cpu/cpu_types.h"   /* CpuType (ND100, ND110, ...) */
+#include "../cpu/cpu_model.h"   /* CpuModel_FromName / _Name    */
 
 /* ------------------------------------------------------------------ */
 /* Controller registry                                                 */
@@ -138,6 +139,7 @@ void MachineConfig_InitBaseline(MachineConfig *cfg)
     memset(cfg, 0, sizeof(*cfg));
 
     cfg->cpu_type = 100;
+    cfg->cpu_model = ND100;
     cfg->fpp_bits = 48;    /* standard 48-bit FPP; 32 selects the optional unit */
     cfg->rtc_wall = false; /* RTC counts instruction ticks; rtc = wall selects real-time 20 ms */
 
@@ -482,13 +484,41 @@ bool MachineConfig_LoadFile(MachineConfig *cfg, const char *path,
         switch (kind) {
         case SEC_MACHINE:
             if (str_ieq(keyl, "cpu")) {
+                /* Two spellings, both accepted:
+                 *   a FAMILY NUMBER  100 | 110 | 120 - what every existing
+                 *     .ini says, mapping exactly as it always did;
+                 *   a MODEL NAME     ND100, ND110CX, ND120CX, ... - any model
+                 *     the emulator actually implements. The CPU has known the
+                 *     CX and CE variants all along; only the config could not
+                 *     ask for one. --cputype could, which was the giveaway.
+                 * A leading digit decides which, so no name can be mistaken
+                 * for a number or the other way round. */
                 char *ep; long c = strtol(val, &ep, 10);
-                if (*ep != '\0' || (c != 100 && c != 110 && c != 120)) {
-                    fclose(f);
-                    return mc_err(err, errlen, path, lineno,
-                        "[machine] cpu = %s: must be 100, 110 or 120.", val);
+                if (*ep == '\0' && val[0] != '\0') {
+                    int mapped;
+                    if (!MachineConfig_CpuTypeForNumber((int)c, &mapped)) {
+                        fclose(f);
+                        return mc_err(err, errlen, path, lineno,
+                            "[machine] cpu = %s: must be 100, 110 or 120, or a "
+                            "model name such as ND110CX.", val);
+                    }
+                    cfg->cpu_type  = (int)c;
+                    cfg->cpu_model = mapped;
+                } else {
+                    CpuType t;
+                    if (!CpuModel_FromName(val, &t)) {
+                        fclose(f);
+                        return mc_err(err, errlen, path, lineno,
+                            "[machine] cpu = %s: unknown CPU model. Use 100, 110 "
+                            "or 120, or a model name such as ND110CX.", val);
+                    }
+                    cfg->cpu_model = (int)t;
+                    /* Keep the family number roughly right for anything that
+                     * still reads it; the model is what gets installed. */
+                    cfg->cpu_type = (t == ND120CX) ? 120
+                                  : (t == ND110 || t == ND110CE || t == ND110CX ||
+                                     t == ND110PCX) ? 110 : 100;
                 }
-                cfg->cpu_type = (int)c;
             } else if (str_ieq(keyl, "fpp")) {
                 char *ep; long b = strtol(val, &ep, 10);
                 if (*ep != '\0' || (b != 32 && b != 48)) {
@@ -798,7 +828,7 @@ void MachineConfig_Print(const MachineConfig *cfg, FILE *out)
     if (!cfg || !out) return;
     fprintf(out, "Machine configuration (%s):\n",
             cfg->loaded_from_file ? cfg->source_path : "built-in defaults");
-    fprintf(out, "  CPU: ND-%d\n", cfg->cpu_type);
+    fprintf(out, "  CPU: %s\n", CpuModel_DisplayName((CpuType)cfg->cpu_model));
     fprintf(out, "  FPP: %d-bit\n", cfg->fpp_bits);
     fprintf(out, "  RTC: %s\n", cfg->rtc_wall ? "wall-clock 20 ms" : "instruction ticks");
 
@@ -862,7 +892,17 @@ bool MachineConfig_WriteFile(const MachineConfig *cfg, const char *path,
     fprintf(f, "# Toggle a device with 'enabled = yes|no'. Sections are [type.thumbwheel].\n\n");
 
     fprintf(f, "[machine]\n");
-    fprintf(f, "cpu = %d\n", cfg->cpu_type);
+    /* Write the plain family number when the model IS what that number has
+     * always meant, so existing files round-trip unchanged; write the model
+     * name only when the number could not express it. */
+    {
+        int plain;
+        if (MachineConfig_CpuTypeForNumber(cfg->cpu_type, &plain) &&
+            plain == cfg->cpu_model)
+            fprintf(f, "cpu = %d\n", cfg->cpu_type);
+        else
+            fprintf(f, "cpu = %s\n", CpuModel_Name((CpuType)cfg->cpu_model));
+    }
     fprintf(f, "fpp = %d\n", cfg->fpp_bits);
     fprintf(f, "rtc = %s\n\n", cfg->rtc_wall ? "wall" : "ticks");
 

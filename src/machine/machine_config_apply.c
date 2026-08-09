@@ -13,7 +13,7 @@
 #include "../devices/devices_types.h"
 #include "../devices/devices_protos.h"
 
-void MachineConfig_Apply(const MachineConfig *mc, const MachineConfigApplyOpts *opts)
+void MachineConfig_ApplyCpu(const MachineConfig *mc, const MachineConfigApplyOpts *opts)
 {
     MachineConfigApplyOpts none = {0, 0};
     int ct;
@@ -21,7 +21,12 @@ void MachineConfig_Apply(const MachineConfig *mc, const MachineConfigApplyOpts *
     if (!mc) return;
     if (!opts) opts = &none;
 
-    if (MachineConfig_CpuTypeForNumber(mc->cpu_type, &ct))
+    /* cpu_model is the resolved one: it carries a model name like ND110CX that
+     * the family number cannot express. Falling back to the number keeps a
+     * config built by hand (or by an older writer) working. */
+    if (mc->cpu_model != 0)
+        CurrentCPUType = (CpuType)mc->cpu_model;
+    else if (MachineConfig_CpuTypeForNumber(mc->cpu_type, &ct))
         CurrentCPUType = (CpuType)ct;
 
     // FPP width from the .ini [machine] fpp= key; a --fpp CLI flag wins
@@ -34,6 +39,12 @@ void MachineConfig_Apply(const MachineConfig *mc, const MachineConfigApplyOpts *
     // A --rtc CLI flag wins (same precedence rule as --fpp).
     if (!opts->rtc_already_set)
         RTC_SetWallClockMode(mc->rtc_wall);
+
+}
+
+void MachineConfig_ApplyDevices(const MachineConfig *mc)
+{
+    if (!mc) return;
 
     for (int i = 0; i < mc->terminalCount; i++)
         DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, (uint8_t)mc->terminals[i]);

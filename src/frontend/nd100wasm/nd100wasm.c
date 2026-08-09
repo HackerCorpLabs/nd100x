@@ -302,6 +302,11 @@ EMSCRIPTEN_EXPORT const char* InitWithConfig(const char* iniText)
         useConfig = 1;
     }
 
+    // CPU model, FPP and RTC FIRST: machine_init() -> cpu_init() ->
+    // Setup_Instructions() reads CurrentCPUType to decide which opcode groups
+    // to register, so a model chosen after this point never reaches the guest.
+    if (useConfig) MachineConfig_ApplyCpu(&mc, NULL);
+
 #ifdef WITH_DEBUGGER
     // Initialize machine with debugger enabled
     machine_init(1, 4711);
@@ -311,10 +316,9 @@ EMSCRIPTEN_EXPORT const char* InitWithConfig(const char* iniText)
 #endif
 
     if (useConfig) {
-        // NULL opts: a browser has no command line, so nothing was decided
-        // elsewhere and the config decides everything - CPU type, FPP width,
-        // RTC time base, terminals, controllers with their images, and HDLC.
-        MachineConfig_Apply(&mc, NULL);
+        // The devices half: terminals, controllers with their images, and
+        // HDLC. The CPU half already ran, before machine_init above.
+        MachineConfig_ApplyDevices(&mc);
     } else {
         // Add terminals 5-8 (Group 1) and 9-11 (Group 9)
         // Console (thumbwheel 0) is already added by DeviceManager_AddAllDevices

@@ -236,6 +236,10 @@ if(NOT PLATFORM_WINDOWS)
     add_executable(test_machine_config
         test_machine_config.c
         ${CMAKE_SOURCE_DIR}/src/machine/machine_config.c
+        # machine_config.c resolves 'cpu = ND110CX' through the model table.
+        # A table of names, nothing else - it keeps this test free of the
+        # machine and the devices, which is the point of building it this way.
+        ${CMAKE_SOURCE_DIR}/src/cpu/cpu_model.c
     )
 
     target_include_directories(test_machine_config PRIVATE
