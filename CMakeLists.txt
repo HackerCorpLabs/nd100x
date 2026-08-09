@@ -255,6 +255,44 @@ if(TARGET cpu AND TARGET machine_protos_gen)
     add_dependencies(cpu machine_protos_gen)
 endif()
 
+# ---------------------------------------------------------------------------
+# The ND-500, optionally, as a library inside this build.
+#
+# WHY IN-PROCESS AND NOT A SECOND MODULE. An ND-100 + ND-500 machine has SHARED
+# MEMORY (MPM5): the ND-500 reads and writes the ND-100's memory directly.
+# In a browser that means one WebAssembly.Memory, and a Module owns its memory,
+# so the two CPUs have to live in ONE module. Loading nd500wasm.js next to
+# nd100wasm.js cannot express the hardware.
+#
+# OPT-IN, AND SILENT WHEN ABSENT. nd500x is a separate repository - and with
+# its ndmonlib submodule a private one - so a missing checkout must not break
+# anybody's build. No directory, no ND-500, everything else identical.
+#
+# ND500X_WITH_NDMON=OFF is deliberate and is the configuration nd500x documents
+# for exactly this: nd500_cpu + nd500_machine with no ndmonlib, which still
+# boots NDIX (NDIX needs only MON 600, served by nd500_fecall.c). SINTRAN DOM
+# programs are what that leaves out, and those are not what the browser runs.
+set(ND100X_ND500X_DIR "${CMAKE_CURRENT_LIST_DIR}/../nd500x"
+    CACHE PATH "Path to the nd500x checkout (empty or missing = no ND-500)")
+
+set(ND100X_WITH_ND500 OFF)
+if(ND100X_ND500X_DIR AND EXISTS "${ND100X_ND500X_DIR}/CMakeLists.txt")
+    set(ND100X_WITH_ND500 ON)
+    # nd500x's libraries are all nd500_-prefixed, so nothing collides with
+    # ndlib/cpu/machine/devices/debugger here.
+    set(ND500X_WITH_NDMON OFF CACHE BOOL "" FORCE)
+    # Both repositories vendor external/libdap, and two add_subdirectory()'d
+    # trees creating the same target is a hard CMake error. nd100x's copy is
+    # the one that stays; nd500x does not need it here, since DAP belongs to
+    # its debugger and that is off in the WITH_NDMON=OFF configuration above.
+    set(SKIP_LIBDAP ON CACHE BOOL "" FORCE)
+    add_subdirectory(${ND100X_ND500X_DIR} ${CMAKE_BINARY_DIR}/nd500x EXCLUDE_FROM_ALL)
+    message(STATUS "ND-500 ENABLED from ${ND100X_ND500X_DIR}")
+else()
+    message(STATUS "ND-500 not built (no checkout at ${ND100X_ND500X_DIR})"
+                   " - set ND100X_ND500X_DIR to enable")
+endif()
+
 # Add frontend subdirectories conditionally
 if(BUILD_WASM)
     add_subdirectory(src/frontend/nd100wasm)

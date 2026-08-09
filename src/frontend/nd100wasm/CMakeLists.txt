@@ -59,6 +59,18 @@ target_link_libraries(nd100wasm PRIVATE
     symbols_objects
 )
 
+# The ND-500, when the parent build found an nd500x checkout. See the long
+# note in the root CMakeLists: shared memory (MPM5) means both CPUs must live
+# in ONE wasm module, so this is a link, not a second Module.
+#
+# ND100X_WITH_ND500 also becomes a compile definition, because nd100wasm.c has
+# to compile either way - every ND-500 export is inside #ifdef and the module
+# simply does not offer them when there is no ND-500.
+if(ND100X_WITH_ND500)
+    target_link_libraries(nd100wasm PRIVATE nd500_machine nd500_cpu nd500_ndlib)
+    target_compile_definitions(nd100wasm PRIVATE ND100X_WITH_ND500=1)
+endif()
+
 # Emscripten-specific configurations
 if(PLATFORM_WASM)
     # Make sure the output goes to the bin directory
