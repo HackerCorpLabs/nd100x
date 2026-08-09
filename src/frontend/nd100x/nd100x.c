@@ -56,6 +56,7 @@
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 #include "../machine/machine_config.h"
+#include "../machine/machine_config_apply.h"
 #include "../../cpu/cpu_types.h"   // MMSType enum + extern mmsType (for --mms1/--mms2)
 #include "devices_types.h"
 #include "../../devices/devices_protos.h"
@@ -110,62 +111,6 @@ static BOOT_TYPE boot_type_for_ctrl(CtrlType t)
     }
 }
 
-// Build the machine (CPU type, terminals, disc controllers + mounts, HDLC) from
-// a resolved MachineConfig. Core devices (RTC, console, floppy DMA, SMD, tape,
-// printer) are still added by DeviceManager_AddAllDevices inside machine_init;
-// this adds the config-driven parts on top and mounts the configured images.
-static void apply_machine_config(const MachineConfig *mc)
-{
-    int ct;
-    if (MachineConfig_CpuTypeForNumber(mc->cpu_type, &ct))
-        CurrentCPUType = (CpuType)ct;
-
-    // FPP width from the .ini [machine] fpp= key; a --fpp CLI flag wins
-    // (mirroring the --memory / memory= precedence rule).
-    if (!config.fppSet)
-        CurrentFPPType = (mc->fpp_bits == 32) ? FPP32 : FPP48;
-
-    // RTC time base from the .ini [machine] rtc= key: ticks (default, one pulse
-    // per 10550 instructions) or wall (one pulse per 20 ms of host time).
-    // A --rtc CLI flag wins (same precedence rule as --fpp).
-    if (!config.rtcSet)
-        RTC_SetWallClockMode(mc->rtc_wall);
-
-    for (int i = 0; i < mc->terminalCount; i++)
-        DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, (uint8_t)mc->terminals[i]);
-
-    for (int i = 0; i < mc->controllerCount; i++) {
-        const MC_Controller *c = &mc->controllers[i];
-        if (!c->enabled) continue;
-
-        if (c->type == CTRL_SMD) {
-            for (int s = 0; s < 4 && s < MC_MAX_DISK_SLOTS; s++)
-                if (c->disks[s].present) mount_smd(c->disks[s].image, s);
-        } else if (c->type == CTRL_FLOPPY) {
-            for (int s = 0; s < 3 && s < MC_MAX_DISK_SLOTS; s++)
-                if (c->disks[s].present) mount_floppy(c->disks[s].image, s);
-        } else if (c->type == CTRL_WINCHESTER) {
-            /* Opt-in card at IOX 500-507 (same block as the CDC system disc);
-             * not added by DeviceManager_AddAllDevices, so add it here. */
-            DeviceManager_AddDevice(DEVICE_TYPE_DISC_WINCHESTER, (uint8_t)c->wheel);
-            for (int s = 0; s < 2 && s < MC_MAX_DISK_SLOTS; s++)
-                if (c->disks[s].present) mount_winchester(c->disks[s].image, s);
-        } else if (c->type == CTRL_SCSI) {
-            SCSIUnitType types[SCSI_MAX_UNITS];
-            for (int s = 0; s < SCSI_MAX_UNITS; s++) types[s] = SCSI_UNIT_NONE;
-            for (int s = 0; s < SCSI_MAX_UNITS; s++) {
-                if (c->disks[s].present) {
-                    types[s] = c->disks[s].media;
-                    mount_scsi(c->disks[s].image, s);
-                }
-            }
-            DeviceManager_AddSCSIDevice_WithConfig(c->wheel, types);
-        } else if (c->type == CTRL_HDLC) {
-            machine_add_hdlc(c->wheel, c->hdlc_is_server,
-                             c->hdlc_host[0] ? c->hdlc_host : NULL, c->hdlc_port);
-        }
-    }
-}
 
 #if !defined(PLATFORM_WASM) && !defined(__EMSCRIPTEN__)
 static TelnetServer *telnetServer = NULL;
@@ -513,7 +458,12 @@ void initialize()
 	if (g_useMachineConfig) {
 		// INI-driven machine setup (from --config). Adds terminals, disc
 		// controllers, HDLC and CPU type from the resolved MachineConfig.
-		apply_machine_config(&g_machineConfig);
+		// The CLI flags that already chose are passed in, so the .ini cannot
+		// overwrite them - the same precedence rule as --memory over memory=.
+		MachineConfigApplyOpts mcOpts;
+		mcOpts.fpp_already_set = config.fppSet ? 1 : 0;
+		mcOpts.rtc_already_set = config.rtcSet ? 1 : 0;
+		MachineConfig_Apply(&g_machineConfig, &mcOpts);
 	} else {
 		//     {0340, 044, 044, "TERMINAL 5/ TET12"},
 		DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, 5);

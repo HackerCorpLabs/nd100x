@@ -46,6 +46,7 @@
 #include "../machine/machine_types.h"
 #include "../machine/machine_protos.h"
 #include "../machine/machine_config.h"
+#include "../machine/machine_config_apply.h"
 #include "../devices/terminal/deviceTerminal.h"
 #include "../devices/papertape/devicePapertape.h"
 #include "../devices/papertapewriter/devicePaperTapeWriter.h"
@@ -212,16 +213,93 @@ static void WasmTerminalOutputHandler(Device *device, char c)
     }
 }
 
-// Initialize the system (hardware only, no boot)
-EMSCRIPTEN_EXPORT void Init(void)
+// Defined further down with ValidateMachineINI, where the config entry points
+// live. InitWithConfig() needs it up here.
+static int parse_machine_ini(const char* iniText, MachineConfig* mc, char* err, size_t errlen);
+
+// Re-scan the device manager and attach the WASM-side handlers.
+//
+// Split out of Init() because it now has to happen TWICE: once for the device
+// set Init() builds, and again after ApplyMachineINI() has added whatever the
+// config asked for. Both are idempotent - re-binding a device that already has
+// its handler just sets the same pointer again - so calling them a second time
+// costs nothing and forgetting to would leave a configured terminal with no way
+// to reach the browser.
+static void wasm_bind_terminals(void)
 {
+    int termIdx = 0;
+    int devCount = DeviceManager_GetDeviceCount();
+    for (int i = 0; i < MAX_TERMINALS; i++) terminals[i] = NULL;
+    for (int i = 0; i < devCount && termIdx < MAX_TERMINALS; i++) {
+        Device *dev = DeviceManager_GetDeviceByIndex(i);
+        if (dev && dev->type == DEVICE_TYPE_TERMINAL) {
+            terminals[termIdx++] = dev;
+        }
+    }
+    for (int i = 0; i < MAX_TERMINALS; i++) {
+        if (terminals[i]) {
+            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);
+        }
+    }
+}
+
+// There is no host TCP in a browser, so every HDLC channel that exists has to
+// be put on the WebSocket/gateway bridge, however it got added.
+static void wasm_bind_hdlc(void)
+{
+    for (int ch = 0; ch < HDLC_CHANNEL_COUNT; ch++) {
+        hdlc_devices[ch] = DeviceManager_GetDeviceByAddress(hdlc_base_addrs_oct[ch]);
+        if (hdlc_devices[ch] && hdlc_devices[ch]->deviceData) {
+            HDLCData *hd = (HDLCData *)hdlc_devices[ch]->deviceData;
+            if (hd && hd->modem) {
+                Modem_StartWasmBridge(hd->modem);
+            }
+        }
+    }
+}
+
+static void wasm_bind_devices(void)
+{
+    wasm_bind_terminals();
+    wasm_bind_hdlc();
+}
+
+// Initialize the system (hardware only, no boot).
+//
+// <iniText> NULL or empty gives the built-in device set this has always built:
+// terminals 5-11 plus the console, and HDLC 1-4. Anything else is a machine
+// configuration INI, and then the CONFIG decides - the built-in set is not
+// created at all.
+//
+// That is deliberately not a separate "apply" step done afterwards. Adding
+// terminal 5 on top of a machine that already has terminal 5 gives two devices
+// answering IOX 340, which is not a machine at all. The config either builds
+// the terminals and controllers or the default does; never both.
+//
+// Returns "" on success, or a friendly "file:line message" if the config is bad
+// - in which case NOTHING was applied and the machine is left with the built-in
+// set, so the caller has a working emulator to report the error from.
+EMSCRIPTEN_EXPORT const char* InitWithConfig(const char* iniText)
+{
+    static char result[MC_ERR_LEN];
+    MachineConfig mc;
+    int useConfig = 0;
+
+    result[0] = '\0';
     printf("ND100X WASM build: %s %s\n", __DATE__, __TIME__);
     printf("[Phase 1] Terminal ring buffer ready (%d entries)\n", TERM_BUF_SIZE);
 
     // Only initialize once
     if (initialized) {
         printf("Already initialized.\n");
-        return;
+        return result;
+    }
+
+    // Parse BEFORE machine_init: a bad config must not leave a half-built
+    // machine behind. Nothing has been created yet at this point.
+    if (iniText && iniText[0]) {
+        if (!parse_machine_ini(iniText, &mc, result, sizeof(result))) return result;
+        useConfig = 1;
     }
 
 #ifdef WITH_DEBUGGER
@@ -232,29 +310,21 @@ EMSCRIPTEN_EXPORT void Init(void)
     machine_init(0, 4711);
 #endif
 
-    // Add terminals 5-8 (Group 1) and 9-11 (Group 9)
-    // Console (thumbwheel 0) is already added by DeviceManager_AddAllDevices
-    // Total: 8 terminals (console + 7)
-    for (uint8_t tw = 5; tw <= 11; tw++) {
-        DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, tw);
-    }
-
-    // Populate terminals[] by scanning device manager for all terminal devices
-    int termIdx = 0;
-    int devCount = DeviceManager_GetDeviceCount();
-    for (int i = 0; i < devCount && termIdx < MAX_TERMINALS; i++) {
-        Device *dev = DeviceManager_GetDeviceByIndex(i);
-        if (dev && dev->type == DEVICE_TYPE_TERMINAL) {
-            terminals[termIdx++] = dev;
+    if (useConfig) {
+        // NULL opts: a browser has no command line, so nothing was decided
+        // elsewhere and the config decides everything - CPU type, FPP width,
+        // RTC time base, terminals, controllers with their images, and HDLC.
+        MachineConfig_Apply(&mc, NULL);
+    } else {
+        // Add terminals 5-8 (Group 1) and 9-11 (Group 9)
+        // Console (thumbwheel 0) is already added by DeviceManager_AddAllDevices
+        // Total: 8 terminals (console + 7)
+        for (uint8_t tw = 5; tw <= 11; tw++) {
+            DeviceManager_AddDevice(DEVICE_TYPE_TERMINAL, tw);
         }
     }
 
-    // Set up character device output handler for the console terminal
-    for (int i = 0; i < MAX_TERMINALS; i++) {
-        if (terminals[i]) {
-            Device_SetCharacterOutput(terminals[i], WasmTerminalOutputHandler);
-        }
-    }
+    wasm_bind_terminals();
 
     // Set up character device output handler for the line printer
     Device *printer = DeviceManager_GetDeviceByAddress(0430);
@@ -271,21 +341,27 @@ EMSCRIPTEN_EXPORT void Init(void)
         Device_SetCharacterOutput(ptw, WasmPaperTapeWriterOutputHandler);
     }
 
-    // HDLC 1–4: WebSocket/gateway bridge (no host TCP in WASM)
-    for (uint8_t tw = 1; tw <= HDLC_CHANNEL_COUNT; tw++) {
-        DeviceManager_AddDevice(DEVICE_TYPE_HDLC, tw);
-    }
-    for (int ch = 0; ch < HDLC_CHANNEL_COUNT; ch++) {
-        hdlc_devices[ch] = DeviceManager_GetDeviceByAddress(hdlc_base_addrs_oct[ch]);
-        if (hdlc_devices[ch] && hdlc_devices[ch]->deviceData) {
-            HDLCData *hd = (HDLCData *)hdlc_devices[ch]->deviceData;
-            if (hd && hd->modem) {
-                Modem_StartWasmBridge(hd->modem);
-            }
+    // HDLC 1-4: WebSocket/gateway bridge (no host TCP in WASM). With a config,
+    // MachineConfig_Apply has already added exactly the channels it asked for -
+    // adding these four on top would put a second device on each address.
+    if (!useConfig) {
+        for (uint8_t tw = 1; tw <= HDLC_CHANNEL_COUNT; tw++) {
+            DeviceManager_AddDevice(DEVICE_TYPE_HDLC, tw);
         }
     }
+    // Either way every channel that now exists has to reach the browser: there
+    // is no host TCP here.
+    wasm_bind_hdlc();
 
     initialized = 1;
+    return result;
+}
+
+// The original entry point, unchanged for every caller that has one: the
+// built-in device set, no config.
+EMSCRIPTEN_EXPORT void Init(void)
+{
+    InitWithConfig(NULL);
 }
 
 // Boot the system (load boot sector and set PC)
@@ -961,30 +1037,34 @@ EMSCRIPTEN_EXPORT int UnmountSCSI(int unit)
 // to a MEMFS temp file and parsed with the same MachineConfig_LoadFile path the
 // native binary uses. Returns "" (empty string) when the config is valid, or a
 // "file:line message" describing the first problem.
-EMSCRIPTEN_EXPORT const char* ValidateMachineINI(const char* iniText)
+// Parse and validate INI text into <mc>. Returns 1 on success; on failure
+// returns 0 and fills <err>. The INI goes through a MEMFS temp file because
+// MachineConfig_LoadFile takes a path - the point is to use the SAME parser and
+// the SAME validator as the native binary, so the browser cannot drift into
+// accepting a config the real machine would reject, or vice versa.
+static int parse_machine_ini(const char* iniText, MachineConfig* mc, char* err, size_t errlen)
 {
-    static char result[MC_ERR_LEN];
     const char* tmp = "/machine-setup.ini";
-
     FILE* f = fopen(tmp, "w");
-    if (!f) { snprintf(result, sizeof(result), "internal error: cannot create temp file"); return result; }
+    if (!f) { snprintf(err, errlen, "internal error: cannot create temp file"); return 0; }
     fputs(iniText ? iniText : "", f);
     fclose(f);
 
+    MachineConfig_InitBaseline(mc);
+    if (!MachineConfig_LoadFile(mc, tmp, err, errlen)) return 0;
+    if (!MachineConfig_Validate(mc, err, errlen)) return 0;
+    return 1;
+}
+
+EMSCRIPTEN_EXPORT const char* ValidateMachineINI(const char* iniText)
+{
+    static char result[MC_ERR_LEN];
     MachineConfig mc;
-    char err[MC_ERR_LEN];
-    MachineConfig_InitBaseline(&mc);
-    if (!MachineConfig_LoadFile(&mc, tmp, err, sizeof(err))) {
-        snprintf(result, sizeof(result), "%s", err);
-        return result;
-    }
-    if (!MachineConfig_Validate(&mc, err, sizeof(err))) {
-        snprintf(result, sizeof(result), "%s", err);
-        return result;
-    }
+    if (!parse_machine_ini(iniText, &mc, result, sizeof(result))) return result;
     result[0] = '\0';   // valid
     return result;
 }
+
 
 // =========================================================
 // HDLC frame bridge (gateway WebSocket <-> COM5025 / DMA)
