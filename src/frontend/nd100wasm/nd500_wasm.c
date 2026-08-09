@@ -211,11 +211,48 @@ static int stage_file(const char* path, const uint8_t* data, int len) {
 
 EMSCRIPTEN_EXPORT int Nd500_Available(void) { return 1; }
 
+/* Set one of nd500x's ND500X_* switches.
+ *
+ * nd500x reads them all out of the environment ONCE, the first time
+ * nd500_settings() is used, and a browser has no environment - so every
+ * diagnostic switch it has was permanently off with no way to reach it. They
+ * are precisely what is wanted when a guest boots to a point and stops
+ * (ND500X_FEDBG for the front-end calls, ND500X_TICKSTAT for the clock,
+ * ND500X_TTYDBG for output on a tty nobody is attached to).
+ *
+ * MUST be called before Nd500_Create: after the settings have been read once,
+ * changing the environment does nothing. */
+EMSCRIPTEN_EXPORT int Nd500_SetEnv(const char* name, const char* value) {
+    if (!name || !name[0]) return -1;
+    return setenv(name, value ? value : "1", 1);
+}
+
 /* Create the machine. <mem_bytes> 0 takes the 16 MB nd500x uses natively.
  * Returns 0 on success. */
 EMSCRIPTEN_EXPORT int Nd500_Create(int mem_bytes) {
     if (g_created) return 0;                     /* idempotent, like the ND-100 Init */
     if (mem_bytes <= 0) mem_bytes = 16 * 1024 * 1024;
+
+    /* The NDIX boot defaults, before anything reads the settings.
+     *
+     * nd500x's native frontend sets these and calls each "REQUIRED for the
+     * NDIX boot" (nd500x_ndix.c:214-223). They live in that frontend, so a
+     * library caller does not get them - and the boot fails in a way that
+     * looks like nothing is wrong: NDIX prints its whole banner, reports its
+     * memory and buffers, and then idles forever at PC 0x844 taking clock
+     * interrupts. nd500x's own comment says why: "ND500X_NOXMSG - bypass XMSG
+     * (without it proc0 sleeps forever)". xgattach's XMSG device init
+     * otherwise succeeds and then waits for an ND-100 that is not there.
+     *
+     * Only the two that mean anything in a browser. ND500X_DISK and
+     * ND500X_DISK_RW are file paths and a file mode; here disks arrive through
+     * Nd500HostOps and writability is per mount. ND500X_CONSOLE_STDIN needs a
+     * stdin.
+     *
+     * setenv with overwrite=0 on purpose: a host that already called
+     * Nd500_SetEnv has made a choice, and it keeps it. */
+    setenv("ND500X_NOXMSG", "1", 0);
+    setenv("ND500X_MMU_GUEST_TABLES", "1", 0);
 
     memset(&g_m, 0, sizeof g_m);
     memset(&g_cpu, 0, sizeof g_cpu);
@@ -315,8 +352,18 @@ EMSCRIPTEN_EXPORT int Nd500_Boot(void) {
     cfg.with_uarea = 1;
 
     int rc = nd500_ndix_boot(&g_m, &cfg);
-    if (rc == 0) g_booted = 1;
-    return rc;
+    if (rc != 0) return rc;
+
+    /* ARM the machine. The wasm build of nd500_dbg_run() (nd500x
+     * debug_api.c, inside #ifdef __EMSCRIPTEN__) does NOT start a thread the
+     * way the native one does - it sets run_flag and, in its own words, "lets
+     * the caller drive stepping itself". Nd500_Step does the driving, but
+     * without this the machine executes with run_flag == 0: running, while
+     * telling everything that asks that it is not. */
+    nd500_dbg_run(&g_m);
+
+    g_booted = 1;
+    return 0;
 }
 
 /* Advance the ND-500 by <count> instructions. Stepping rather than running:
@@ -368,6 +415,7 @@ EMSCRIPTEN_EXPORT void Nd500_SendInput(int unit, const char* text, int len) {
  * rather than a module that will not load.
  */
 EMSCRIPTEN_EXPORT int  Nd500_Available(void) { return 0; }
+EMSCRIPTEN_EXPORT int  Nd500_SetEnv(const char* n, const char* v) { (void)n; (void)v; return -1; }
 EMSCRIPTEN_EXPORT int  Nd500_Create(int mem_bytes) { (void)mem_bytes; return -1; }
 EMSCRIPTEN_EXPORT int  Nd500_IsCreated(void) { return 0; }
 EMSCRIPTEN_EXPORT int  Nd500_IsBooted(void) { return 0; }
