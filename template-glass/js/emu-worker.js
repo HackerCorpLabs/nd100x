@@ -32,6 +32,9 @@ var _wsStats = {
   diskWrite: { ops: 0, bytes: 0 },
   hdlcRx:    { frames: 0, bytes: 0 },
   hdlcTx:    { frames: 0, bytes: 0 },
+  // ND-500 ethernet (NDIX's et0) on the gateway's emulated segment.
+  ethRx:     { frames: 0, bytes: 0 },
+  ethTx:     { frames: 0, bytes: 0 },
   clientConnects: 0,
   clientDisconnects: 0
 };
@@ -440,6 +443,31 @@ function wsConnect(url) {
           Module._HDLC_SetCarrier(buf[1], buf[2] & 0x01);
         }
       }
+      else if (buf[0] === 0x30 && buf.length >= 4) {
+        // Ethernet RX frame for the ND-500: [0x30][segment][lenHi][lenLo][data...]
+        // Straight into the XMSG server, which raises the receive interrupt -
+        // there is nothing to poll on this side.
+        _wsStats.ethRx.frames++;
+        _wsStats.ethRx.bytes += buf.length;
+        var ethSeg = buf[1];
+        var ethLen = (buf[2] << 8) | buf[3];
+        // The guard is not paranoia: a length that overruns the message would
+        // read whatever follows it in the heap and hand it to NDIX as a frame.
+        if (typeof Module._Nd500_Eth_InjectRxFrame === 'function' &&
+            ethLen > 0 && buf.length >= 4 + ethLen) {
+          var ethData = buf.subarray(4, 4 + ethLen);
+          var ethPtr = Module._malloc(ethLen);
+          Module.HEAPU8.set(ethData, ethPtr);
+          Module._Nd500_Eth_InjectRxFrame(ethSeg, ethPtr, ethLen);
+          Module._free(ethPtr);
+        }
+      }
+      else if (buf[0] === 0x32 && buf.length >= 3) {
+        // Ethernet link status: [0x32][segment][present]
+        if (typeof Module._Nd500_Eth_SetLink === 'function') {
+          Module._Nd500_Eth_SetLink(buf[1], buf[2] & 0x01);
+        }
+      }
       return;
     }
 
@@ -712,6 +740,31 @@ function runLoop() {
           _ws.send(txFrame.buffer);
           _wsStats.hdlcTx.frames++;
           _wsStats.hdlcTx.bytes += txFrame.length;
+        }
+      }
+    }
+
+    // Poll ethernet TX frames from the ND-500 and send them to the segment.
+    //
+    // Drain EVERY frame each tick rather than one. The ring in nd500_wasm.c is
+    // 16 deep and drops when it fills; NDIX sends an ARP burst at interface
+    // bring-up, so leaving frames behind here loses exactly the packets that
+    // start a conversation.
+    if (typeof Module._Nd500_Eth_PollTxFrame === 'function') {
+      while (Module._Nd500_Eth_PollTxFrame() > 0) {
+        var eLen = Module._Nd500_Eth_GetLastTxLength();
+        var ePtr = Module._Nd500_Eth_GetLastTxBuffer();
+        var eSeg = Module._Nd500_Eth_GetLastTxSegment();
+        if (eLen > 0) {
+          var eFrame = new Uint8Array(4 + eLen);
+          eFrame[0] = 0x31;  // ethernet TX
+          eFrame[1] = eSeg;
+          eFrame[2] = (eLen >> 8) & 0xFF;
+          eFrame[3] = eLen & 0xFF;
+          eFrame.set(Module.HEAPU8.subarray(ePtr, ePtr + eLen), 4);
+          _ws.send(eFrame.buffer);
+          _wsStats.ethTx.frames++;
+          _wsStats.ethTx.bytes += eFrame.length;
         }
       }
     }

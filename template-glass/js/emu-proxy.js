@@ -517,6 +517,25 @@
       },
 
       boot: function() { return Module._Nd500_Boot(); },
+
+      // ---- ethernet: put NDIX's et0 on the gateway's emulated segment ----
+      //
+      // Call AFTER boot. Before it there is no machine to hand frames to, and
+      // ethAttach says so rather than half-working.
+      //
+      // The guest still has to configure the interface itself - the emulator
+      // only carries frames:
+      //     /etc/etconfig et0 0x08 0x00 0x26 0xF4 0x01 0x00
+      //     /etc/ifconfig et0 inet 223.255.254.8 -trailers up
+      // -trailers is NOT optional: NDIX's ARP advertises trailer encapsulation
+      // that its own driver refuses to send, and without the flag every IP
+      // packet is dropped inside etoutput while the interface looks healthy.
+      ethAttach: function(segment) { return Module._Nd500_Eth_Attach(segment || 0); },
+      ethDetach: function() { Module._Nd500_Eth_Detach(); },
+      // Outbound frames lost because the worker stopped draining the ring.
+      // Worth showing somewhere: from inside the guest a stalled tab and a slow
+      // network look exactly the same.
+      ethTxDropped: function() { return Module._Nd500_Eth_GetTxDropped() >>> 0; },
       // Instructions, not time. Stepping rather than running because the page
       // has one thread and the library's run() does not come back until the
       // guest stops.
