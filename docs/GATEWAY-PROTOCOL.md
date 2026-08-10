@@ -132,6 +132,9 @@ All binary WebSocket frames use the first byte as a type discriminator:
 | `0x21` | Gateway -> Disk Worker | Disk | **Block read response** |
 | `0x22` | Disk Worker -> Gateway | Disk | **Block write request** |
 | `0x23` | Gateway -> Disk Worker | Disk | **Block write ack** |
+| `0x30` | Gateway -> Emulator | Ethernet | **Ethernet RX frame** -- a frame from the segment |
+| `0x31` | Emulator -> Gateway | Ethernet | **Ethernet TX frame** -- a frame for the segment |
+| `0x32` | Gateway -> Emulator | Ethernet | **Ethernet link status** |
 
 ---
 
@@ -219,6 +222,88 @@ Same format as 0x10 but in the opposite direction.
 ### HDLC TCP Server
 
 Each enabled HDLC entry in the config creates a TCP server. One TCP client per channel. Data flows as raw bytes over TCP, framed as HDLC binary messages over WebSocket.
+
+---
+
+## Ethernet Segment Protocol (0x30, 0x31, 0x32)
+
+An emulated ethernet segment. Deliberately the same shape as the HDLC trio, with
+one difference that matters more than all the similarities.
+
+### Ethernet RX Frame (0x30) -- Gateway to Emulator
+
+```
+[0x30] [segment: 1] [lenHi: 1] [lenLo: 1] [frame: N bytes]
+```
+
+`N` is the whole ethernet frame, destination MAC first. Big-endian length, as
+HDLC's is. Max 2048.
+
+### Ethernet TX Frame (0x31) -- Emulator to Gateway
+
+Same layout, opposite direction. A length that does not match the message is
+logged and dropped -- silently discarding it would look exactly like a dead
+network.
+
+### Ethernet Link Status (0x32) -- Gateway to Emulator
+
+```
+[0x32] [segment: 1] [present: 1]
+```
+
+`0x01` when the first member joins the segment, `0x00` when the last one leaves.
+
+### A segment is MULTIPOINT -- this is the one real difference from HDLC
+
+HDLC keeps **one socket per channel** (`hdlcBindings`); a second client replaces
+the first. Ethernet keeps a **set of members per segment** (`ethBindings`), and a
+frame from any member is repeated to **every other one**.
+
+Building it the HDLC way gives a link that works perfectly with exactly two
+machines and silently drops the third -- and two machines is the first thing
+anybody tests by hand. `test-ethernet.js` therefore uses **three** members.
+
+**A frame is never echoed to its sender.** NDIX drops a frame whose source is its
+own address (`if_ether.c:286`), so an echo is harmless but doubles every packet
+counter and reads like a duplicate-address fault.
+
+### Joining from outside the browser
+
+Each enabled entry in `config.ethernet` opens a TCP server speaking **RETH**, the
+format RetroCore's `TcpEthernetBackend`/`TcpEthernetRelay` uses:
+
+```
+handshake  5 bytes  "RETH" + version   both sides write, then read (version 1 = member)
+frames              [u16 BIG-ENDIAN length][bytes], 0 < len <= 2048
+port                3094 by default = the ND Ethernet II PCB number
+```
+
+Both sides write the hello before reading, so two peers connecting at the same
+moment cannot deadlock. A client whose first four bytes are not `RETH` is
+dropped; a length-prefixed stream cannot be resynchronised once it is out of
+step, so carrying on would forward rubbish as frames.
+
+This means a **native `nd500x`** joins a browser machine's segment with no
+adapter at all:
+
+```sh
+ND500X_ETH_UPLINK=tcp:127.0.0.1:3094 ./build/bin/nd500x --ndix rootfs_net.img -N
+```
+
+### Config
+
+```json
+"ethernet": [
+  { "name": "ETH-0", "segment": 0, "port": 3094, "enabled": true }
+]
+```
+
+### Known limit
+
+`emulatorWs` is a single connection, so one gateway serves **one** emulator. For
+an ND-100 and an ND-500 that is fine -- they share one WebAssembly module because
+they share MPM5 memory. Two separate browser tabs would need either one gateway
+each, or `emulatorWs` becoming a set.
 
 ---
 

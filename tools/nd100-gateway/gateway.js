@@ -115,6 +115,32 @@ const menuClients = new Set();   // TCP sockets in menu-selection mode
 const hdlcBindings = new Map();  // channel -> { socket, clientAddr }
 const hdlcServers = [];          // Active HDLC TCP servers
 
+// Ethernet state.
+//
+// NOTE THE SHAPE, AND HOW IT DIFFERS FROM HDLC. hdlcBindings is
+// channel -> ONE socket, because HDLC is a point-to-point line. Ethernet is
+// MULTIPOINT: a segment has any number of members and a frame from one goes to
+// every OTHER one. So this is segment -> Set of members, and the handler
+// repeats. Copying the HDLC one-socket shape would give a link that works
+// perfectly with exactly two machines and silently drops the third - and two
+// machines is the first thing anybody tests.
+//
+// A member is { socket, clientAddr, rx } where rx is the partial-frame buffer.
+// The emulator's own WebSocket is NOT in this set; it is handled separately,
+// because it is reached through emulatorWs rather than a TCP socket.
+const ethBindings = new Map();   // segment -> Set({ socket, clientAddr, rx })
+const ethServers = [];           // Active ethernet TCP servers
+
+// RETH wire format, as spoken by RetroCore's TcpEthernetBackend/TcpEthernetRelay
+// and by nd500x's ND500X_ETH_UPLINK=tcp:host:port. Reading it here means a
+// browser NDIX and a NATIVE nd500x can share one segment with no adapter.
+//   handshake  "RETH" + version byte   both sides write, then read
+//   frames     [u16 BIG-ENDIAN length][bytes], 0 < len <= 2048
+const RETH_MAGIC = Buffer.from('RETH', 'ascii');
+const RETH_VERSION_MEMBER = 1;   // an ordinary member with one NIC
+const RETH_HANDSHAKE_LEN = 5;
+const RETH_MAX_FRAME = 2048;
+
 // Disk image state
 const diskFds = { smd: {}, floppy: {}, scsi: {}, winchester: {} };  // [type][unit] -> { fd, path, size, name }
 
@@ -320,6 +346,23 @@ function setupEmulatorWs(ws) {
         var binding = tcpBindings.get(identCode);
         if (binding && binding.socket && !binding.socket.destroyed) {
           binding.socket.write(buf.slice(2));
+        }
+      }
+      else if (buf[0] === 0x31 && buf.length >= 4) {
+        // Ethernet TX frame from emulator: [0x31][segment][lenHi][lenLo][data...]
+        // Repeat to every TCP member of the segment. There is no "other
+        // emulator" to send to - one gateway serves one emulatorWs.
+        var ethSeg = buf[1];
+        var ethLen = (buf[2] << 8) | buf[3];
+        if (ethLen > 0 && ethLen <= RETH_MAX_FRAME && buf.length >= 4 + ethLen) {
+          ethRepeat(ethSeg, buf.slice(4, 4 + ethLen), null);
+          vlog('ETH TX seg=' + ethSeg + ' len=' + ethLen);
+        } else {
+          // Say so rather than dropping quietly: a length that does not match
+          // the message is a framing bug on the emulator side, and a silent
+          // drop there looks exactly like a dead network.
+          log('ETH TX seg=' + ethSeg + ' bad length ' + ethLen +
+              ' for a ' + buf.length + '-byte message - dropped');
         }
       }
       else if (buf[0] === 0x11 && buf.length >= 4) {
@@ -551,6 +594,62 @@ function sendHdlcRxFrame(channel, data) {
     return true;
   }
   return false;
+}
+
+// =========================================================
+// Helper: send an ethernet frame UP to the emulator
+// Format: [0x30][segment][lenHi][lenLo][data...]
+// =========================================================
+function sendEthRxFrame(segment, data) {
+  if (emulatorWs && emulatorWs.readyState === 1) {
+    var frame = Buffer.alloc(4 + data.length);
+    frame[0] = 0x30;  // ethernet RX
+    frame[1] = segment & 0xFF;
+    frame[2] = (data.length >> 8) & 0xFF;
+    frame[3] = data.length & 0xFF;
+    data.copy(frame, 4);
+    emulatorWs.send(frame);
+    return true;
+  }
+  return false;
+}
+
+// =========================================================
+// Helper: tell the emulator whether anything else is on its segment
+// Format: [0x32][segment][present]
+// =========================================================
+function sendEthLink(segment, present) {
+  if (emulatorWs && emulatorWs.readyState === 1) {
+    emulatorWs.send(Buffer.from([0x32, segment & 0xFF, present ? 0x01 : 0x00]));
+    return true;
+  }
+  return false;
+}
+
+// =========================================================
+// Repeat one frame to every member of a segment EXCEPT its sender.
+//
+// `from` is the member that sent it, or null when the emulator did. Never echo
+// a frame back to whoever sent it: NDIX would see its own ARP request arrive
+// and drop it as "from me" (if_ether.c:286) - harmless, but it doubles every
+// packet count and reads exactly like a duplicate-address fault.
+// =========================================================
+function ethRepeat(segment, frameData, from) {
+  var members = ethBindings.get(segment);
+  if (members) {
+    // The RETH length prefix is built once and shared - every TCP member wants
+    // the identical bytes.
+    var out = Buffer.alloc(2 + frameData.length);
+    out[0] = (frameData.length >> 8) & 0xFF;
+    out[1] = frameData.length & 0xFF;
+    frameData.copy(out, 2);
+    for (const m of members) {
+      if (m === from) continue;
+      if (m.socket && !m.socket.destroyed) m.socket.write(out);
+    }
+  }
+  // ...and up to the emulator, unless the emulator is where it came from.
+  if (from !== null) sendEthRxFrame(segment, frameData);
 }
 
 // =========================================================
@@ -797,6 +896,117 @@ if (config.hdlc) {
 }
 
 // =========================================================
+// Ethernet segment TCP servers
+//
+// One server per emulated ethernet segment. Anything that speaks RETH can
+// join: a native nd500x with ND500X_ETH_UPLINK=tcp:host:port, a RetroCore
+// machine, or another gateway. Frames are repeated to every other member and
+// up to the emulator, so a browser NDIX and a native one land on one wire.
+//
+// UNLIKE HDLC there is no "one client per channel" rule. That is the whole
+// point - see the comment on ethBindings.
+// =========================================================
+function createEthServer(ethConf) {
+  var segment = ethConf.segment || 0;
+  var ethPort = ethConf.port;
+
+  var ethServer = net.createServer(function(socket) {
+    var clientAddr = socket.remoteAddress + ':' + socket.remotePort;
+    var member = { socket: socket, clientAddr: clientAddr, rx: Buffer.alloc(0) };
+    var greeted = false;
+
+    // Nagle would batch small frames together. They are already framed, so it
+    // costs latency and buys nothing.
+    socket.setNoDelay(true);
+
+    // Both sides write the hello immediately, then read the other's. Writing
+    // first means two peers that connect simultaneously cannot deadlock.
+    var hello = Buffer.alloc(RETH_HANDSHAKE_LEN);
+    RETH_MAGIC.copy(hello, 0);
+    hello[4] = RETH_VERSION_MEMBER;
+    socket.write(hello);
+
+    log('ETH seg=' + segment + ' TCP client connected from', clientAddr);
+
+    socket.on('data', function(data) {
+      member.rx = Buffer.concat([member.rx, Buffer.isBuffer(data) ? data : Buffer.from(data)]);
+
+      // The 5-byte hello comes first and once.
+      if (!greeted) {
+        if (member.rx.length < RETH_HANDSHAKE_LEN) return;
+        if (member.rx.slice(0, 4).compare(RETH_MAGIC) !== 0) {
+          log('ETH seg=' + segment + ' ' + clientAddr +
+              ' is not speaking RETH (got ' +
+              JSON.stringify(member.rx.slice(0, 4).toString('latin1')) + ') - closing');
+          socket.destroy();
+          return;
+        }
+        vlog('ETH seg=' + segment + ' ' + clientAddr + ' hello ok, version ' + member.rx[4]);
+        member.rx = member.rx.slice(RETH_HANDSHAKE_LEN);
+        greeted = true;
+
+        if (!ethBindings.has(segment)) ethBindings.set(segment, new Set());
+        ethBindings.get(segment).add(member);
+        sendEthLink(segment, true);
+      }
+
+      // Then [u16 BE length][frame], any number of them, split across reads.
+      for (;;) {
+        if (member.rx.length < 2) break;
+        var len = (member.rx[0] << 8) | member.rx[1];
+        if (len === 0 || len > RETH_MAX_FRAME) {
+          // Out of step with the sender and there is no way to resynchronise a
+          // pure length-prefixed stream. Dropping the connection is the only
+          // honest move; carrying on would forward rubbish as frames.
+          log('ETH seg=' + segment + ' ' + clientAddr + ' bad frame length ' +
+              len + ' - closing');
+          socket.destroy();
+          return;
+        }
+        if (member.rx.length < 2 + len) break;   // rest of it has not arrived
+        var frameData = member.rx.slice(2, 2 + len);
+        member.rx = member.rx.slice(2 + len);
+        ethRepeat(segment, frameData, member);
+        vlog('ETH RX seg=' + segment + ' len=' + len + ' <- ' + clientAddr);
+      }
+    });
+
+    socket.on('close', function() {
+      log('ETH seg=' + segment + ' TCP client disconnected', clientAddr);
+      var members = ethBindings.get(segment);
+      if (members) {
+        members.delete(member);
+        if (members.size === 0) sendEthLink(segment, false);
+      }
+    });
+
+    socket.on('error', function(err) {
+      vlog('ETH seg=' + segment + ' TCP error:', err.message);
+    });
+  });
+
+  ethServer.listen(ethPort, function() {
+    log('ETH segment ' + segment + ' listening on port ' + ethPort +
+        ' (' + ethConf.name + ')');
+  });
+  ethServer.on('error', function(err) {
+    log('ETH segment ' + segment + ' cannot listen on ' + ethPort + ':', err.message);
+  });
+
+  ethServers.push(ethServer);
+}
+
+if (config.ethernet) {
+  for (const ethConf of config.ethernet) {
+    if (!ethConf.enabled) {
+      vlog('ETH', ethConf.name, 'disabled (port', ethConf.port + ')');
+      continue;
+    }
+    createEthServer(ethConf);
+  }
+}
+
+// =========================================================
 // Start servers
 // =========================================================
 openDiskImages();
@@ -827,6 +1037,16 @@ server.listen(wsPort, function() {
     log('HDLC:');
     config.hdlc.forEach(function(h) {
       log('  ' + h.name + ': port ' + h.port + ' (' + (h.enabled ? 'enabled' : 'disabled') + ')');
+    });
+  }
+
+  // Ethernet
+  if (config.ethernet && config.ethernet.length > 0) {
+    log('');
+    log('Ethernet:');
+    config.ethernet.forEach(function(e) {
+      log('  ' + e.name + ': segment ' + (e.segment || 0) + ', port ' + e.port +
+          ' (' + (e.enabled ? 'enabled' : 'disabled') + ')');
     });
   }
 
@@ -884,6 +1104,17 @@ function shutdown() {
   // Close HDLC servers
   for (const hs of hdlcServers) {
     hs.close();
+  }
+
+  // Close ethernet segment servers and every member on them
+  for (const members of ethBindings.values()) {
+    for (const m of members) {
+      if (m.socket && !m.socket.destroyed) m.socket.destroy();
+    }
+  }
+  ethBindings.clear();
+  for (const es of ethServers) {
+    es.close();
   }
 
   tcpServer.close();
