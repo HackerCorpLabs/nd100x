@@ -65,6 +65,7 @@
 #include "cpu/nd500_fecall.h"
 #include "cpu/cpu_protos.h"
 #include "cpu/nd500_mmu.h"   /* nd500_mmu_peek - trap-free translate */
+#include "cpu/nd500_xmsg.h"  /* the uplink seam: set_uplink / frame_in        */
 
 /* ------------------------------------------------------------------ state */
 
@@ -470,6 +471,124 @@ EMSCRIPTEN_EXPORT void Nd500_SendInput(int unit, const char* text, int len) {
     nd500_fecall_tty_input(unit, text, len);
 }
 
+/* ------------------------------------------------------------- ethernet ---
+ *
+ * NDIX's et0 on the gateway's emulated segment. Frame types 0x30 (RX), 0x31
+ * (TX) and 0x32 (link) - see docs/GATEWAY-PROTOCOL.md.
+ *
+ *   RX: gateway 0x30 -> Nd500_Eth_InjectRxFrame -> nd500_xmsg_frame_in
+ *   TX: NDIX XETHER -> nd500x uplink seam -> eth_tx_ring -> worker polls
+ *       Nd500_Eth_PollTxFrame -> gateway 0x31
+ *
+ * Deliberately the same shape as HDLC_InjectRxFrame / HDLC_PollTxFrame in
+ * nd100wasm.c. A browser cannot be called back into synchronously from C
+ * without EM_ASM, and the worker already polls once per frame for HDLC, so
+ * ethernet rides the same loop rather than inventing a second mechanism.
+ *
+ * WHY A POLL RATHER THAN A PUSH, given nd500x's seam was designed for a
+ * WebSocket that pushes: the PUSH direction that matters is inbound (a frame
+ * arriving from the gateway calls straight into nd500_xmsg_frame_in with no
+ * polling at all, which is the part that would otherwise need
+ * nd500_xmsg_set_uplink_poll). Outbound has to cross into JS, and that is a
+ * queue whichever way round it is written.
+ */
+
+#define ND500_ETH_TX_RING  16
+#define ND500_ETH_MAX_FRAME 2048     /* RETH's limit, gateway.js RETH_MAX_FRAME */
+
+static struct {
+    int     segment;
+    int     length;
+    uint8_t data[ND500_ETH_MAX_FRAME];
+} g_eth_tx_ring[ND500_ETH_TX_RING];
+
+static int g_eth_tx_head = 0, g_eth_tx_tail = 0;
+static int g_eth_last_seg = 0, g_eth_last_len = 0;
+static uint8_t* g_eth_last_buf = 0;
+static int g_eth_segment = 0;        /* which segment this machine is on   */
+static unsigned long g_eth_tx_dropped = 0;
+
+/* NDIX transmitted a frame. Called from nd500x's XMSG server through the
+ * one-slot uplink seam. Must not block and must not call into JS. */
+static void eth_frame_out(void* ctx, const uint8_t* frame, uint32_t len) {
+    int next;
+    (void)ctx;
+    if (!frame || len == 0 || len > ND500_ETH_MAX_FRAME) return;
+
+    next = (g_eth_tx_head + 1) % ND500_ETH_TX_RING;
+    if (next == g_eth_tx_tail) {
+        /* Ring full: the page is not draining. Drop and count rather than
+         * block - ethernet is allowed to lose frames, and stalling the guest's
+         * CPU inside a transmit would be far worse than a lost packet. */
+        g_eth_tx_dropped++;
+        return;
+    }
+    g_eth_tx_ring[g_eth_tx_head].segment = g_eth_segment;
+    g_eth_tx_ring[g_eth_tx_head].length  = (int)len;
+    memcpy(g_eth_tx_ring[g_eth_tx_head].data, frame, len);
+    g_eth_tx_head = next;
+}
+
+/* Put this machine on a segment and start carrying frames. Safe to call twice;
+ * the uplink slot holds one function pointer and re-registering is harmless. */
+EMSCRIPTEN_EXPORT int Nd500_Eth_Attach(int segment) {
+    if (!g_created) return -1;
+    g_eth_segment = segment;
+    g_eth_tx_head = g_eth_tx_tail = 0;
+    g_eth_tx_dropped = 0;
+    nd500_xmsg_set_uplink(eth_frame_out, NULL);
+    /* No set_uplink_poll: a frame arriving from the gateway calls
+     * Nd500_Eth_InjectRxFrame directly, so there is nothing to poll. This is
+     * the case nd500_xmsg.h's poll comment says the seam was designed for. */
+    return 0;
+}
+
+/* Stop carrying frames. The guest keeps running with an ethernet that has
+ * nothing on the other end, which is what it had before this was called. */
+EMSCRIPTEN_EXPORT void Nd500_Eth_Detach(void) {
+    nd500_xmsg_set_uplink(NULL, NULL);
+    g_eth_tx_head = g_eth_tx_tail = 0;
+}
+
+/* A frame arrived from the segment (gateway type 0x30). */
+EMSCRIPTEN_EXPORT int Nd500_Eth_InjectRxFrame(int segment, const uint8_t* data,
+                                              int length) {
+    if (!g_created || !g_booted || !data) return -1;
+    if (length <= 0 || length > ND500_ETH_MAX_FRAME) return -1;
+    if (segment != g_eth_segment) return -1;   /* not this machine's wire */
+    /* frame_in raises the receive interrupt as well as queueing, which is what
+     * makes NDIX come and collect it. Its return says whether the guest had
+     * room; a full guest queue is counted inside nd500x, not here. */
+    return nd500_xmsg_frame_in(&g_cpu, data, (uint32_t)length);
+}
+
+/* Poll for one frame NDIX transmitted. 1 = a frame is ready, 0 = nothing.
+ * Same three-getter idiom as HDLC_PollTxFrame so the worker code matches. */
+EMSCRIPTEN_EXPORT int Nd500_Eth_PollTxFrame(void) {
+    if (g_eth_tx_head == g_eth_tx_tail) return 0;
+    g_eth_last_seg = g_eth_tx_ring[g_eth_tx_tail].segment;
+    g_eth_last_len = g_eth_tx_ring[g_eth_tx_tail].length;
+    g_eth_last_buf = g_eth_tx_ring[g_eth_tx_tail].data;
+    g_eth_tx_tail = (g_eth_tx_tail + 1) % ND500_ETH_TX_RING;
+    return 1;
+}
+
+EMSCRIPTEN_EXPORT int      Nd500_Eth_GetLastTxSegment(void) { return g_eth_last_seg; }
+EMSCRIPTEN_EXPORT int      Nd500_Eth_GetLastTxLength(void)  { return g_eth_last_len; }
+EMSCRIPTEN_EXPORT uint8_t* Nd500_Eth_GetLastTxBuffer(void)  { return g_eth_last_buf; }
+
+/* How many outbound frames were dropped because the page stopped draining.
+ * Exported rather than only logged: "the network is slow" and "the browser tab
+ * is not polling" look identical from inside the guest. */
+EMSCRIPTEN_EXPORT unsigned long Nd500_Eth_GetTxDropped(void) { return g_eth_tx_dropped; }
+
+/* Gateway type 0x32. Informational for now - NDIX has no carrier-sense concept
+ * and et0 stays up either way - but the page can show it, and a future uplink
+ * could use it to stop queueing into a segment with nobody on it. */
+EMSCRIPTEN_EXPORT void Nd500_Eth_SetLink(int segment, int present) {
+    (void)segment; (void)present;
+}
+
 #else  /* ---------------------------------------------- no nd500x checkout */
 
 /*
@@ -511,5 +630,16 @@ EMSCRIPTEN_EXPORT int  Nd500_PollConsole(void) { return -1; }
 EMSCRIPTEN_EXPORT void Nd500_SendInput(int u, const char* t, int n) {
     (void)u; (void)t; (void)n;
 }
+EMSCRIPTEN_EXPORT int  Nd500_Eth_Attach(int s) { (void)s; return -1; }
+EMSCRIPTEN_EXPORT void Nd500_Eth_Detach(void) { }
+EMSCRIPTEN_EXPORT int  Nd500_Eth_InjectRxFrame(int s, const uint8_t* d, int n) {
+    (void)s; (void)d; (void)n; return -1;
+}
+EMSCRIPTEN_EXPORT int  Nd500_Eth_PollTxFrame(void) { return 0; }
+EMSCRIPTEN_EXPORT int  Nd500_Eth_GetLastTxSegment(void) { return 0; }
+EMSCRIPTEN_EXPORT int  Nd500_Eth_GetLastTxLength(void) { return 0; }
+EMSCRIPTEN_EXPORT uint8_t* Nd500_Eth_GetLastTxBuffer(void) { return 0; }
+EMSCRIPTEN_EXPORT unsigned long Nd500_Eth_GetTxDropped(void) { return 0; }
+EMSCRIPTEN_EXPORT void Nd500_Eth_SetLink(int s, int p) { (void)s; (void)p; }
 
 #endif /* ND100X_WITH_ND500 */

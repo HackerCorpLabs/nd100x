@@ -66,6 +66,26 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON")
     target_include_directories(cjson_objects PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON
     )
+
+    # The header ships as a bare cJSON.h, but callers include it as
+    # <cjson/cJSON.h> - that is the path the distro packages install, and it is
+    # what nd500x's src/machine/memory_map.c:40 and libdap both write.
+    # So stage a cjson/ directory and export it from the target itself.
+    #
+    # THIS USED TO LIVE INSIDE if(DEBUGGER_ENABLED), which is why the WASM build
+    # broke the moment nd500x was linked in: `make wasm` passes
+    # -DDEBUGGER_ENABLED=OFF, the cjson/ directory was never created, and
+    # memory_map.c died with "cjson/cJSON.h file not found" at 99% of the build.
+    # It has nothing to do with the debugger - anything that links cjson_objects
+    # needs it, so it belongs with the target.
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/cjson)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/cJSON/cJSON.h
+        ${CMAKE_BINARY_DIR}/include/cjson/cJSON.h
+        COPYONLY
+    )
+    target_include_directories(cjson_objects PUBLIC ${CMAKE_BINARY_DIR}/include)
+
     message(STATUS "cJSON library support enabled")
 endif()
 
