@@ -4,8 +4,8 @@
  * scsiHDD.h - SCSI hard disk target (CDB decode + block I/O)
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDD.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDD.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
  *
  * The two are folded into one target here: the C# split exists only because
  * SCSIHDDMicropolis subclasses SCSIHDD to override INQUIRY, REQUEST SENSE,

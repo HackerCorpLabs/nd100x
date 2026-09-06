@@ -4,10 +4,10 @@
  * ncr5386.c - NCR-5386 SCSI Protocol Controller
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.CommandHandling.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.StateHandling.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\NCR\SCSI\NCR5386\Registers.cs
+ *   <RetroCore>\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.cs
+ *   <RetroCore>\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.CommandHandling.cs
+ *   <RetroCore>\Emulated.HW\NCR\SCSI\NCR5386\NCR5386SCSI.StateHandling.cs
+ *   <RetroCore>\Emulated.HW\NCR\SCSI\NCR5386\Registers.cs
  * which are a port of MAME's ncr5385.cpp (BSD-3-Clause, Ryan Holtz),
  * git SHA 25066795caded65502be102dd9f181ccae41748b (June 28 2024).
  *

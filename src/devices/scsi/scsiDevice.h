@@ -8,8 +8,8 @@
  * hands the assembled CDB to a concrete target (scsiHDD.c) for decode.
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIFullDevice.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSISupport.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIFullDevice.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSISupport.cs
  * which are ports of MAME's nscsi_full_device.
  *
  * TIMING: as with the NCR chip, RetroCore builds with NO_SCSI_DELAY, so every

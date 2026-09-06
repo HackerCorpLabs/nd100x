@@ -4,7 +4,7 @@
  * diskSCSI.c - SCSI disk geometry and drive identity
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
  *
  * ---- Verified SCSI traces from real NDMICROP 1375 hardware --------------
  * (captured from an ND-110 system, recorded in SCSIHDDMicropolis.cs)

@@ -4,7 +4,7 @@
  * scsiBus.c - SCSI bus (wire-OR of control and data lines)
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIBus.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIBus.cs
  * which is a port of MAME's nscsi_bus.
  */
 

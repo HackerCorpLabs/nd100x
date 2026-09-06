@@ -4,7 +4,7 @@
  * deviceSCSI.c - ND-3201/3204 SCSI disk controller
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\ND\CPU\NDBUS\NDBusDiscControllerSCSI.cs
+ *   <RetroCore>\Emulated.HW\ND\CPU\NDBUS\NDBusDiscControllerSCSI.cs
  *
  * See deviceSCSI.h for the architecture note. In short: this card is a dumb
  * NCR-5386 register + DMA bridge. SINTRAN's driver is the SCSI initiator and

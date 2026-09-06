@@ -19,7 +19,7 @@
  *
  * Register/bit model authority: ND-11.008.01 (NORD-10 CDC, PRIMARY) and
  * ND-06.016.01 pp.188-190 (ND-100 status names). Wire protocol:
- * E:\Dev\Ronny\TSS\docs\CDC-DISC-DEVICE.md and OVERLAY-DISC-SPEC.md.
+ * <TSS>\docs\CDC-DISC-DEVICE.md and OVERLAY-DISC-SPEC.md.
  */
 
 #include <stdint.h>

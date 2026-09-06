@@ -11,7 +11,7 @@
  * that SINTRAN assembles is interpreted by the target (see scsiHDD.c).
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\NCR\SCSI\NCR5386\*.cs
+ *   <RetroCore>\Emulated.HW\NCR\SCSI\NCR5386\*.cs
  * which is itself a port of MAME's ncr5385.cpp
  *   https://github.com/mamedev/mame/blob/master/src/devices/machine/ncr5385.cpp
  *   (in sync with git SHA 25066795caded65502be102dd9f181ccae41748b, June 28 2024)

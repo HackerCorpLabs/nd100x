@@ -4,7 +4,7 @@
  * diskSCSI.h - SCSI disk geometry and drive identity
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
  *   (hdinfo lives in SCSIHDD.cs)
  *
  * Mirrors diskSMD.h: the concrete drive table lives here, the controller logic

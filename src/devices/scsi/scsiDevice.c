@@ -4,7 +4,7 @@
  * scsiDevice.c - SCSI target-side phase state machine
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIFullDevice.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIFullDevice.cs
  * which is a port of MAME's nscsi_full_device.
  *
  * See scsiDevice.h for the timing note (all delay hooks are 0).

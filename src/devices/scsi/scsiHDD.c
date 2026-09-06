@@ -4,8 +4,8 @@
  * scsiHDD.c - SCSI hard disk target (CDB decode + block I/O)
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDD.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDD.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIHDDMicropolis.cs
  *
  * ALL multi-byte SCSI fields are big-endian - use the scsi_get/put_*be helpers.
  */

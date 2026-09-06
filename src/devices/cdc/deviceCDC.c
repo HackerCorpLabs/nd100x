@@ -3,7 +3,7 @@
  *
  * CDC / NCR cartridge system-disc controller for NORD TSS (IOX 500-507).
  * See deviceCDC.h for the full register map and bit model (with manual
- * citations) and E:\Dev\Ronny\TSS\docs\CDC-DISC-DEVICE.md for the wire
+ * citations) and <TSS>\docs\CDC-DISC-DEVICE.md for the wire
  * protocol. Modelled structurally on src/devices/drum/deviceDrum.c and
  * src/devices/smd/deviceSMD.c.
  *

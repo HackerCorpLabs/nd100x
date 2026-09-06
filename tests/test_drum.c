@@ -7,7 +7,7 @@
  * without pulling in the machine, the CPU memory subsystem or a disk image.
  *
  * The wire protocol under test is specified in
- * E:\Dev\Ronny\TSS\docs\DRUM-DEVICE-SPEC.md.
+ * <TSS>\docs\DRUM-DEVICE-SPEC.md.
  */
 
 #include <stdint.h>

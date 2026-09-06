@@ -17,19 +17,19 @@
  *   [MANUAL-N10]  ND-11.008.01 "CARTRIDGE DISC SYSTEM FOR NORD-10",
  *                 Dec 1973 / Rev.A 1976. This is the controller TSS actually
  *                 drives, so it is the PRIMARY reference.
- *                 E:\Dev\Ronny\NDInsight\Reference-Manuals\10\
+ *                 <NDInsight>\Reference-Manuals\10\
  *                 ND-11.008.01 CARTRIDGE DISC SYSTEM FOR NORD-10.md
  *   [MANUAL-N100] ND-06.016.01 "NORD-100 Input/Output System" pp.188-190,
  *                 the later ND-100 generation of the same 500-507 disc, used
  *                 here only for the fuller status-word bit names.
- *                 E:\Dev\Ronny\NDInsight\Reference-Manuals\
+ *                 <NDInsight>\Reference-Manuals\
  *                 ND-06.016.01_NORD-100_Input_Output_System.md (~L6138-6270)
  *   [TSS]         TSS's own CDC driver - the behavioural ground truth for the
  *                 handful of bits it actually reads (busy/error/on-cylinder).
  *
  * Every claim below is tagged [VERIFIED] (manual line or TSS file:line) or
  * [INFERRED]. Where a manual bit and what TSS reads could differ, TSS wins and
- * the manual bit is noted. See E:\Dev\Ronny\TSS\docs\CDC-DISC-DEVICE.md.
+ * the manual bit is noted. See <TSS>\docs\CDC-DISC-DEVICE.md.
  *
  * Structural template: src/devices/drum/deviceDrum.c + src/devices/smd/deviceSMD.c
  * (block-DMA, QueueIODelay completion, interrupt/Ident plumbing). The bit-field

@@ -5,7 +5,7 @@
  *
  * This device emulates the drum that the TSS XDRUM/TRSFR driver programs
  * (TSS1.SYMB:3695-3874). The wire protocol is documented in
- * E:\Dev\Ronny\TSS\docs\DRUM-DEVICE-SPEC.md - every constant below cites the
+ * <TSS>\docs\DRUM-DEVICE-SPEC.md - every constant below cites the
  * evidence (VERIFIED) or is marked PROVISIONAL where the source did not pin it
  * down (to be confirmed on the DAP once TSS reaches a live drum transfer).
  *

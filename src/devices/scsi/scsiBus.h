@@ -4,8 +4,8 @@
  * scsiBus.h - SCSI bus and the device base "class" that sits on it
  *
  * Ported from RetroCore:
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIBus.cs
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\Common\SCSI\SCSIDevice.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIBus.cs
+ *   <RetroCore>\Emulated.HW\Common\SCSI\SCSIDevice.cs
  * which are ports of MAME's nscsi_bus.
  *
  * The bus wire-ORs the control lines and the data lines of every attached

@@ -1924,7 +1924,7 @@ void ndfunc_sex(ushort operand)
  *
  * Ported from RetroCore Emulated.HW/ND/CPU/ND100/Instructions.ND110Specific.cs
  * (SegPhys / BankGroupPhysAddr), which was derived from the RASK microcode listing
- * E:\Dev\Repos\Ronny\ND110Compile\ND110Compile\uCode\ND-110-RASK.LISTING.TXT and
+ * <ND110Compile>\ND110Compile\uCode\ND-110-RASK.LISTING.TXT and
  * validated against the live ND-110 microcode oracle.
  */
 
@@ -2479,9 +2479,9 @@ void ndfunc_clepu(ushort operand)
  * ALL of these are PRIVILEGED and exist on ND-110/CX and ND-120/CX only.
  *
  * Every body below is a verbatim port of the corresponding RetroCore implementation in
- *   E:\Dev\Repos\Ronny\RetroCore\Emulated.HW\ND\CPU\ND100\Instructions.ND110Specific.cs
+ *   <RetroCore>\Emulated.HW\ND\CPU\ND100\Instructions.ND110Specific.cs
  * which was itself derived from the RASK microcode listing
- *   E:\Dev\Repos\Ronny\ND110Compile\ND110Compile\uCode\ND-110-RASK.LISTING.TXT
+ *   <ND110Compile>\ND110Compile\uCode\ND-110-RASK.LISTING.TXT
  * and validated instruction-by-instruction against the live ND-110 microcode oracle.
  * The RASK micro-addresses quoted in the comments are the ones in that listing; do NOT
  * delete them, they are the only traceability back to the silicon.
