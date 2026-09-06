@@ -14,16 +14,20 @@
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR riscv64)
 
-# Resolve the host-tools root. Prefer the env var; fall back to the legacy
-# hardcoded path so existing local checkouts still work, with a loud warning.
+# Resolve the host-tools root. Prefer the env var; otherwise assume the
+# conventional location under the user's home.
+#
+# The fallback is built from $ENV{HOME}, not written out as a literal: a
+# checked-in absolute path only works on the machine it was written on, and
+# this one named a specific developer's home directory.
 if(DEFINED ENV{MILKV_HOST_TOOLS} AND NOT "$ENV{MILKV_HOST_TOOLS}" STREQUAL "")
     set(_MILKV_ROOT "$ENV{MILKV_HOST_TOOLS}")
 else()
-    set(_MILKV_ROOT "/home/ronny/milkv/host-tools")
+    set(_MILKV_ROOT "$ENV{HOME}/milkv/host-tools")
     message(WARNING
-        "MILKV_HOST_TOOLS env var not set — falling back to legacy path "
-        "${_MILKV_ROOT}. Set MILKV_HOST_TOOLS to the directory containing "
-        "gcc/riscv64-linux-musl-x86_64/ for portable builds.")
+        "MILKV_HOST_TOOLS env var not set - trying ${_MILKV_ROOT}. "
+        "Set MILKV_HOST_TOOLS to the directory containing "
+        "gcc/riscv64-linux-musl-x86_64/ if the toolchain is elsewhere.")
 endif()
 
 set(_MILKV_BIN "${_MILKV_ROOT}/gcc/riscv64-linux-musl-x86_64/bin")

@@ -11,10 +11,10 @@
 ### Method 1: CLI Flags (Simplest)
 
 ```bash
-cd /home/ronny/repos/nd100x
+cd /path/to/nd100x
 
 # Point to your BPUN files
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 ```
 
 Then in the shell:
@@ -29,7 +29,7 @@ Then in the shell:
 ### Method 2: INI File (Configured)
 
 ```bash
-cd /home/ronny/repos/nd100x
+cd /path/to/nd100x
 
 # Use the example config (edit nd100_root path if needed)
 ./build/bin/nd100x --config=example-shell-config.ini
@@ -39,18 +39,18 @@ cd /home/ronny/repos/nd100x
 ```bash
 # Change the path in the INI file
 nano example-shell-config.ini
-# Find line: nd100_root = /mnd/d/nd/bpun
+# Find line: nd100_root = /path/to/bpun
 # Change to your path if needed
 ```
 
 ### Method 3: Batch Script (Automation)
 
 ```bash
-cd /home/ronny/repos/nd100x
+cd /path/to/nd100x
 
 # Run commands automatically from script
 ./build/bin/nd100x --monitor \
-  --nd100-root=/mnd/d/nd/bpun \
+  --nd100-root=/path/to/bpun \
   --script=example-shell-commands.sh
 ```
 
@@ -62,27 +62,27 @@ nano example-shell-commands.sh
 
 ---
 
-## Working with `/mnd/d/nd/bpun`
+## Working with a BPUN directory of your own
 
 **Yes, you can absolutely use any path!**
 
 ```bash
 # Point to your exact directory
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 
 # In the shell:
 @ LIST-FILES
-  (shows all files in /mnd/d/nd/bpun)
+  (shows all files in /path/to/bpun)
 
 @ LIST-FILES *.bpun
   (shows only .bpun files)
 
 @ RUN-PROGRAM <filename>.bpun
-  (loads from /mnd/d/nd/bpun/<filename>.bpun)
+  (loads from /path/to/bpun/<filename>.bpun)
 ```
 
 **Path notes:**
-- ✅ Absolute paths: `/mnt/data/bpun`, `/mnd/d/nd/bpun`
+- ✅ Absolute paths: `/mnt/data/bpun`, `/srv/nd/bpun`
 - ✅ Relative paths: `./examples`, `../bpun-files`
 - ✅ Home paths: `~/nd100-files`
 - ✅ Current dir: `.` (default if omitted)
@@ -95,7 +95,7 @@ nano example-shell-commands.sh
 ### Step 1: Build (if not already built)
 
 ```bash
-cd /home/ronny/repos/nd100x
+cd /path/to/nd100x
 mkdir -p build
 cd build
 cmake ..
@@ -105,10 +105,10 @@ make -j4
 ### Step 2: Launch Shell
 
 ```bash
-cd /home/ronny/repos/nd100x
+cd /path/to/nd100x
 
 # Method A: Direct CLI
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 ```
 
 ### Step 3: Use the Shell
@@ -132,20 +132,20 @@ Note: Commands are case-insensitive and support abbreviation.
       File names use host extensions (.bpun, .prog, etc)
 
 @ LIST-FILES
-Files in /mnd/d/nd/bpun matching '*':
+Files in /path/to/bpun matching '*':
   kernel.bpun
   hello.bpun
   test.prog
   diag.bpun
 
 @ LI-FI *.bpun
-Files in /mnd/d/nd/bpun matching '*.bpun':
+Files in /path/to/bpun matching '*.bpun':
   kernel.bpun
   hello.bpun
   diag.bpun
 
 @ RUN-PROGRAM hello.bpun
-Loading /mnd/d/nd/bpun/hello.bpun...
+Loading /path/to/bpun/hello.bpun...
 Program loaded at entry point: 0o001000
 (CPU execution not yet integrated with shell)
 
@@ -180,7 +180,7 @@ device = smd.0.0
 
 [runtime]
 shell = on
-nd100_root = /mnd/d/nd/bpun
+nd100_root = /path/to/bpun
 # Optional: auto-run script on startup
 # script = /tmp/commands.sh
 memory = 4
@@ -216,7 +216,7 @@ EXIT
 **Run:**
 ```bash
 ./build/bin/nd100x --monitor \
-  --nd100-root=/mnd/d/nd/bpun \
+  --nd100-root=/path/to/bpun \
   --script=/tmp/test-all-bpun.sh
 ```
 
@@ -224,19 +224,19 @@ EXIT
 
 ## Troubleshooting
 
-### Error: "Cannot open directory: /mnd/d/nd/bpun"
+### Error: "Cannot open directory: /path/to/bpun"
 
 **Solutions:**
 ```bash
 # Check path exists and is readable
-ls -la /mnd/d/nd/bpun
+ls -la /path/to/bpun
 
 # If path doesn't exist, try alternative:
 ./build/bin/nd100x --monitor --nd100-root=./examples
 
 # Create test directory if needed
-mkdir -p /mnd/d/nd/bpun
-cp some-file.bpun /mnd/d/nd/bpun/
+mkdir -p /path/to/bpun
+cp some-file.bpun /path/to/bpun/
 ```
 
 ### No files show up in LIST-FILES
@@ -244,12 +244,12 @@ cp some-file.bpun /mnd/d/nd/bpun/
 **Check:**
 ```bash
 # Verify files exist with correct extension
-ls /mnd/d/nd/bpun/*.bpun
+ls /path/to/bpun/*.bpun
 
 # Check if shell is looking in right place
 @ LIST-FILES
 # Should show path in output like:
-# Files in /mnd/d/nd/bpun matching '*':
+# Files in /path/to/bpun matching '*':
 ```
 
 ### Command not recognized
@@ -269,27 +269,27 @@ ls /mnd/d/nd/bpun/*.bpun
 ## File Locations (Created Files)
 
 **Example files:**
-- `/home/ronny/repos/nd100x/example-shell-config.ini`
-- `/home/ronny/repos/nd100x/example-shell-commands.sh`
-- `/home/ronny/repos/nd100x/SHELL_EXAMPLES.md` ← You are here
+- `example-shell-config.ini`
+- `example-shell-commands.sh`
+- `SHELL_EXAMPLES.md` ← You are here
 
 **Quick Start Guide:**
-- `/home/ronny/repos/nd100x/docs/ND100X_SHELL_QUICKSTART.md`
+- `docs/ND100X_SHELL_QUICKSTART.md`
 
 **Shell Implementation:**
-- `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.c` (470 lines)
-- `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.h` (Public API)
+- `src/frontend/nd100x/nd100x_shell.c` (470 lines)
+- `src/frontend/nd100x/nd100x_shell.h` (Public API)
 
 ---
 
 ## Next Steps
 
 1. **Build:** `make -j4` in build/ directory (if not done)
-2. **Test:** Run with your path: `./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun`
+2. **Test:** Run with your path: `./build/bin/nd100x --monitor --nd100-root=/path/to/bpun`
 3. **Explore:** Try LIST-FILES, RUN-PROGRAM, SHOW-REGISTERS
 4. **Automate:** Create scripts to batch-test your BPUN files
 5. **Report:** Any issues or missing features
 
 ---
 
-**Ready to go! Your path `/mnd/d/nd/bpun` is fully supported.**
+**Ready to go! Your path `/path/to/bpun` is fully supported.**

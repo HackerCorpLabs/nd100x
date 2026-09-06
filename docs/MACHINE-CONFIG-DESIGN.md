@@ -1,7 +1,7 @@
 # Machine Configuration Design (nd100x / nd110x / nd120x)
 
 Status: DESIGN DRAFT for review. No code committed against this yet.
-Author target: /home/ronny/repos/nd100x
+Author target: /path/to/nd100x
 
 This document proposes replacing the ever-growing per-device command line with a
 single, user-editable **machine configuration** expressed as an INI file, plus a
@@ -70,7 +70,7 @@ each device's `Ident` implementation, not invented:
 
 - **smd**  — wheel 0, IOX base `01540`, disc, 4 slots (SMD only), bootable.
   Currently added unconditionally in `DeviceManager_AddAllDevices()`
-  (`/home/ronny/repos/nd100x/src/devices/devicemanager.c:122`).
+  (`src/devices/devicemanager.c:122`).
 - **floppy** — wheel 0, IOX base `01560` (DMA), disc, 3 slots, bootable.
   (`devicemanager.c:120`).
 - **wd** — wheel 0, IOX base `0500`, disc, 2 slots (ST506/8" Winchester,
@@ -137,7 +137,7 @@ section is a duplicate controller and is rejected by name. Each device is toggle
 with `enabled = yes|no` rather than by deleting its block, so a person can flip a
 device on/off without losing its settings. A disabled section is parsed but not
 instantiated (and skipped by the overlap validator). See the shipped default
-`/home/ronny/repos/nd100x/nd100x.ini` for the full commented template, which also
+`nd100x.ini` for the full commented template, which also
 includes `[terminals]` (enabled = list of terminal numbers; console/0 always on)
 and `[peripheral.*]` sections (paper-tape reader/punch, line printer).
 
@@ -280,7 +280,7 @@ naturally with the coming CPU-type selection: an `nd110x` symlink can ship an
 Already done and still valid under this model (drive types are independent of the
 config mechanism):
 - `DRIVE_WINCHESTER` enum stub (C) + `drive_type_name`.
-- `/home/ronny/repos/nd100x/template-glass/js/disk-types.js` shared constants.
+- `template-glass/js/disk-types.js` shared constants.
 - OPFS block I/O threaded with `driveType` (C `machine.c` + `emu-worker.js`) so
   SCSI unit 0 does not alias SMD unit 0.
 

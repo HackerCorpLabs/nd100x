@@ -62,7 +62,7 @@ No fixed segmentation in nd100x (unlike nd500x with domains). Instead, programs 
 
 **Purpose:** Paper-tape bootstrap format; self-contained with loader metadata.
 
-**File Location:** `/home/ronny/repos/nd100x/src/ndlib/load_bpun.c`
+**File Location:** `src/ndlib/load_bpun.c`
 
 **BPUN_Header Structure:**
 ```c
@@ -107,7 +107,7 @@ LoadState_Data → LoadState_Checksum → LoadState_Action
 
 **Purpose:** Symbolic debugging support; includes symbol table, relocation info.
 
-**File Location:** `/home/ronny/repos/nd100x/src/ndlib/load_aout.c` (note: Windows not supported)
+**File Location:** `src/ndlib/load_aout.c` (note: Windows not supported)
 
 **Loading Pipeline (from machine.c:571):**
 ```c
@@ -299,13 +299,13 @@ The shell can use **ndmonlib's file table** to:
 
 | Concept | File | Lines |
 |---------|------|-------|
-| Memory structure | `/home/ronny/repos/nd100x/src/cpu/cpu_types.h` | 272-276 |
-| BPUN parser | `/home/ronny/repos/nd100x/src/ndlib/load_bpun.c` | 34-240 |
-| AOUT loader | `/home/ronny/repos/nd100x/src/ndlib/load_aout.c` | All |
-| Boot dispatcher | `/home/ronny/repos/nd100x/src/machine/machine.c` | 532-606 |
-| Memory write | `/home/ronny/repos/nd100x/src/cpu/cpu_mms.c` | 949-1020 |
-| Config & CLI | `/home/ronny/repos/nd100x/src/frontend/nd100x/config.c` | 775-850 |
-| Main entry | `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x.c` | 772-900 |
+| Memory structure | `src/cpu/cpu_types.h` | 272-276 |
+| BPUN parser | `src/ndlib/load_bpun.c` | 34-240 |
+| AOUT loader | `src/ndlib/load_aout.c` | All |
+| Boot dispatcher | `src/machine/machine.c` | 532-606 |
+| Memory write | `src/cpu/cpu_mms.c` | 949-1020 |
+| Config & CLI | `src/frontend/nd100x/config.c` | 775-850 |
+| Main entry | `src/frontend/nd100x/nd100x.c` | 772-900 |
 
 ---
 
@@ -343,13 +343,13 @@ To verify this architecture:
 
 ```bash
 # 1. Check memory structure
-grep -n "VolatileMemory" /home/ronny/repos/nd100x/src/cpu/cpu_types.h
+grep -n "VolatileMemory" src/cpu/cpu_types.h
 
 # 2. Trace BPUN load flow
-grep -n "LoadBPUN\|write_memory" /home/ronny/repos/nd100x/src/machine/machine.c
+grep -n "LoadBPUN\|write_memory" src/machine/machine.c
 
 # 3. Verify word write
-objdump -t /home/ronny/repos/nd100x/build/bin/nd100x | grep VolatileMemory
+objdump -t build/bin/nd100x | grep VolatileMemory
 
 # 4. Test existing loader
 ./build/bin/nd100x --boot-type=BPUN --image=examples/hello.bpun --debug

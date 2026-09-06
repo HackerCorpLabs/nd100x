@@ -130,8 +130,8 @@ Stopped at main.c:15 (PC=000102)
 - Configuration snippets for different project types
 
 **Files:**
-- `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/package.json`
-- `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/src/debugger.ts`
+- `<NDGen>/output/vscode/package.json`
+- `<NDGen>/output/vscode/src/debugger.ts`
 
 ### 9. Comprehensive Documentation ✅
 

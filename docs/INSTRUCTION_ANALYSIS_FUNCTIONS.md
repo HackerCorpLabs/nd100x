@@ -392,14 +392,14 @@ if (is_procedure_call(current_operand)) {
 
 ## Implementation Files
 
-- **Main implementation:** `/home/ronny/repos/nd100x/src/debugger/debugger.c` (lines 318-451)
-- **CPU instruction implementation:** `/home/ronny/repos/nd100x/src/cpu/cpu_instr.c`
+- **Main implementation:** `src/debugger/debugger.c` (lines 318-451)
+- **CPU instruction implementation:** `src/cpu/cpu_instr.c`
   - JPL: lines 451-464
   - ENTR: lines 1570-1588
   - LEAVE: lines 1590-1596
   - ELEAV: lines 1598-1608
-- **Disassembly:** `/home/ronny/repos/nd100x/src/cpu/cpu_disasm.c`
-- **Addressing modes:** `/home/ronny/repos/nd100x/src/cpu/cpu.c` (New_GetEffectiveAddr, lines 132-179)
+- **Disassembly:** `src/cpu/cpu_disasm.c`
+- **Addressing modes:** `src/cpu/cpu.c` (New_GetEffectiveAddr, lines 132-179)
 
 ---
 
@@ -422,9 +422,9 @@ if (is_procedure_call(current_operand)) {
 
 ## References
 
-- **ND-100 CPU Documentation:** `/home/ronny/repos/nd100x/docs/cpu_documentation.md`
+- **ND-100 CPU Documentation:** `docs/cpu_documentation.md`
 - **Instruction Set Reference:** Lines 2846-2897 (EXIT), 4899-4945 (LEAVE)
-- **Assembly Examples:** `/home/ronny/repos/nd100x/asm/samples/hello-read.s`
+- **Assembly Examples:** `asm/samples/hello-read.s`
 - **ND-100 Assembler:** [nd100-as](https://github.com/ragge0/norsk_data/tree/main/nd100-as)
 
 ---

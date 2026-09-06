@@ -16,11 +16,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nd100x_expect import Nd100x, ExpectTimeout, ExpectAbort   # noqa: E402
 
-DEFAULT_TPE = r"E:\Dev\Repos\Ronny\RetroCore\Emulated.Tests\ND100\TestData\Nd-210523I01-XX-01D.img"
+# The image ships in this repository, so the fallback is a path derived from
+# this file's own location rather than a drive letter on one machine: the
+# default now works on every checkout instead of silently skipping the test.
+# $ND100X_TPE_FLOPPY still wins when the image lives somewhere else.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_TPE = os.path.join(_REPO_ROOT, "images", "Nd-210523I01-XX-01D.img")
+DEFAULT_TPE = _REPO_TPE
 
 
 def main():
-    # Floppy path: argv[1] (if non-empty), else $ND100X_TPE_FLOPPY, else the RetroCore test image.
+    # Floppy path: argv[1] (if non-empty), else $ND100X_TPE_FLOPPY, else the copy in images/.
     # (CMake may pass an empty argv[1] when -DNDX_TPE_FLOPPY is unset - treat that as "not given".)
     tpe = (sys.argv[1] if (len(sys.argv) > 1 and sys.argv[1])
            else os.environ.get("ND100X_TPE_FLOPPY", DEFAULT_TPE))

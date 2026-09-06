@@ -31,10 +31,13 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nd100x_expect import Nd100x, FloppyCatalog, ExpectTimeout, ExpectAbort  # noqa: E402
 
-DEFAULT_TPE = os.environ.get(
-    "ND100X_TPE_FLOPPY",
-    r"E:\Dev\Repos\Ronny\RetroCore\Emulated.Tests\ND100\TestData\Nd-210523I01-XX-01D.img",
-)
+# The image ships in this repository, so the fallback is a path derived from
+# this file's own location rather than a drive letter on one machine: the
+# default now works on every checkout instead of silently skipping the test.
+# $ND100X_TPE_FLOPPY still wins when the image lives somewhere else.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_TPE = os.path.join(_REPO_ROOT, "images", "Nd-210523I01-XX-01D.img")
+DEFAULT_TPE = os.environ.get("ND100X_TPE_FLOPPY", _REPO_TPE)
 
 
 def main():

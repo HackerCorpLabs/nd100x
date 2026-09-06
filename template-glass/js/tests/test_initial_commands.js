@@ -121,10 +121,18 @@ var IMAGES = [
   { file: 'SMD0-org.IMG', expect: ['ENTER-DIRECTORY PACK-ONE DISC-75MB-1 0'] }
 ];
 
-// A real SINTRAN M image, if the archive volume is mounted. Different version,
-// different segment-table page and MADR - everything derived, nothing hardcoded.
-var M06_IMAGE = '/mnt/f/ND/SINTRAN-M - 2026/HDD/BIGDISK0-M.IMG';
-if (fs.existsSync(M06_IMAGE)) {
+// A real SINTRAN M image, when one is available. Different version, different
+// segment-table page and MADR - everything derived, nothing hardcoded.
+//
+// The path comes from the environment because the image lives OUTSIDE this
+// repository, on an archive volume that only one machine has. It used to be
+// written in here, which made the check silently dead for everyone else and
+// tied a committed test to one developer's drive letters. Set it to run this
+// part:
+//
+//   ND100X_SINTRAN_M_IMAGE=/path/to/BIGDISK0-M.IMG node test_initial_commands.js
+var M06_IMAGE = process.env.ND100X_SINTRAN_M_IMAGE || '';
+if (M06_IMAGE && fs.existsSync(M06_IMAGE)) {
   console.log('--- BIGDISK0-M.IMG (SINTRAN M, end-to-end) ---');
   var mr = SIC.readInitialCommands(new Uint8Array(fs.readFileSync(M06_IMAGE)));
   check('version auto-detected as M', mr.versionLetter, 'M');

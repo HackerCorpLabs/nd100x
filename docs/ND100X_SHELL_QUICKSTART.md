@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-23  
 **Status:** Ready for testing  
-**Files:** `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.{c,h}`
+**Files:** `src/frontend/nd100x/nd100x_shell.{c,h}`
 
 ---
 
@@ -306,10 +306,10 @@ EXIT
 
 ## References
 
-- Shell implementation: `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.c` (470 lines)
-- Shell header: `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.h`
-- File loading analysis: `/home/ronny/repos/nd100x/docs/ND100X_FILE_LOADING_ARCHITECTURE.md`
-- Implementation plan: `/home/ronny/repos/nd100x/docs/ND100X_SHELL_IMPLEMENTATION_PLAN.md`
+- Shell implementation: `src/frontend/nd100x/nd100x_shell.c` (470 lines)
+- Shell header: `src/frontend/nd100x/nd100x_shell.h`
+- File loading analysis: `docs/ND100X_FILE_LOADING_ARCHITECTURE.md`
+- Implementation plan: `docs/ND100X_SHELL_IMPLEMENTATION_PLAN.md`
 
 ---
 

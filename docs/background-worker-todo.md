@@ -11,7 +11,7 @@
 
 ### Tasks
 
-- [x] Create `/home/ronny/repos/nd100x/template-glass/js/emu-proxy.js` with `window.emu` proxy (2026-02-12)
+- [x] Create `template-glass/js/emu-proxy.js` with `window.emu` proxy (2026-02-12)
 - [x] Migrate `emulation.js` (8 call sites) (2026-02-12)
 - [x] Migrate `terminal.js` (10+ call sites) (2026-02-12)
 - [x] Migrate `toolbar.js` (8 call sites) (2026-02-12)
@@ -77,8 +77,8 @@
 
 ### Tasks
 
-- [x] Create `/home/ronny/repos/nd100x/template-glass/js/emu-worker.js` (2026-02-12)
-- [x] Create `/home/ronny/repos/nd100x/template-glass/js/emu-proxy-worker.js` (2026-02-12)
+- [x] Create `template-glass/js/emu-worker.js` (2026-02-12)
+- [x] Create `template-glass/js/emu-proxy-worker.js` (2026-02-12)
 - [x] Add mode toggle to `index.html` (load emu-proxy.js OR emu-proxy-worker.js) (2026-02-12)
 - [x] Update `module-init.js` for Worker mode (disk loading via postMessage) (2026-02-12)
 - [x] Update `emulation.js` for Worker mode (Worker runs autonomously, main samples cached state) (2026-02-12)
@@ -176,8 +176,8 @@ Main -> Worker: `init`, `boot`, `start`, `stop`, `key`, `carrier`, `step`, `setP
 
 ### Tasks
 
-- [ ] Create `/home/ronny/repos/nd100x/template-glass/terminal-popout.html`
-- [ ] Create `/home/ronny/repos/nd100x/template-glass/js/terminal-bridge.js`
+- [ ] Create `template-glass/terminal-popout.html`
+- [ ] Create `template-glass/js/terminal-bridge.js`
 - [ ] Add "Pop out" button to terminal window headers
 - [ ] Implement BroadcastChannel protocol (output, settings, input, close)
 - [ ] Route terminal output to pop-out windows

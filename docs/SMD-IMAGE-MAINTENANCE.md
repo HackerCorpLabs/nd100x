@@ -66,7 +66,7 @@ The browser fetches the catalog, displays the entries, and when the user clicks 
 1. Place the `.IMG` file somewhere the gateway process can read. The project root (alongside `SMD0.IMG`) is the simplest location:
 
    ```
-   cp /path/to/SINTRAN-L.IMG /home/ronny/repos/nd100x/SINTRAN-L.IMG
+   cp /path/to/SINTRAN-L.IMG SINTRAN-L.IMG
    ```
 
 2. Add an entry to `tools/nd100-gateway/gateway.conf.json`:

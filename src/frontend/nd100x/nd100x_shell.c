@@ -119,7 +119,7 @@ static int parse_tokens(char *line, char **tokens, int max_tokens) {
 
 /**
  * Join a directory and a name into out, collapsing a trailing '/' on dir so we
- * never emit a doubled slash (e.g. "/mnt/d/ND/BPUN//mac.bpun").
+ * never emit a doubled slash (e.g. "images/BPUN//mac.bpun").
  */
 static void join_path(char *out, size_t out_sz, const char *dir, const char *name) {
     size_t dlen = strlen(dir);

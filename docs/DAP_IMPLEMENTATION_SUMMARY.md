@@ -409,7 +409,7 @@ Users must update `.vscode/launch.json`:
 
 ### Modified Files
 
-1. `/home/ronny/repos/nd100x/src/debugger/debugger.c`
+1. `src/debugger/debugger.c`
    - Added helper functions
    - Implemented source command
    - Enhanced stack frames
@@ -417,13 +417,13 @@ Users must update `.vscode/launch.json`:
    - Enhanced stopped events
    - Fixed capabilities
 
-2. `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/package.json`
+2. `<NDGen>/output/vscode/package.json`
    - Added C language support
    - Changed debug type
    - Added sources property
    - Added configuration snippets
 
-3. `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/src/debugger.ts`
+3. `<NDGen>/output/vscode/src/debugger.ts`
    - Multi-language support
    - Sources validation
    - Smart defaults
@@ -431,10 +431,10 @@ Users must update `.vscode/launch.json`:
 
 ### New Files
 
-1. `/home/ronny/repos/nd100x/docs/VSCODE_EXTENSION_UPDATES.md`
+1. `docs/VSCODE_EXTENSION_UPDATES.md`
    - Comprehensive VS Code extension guide
 
-2. `/home/ronny/repos/nd100x/docs/DAP_IMPLEMENTATION_SUMMARY.md`
+2. `docs/DAP_IMPLEMENTATION_SUMMARY.md`
    - This file - implementation summary
 
 ## Next Steps

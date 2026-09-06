@@ -24,7 +24,7 @@ The implementation should reuse nd500x's patterns but scale down to ND-100's sim
 
 ### nd500x Shell (Reference Implementation)
 
-**File:** `/home/ronny/repos/nd500x/src/frontend/nd500x/nd500x_shell.c` (770 lines)
+**File:** `<nd500x>/src/frontend/nd500x/nd500x_shell.c` (770 lines)
 
 **Architecture:**
 - Entry point: `nd500x_shell.c` + `nd500x_shell.h`

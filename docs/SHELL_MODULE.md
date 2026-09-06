@@ -4,7 +4,7 @@
 **Status:** Stable, Ready for Production  
 **Date:** 2026-07-23  
 **Author:** Claude Code  
-**Location:** `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.{c,h}`
+**Location:** `src/frontend/nd100x/nd100x_shell.{c,h}`
 
 ---
 
@@ -203,7 +203,7 @@ Examples:
 
 ```bash
 # Simplest: launch shell pointing to file directory
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 
 # Or with relative path
 ./build/bin/nd100x --monitor --nd100-root=./examples
@@ -219,7 +219,7 @@ Examples:
 ```ini
 [runtime]
 shell = on
-nd100_root = /mnd/d/nd/bpun
+nd100_root = /path/to/bpun
 # Optional: script = /tmp/autorun.sh
 ```
 
@@ -239,7 +239,7 @@ nd100_root = /mnd/d/nd/bpun
 ### Interactive Mode
 
 ```bash
-$ ./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+$ ./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 
 ND-100 Interactive Shell
 Type 'HELP' for available commands
@@ -248,13 +248,13 @@ Type 'HELP' for available commands
 [Shows command list]
 
 @ LIST-FILES *.bpun
-Files in /mnd/d/nd/bpun matching '*.bpun':
+Files in /path/to/bpun matching '*.bpun':
   kernel.bpun
   hello.bpun
   test.bpun
 
 @ RUN-PROGRAM hello.bpun
-Loading /mnd/d/nd/bpun/hello.bpun...
+Loading /path/to/bpun/hello.bpun...
 Program loaded at entry point: 0o001000
 
 @ SHOW-REGISTERS
@@ -288,7 +288,7 @@ EXIT
 **Execute:**
 
 ```bash
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun --script=/tmp/test.sh
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun --script=/tmp/test.sh
 ```
 
 ---
@@ -333,7 +333,7 @@ ND-100 Interactive Shell - Available Commands:
 
 **Output:**
 ```
-Files in /mnd/d/nd/bpun matching '*.bpun':
+Files in /path/to/bpun matching '*.bpun':
   kernel.bpun
   hello.bpun
   diag.bpun
@@ -365,7 +365,7 @@ Files in /mnd/d/nd/bpun matching '*.bpun':
 
 **Output:**
 ```
-Loading /mnd/d/nd/bpun/kernel.bpun...
+Loading /path/to/bpun/kernel.bpun...
 Program loaded at entry point: 0o001000
 (CPU execution not yet integrated with shell)
 ```
@@ -466,7 +466,7 @@ Shell exited.
 | Key | Type | Default | Example |
 |-----|------|---------|---------|
 | `shell` | bool | `off` | `shell = on` |
-| `nd100_root` | path | (empty) | `nd100_root = /mnd/d/nd/bpun` |
+| `nd100_root` | path | (empty) | `nd100_root = /path/to/bpun` |
 | `script` | path | (empty) | `script = /tmp/autorun.sh` |
 
 **Example INI:**
@@ -477,7 +477,7 @@ Shell exited.
 shell = on
 
 # Point to BPUN files
-nd100_root = /mnd/d/nd/bpun
+nd100_root = /path/to/bpun
 
 # Auto-run commands (optional)
 script = /tmp/startup.sh
@@ -555,19 +555,19 @@ extern struct CpuRegs *gReg;  /* CPU registers */
 **CLI:**
 
 ```bash
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun
 ```
 
 **Commands:**
 
 ```
 @ LIST-FILES *.bpun
-Files in /mnd/d/nd/bpun matching '*.bpun':
+Files in /path/to/bpun matching '*.bpun':
   kernel.bpun
   hello.bpun
 
 @ RUN-PROGRAM kernel.bpun
-Loading /mnd/d/nd/bpun/kernel.bpun...
+Loading /path/to/bpun/kernel.bpun...
 Program loaded at entry point: 0o001000
 
 @ EXIT
@@ -599,7 +599,7 @@ EXIT
 **Run:**
 
 ```bash
-./build/bin/nd100x --monitor --nd100-root=/mnd/d/nd/bpun --script=/tmp/test-suite.sh
+./build/bin/nd100x --monitor --nd100-root=/path/to/bpun --script=/tmp/test-suite.sh
 ```
 
 ### Example 3: INI Configuration
@@ -615,7 +615,7 @@ device = smd.0.0
 
 [runtime]
 shell = on
-nd100_root = /mnd/d/nd/bpun
+nd100_root = /path/to/bpun
 script = /usr/local/nd100/startup.sh
 memory = 8
 telnet = 0
@@ -639,23 +639,23 @@ telnet = 0
 - Rebuild: `make clean && make`
 - Verify: `./build/bin/nd100x --help | grep monitor`
 
-### "Cannot open directory: /mnd/d/nd/bpun"
+### "Cannot open directory: /path/to/bpun"
 
 **Problem:** Directory not found or not readable.
 
 **Solutions:**
 ```bash
 # Verify path exists
-ls -la /mnd/d/nd/bpun
+ls -la /path/to/bpun
 
 # Check permissions
-stat /mnd/d/nd/bpun
+stat /path/to/bpun
 
 # Try alternative path
 ./build/bin/nd100x --monitor --nd100-root=./examples
 
 # Create directory if needed
-mkdir -p /mnd/d/nd/bpun
+mkdir -p /path/to/bpun
 ```
 
 ### "Failed to load program"
@@ -665,10 +665,10 @@ mkdir -p /mnd/d/nd/bpun
 **Solutions:**
 ```bash
 # Verify file is valid BPUN format
-file /mnd/d/nd/bpun/kernel.bpun
+file /path/to/bpun/kernel.bpun
 
 # Check file permissions
-ls -la /mnd/d/nd/bpun/kernel.bpun
+ls -la /path/to/bpun/kernel.bpun
 
 # Try a known good file
 ./build/bin/nd100x --monitor --nd100-root=./examples
@@ -683,14 +683,14 @@ ls -la /mnd/d/nd/bpun/kernel.bpun
 ```bash
 # Check files in directory from shell filesystem
 @ LIST-FILES
-# Should show path like: Files in /mnd/d/nd/bpun matching '*':
+# Should show path like: Files in /path/to/bpun matching '*':
 
 # Check with correct pattern
 @ LIST-FILES *.bpun
 @ LIST-FILES *
 
 # Verify from command line
-ls /mnd/d/nd/bpun/
+ls /path/to/bpun/
 ```
 
 ### "Unknown command: xyz"
@@ -716,7 +716,7 @@ ls /mnd/d/nd/bpun/
 **Solutions:**
 ```bash
 # Check if readline is available
-grep -i readline /home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.c
+grep -i readline src/frontend/nd100x/nd100x_shell.c
 
 # Rebuild with readline development headers:
 # On Ubuntu: sudo apt-get install libreadline-dev
@@ -844,7 +844,7 @@ The ND-100X Interactive Shell provides:
 ✅ **Easy program loading** — No GUI required  
 ✅ **Batch automation** — Script-based testing  
 ✅ **Full configuration** — CLI + INI file support  
-✅ **Flexible paths** — Any directory supported (including `/mnd/d/nd/bpun`)  
+✅ **Flexible paths** — Any directory supported (including `/path/to/bpun`)  
 ✅ **Production-ready** — Stable API, comprehensive documentation  
 
 **Status:** Ready for production use and testing.  
@@ -854,10 +854,10 @@ The ND-100X Interactive Shell provides:
 
 ## References
 
-- **Quick Start:** `/home/ronny/repos/nd100x/SHELL_EXAMPLES.md`
-- **File Loading:** `/home/ronny/repos/nd100x/docs/ND100X_FILE_LOADING_ARCHITECTURE.md`
-- **Implementation Plan:** `/home/ronny/repos/nd100x/docs/ND100X_SHELL_IMPLEMENTATION_PLAN.md`
-- **Source Code:** `/home/ronny/repos/nd100x/src/frontend/nd100x/nd100x_shell.{c,h}` (470 lines)
+- **Quick Start:** `SHELL_EXAMPLES.md`
+- **File Loading:** `docs/ND100X_FILE_LOADING_ARCHITECTURE.md`
+- **Implementation Plan:** `docs/ND100X_SHELL_IMPLEMENTATION_PLAN.md`
+- **Source Code:** `src/frontend/nd100x/nd100x_shell.{c,h}` (470 lines)
 
 ---
 

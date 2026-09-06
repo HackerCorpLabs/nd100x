@@ -1,10 +1,10 @@
 # ndmonlib Dual-Architecture Seam - Design Plan (PLAN ONLY, no code yet)
 
-Full path: `/home/ronny/repos/nd100x/docs/NDMONLIB_DUAL_ARCH_SEAM_PLAN.md`
+Full path: `docs/NDMONLIB_DUAL_ARCH_SEAM_PLAN.md`
 
 Status: **DESIGN ONLY.** No ndmonlib submodule code is to be written until this
 plan is approved. Author target: shared submodule `ndmonlib`, consumed by both
-`/home/ronny/repos/nd100x` and `/home/ronny/repos/nd500x`.
+`/path/to/nd100x` and `<nd500x>`.
 
 ---
 
@@ -27,7 +27,7 @@ The seam must abstract **three** host operations for ND-100 (per user directive)
 3. **Register update/return** - read and write CPU registers directly.
 
 Constraint: **do not replace** the existing ND-100 `interrupt(14)` MON path in
-`/home/ronny/repos/nd100x/src/cpu/cpu_instr.c` (`ndfunc_mon`). ndmonlib dispatch
+`src/cpu/cpu_instr.c` (`ndfunc_mon`). ndmonlib dispatch
 is a **flag-gated alternative**, auto-enabled in the interactive shell.
 
 ---
@@ -36,7 +36,7 @@ is a **flag-gated alternative**, auto-enabled in the interactive shell.
 
 ### 2.1 The seam today lives in one file
 
-`/home/ronny/repos/nd100x/external/ndmonlib/src/core/mon_params.c`:
+`external/ndmonlib/src/core/mon_params.c`:
 
 - `mon_read_param_word(ctx, idx)` -> `ctx->read_word(ctx->cpu, ctx->arg_addresses[idx])`
 - `mon_read_param_dword` -> reads `addr` and `addr+4` (32-bit low/high) => **byte-addressed, 32-bit**
@@ -49,7 +49,7 @@ return) is concentrated here and in the handlers that call these helpers.
 
 ### 2.2 MonContext already abstracts memory + some registers
 
-`/home/ronny/repos/nd100x/external/ndmonlib/include/ndmon/mon_types.h`
+`external/ndmonlib/include/ndmon/mon_types.h`
 (`struct MonContext`) already carries host callbacks:
 
 - Memory: `read_word/write_word`, `read_halfword/write_halfword`, `read_byte/write_byte`
@@ -66,7 +66,7 @@ access is limited to `I1` (no general A/T/X/D get/set for ND-100).
 
 - ndmonlib is present as a submodule but **not linked into nd100x's CPU**, and
   `ndfunc_mon` does not call `mon_dispatch`.
-- nd500x call-site template: `/home/ronny/repos/nd500x/src/cpu/nd500_indirect.c:235`
+- nd500x call-site template: `<nd500x>/src/cpu/nd500_indirect.c:235`
   (builds a `MonContext`, sets callbacks, calls `mon_dispatch`).
 
 ---
@@ -171,7 +171,7 @@ MonContext gains: `MonArch arch;`, `uint32_t params_in[MON_MAX_ARGS];`,
 
 ### 3.4 nd100x integration (host side, in nd100x - separate from ndmonlib)
 
-New file `/home/ronny/repos/nd100x/src/cpu/nd100_mon_glue.c`:
+New file `src/cpu/nd100_mon_glue.c`:
 - `mon_read_word/halfword/byte` + `write_*` over the ND-100 bus.
 - `get_reg/set_reg` over `gReg->reg[gPIL][_A.._B]`, `set_k_flag` over STS K bit.
 - `nd100_mon_build_context(MonContext* ctx, ushort mon_number)`.
@@ -236,7 +236,7 @@ for IOX paper-tape device emulation - separate track.)
 
 **Chosen test binaries for the MON subset:**
 1. **Purpose-built minimal BPUN** (assemble a ~10-line source in
-   `/home/ronny/repos/nd100x/asm/`): OUTBT a short string (MON 2), INBT one char
+   `asm/`): OUTBT a short string (MON 2), INBT one char
    (MON 1), LEAVE (MON 0). Deterministic, exercises exactly the first subset,
    ideal for the integration test over a pty.
 2. **`DITAP-1880D.BPUN`** as a broader real-world check once the subset works

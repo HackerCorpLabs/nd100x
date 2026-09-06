@@ -70,7 +70,7 @@ For a custom build with different compiler flags or configuration:
 # Example: Build with optimization level 2
 mkdir -p build_riscv_opt
 cd build_riscv_opt
-PATH="$PATH:/home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin" \
+PATH="$PATH:$MILKV_HOST_TOOLS/gcc/riscv64-linux-musl-x86_64/bin" \
 cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_RISCV=ON \
       -DCMAKE_TOOLCHAIN_FILE=../riscv64-toolchain.cmake \
       -DCMAKE_C_FLAGS="-march=rv64gc -mabi=lp64d -O2" ..

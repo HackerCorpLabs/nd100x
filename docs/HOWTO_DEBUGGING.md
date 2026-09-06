@@ -6,7 +6,7 @@ required) and the DAP debugger (source-level, IDE-driven). It also documents the
 performance characteristics so you can pick the right tool for deep, long-running
 hunts.
 
-Full path: `/home/ronny/repos/nd100x/docs/HOWTO_DEBUGGING.md`
+Full path: `docs/HOWTO_DEBUGGING.md`
 
 ---
 

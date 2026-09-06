@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the changes needed to extend the ND-100 Assembly VS Code extension to support mixed-language debugging (C and Assembly). The extension is located at `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode`.
+This document describes the changes needed to extend the ND-100 Assembly VS Code extension to support mixed-language debugging (C and Assembly). The extension is located at `<NDGen>/output/vscode`.
 
 ## Current State (v0.0.3)
 
@@ -17,7 +17,7 @@ The extension currently supports:
 
 ### 1. Update package.json
 
-Location: `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/package.json`
+Location: `<NDGen>/output/vscode/package.json`
 
 #### 1.1 Add C Language Support
 
@@ -211,7 +211,7 @@ Provide easy-to-use snippets for different project types:
 
 ### 2. Update debugger.ts
 
-Location: `/mnt/e/Dev/Repos/Ronny/NDGen/output/vscode/src/debugger.ts`
+Location: `<NDGen>/output/vscode/src/debugger.ts`
 
 #### 2.1 Update File Type Validation in `resolveDebugConfiguration`
 
