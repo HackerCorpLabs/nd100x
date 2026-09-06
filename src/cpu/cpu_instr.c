@@ -1983,7 +1983,7 @@ void ndfunc_setpt(ushort operand)
 	9223  004054  %        177777                 % OLD BUG IN LDBTX
 	9224  004054  %        STD ,B                 % ALWAYS INSIDE PAGE TABLE
 	9225  004054  %        LDXTX 00
-	9226  004054  %        JMP *—7
+	9226  004054  %        JMP *-7
 	*/
 
 	int cnt = 0;
@@ -2179,7 +2179,7 @@ void ndfunc_clnreent(ushort operand)
 	READ ADDRESS A+2 TO FIND PAGE TABLE TO BE AFFECTED
 	READ RT - DESCRIPTION BITMAP WORDS, FOUND FROM ADDRESS X + 25.
 	CLEAR PAGE-TABLE ENTRIES CORRESPONDING TO 1 - BITS IN BITMAP.
-	THE LAST BITMAP—ADDRESS IS IN ADDRESS X + T.
+	THE LAST BITMAP-ADDRESS IS IN ADDRESS X + T.
 	*/
 
 	/*
@@ -2264,7 +2264,7 @@ void ndfunc_clnreent(ushort operand)
 /// T and R1 are loaded with Rp.
 /// R1 (now containing Rp) is tested again for zero.
 /// If the page has been written to, the T register is loaded with the contents of the second scratch register(R2) pointed to by R1,
-/// and R2 becomes the address of Rp. X is loaded with R1 as the new pointer to the re­entrant pages and Rp is loaded into the D register pointed to by A.
+/// and R2 becomes the address of Rp. X is loaded with R1 as the new pointer to the reentrant pages and Rp is loaded into the D register pointed to by A.
 ///
 /// Affected: (?)
 /// </summary>
@@ -2287,8 +2287,8 @@ void ndfunc_chreent_pages(ushort operand)
 		1. READ ADDRESS D.X -> R1 ; D,X -> PREVIOUS (SCRATCH REG)
 		2. IF R1 = 0; SKIP RETURN (FINISHED)
 		3. READ ADDRESS T,R1+2
-		4. IF NOT WIP; T.R1 —> PREVIOUS; READ ADDR T.R1 -> R1; GOTO 2
-		5. READ ADDRESS T,R1  —> R2
+		4. IF NOT WIP; T.R1 -> PREVIOUS; READ ADDR T.R1 -> R1; GOTO 2
+		5. READ ADDRESS T,R1  -> R2
 		6. WRITE R2 -> ADDRESS PREVIOUS
 		7. R1 -> X ; PREVIOUS -> D.A ; RETURN
 	*/
@@ -2379,11 +2379,11 @@ void ndfunc_clepu(ushort operand)
 		AS 'CLEPT" BUT INCLUDING WORKING SET INFORMATION
 		FOR ALL PAGE-TABLE ENTRIES HANDLED
 		IF PGU OF ENTRY IS 1
-			D /ø 300
-			B /ø 776 SHR 1 - D
-			B-REG BITS 0—3 IS NOW BIT NUMBER
+			D /0 300
+			B /0 776 SHR 1 - D
+			B-REG BITS 0-3 IS NOW BIT NUMBER
 			B-REG BITS 4-6 IS NOW WORD NUMBER
-			SET BIT IN 8—WORD TABLE IN PAGE-MAP BANK
+			SET BIT IN 8-WORD TABLE IN PAGE-MAP BANK
 			POINTED TO BY L-REGISTER
 
 		LAYOUT 0F 8-WORD TABLE
@@ -3404,7 +3404,7 @@ void ndfunc_sbyt(ushort operand)
 /// <summary>
 /// MIX3 - Multiply index by 3
 ///
-/// X <- ((A) — 1) *3
+/// X <- ((A) - 1) *3
 ///
 /// Format: MIX3
 ///
@@ -4182,7 +4182,7 @@ void DoIDENT(ushort priolevel)
 /// Code: 140 127
 /// Format: RDUS
 ///
-///  This instruction reads the content of the memory location pointed to by the T—register into the A—register.
+///  This instruction reads the content of the memory location pointed to by the T-register into the A-register.
 ///  The address in the T-register is a logical memory address.Translation to a physical memory address is normally done by using the page tables.
 ///  However, the translation will use the alternative page table when PTM is on (Page Table Modus) (status register bit 0 is 1) and the paging system is on, PON.
 /// </summary>
@@ -4197,11 +4197,11 @@ void DoRDUS(ushort instr)
 /// Code: 140 123
 /// Format: TSET
 ///
-/// This instruction writes -1 into the memory address pointed to by the T—register.
-/// Simultaneously, the old content of the same address is read into the A-register.This read/write sequence is performed with the memory system ’locked',
+/// This instruction writes -1 into the memory address pointed to by the T-register.
+/// Simultaneously, the old content of the same address is read into the A-register.This read/write sequence is performed with the memory system 'locked',
 /// so that the two memory accesses cannot be split by other accesses on other memory channels.
 /// This may be used to implement processor synchronizing.
-/// The address in the T—register is a logical memory address.
+/// The address in the T-register is a logical memory address.
 /// Translation to a physical memory address is normally done by using the page tables.
 /// However, the translation will use the alternative page table when PTM is on (Page Table Modus) (status register bit 0 is 1) and the paging system is on, PON.
 ///
@@ -4783,7 +4783,7 @@ void rdiv_org(ushort instr)
 
 /// <summary>
 /// RDIV - Integer inter-register divide
-/// AD/<sr> —> A<- (Quotient) and D<- (Remainder)
+/// AD/<sr> -> A<- (Quotient) and D<- (Remainder)
 ///
 /// Format: RDIV<sr>
 ///
