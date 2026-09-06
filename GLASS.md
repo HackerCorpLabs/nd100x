@@ -518,6 +518,50 @@ Pop-out windows use `getOpaqueTheme()` which replaces transparent backgrounds wi
 
 Settings are persisted in localStorage key `terminal-settings` via `getTerminalSettings()` and `saveTerminalSettings()` from `terminal-core.ts`.
 
+### The ND-500 console is a VT100, and NDIX must be told which one
+
+The ND-500 window (`nd500-window.js`) does **not** follow the `TERMINAL_BACKEND`
+setting the ND-100 terminals use. It asks `createScaledTerminal()` for xterm
+outright, with `forceXterm: true`. RetroTerm ships one emulator, the TDV2200
+(`lib/retroterm/emulators/` holds `tdv` and nothing else), which is SINTRAN's
+terminal; NDIX drives its console with ANSI/VT100 escapes. So xterm.js is
+loaded on every page load, not only when it is the chosen ND-100 backend.
+
+**In the guest, set `TERM=vt131`.**
+
+NDIX's `/.profile` sets `TERM=vt100`, and the `vt100` entry in the image's own
+`/etc/termcap` is broken: it declares SS3 arrow keys (`ku=\EOA:kd=\EOB:kr=\EOC:kl=\EOD`)
+but its `ks=\E=` is DECKPAM, which switches the numeric **keypad** only.
+Nothing in `ks` or `is=` ever sends DECCKM (`\E[?1h`), so a correct VT100 stays
+in normal cursor mode and sends `\E[A` while vi waits for `\EOA`. The symptom
+is distinctive and misleading: **the screen renders perfectly and the arrow
+keys do nothing**, because `cm`/`cd`/`ce` are plain CSI and work in either
+mode. The commented-out "original" entry directly below it in the same file has
+the correct `ks=\E[?1h\E=:ke=\E[?1l\E>` pair.
+
+`vt131` (`D5|vt131|dt80|...`) is full ANSI VT100 rendering with normal-mode
+arrows -- `ku=\E[A:kd=\E[B:kr=\E[C:kl=\E[D` -- which is exactly what xterm
+sends. No edit to the image is needed:
+
+```sh
+TERM=vt131; export TERM
+```
+
+**If you want the TDV2200 instead, use `TERM=nd320`.**
+
+The termcap has no entry named `tdv` or `tdv2200`. The TDV 2200 is in there as
+`nd246` and `nd320`, whose `ku=^\ kd=^K kl=^H kr=^X kh=^]` match RetroTerm's
+TDV2200 key table five-for-five. Prefer **`nd320`**: `nd246` addresses the
+cursor with `cm=^P%.%.` (DLE), which RetroTerm only honours in TDV2115
+compatibility mode, off by default, while `nd320` uses ANSI `\E[%i%d;%dH`.
+`nd1200` is a different terminal -- its arrows are ANSI `\E[A` -- not the TDV.
+
+| Console backend | `TERM` in NDIX |
+|---|---|
+| xterm.js (what the ND-500 window uses) | `vt131` |
+| RetroTerm TDV2200 | `nd320` |
+| -- | `vt100` is broken; arrows will not work |
+
 ---
 
 ## Debugger
@@ -997,10 +1041,13 @@ Full protocol specification: `docs/GATEWAY-PROTOCOL.md`
 **Location**: `tools/nd100-gateway/`
 
 **Files:**
-- `gateway.js` -- Main server (HTTP + WebSocket + TCP + disk I/O)
+- `gateway.js` -- Main server (HTTP + WebSocket + TCP + disk I/O + ethernet segments)
 - `gateway.conf.json` -- Default configuration
 - `package.json` -- Dependencies (ws library)
+- `README.md` -- Running it, config keys, the tests
 - `test-gateway.js` -- 14 unit tests
+- `test-ethernet.js` -- 13 ethernet segment tests
+- `test-eth-wasm.js` -- 17 ND-500 ethernet export tests (needs a wasm build)
 
 **Configuration** (`gateway.conf.json`):
 
@@ -1126,13 +1173,19 @@ The SMD Disk Manager window shows a "Remote Images (Gateway)" section when the d
 
 ### Testing
 
-Two test suites verify the bridge:
+Four test suites verify the bridge:
 
 | Suite | File | Tests | Command |
 |-------|------|-------|---------|
 | Gateway unit tests | `tools/nd100-gateway/test-gateway.js` | 14 | `make gateway-test` |
+| Ethernet segment | `tools/nd100-gateway/test-ethernet.js` | 13 | `make gateway-test` |
+| ND-500 ethernet exports | `tools/nd100-gateway/test-eth-wasm.js` | 17 | `make gateway-test-wasm` |
 | Browser integration | `test-gateway-browser.js` | 10 | `node test-gateway-browser.js` |
 
 **Gateway unit tests** verify: server start, WebSocket connect/reject (2 allowed, 3rd rejected), TCP banner, terminal registration, menu selection, byte forwarding (both directions), disconnect handling, reconnection, and menu refresh.
+
+**Ethernet segment tests** start their own gateway and join it as ordinary RETH clients over TCP -- no emulator, no browser. They use **three** members, not two: a segment built the way HDLC is (one socket per channel rather than a set per segment) works perfectly with two machines and silently drops the third. They also check that a frame is never echoed back to the member that sent it.
+
+**ND-500 ethernet export tests** load the built emscripten module under node and call the `Nd500_Eth_*` exports directly, checking they exist, are reachable through `Module._name`, and refuse politely before a machine exists instead of faulting. They do not prove frames reach NDIX -- that needs a booted guest.
 
 **Browser integration tests** (Puppeteer) verify the full stack: Worker mode page load, Network config visibility, proxy methods, power-on + remote terminal enablement, gateway registration via TCP menu, terminal selection, TCP-to-WASM input, output path, WebSocket status UI, and disconnect handling.

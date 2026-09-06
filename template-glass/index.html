@@ -24,14 +24,20 @@
   var TERMINAL_BACKEND = localStorage.getItem('nd100x-terminal-backend') || 'retroterm';
   </script>
 
-  <!-- Conditional terminal backend loading -->
+  <!-- Terminal backend loading.
+       xterm.js is loaded ALWAYS, not only when it is the chosen ND-100
+       backend: the ND-500 console is a VT100 and there is no second VT100 in
+       this page. RetroTerm ships one emulator, the TDV2200
+       (lib/retroterm/emulators/ holds "tdv" and nothing else), which is the
+       right terminal for SINTRAN and the wrong one for NDIX - NDIX drives its
+       console with ANSI/VT100 escapes. So xterm serves the ND-500 whatever the
+       ND-100 terminals are set to, and RetroTerm loads beside it when chosen. -->
   <script>
-  if (TERMINAL_BACKEND === 'xterm') {
-    document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">');
-    document.write('<script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"><\/script>');
-    document.write('<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"><\/script>');
-    document.write('<script src="https://cdn.jsdelivr.net/npm/xterm-addon-canvas@0.3.0/lib/xterm-addon-canvas.min.js"><\/script>');
-  } else {
+  document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">');
+  document.write('<script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"><\/script>');
+  document.write('<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"><\/script>');
+  document.write('<script src="https://cdn.jsdelivr.net/npm/xterm-addon-canvas@0.3.0/lib/xterm-addon-canvas.min.js"><\/script>');
+  if (TERMINAL_BACKEND !== 'xterm') {
     document.write('<link rel="stylesheet" href="lib/retroterm/retroterm.css">');
     document.write('<script src="lib/retroterm/retroterm.js"><\/script>');
   }
@@ -853,7 +859,7 @@
 
     <div style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);font-size:12px;">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
-        <label>Kernel <input type="file" id="nd500-kernel-file" style="font-size:11px;width:180px;"></label>
+        <label title="Optional. Leave empty to boot directly from disc.">Kernel (opt) <input type="file" id="nd500-kernel-file" style="font-size:11px;width:180px;"></label>
         <label title="Optional. Both or neither - with an incomplete pair the sizes are derived from the a.out header.">.pseg <input type="file" id="nd500-pseg-file" style="font-size:11px;width:130px;"></label>
         <label>.dseg <input type="file" id="nd500-dseg-file" style="font-size:11px;width:130px;"></label>
       </div>
@@ -882,7 +888,7 @@
     </div>
 
     <!-- Lines prefixed "| " are the emulator's own boot log, not NDIX talking. -->
-    <pre id="nd500-console" tabindex="0" style="flex:1 1 auto;overflow:auto;margin:0;padding:8px;font-family:'Courier Prime','Fira Mono',monospace;font-size:12px;white-space:pre-wrap;word-wrap:break-word;color:var(--text-color,#e0e0e0);outline:none;"></pre>
+    <div id="nd500-console" style="flex:1 1 auto;overflow:hidden;margin:0;padding:4px;min-height:0;"></div>
 
     <div class="smd-image-meta" style="padding:4px 8px;border-top:1px solid rgba(255,255,255,0.12);opacity:.7;">
       This ND-500 runs on its own - it is not wired to the ND-100 in this page.

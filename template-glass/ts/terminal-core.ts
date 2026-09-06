@@ -181,7 +181,11 @@
     var term: Terminal;
     var fitAddon: any;
 
-    if (isRetroTermBackend && typeof RetroTerm !== 'undefined') {
+    // opts.forceXterm: this caller needs a VT100 and will not take the TDV.
+    // RetroTerm ships one emulator (the TDV2200) and the ND-500's NDIX console
+    // speaks ANSI/VT100, so that window asks for xterm outright rather than
+    // following the ND-100's backend setting.
+    if (isRetroTermBackend && !opts.forceXterm && typeof RetroTerm !== 'undefined') {
       // RetroTerm path
       var emulatorType = 'tdv2200';
       try { emulatorType = localStorage.getItem('nd100x-emulator-type') || 'tdv2200'; } catch(e) {}

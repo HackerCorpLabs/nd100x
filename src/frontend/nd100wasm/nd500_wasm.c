@@ -61,6 +61,7 @@
 #include "machine/machine_types.h"
 #include "machine/machine_protos.h"
 #include "machine/nd500_ndix_boot.h"
+#include "frontend/nd500x/ndix_ffs.h"
 #include "cpu/nd500_host.h"
 #include "cpu/nd500_fecall.h"
 #include "cpu/cpu_protos.h"
@@ -197,9 +198,67 @@ static void nd500_log_line(void* ctx, const char* line) {
  * exercised natively - which is the whole point of having lifted it into the
  * library in the first place.
  */
-#define ND500_KERNEL_PATH "/nd500_kernel"
-#define ND500_PSEG_PATH   "/nd500_kernel.pseg"
-#define ND500_DSEG_PATH   "/nd500_kernel.dseg"
+#define ND500_KERNEL_PATH "/vmunix"
+#define ND500_PSEG_PATH   "/vmunix.pseg"
+#define ND500_DSEG_PATH   "/vmunix.dseg"
+
+/* The path INSIDE the NDIX filesystem, which is a different namespace from the
+ * MEMFS paths above even though the kernel happens to be called the same thing
+ * in both. */
+#define ND500_IMAGE_KERNEL "/vmunix"
+
+static int stage_file(const char* path, const uint8_t* data, int len);
+
+/* Pull the kernel out of the mounted root disc.
+ *
+ * This is the browser's copy of what nd500x's frontend does natively
+ * (nd500x_ndix.c extract_kernel(): ndix_ffs_read_file(image, "/vmunix", ...)
+ * then write the bytes to a scratch file and hand nd500_ndix_boot() THAT
+ * path). It has to exist here too, because nd500_ndix_boot() reads its kernel
+ * with fopen()/stat() - it never looks inside a filesystem image itself. Until
+ * now the wasm build mounted the disc as bytes for the guest and then asked
+ * the library to fopen("/vmunix"), a MEMFS file nobody had written, which is
+ * the "cannot read the a.out header of /vmunix" failure.
+ *
+ * The disc is a buffer, not a file, so it is read through an fmemopen()
+ * stream: no second 70 MB copy, and the FFS reader is the same code the
+ * native build runs.
+ *
+ * Returns 0 when /vmunix is staged in MEMFS and ready for the boot. */
+static int extract_kernel_from_disc(int unit) {
+    const char* why = "";
+    long n = 0;
+    uint8_t* data;
+    FILE* img;
+    int rc;
+
+    if (unit < 0 || unit >= ND500_HOST_MAX_DISKS) return -1;
+    if (!g_disks[unit].data || g_disks[unit].size == 0) {
+        fprintf(stderr, "| [WASM] no disc mounted on unit %d to take a kernel from\n", unit);
+        return -1;
+    }
+
+    img = fmemopen(g_disks[unit].data, (size_t)g_disks[unit].size, "rb");
+    if (!img) {
+        fprintf(stderr, "| [WASM] cannot open the mounted disc as a stream\n");
+        return -1;
+    }
+    data = ndix_ffs_read_file_fp(img, ND500_IMAGE_KERNEL, &n, &why);
+    fclose(img);
+
+    if (!data || n <= 0) {
+        fprintf(stderr, "| [WASM] no %s inside the root disc: %s\n",
+                ND500_IMAGE_KERNEL, why && why[0] ? why : "not found");
+        free(data);
+        return -1;
+    }
+
+    rc = stage_file(ND500_KERNEL_PATH, data, (int)n);
+    fprintf(stderr, "| [WASM] extracted %s from the root disc: %ld bytes -> %s (%s)\n",
+            ND500_IMAGE_KERNEL, n, ND500_KERNEL_PATH, rc == 0 ? "staged" : "STAGING FAILED");
+    free(data);
+    return rc;
+}
 
 static int stage_file(const char* path, const uint8_t* data, int len) {
     FILE* f = fopen(path, "wb");
@@ -341,11 +400,31 @@ EMSCRIPTEN_EXPORT int Nd500_Boot(void) {
     memset(&cfg, 0, sizeof cfg);
     cfg.kernel_path = ND500_KERNEL_PATH;
 
+    /* Disc-only boot. No kernel was uploaded, so the one inside the root disc
+     * is the kernel - the same order nd500x uses natively, where the image's
+     * own /vmunix comes FIRST and a separate file is only the fallback. When a
+     * kernel WAS staged, it stays: an explicitly uploaded kernel is a choice,
+     * and it wins over whatever the disc happens to carry. */
+    FILE* fk = fopen(ND500_KERNEL_PATH, "rb");
+    if (fk) {
+        fclose(fk);
+        fprintf(stderr, "| [WASM] using the uploaded kernel at %s\n", ND500_KERNEL_PATH);
+    } else {
+        fprintf(stderr, "| [WASM] no kernel staged - taking %s out of the root disc\n",
+                ND500_IMAGE_KERNEL);
+        if (extract_kernel_from_disc(0) != 0) {
+            fprintf(stderr, "| [WASM] boot aborted: no kernel to run\n");
+            return -1;
+        }
+    }
+
+    fprintf(stderr, "| [WASM] Booting ND-500, kernel path: %s\n", ND500_KERNEL_PATH);
+
     /* Offer the segment files only when both were staged. fopen is the test:
      * MEMFS has no stat cost worth avoiding and this needs no extra header. */
     FILE* fp = fopen(ND500_PSEG_PATH, "rb");
     FILE* fd = fopen(ND500_DSEG_PATH, "rb");
-    if (fp && fd) { cfg.pseg_path = ND500_PSEG_PATH; cfg.dseg_path = ND500_DSEG_PATH; }
+    if (fp && fd) { cfg.pseg_path = ND500_PSEG_PATH; cfg.dseg_path = ND500_DSEG_PATH; fprintf(stderr, "| [WASM] Segment files found\n"); }
     if (fp) fclose(fp);
     if (fd) fclose(fd);
 
@@ -353,7 +432,9 @@ EMSCRIPTEN_EXPORT int Nd500_Boot(void) {
      * two different boot routes need it; here there is only one route. */
     cfg.with_uarea = 1;
 
+    fprintf(stderr, "| [WASM] Calling nd500_ndix_boot()...\n");
     int rc = nd500_ndix_boot(&g_m, &cfg);
+    fprintf(stderr, "| [WASM] nd500_ndix_boot returned: %d\n", rc);
     if (rc != 0) return rc;
 
     /* ARM the machine. The wasm build of nd500_dbg_run() (nd500x

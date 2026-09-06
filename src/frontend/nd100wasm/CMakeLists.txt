@@ -18,7 +18,8 @@ add_custom_command(
 # Create executable
 add_executable(nd100wasm ${SOURCES}
                ${CMAKE_CURRENT_SOURCE_DIR}/nd500_wasm.c
-               ${CMAKE_CURRENT_SOURCE_DIR}/nd100wasm_protos.h)
+               ${CMAKE_CURRENT_SOURCE_DIR}/nd100wasm_protos.h
+               ${ND100X_ND500X_DIR}/src/frontend/nd500x/ndix_ffs.c)
 
 # Include directories
 target_include_directories(nd100wasm PRIVATE
@@ -132,17 +133,10 @@ if(PLATFORM_WASM)
         )
     endif()
     
-    # Copy the index.html from template if it exists
-    if(EXISTS "${CMAKE_SOURCE_DIR}/template/index.html")
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/template/index.html"
-            "${CMAKE_BINARY_DIR}/bin/index.html"
-            COPYONLY
-        )
-        message(STATUS "Using custom index.html template from template/")
-    else()
-        message(FATAL_ERROR "Could not find index.html template in ${CMAKE_SOURCE_DIR}/template/")
-    endif()
+    # Don't copy index.html here - the Makefile handles it:
+    # - wasm target copies template/index.html
+    # - wasm-glass target copies template-glass/index.html
+    # Copying here would overwrite the Makefile's choice.
 endif()
 
 # Install the executable (for non-WASM platforms)

@@ -39,8 +39,6 @@
   var SLICE_DEFAULT = 300000;
   var TICK_MS = 40;
 
-  var MAX_LINES = 1000;   // console scrollback
-
   var win, header, closeBtn, resizeHandle;
   var consoleEl, statusEl, bootBtn, stopBtn, sliceInput;
   var kernelSel, kernelFile, psegFile, dsegFile, diskSel, diskFile, memSel;
@@ -51,7 +49,9 @@
   var pendingKernel = null;    // Uint8Array
   var pendingPseg = null, pendingDseg = null;
   var pendingDisk = null;
-  var lineBuf = '';
+  var term = null;          // xterm.js Terminal for the guest console
+  var resizeTerm = null;    // terminal-core's re-fit for it
+  var pendingOut = '';      // output that arrived before the terminal existed
 
   function el(id) { return document.getElementById(id); }
 
@@ -64,20 +64,67 @@
 
   // ---- console ------------------------------------------------------------
 
-  // Guest output arrives as bytes, not lines. Appending to a text node and
-  // trimming by line is enough for a login prompt and a shell; this is not a
-  // VT100 and does not claim to be - cursor addressing would need the real
-  // terminal core, and that one is bound to the ND-100's device layer.
+  // A real VT100, because NDIX drives this console with one. vi, more, stty and
+  // the login prompt all address the cursor; the plain text node this window
+  // used before turned every escape sequence into visible garbage and could
+  // only ever append. xterm.js is the VT100 - RetroTerm, the other terminal in
+  // this page, ships only the TDV2200 (lib/retroterm/emulators/ has "tdv" and
+  // nothing else), which is SINTRAN's terminal, not NDIX's. So this window
+  // asks terminal-core for xterm outright with forceXterm and does not follow
+  // the ND-100's backend setting.
+  //
+  // Created on the first write or the first open, never at init: xterm needs a
+  // laid-out container to measure a cell, and this window starts hidden.
+  function ensureTerm() {
+    if (term || !consoleEl) return term;
+    if (typeof window.createScaledTerminal !== 'function' || typeof Terminal === 'undefined')
+      return null;
+    var inst = window.createScaledTerminal(consoleEl, {
+      forceXterm: true,
+      fontFamily: "'Courier Prime','Fira Mono',monospace",
+      colorTheme: 'green',
+      observeResize: consoleEl
+    });
+    term = inst.term;
+    resizeTerm = inst.resizeTerminal;
+    // Typing goes straight to guest tty unit 0. onData is the byte stream the
+    // terminal itself produces, so control keys, arrows and the escape
+    // sequences a VT100 sends arrive already encoded - which the hand-rolled
+    // keydown handler this replaces could not do.
+    term.onData(function (data) {
+      if (!booted || !window.emu || !emu.nd500) return;
+      emu.nd500.sendInput(0, data);
+    });
+    if (pendingOut) { term.write(pendingOut); pendingOut = ''; }
+    return term;
+  }
+
+  // Guest output is a byte stream and goes to the terminal untouched - the
+  // escape sequences in it are the point. Output that arrives before the
+  // terminal exists is held, not dropped, so the boot log is never lost.
   function write(text) {
-    if (!consoleEl) return;
-    lineBuf += text;
-    var lines = lineBuf.split('\n');
-    if (lines.length > MAX_LINES) {
-      lines = lines.slice(lines.length - MAX_LINES);
-      lineBuf = lines.join('\n');
+    var t = ensureTerm();
+    if (t) { t.write(text); return; }
+
+    pendingOut += text;
+    // Held output is only held while a terminal is still possible. If xterm
+    // never loaded - a blocked CDN is the realistic case - the window would
+    // otherwise go permanently blank, which is worse than losing the escape
+    // sequences. Fall back to plain text so a boot failure is still readable.
+    if (typeof Terminal === 'undefined' && document.readyState === 'complete' && consoleEl) {
+      consoleEl.style.whiteSpace = 'pre-wrap';
+      consoleEl.style.overflow = 'auto';
+      consoleEl.style.font = "12px 'Courier Prime','Fira Mono',monospace";
+      consoleEl.textContent = pendingOut.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+      consoleEl.scrollTop = consoleEl.scrollHeight;
     }
-    consoleEl.textContent = lineBuf;
-    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  // The emulator's own log lines end in a bare LF. A terminal in the state
+  // NDIX leaves it in does not do an implicit carriage return, so without this
+  // every "| " line would start where the last one ended.
+  function writeLog(text) {
+    write(text.replace(/\r?\n/g, '\r\n'));
   }
 
   function drain() {
@@ -88,7 +135,7 @@
       // Unit 255 is the emulator's own boot log, not the guest talking. It is
       // shown, because when a boot dies the last line printed is how you know
       // which step it died in - but marked, so it is never mistaken for NDIX.
-      if (c.unit === 255) write(c.text.replace(/^/gm, '| '));
+      if (c.unit === 255) writeLog(c.text.replace(/^/gm, '| '));
       else write(c.text);
     }
   }
@@ -174,10 +221,6 @@
     try {
       setStatus('reading files...');
       pendingKernel = await readFile(kernelFile);
-      if (!pendingKernel) {
-        setStatus('Choose a kernel first (an NDIX vmunix a.out).', 'err');
-        return;
-      }
       pendingPseg = await readFile(psegFile);
       pendingDseg = await readFile(dsegFile);
 
@@ -187,6 +230,11 @@
         pendingDisk = await smdStorage.retrieveImage(diskSel.value);
       }
 
+      if (!pendingKernel && !pendingDisk) {
+        setStatus('Choose a kernel or a root disc (or both).', 'err');
+        return;
+      }
+
       setStatus('creating the machine...');
       var mb = parseInt(memSel && memSel.value, 10) || 16;
       if (emu.nd500.create(mb * 1024 * 1024) !== 0) {
@@ -194,22 +242,27 @@
         return;
       }
 
-      if (emu.nd500.loadKernel(pendingKernel) !== 0) {
-        setStatus('could not stage the kernel', 'err');
-        return;
+      if (pendingKernel) {
+        if (emu.nd500.loadKernel(pendingKernel) !== 0) {
+          setStatus('could not stage the kernel', 'err');
+          return;
+        }
+        // BOTH or NEITHER. With an incomplete pair the library derives the sizes
+        // from the a.out header instead, which is what a kernel taken out of a
+        // disc image has to do anyway.
+        if (pendingPseg && pendingDseg) emu.nd500.loadSegments(pendingPseg, pendingDseg);
+        writeLog('| kernel: ' + pendingKernel.length + ' bytes\n');
+      } else {
+        writeLog('| no kernel provided - will attempt to boot from disc\n');
       }
-      // BOTH or NEITHER. With an incomplete pair the library derives the sizes
-      // from the a.out header instead, which is what a kernel taken out of a
-      // disc image has to do anyway.
-      if (pendingPseg && pendingDseg) emu.nd500.loadSegments(pendingPseg, pendingDseg);
 
       if (pendingDisk) {
         var wr = !!(writableBox && writableBox.checked);
         emu.nd500.mountDisk(0, pendingDisk, wr);
-        write('| root disc: ' + pendingDisk.length + ' bytes, ' +
+        writeLog('| root disc: ' + pendingDisk.length + ' bytes, ' +
               (wr ? 'WRITABLE' : 'read-only') + '\n');
       } else {
-        write('| no root disc - the kernel will boot and then have nothing to mount\n');
+        writeLog('| no root disc\n');
       }
 
       setStatus('booting...');
@@ -225,27 +278,6 @@
     } catch (e) {
       setStatus('error: ' + (e && e.message ? e.message : e), 'err');
     }
-  }
-
-  // ---- keyboard -----------------------------------------------------------
-
-  // Typing goes to guest tty unit 0 (the console). Only when the window has
-  // focus, or every keystroke meant for the ND-100 terminal would be copied
-  // here as well.
-  function onKey(e) {
-    if (!booted || !window.emu || !emu.nd500) return;
-    var text = null;
-    if (e.key === 'Enter') text = '\r';
-    else if (e.key === 'Backspace') text = '\b';
-    else if (e.key === 'Tab') text = '\t';
-    else if (e.key === 'Escape') text = '\x1b';
-    else if (e.key.length === 1) {
-      text = e.ctrlKey ? String.fromCharCode(e.key.toUpperCase().charCodeAt(0) & 0x1F)
-                       : e.key;
-    }
-    if (text === null) return;
-    e.preventDefault();
-    emu.nd500.sendInput(0, text);
   }
 
   // ---- wiring -------------------------------------------------------------
@@ -282,6 +314,8 @@
     var menu = el('menu-nd500');
     if (menu) menu.addEventListener('click', function () {
       if (typeof openWindow === 'function') openWindow('nd500-window');
+      // Only now does the container have a size to measure.
+      setTimeout(function () { ensureTerm(); if (resizeTerm) resizeTerm(); }, 0);
       refreshLibrary();
       report();
       // After refreshLibrary, so the <select> already holds the options that
@@ -295,10 +329,13 @@
       else if (booted) { start(); stopBtn.textContent = 'Pause'; setStatus('running', 'ok'); }
     });
 
+    // The terminal takes its own keyboard through term.onData; clicking the
+    // window just puts the focus where xterm expects it.
     if (consoleEl) {
-      consoleEl.setAttribute('tabindex', '0');
-      consoleEl.addEventListener('keydown', onKey);
-      consoleEl.addEventListener('click', function () { consoleEl.focus(); });
+      consoleEl.addEventListener('click', function () {
+        var t = ensureTerm();
+        if (t) t.focus();
+      });
     }
   }
 
@@ -320,29 +357,29 @@
         try { d = JSON.parse(json); } catch (e) { return; }
         var n = d && d.nd500;
         if (!n || !n.enabled) {
-          write('| the selected machine "' + machineProfiles.activeName() +
+          writeLog('| the selected machine "' + machineProfiles.activeName() +
                 '" has no [nd500] section - nothing pre-filled\n');
           return;
         }
-        write('| from the machine configuration "' + machineProfiles.activeName() + '":\n');
+        writeLog('| from the machine configuration "' + machineProfiles.activeName() + '":\n');
         if (n.memoryMb && memSel) {
           // Only offered sizes. A config asking for something not in the list
           // is worth saying out loud rather than silently rounding.
           var found = false;
           for (var i = 0; i < memSel.options.length; i++)
             if (parseInt(memSel.options[i].value, 10) === n.memoryMb) { found = true; break; }
-          if (found) { memSel.value = String(n.memoryMb); write('|   memory ' + n.memoryMb + ' MB\n'); }
-          else write('|   memory ' + n.memoryMb + ' MB is not one of the sizes here - left alone\n');
+          if (found) { memSel.value = String(n.memoryMb); writeLog('|   memory ' + n.memoryMb + ' MB\n'); }
+          else writeLog('|   memory ' + n.memoryMb + ' MB is not one of the sizes here - left alone\n');
         }
         if (n.kernel)
-          write('|   kernel "' + n.kernel + '" - choose the file yourself; ' +
+          writeLog('|   kernel "' + n.kernel + '" - choose the file yourself; ' +
                 'the page cannot open a path\n');
 
         var root = (n.disks && n.disks.length) ? n.disks[0] : null;
         if (root) {
           if (writableBox) writableBox.checked = !!root.writable;
           var matched = selectLibraryByName(root.image);
-          write('|   root disc "' + root.image + '" (' +
+          writeLog('|   root disc "' + root.image + '" (' +
                 (root.writable ? 'writable' : 'read-only') + ')' +
                 (matched ? ' - found in the library\n'
                          : ' - NOT in the local library; download it or pick a file\n'));
