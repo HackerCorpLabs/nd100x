@@ -28,8 +28,15 @@ function checkEq(what, expect, got) {
   else { failed++; console.log('  [FAIL] ' + what + ': expected ' + expect + ', got ' + got); }
 }
 
-const modPath = process.argv[2] ||
-  path.resolve(__dirname, '../../build_wasm/bin/nd100wasm.js');
+// path.resolve, not the argument as given: further down this chdir()s to the
+// module's directory (the emscripten glue locates its .wasm relative to the
+// working directory), and a RELATIVE path stops resolving the instant that
+// happens - the readFileSync below would fail with ENOENT on a file that is
+// plainly there. Making it absolute here is what lets the documented
+// "node test-eth-wasm.js path/to/nd100wasm.js" work from any directory.
+const modPath = process.argv[2]
+  ? path.resolve(process.cwd(), process.argv[2])
+  : path.resolve(__dirname, '../../build_wasm/bin/nd100wasm.js');
 
 if (!fs.existsSync(modPath)) {
   console.log('no wasm module at ' + modPath);

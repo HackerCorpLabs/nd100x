@@ -99,8 +99,12 @@ endif
 	@echo "All core dependencies found."
 
 # RISC-V toolchain location. Override via env: MILKV_HOST_TOOLS=/path make riscv
-# Falls back to the legacy hardcoded path for existing local checkouts.
-MILKV_HOST_TOOLS ?= /home/ronny/milkv/host-tools
+#
+# The default is derived from $(HOME) rather than written out: a checked-in
+# absolute path only works on the machine it was written on, and this one named
+# a specific developer's home directory. check-riscv-deps below says what to set
+# when the toolchain is somewhere else.
+MILKV_HOST_TOOLS ?= $(HOME)/milkv/host-tools
 MILKV_RISCV_BIN  := $(MILKV_HOST_TOOLS)/gcc/riscv64-linux-musl-x86_64/bin
 
 # RISC-V build type — Debug for local dev (matches old behaviour), CI exports
@@ -169,7 +173,7 @@ ts-compile:
 		echo "TypeScript not available, using pre-compiled JS files."; \
 	fi
 
-.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test wasm-glass-gateway test submodules boot-smd boot-wd boot-floppy
+.PHONY: debug release sanitize wasm wasm-run wasm-glass wasm-glass-run riscv clean install run help gateway-install gateway gateway-run gateway-test gateway-test-wasm wasm-glass-gateway test submodules boot-smd boot-wd boot-floppy
 
 debug: check-deps mkptypes $(CURL_PREREQ)
 	@echo "Building debug version..."
@@ -387,9 +391,29 @@ gateway: gateway-install
 
 gateway-run: gateway
 
+# Both suites here are self-contained: each starts its own gateway on ports
+# nothing else uses (test-ethernet.js takes 13094/18765 rather than the default
+# 3094/8765 precisely so a real gateway can keep running alongside it), so
+# neither needs a build, a browser or a disk image.
 gateway-test: gateway-install
 	@echo "Running gateway tests..."
 	$(NODE) tools/nd100-gateway/test-gateway.js
+	$(NODE) tools/nd100-gateway/test-ethernet.js
+
+# Separate target because this one is the exception: it loads a BUILT wasm
+# module under node, so it cannot run until `make wasm-glass` (or `make wasm`)
+# has produced one. Kept out of gateway-test so that target stays runnable on a
+# clean checkout.
+gateway-test-wasm: gateway-install
+	@echo "Running ND-500 ethernet export tests against the wasm build..."
+	@if [ -f $(BUILD_DIR_WASM_GLASS)/bin/nd100wasm.js ]; then \
+		$(NODE) tools/nd100-gateway/test-eth-wasm.js $(BUILD_DIR_WASM_GLASS)/bin/nd100wasm.js; \
+	elif [ -f $(BUILD_DIR_WASM)/bin/nd100wasm.js ]; then \
+		$(NODE) tools/nd100-gateway/test-eth-wasm.js $(BUILD_DIR_WASM)/bin/nd100wasm.js; \
+	else \
+		echo "No wasm module built yet - run 'make wasm-glass' first."; \
+		exit 1; \
+	fi
 
 wasm-glass-gateway: wasm-glass gateway-install
 	@echo "Starting glassmorphism WASM build + Gateway (unified server)..."
@@ -412,13 +436,15 @@ help:
 	@echo "  wasm-glass    - Build WebAssembly version (glassmorphism UI)"
 	@echo "  wasm-glass-run - Build and serve glassmorphism WASM version"
 	@echo "  riscv         - Build RISC-V Linux version with DAP support"
-	@echo "                  (Requires compiler at /home/ronny/milkv/host-tools/gcc/riscv64-linux-musl-x86_64/bin)"
+	@echo "                  (Requires the Milk-V host-tools; set MILKV_HOST_TOOLS to its"
+	@echo "                   root if it is not at \$$HOME/milkv/host-tools)"
 	@echo "  dap-tools     - Build with DAP tools (dap_debugger and dap_mock_server)"
 	@echo "                  (Requires libdap)"
 	@echo "  gateway-install - Install gateway server dependencies (npm)"
 	@echo "  gateway       - Start the terminal gateway server"
 	@echo "  gateway-run   - Start the terminal gateway server (alias)"
-	@echo "  gateway-test  - Run gateway unit tests (14 tests)"
+	@echo "  gateway-test  - Run gateway unit + ethernet segment tests (27 tests)"
+	@echo "  gateway-test-wasm - Run ND-500 ethernet export tests (17, needs a wasm build)"
 	@echo "  wasm-glass-gateway - Build glass UI + start gateway (unified server)"
 	@echo "  test          - Build and run unit tests (ctest)"
 	@echo "  submodules    - Init and update all git submodules (recursive)"

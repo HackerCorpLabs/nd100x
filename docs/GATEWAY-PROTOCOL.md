@@ -11,6 +11,7 @@ The gateway server (`gateway.js`) is a Node.js bridge providing:
 1. **Terminal I/O** -- TCP terminal clients (PuTTY/telnet) bridged to emulated terminal devices
 2. **Disk block I/O** -- SMD and floppy disk images served from the host filesystem
 3. **HDLC frame bridging** -- TCP endpoints bridged to emulated HDLC controllers
+4. **Ethernet segments** -- a multipoint wire that a browser machine, a native `nd500x` and the host itself can all be on
 
 All traffic flows over a **single WebSocket server** on one port. The emulator's main Worker and disk I/O sub-worker each open a WebSocket connection. Message types are distinguished by frame type byte.
 
@@ -20,7 +21,8 @@ Browser                                     Gateway Server (Node.js)
 | Main Worker (emu-worker.js)       |       |                           |
 |   WebSocket -------- terminal I/O ------> | TCP :5001 <-> PuTTY/telnet|
 |                +----- HDLC frames ------> | TCP :5010 <-> HDLC client |
-|                +----- control JSON -----> |                           |
+|                +----- ETH frames -------> | TCP :3094 <-> RETH members|
+|                +----- control JSON -----> |         (nd500x, reth-tap)|
 |                                   |       |                           |
 | Disk Sub-Worker (disk-io-worker)  |       |                           |
 |   WebSocket -------- block R/W ---------> | fs.readSync/writeSync     |
@@ -85,8 +87,15 @@ Disk image entries support two formats: a simple string path (`"../../SMD1.IMG"`
 | `terminals.port` | 5001 | TCP listen port for remote terminal clients |
 | `terminals.welcome` | `"ND-100/CX Terminal Server"` | Banner text shown to TCP clients |
 | `hdlc[]` | -- | HDLC controller TCP port definitions |
+| `hdlc[].name` | -- | Label used in log lines only |
 | `hdlc[].channel` | -- | HDLC channel number (0-based) |
+| `hdlc[].port` | -- | TCP listen port for this channel |
 | `hdlc[].enabled` | `false` | Enable this HDLC TCP server |
+| `ethernet[]` | -- | Ethernet segment definitions |
+| `ethernet[].name` | -- | Label used in log lines only |
+| `ethernet[].segment` | `0` | Segment number, as used in frame types `0x30`-`0x32` |
+| `ethernet[].port` | -- | TCP listen port for RETH members (3094 by convention) |
+| `ethernet[].enabled` | `false` | Enable this ethernet segment server |
 | `smd.images` | `[]` | Array of SMD disk image entries (index = unit number). Each entry is either a string path or an object `{ path, name, description }`. |
 | `floppy.images` | `[]` | Array of floppy disk image entries (index = unit number). Same format as `smd.images`. |
 | `scsi.images` | `[]` | Array of SCSI (ND-3201/3204) disk image entries (index = SCSI ID 0-6). Same format as `smd.images`. |
@@ -109,9 +118,35 @@ When `--static` is used, the gateway serves the WASM build directory with COOP/C
 
 ```bash
 make gateway              # Start gateway with default config
-make gateway-test         # Run 14 unit tests
+make gateway-test         # Run the unit + ethernet segment tests (27 checks)
+make gateway-test-wasm    # ND-500 ethernet exports (17 checks, needs a wasm build)
 make wasm-glass-gateway   # Build Glass UI + start unified gateway server
 ```
+
+### Tests
+
+| Script | Checks | Run with | Needs |
+|--------|--------|----------|-------|
+| `test-gateway.js` | 14 | `make gateway-test` | node only |
+| `test-ethernet.js` | 13 | `make gateway-test` | node only |
+| `test-eth-wasm.js` | 17 | `make gateway-test-wasm` | a built wasm module |
+
+`test-gateway.js` and `test-ethernet.js` each start their own `gateway.js` as a
+child process and talk to it over TCP -- no emulator, no browser, no disk
+image. `test-ethernet.js` uses ports 13094 and 18765 rather than the defaults
+3094 and 8765 on purpose, so a real gateway can keep running while it does.
+
+`test-ethernet.js` joins the segment with **three** members, not two. A segment
+built the way HDLC is -- one socket per channel instead of a set per segment --
+works perfectly with two machines and silently drops the third, and two is the
+first thing anyone tests by hand.
+
+`test-eth-wasm.js` is the exception: it loads the built emscripten module under
+node and calls the `Nd500_Eth_*` exports directly, checking they exist, are
+reachable through `Module._name`, and refuse politely before a machine has been
+created rather than faulting. It takes an optional path to `nd100wasm.js`;
+without one it looks in `build_wasm/bin/`. It does **not** prove frames reach
+NDIX -- that needs a booted guest and belongs in an end-to-end run.
 
 The `wasm-glass-gateway` target builds the WASM Glass UI and starts the gateway serving both static files and WebSocket on port 8765. Open `http://localhost:8765/?worker=1` in the browser.
 
@@ -289,6 +324,37 @@ adapter at all:
 ```sh
 ND500X_ETH_UPLINK=tcp:127.0.0.1:3094 ./build/bin/nd500x --ndix rootfs_net.img -N
 ```
+
+### Putting the HOST itself on the segment
+
+Everything above joins one emulated machine to another. To reach the segment
+from the host's own network stack -- `ping`, `telnet`, `ftp` to the guest --
+use **`tools/reth-tap`**, which is a TAP device on one side and an ordinary
+RETH member on the other:
+
+```sh
+sudo <nd500x>/tools/ndix-tap.sh up      # once, needs root: creates nd0
+cd tools/reth-tap && make
+./reth-tap --dev nd0 --host 127.0.0.1 --port 3094
+```
+
+The gateway needs no configuration for this and no code in it knows the bridge
+exists -- it is just another RETH member, indistinguishable from a native
+`nd500x`. Frames are repeated to every other member, so the host, a browser
+NDIX and a native NDIX all land on one wire.
+
+Why it is a separate program rather than a leg of `gateway.js`: Node has no
+binding for `/dev/net/tun`, so a TAP inside the gateway would mean a native
+addon and a compiler in a tool that currently needs neither.
+
+The bridge does **not** create the TAP device, address it, or bring it up --
+those are root operations that change host networking. It refuses a device name
+that is not already an interface, because `TUNSETIFF` will otherwise create a
+transient one with no address and no route: the bridge would then report frames
+moving while the host was not actually on the wire.
+
+See `tools/reth-tap/README.md` for the guest-side `ifconfig` (note that
+`-trailers` is not optional) and for what the two test suites cover.
 
 ### Config
 
