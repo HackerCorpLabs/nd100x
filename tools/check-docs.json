@@ -1,56 +1,52 @@
 {
   "_readme": [
-    "Waivers for check-docs.py, which reads this file from its own directory.",
+    "Waivers for tools/check-docs.py, which reads this file from its own directory.",
     "",
-    "A section that genuinely does not apply to a repository should be ABSENT, not filled",
-    "with a placeholder - that is the first rule in standards/README-TEMPLATE.md. This file",
-    "is how you tell the checker so. Every waiver needs a reason: the reason is the point of",
-    "the file, because a waiver without one is indistinguishable from giving up.",
+    "A section that genuinely does not apply should be ABSENT, not filled with a",
+    "placeholder - that is the first rule in the README template. This file is how you",
+    "tell the checker so. Every waiver needs a reason: a waiver without one cannot be",
+    "told apart from giving up.",
     "",
-    "app_folders  where to look for applications. Each immediate subdirectory holding a",
-    "             project that declares <OutputType>Exe</OutputType> or WinExe counts as one",
-    "             application, and the APPS-TABLE check wants each of them named in the",
-    "             repository README. A class library does not count. A repository with no",
-    "             executable projects yields none, so this is harmless in a C repository and",
-    "             in a library repository whose src/ holds packages rather than programs.",
-    "",
-    "waivers      a list. Each entry has:",
-    "               files   paths relative to the repository root. A bare name such as",
-    "                       \"README.md\" also matches any path ending in it, so",
-    "                       \"Desktop/README.md\" waives one application's README.",
-    "               checks  the check codes to waive for those files.",
-    "               reason  why. Required. Write it for the next person.",
+    "files   paths relative to the repository root. A bare name such as README.md also",
+    "        matches any path ending in it; a folder with a trailing slash, such as",
+    "        docs/, matches everything under it.",
+    "checks  the check codes to waive for those files.",
+    "reason  why. Required.",
     "",
     "Check codes: LINK ESCAPES ABSPATH MERMAID ALT-TEXT EMOJI-HEADING HAND-TOC",
     "             NEW-HEADING H1 BADGES NAVBAR INSTALL-ORDER LICENCE-LAST ABOUT STATUS",
     "             APPS-TABLE",
     "",
-    "The group-2 codes - H1 BADGES NAVBAR INSTALL-ORDER LICENCE-LAST ABOUT STATUS",
-    "APPS-TABLE - are only ever applied to the repository's own README.md. A per-application",
-    "README follows the shortened spine and has no badge row or nav bar of its own.",
-    "",
-    "The waivers below are this repository's own, and double as a worked example."
+    "STATE OF THIS REPOSITORY, 2026-09-11: README.md passes every check. The waivers",
+    "below cover the engineering notes, which were written before the standard existed",
+    "and have not been brought onto it. They are DEFERRED, not approved - each entry",
+    "says so. ABSPATH is deliberately not waived anywhere: every absolute path in this",
+    "repository's own files was fixed rather than waived, because those leak the layout",
+    "of a private machine into a public repository."
   ],
 
-  "app_folders": ["src"],
+  "app_folders": [],
 
   "waivers": [
     {
-      "files": [
-        "templates/README.library.md",
-        "templates/README.app.md",
-        "templates/README.multi-app.md",
-        "templates/CONTRIBUTING.library.md",
-        "templates/CONTRIBUTING.app.md",
-        "templates/SECURITY.md"
-      ],
-      "checks": ["LINK", "H1", "BADGES", "NAVBAR", "LICENCE-LAST", "ABOUT", "STATUS"],
-      "reason": "These are skeletons, not documents. Their links point at placeholders such as src/<APP>/README.md that cannot resolve until somebody fills them in - which is the point of a skeleton."
+      "files": ["docs/", "GLASS.md", "dap-analysis.md", "CONTRIBUTING.md"],
+      "checks": ["EMOJI-HEADING", "HAND-TOC", "NEW-HEADING"],
+      "reason": "Engineering notes and handoffs written before the standard. 767 emoji headings in docs/ alone; some of the emoji in those files carry status meaning inside tables and cannot be stripped blind. Deferred - a separate pass, file by file. Not approved as-is."
     },
     {
-      "files": ["standards/README-TEMPLATE.md", "AGENTS.md"],
+      "files": ["docs/", "src/", "GLASS.md", "dap-analysis.md"],
+      "checks": ["MERMAID"],
+      "reason": "95 diagrams written before the shared palette existed: pastel fills, style lines without stroke or color, forced themes. Re-colouring them is mechanical but each needs its diagram read to keep the meaning. Deferred. Not approved as-is."
+    },
+    {
+      "files": ["MERMAID_COLOR_STANDARDS.md"],
+      "checks": ["MERMAID"],
+      "reason": "This repository's palette document is an OLDER, DIFFERENT document from the one shared by repo-standards, NDInsight and x25emu - it has a White row and forces theme base, which the shared standard bans outright. Reconciling the two is a decision, not a fix; until then this waiver marks the divergence rather than hiding it."
+    },
+    {
+      "files": ["docs/cpu_documentation.md"],
       "checks": ["LINK"],
-      "reason": "Both quote example markdown, including links into repositories that are not this one. The quoted links are illustrations of the rule, not navigation."
+      "reason": "Generated by nd100-markdown from the nd100-definitions YAML. Line 386 links to addressing_modes.md, a page the generator does not emit, so the fix belongs in the generator's template, not in this file - editing it here would be overwritten on the next run."
     }
   ]
 }

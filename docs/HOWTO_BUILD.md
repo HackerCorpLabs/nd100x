@@ -61,7 +61,7 @@ build.bat --wasm
 build.bat --build-dir my_build
 
 # Specify custom installation prefix
-build.bat --install-prefix "C:\Program Files\ND100X"
+build.bat --install-prefix "%ProgramFiles%\ND100X"
 ```
 
 #### Manual CMake Build
@@ -266,7 +266,7 @@ build.bat --release
 build.bat --build-dir my_build
 
 # Specify custom installation prefix
-build.bat --install-prefix "C:\Program Files\ND100X"
+build.bat --install-prefix "%ProgramFiles%\ND100X"
 
 # Build with DAP test tools
 build.bat --with-dap-tools

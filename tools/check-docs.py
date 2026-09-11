@@ -146,8 +146,15 @@ def load_config(script_dir, report):
 def waived(config, rel, code):
     """Is this check waived for this file?
 
-    `files` entries are matched as a plain path or as a suffix, so "README.md" waives the
-    root README and "Desktop/README.md" waives one particular application's.
+    `files` entries are matched three ways:
+      - a plain path:              "docs/GLASS.md"
+      - a suffix:                  "README.md" waives the root README, and
+                                   "Desktop/README.md" one particular application's
+      - a folder, trailing slash:  "docs/" waives everything under docs/
+
+    The folder form exists because nd100x has 118 markdown files and 767 emoji-heading
+    findings in docs/ alone; a waiver that had to list each file would never be written,
+    and a waiver that is never written is a check that gets ignored.
     """
     rel = rel.replace(os.sep, "/")
     for w in config["waivers"]:
@@ -155,7 +162,10 @@ def waived(config, rel, code):
             continue
         for f in w.get("files", []):
             f = f.replace(os.sep, "/")
-            if rel == f or rel.endswith("/" + f):
+            if f.endswith("/"):
+                if rel.startswith(f):
+                    return True
+            elif rel == f or rel.endswith("/" + f):
                 return True
     return False
 
@@ -169,8 +179,28 @@ def add(report, config, rel, code, message):
 
 # ---------------------------------------------------------------- file gathering
 
+def submodule_paths(root):
+    """The `path =` entries of .gitmodules, as repo-relative paths with a trailing slash.
+
+    A file inside a submodule belongs to ANOTHER repository. Reporting it here would invite
+    somebody to edit it here, which commits the change to the wrong place - or to nowhere,
+    since a submodule's working tree is not this repository's history. nd100x carries six
+    submodules and nine of its absolute-path findings were in two of them.
+    """
+    out = []
+    path = os.path.join(root, ".gitmodules")
+    if not os.path.exists(path):
+        return out
+    for line in io.open(path, encoding="utf-8", errors="replace"):
+        m = re.match(r"^\s*path\s*=\s*(.+?)\s*$", line)
+        if m:
+            out.append("/" + m.group(1).strip().replace("\\", "/").strip("/") + "/")
+    return out
+
+
 def markdown_files(root):
     out = []
+    skip_dirs = tuple(SKIP) + tuple(submodule_paths(root))
     for base, dirs, files in os.walk(root):
         for name in files:
             if not name.endswith(".md"):
@@ -179,7 +209,12 @@ def markdown_files(root):
                 continue
             path = os.path.join(base, name)
             rel = "/" + os.path.relpath(path, root).replace(os.sep, "/")
+            # SKIP entries match anywhere in the path; submodule entries are anchored
+            # at the repository root, because "/external/libdap/" should not also skip a
+            # docs folder that happens to contain that string.
             if any(s in rel for s in SKIP):
+                continue
+            if any(rel.startswith(s) for s in skip_dirs if s not in SKIP):
                 continue
             out.append(path)
     return sorted(out)

@@ -503,7 +503,7 @@ dap_debugger -f a.out -s main.c -g instruction -e
 (dap) next 1 statement     # Step one statement
 
 # With working directory
-dap_debugger -f a.out -s ../src/main.c -w /home/user/project
+dap_debugger -f a.out -s ../src/main.c -w ~/project
 
 # With program arguments
 dap_debugger -f test.out -s test.c -a "arg1,arg2,arg3"
