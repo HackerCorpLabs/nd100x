@@ -1,8 +1,8 @@
 # nd100x
 
-[![Build & Release](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml/badge.svg)](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml)
-[![RISC-V (Milk-V Duo)](https://img.shields.io/github/actions/workflow/status/HackerCorpLabs/nd100x/build-release.yml?branch=main&label=RISC-V%20%28Milk-V%20Duo%29&logo=riscv)](https://github.com/HackerCorpLabs/nd100x/actions/workflows/build-release.yml)
-[![Latest Release](https://img.shields.io/github/v/release/HackerCorpLabs/nd100x?include_prereleases&sort=semver)](https://github.com/HackerCorpLabs/nd100x/releases/latest)
+[![Build & Release](https://github.com/RetroCoreLabs/nd100x/actions/workflows/build-release.yml/badge.svg)](https://github.com/RetroCoreLabs/nd100x/actions/workflows/build-release.yml)
+[![RISC-V (Milk-V Duo)](https://img.shields.io/github/actions/workflow/status/RetroCoreLabs/nd100x/build-release.yml?branch=main&label=RISC-V%20%28Milk-V%20Duo%29&logo=riscv)](https://github.com/RetroCoreLabs/nd100x/actions/workflows/build-release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/RetroCoreLabs/nd100x?include_prereleases&sort=semver)](https://github.com/RetroCoreLabs/nd100x/releases/latest)
 ![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20RISC--V%20%7C%20WebAssembly-blue)
 
 ND-100/CX minicomputer emulator written in C. Full CPU emulation with MMS1/MMS2 memory management, SMD, Winchester, SCSI and floppy disk controllers, HDLC networking, DAP debugger, telnet server, and a glassmorphism browser UI via WebAssembly.
@@ -21,7 +21,7 @@ Run the emulator directly at **<https://nd100x.hackercorp.no/>** — no download
 
 ```bash
 sudo apt install -y build-essential cmake git libcurl4-openssl-dev libncurses-dev
-git clone https://github.com/HackerCorpLabs/nd100x.git
+git clone https://github.com/RetroCoreLabs/nd100x.git
 cd nd100x && git submodule update --init --recursive
 make release
 build_release/bin/nd100x --boot=smd
@@ -171,7 +171,7 @@ pkg install curl ncurses
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/HackerCorpLabs/nd100x.git
+git clone https://github.com/RetroCoreLabs/nd100x.git
 cd nd100x
 
 git submodule update --init --recursive
